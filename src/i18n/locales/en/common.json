@@ -1,0 +1,143 @@
+{
+  "navigation": {
+    "home": "Home",
+    "about": "About",
+    "contact": "Contact",
+    "signIn": "Sign In",
+    "signUp": "Sign Up",
+    "signOut": "Sign Out",
+    "dashboard": "Dashboard",
+    "profile": "Profile",
+    "settings": "Settings",
+    "billing": "Billing"
+  },
+  "actions": {
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "edit": "Edit",
+    "create": "Create",
+    "update": "Update",
+    "submit": "Submit",
+    "back": "Back",
+    "next": "Next",
+    "previous": "Previous",
+    "close": "Close",
+    "confirm": "Confirm",
+    "loading": "Loading...",
+    "tryAgain": "Try Again"
+  },
+  "validation": {
+    "required": "This field is required",
+    "invalid": "Invalid value",
+    "tooShort": "Too short",
+    "tooLong": "Too long",
+    "invalidEmail": "Invalid email address",
+    "passwordMismatch": "Passwords do not match",
+    "weakPassword": "Password is too weak"
+  },
+  "status": {
+    "success": "Success",
+    "error": "Error",
+    "warning": "Warning",
+    "info": "Information"
+  },
+  "time": {
+    "now": "Now",
+    "today": "Today",
+    "yesterday": "Yesterday",
+    "tomorrow": "Tomorrow",
+    "thisWeek": "This Week",
+    "lastWeek": "Last Week",
+    "thisMonth": "This Month",
+    "lastMonth": "Last Month"
+  },
+  "auth": {
+    "signIn": {
+      "title": "Sign In",
+      "subtitle": "Welcome back to Billing Dashboard",
+      "email": "Email",
+      "password": "Password",
+      "forgotPassword": "Forgot password?",
+      "signInButton": "Sign In",
+      "signInWithGoogle": "Sign In with Google",
+      "noAccount": "Don't have an account?",
+      "signUpLink": "Sign up here",
+      "rememberMe": "Remember me"
+    },
+    "signUp": {
+      "title": "Sign Up",
+      "subtitle": "Create your Billing Dashboard account",
+      "firstName": "First Name",
+      "lastName": "Last Name",
+      "email": "Email",
+      "password": "Password",
+      "confirmPassword": "Confirm Password",
+      "signUpButton": "Sign Up",
+      "signUpWithGoogle": "Sign Up with Google",
+      "hasAccount": "Already have an account?",
+      "signInLink": "Sign in here",
+      "agreeToTerms": "I agree to the Terms of Service and Privacy Policy",
+      "termsOfService": "Terms of Service",
+      "privacyPolicy": "Privacy Policy"
+    },
+    "forgotPassword": {
+      "title": "Forgot Password",
+      "subtitle": "Enter your email to reset your password",
+      "email": "Email",
+      "sendResetLink": "Send Reset Link",
+      "backToSignIn": "Back to Sign In",
+      "resetLinkSent": "Reset link sent to your email"
+    },
+    "resetPassword": {
+      "title": "Reset Password",
+      "subtitle": "Enter your new password",
+      "newPassword": "New Password",
+      "confirmNewPassword": "Confirm New Password",
+      "resetButton": "Reset Password",
+      "passwordResetSuccess": "Password reset successfully"
+    },
+    "errors": {
+      "invalidCredentials": "Invalid email or password",
+      "emailNotFound": "Email not found",
+      "passwordTooWeak": "Password must be at least 8 characters",
+      "emailAlreadyExists": "Email already exists",
+      "genericError": "An error occurred. Please try again.",
+      "sessionExpired": "Your session has expired. Please sign in again."
+    }
+  },
+  "dashboard": {
+    "title": "Dashboard",
+    "welcome": "Welcome back, {name}!",
+    "overview": {
+      "title": "Overview",
+      "totalSpend": "Total Spend",
+      "activeSubscriptions": "Active Subscriptions",
+      "recentActivity": "Recent Activity"
+    },
+    "billing": {
+      "title": "Billing",
+      "currentPlan": "Current Plan",
+      "nextBilling": "Next Billing Date",
+      "paymentMethod": "Payment Method",
+      "updatePayment": "Update Payment Method",
+      "viewInvoices": "View Invoices",
+      "empty": "No billing information yet",
+      "emptyDescription": "Set up your subscription to get started"
+    },
+    "activity": {
+      "title": "Recent Activity",
+      "noActivity": "No recent activity",
+      "paymentMade": "Payment made",
+      "subscriptionUpdated": "Subscription updated",
+      "invoiceGenerated": "Invoice generated"
+    },
+    "quickActions": {
+      "title": "Quick Actions",
+      "updateBilling": "Update Billing",
+      "viewSubscriptions": "View Subscriptions",
+      "downloadInvoice": "Download Invoice",
+      "viewProfile": "View Profile"
+    }
+  }
+}

@@ -1,0 +1,139 @@
+{
+  "name": "feature-development",
+  "description": "Complete feature development workflow using SPARC methodology",
+  "version": "1.0.0",
+  "triggers": [
+    {
+      "type": "manual",
+      "command": "npx claude-flow workflow execute feature-development"
+    },
+    {
+      "type": "github",
+      "event": "pull_request",
+      "branches": ["main", "develop"]
+    }
+  ],
+  "phases": [
+    {
+      "name": "specification",
+      "parallel": true,
+      "steps": [
+        {
+          "id": "requirements",
+          "agent": "analyst",
+          "command": "npx claude-flow sparc run spec-pseudocode",
+          "description": "Gather and analyze requirements",
+          "timeout": 300
+        },
+        {
+          "id": "security-analysis",
+          "agent": "security",
+          "command": "npx claude-flow sparc run security-review",
+          "description": "Identify security requirements",
+          "timeout": 300
+        }
+      ]
+    },
+    {
+      "name": "architecture",
+      "parallel": false,
+      "steps": [
+        {
+          "id": "system-design",
+          "agent": "architect",
+          "command": "npx claude-flow sparc run architect",
+          "description": "Design system architecture",
+          "dependencies": ["requirements"],
+          "timeout": 600
+        }
+      ]
+    },
+    {
+      "name": "implementation",
+      "parallel": true,
+      "steps": [
+        {
+          "id": "core-features",
+          "agent": "developer",
+          "command": "npx claude-flow sparc run code",
+          "description": "Implement core features",
+          "dependencies": ["system-design"],
+          "timeout": 900
+        },
+        {
+          "id": "test-suite",
+          "agent": "tester",
+          "command": "npx claude-flow sparc run tdd",
+          "description": "Create comprehensive test suite",
+          "dependencies": ["system-design"],
+          "timeout": 600
+        }
+      ]
+    },
+    {
+      "name": "integration",
+      "parallel": false,
+      "steps": [
+        {
+          "id": "component-integration",
+          "agent": "coordinator",
+          "command": "npx claude-flow sparc run integration",
+          "description": "Integrate all components",
+          "dependencies": ["core-features", "test-suite"],
+          "timeout": 600
+        }
+      ]
+    },
+    {
+      "name": "optimization",
+      "parallel": true,
+      "steps": [
+        {
+          "id": "performance-tuning",
+          "agent": "optimizer",
+          "command": "npx claude-flow sparc run optimization",
+          "description": "Optimize performance",
+          "dependencies": ["component-integration"],
+          "timeout": 600
+        },
+        {
+          "id": "documentation",
+          "agent": "documenter",
+          "command": "npx claude-flow sparc run docs-writer",
+          "description": "Create documentation",
+          "dependencies": ["component-integration"],
+          "timeout": 300
+        }
+      ]
+    }
+  ],
+  "outputs": [
+    {
+      "type": "file",
+      "path": "src/**/*.{ts,tsx}",
+      "description": "Source code files"
+    },
+    {
+      "type": "file",
+      "path": "tests/**/*.test.{ts,tsx}",
+      "description": "Test files"
+    },
+    {
+      "type": "file",
+      "path": "docs/**/*.md",
+      "description": "Documentation files"
+    }
+  ],
+  "notifications": [
+    {
+      "type": "slack",
+      "webhook": "${SLACK_WEBHOOK_URL}",
+      "events": ["start", "complete", "error"]
+    }
+  ],
+  "monitoring": {
+    "metrics": true,
+    "logging": true,
+    "tracing": true
+  }
+}

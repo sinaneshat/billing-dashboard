@@ -1,0 +1,137 @@
+{
+  "name": "monitoring-workflow",
+  "description": "Continuous monitoring and alerting workflow",
+  "version": "1.0.0",
+  "triggers": [
+    {
+      "type": "schedule",
+      "cron": "*/5 * * * *"
+    },
+    {
+      "type": "webhook",
+      "endpoint": "/api/workflows/monitor"
+    }
+  ],
+  "phases": [
+    {
+      "name": "collect-metrics",
+      "parallel": true,
+      "steps": [
+        {
+          "id": "performance-metrics",
+          "agent": "monitor",
+          "command": "npx claude-flow performance report --format json",
+          "description": "Collect performance metrics",
+          "timeout": 60
+        },
+        {
+          "id": "error-logs",
+          "agent": "monitor",
+          "command": "npx claude-flow log analysis --patterns error,warning",
+          "description": "Analyze error logs",
+          "timeout": 60
+        },
+        {
+          "id": "token-usage",
+          "agent": "monitor",
+          "command": "npx claude-flow token usage --timeframe 1h",
+          "description": "Monitor token consumption",
+          "timeout": 60
+        },
+        {
+          "id": "swarm-health",
+          "agent": "monitor",
+          "command": "npx claude-flow swarm status --verbose",
+          "description": "Check swarm health",
+          "timeout": 60
+        }
+      ]
+    },
+    {
+      "name": "analyze",
+      "parallel": false,
+      "steps": [
+        {
+          "id": "bottleneck-analysis",
+          "agent": "analyzer",
+          "command": "npx claude-flow bottleneck analyze",
+          "description": "Identify performance bottlenecks",
+          "dependencies": ["performance-metrics"],
+          "timeout": 120
+        },
+        {
+          "id": "trend-analysis",
+          "agent": "analyzer",
+          "command": "npx claude-flow trend analysis --metric all --period 24h",
+          "description": "Analyze metric trends",
+          "dependencies": ["performance-metrics", "error-logs", "token-usage"],
+          "timeout": 120
+        }
+      ]
+    },
+    {
+      "name": "alert",
+      "parallel": true,
+      "steps": [
+        {
+          "id": "check-thresholds",
+          "agent": "monitor",
+          "command": "npx claude-flow monitor thresholds",
+          "description": "Check alert thresholds",
+          "dependencies": ["trend-analysis"],
+          "timeout": 60
+        },
+        {
+          "id": "send-notifications",
+          "agent": "monitor",
+          "command": "npx claude-flow notify --channels slack,email",
+          "description": "Send alert notifications",
+          "dependencies": ["check-thresholds"],
+          "timeout": 60
+        }
+      ]
+    },
+    {
+      "name": "optimize",
+      "parallel": false,
+      "steps": [
+        {
+          "id": "auto-scale",
+          "agent": "optimizer",
+          "command": "npx claude-flow swarm scale --auto",
+          "description": "Auto-scale swarm based on load",
+          "dependencies": ["bottleneck-analysis"],
+          "timeout": 120
+        },
+        {
+          "id": "optimize-topology",
+          "agent": "optimizer",
+          "command": "npx claude-flow topology optimize",
+          "description": "Optimize swarm topology",
+          "dependencies": ["swarm-health"],
+          "timeout": 120
+        }
+      ]
+    }
+  ],
+  "alerts": [
+    {
+      "name": "high-error-rate",
+      "condition": "error_rate > 5",
+      "severity": "critical",
+      "channels": ["slack", "pagerduty"]
+    },
+    {
+      "name": "high-token-usage",
+      "condition": "token_usage > 10000",
+      "severity": "warning",
+      "channels": ["slack"]
+    },
+    {
+      "name": "performance-degradation",
+      "condition": "response_time > 3000",
+      "severity": "warning",
+      "channels": ["slack", "email"]
+    }
+  ]
+}

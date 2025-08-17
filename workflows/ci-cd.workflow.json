@@ -1,0 +1,147 @@
+{
+  "name": "ci-cd-pipeline",
+  "description": "Continuous Integration and Deployment workflow",
+  "version": "1.0.0",
+  "triggers": [
+    {
+      "type": "push",
+      "branches": ["main", "develop"]
+    },
+    {
+      "type": "schedule",
+      "cron": "0 2 * * *"
+    }
+  ],
+  "phases": [
+    {
+      "name": "validation",
+      "parallel": true,
+      "steps": [
+        {
+          "id": "lint",
+          "agent": "tester",
+          "command": "pnpm lint",
+          "description": "Run ESLint checks",
+          "timeout": 180
+        },
+        {
+          "id": "typecheck",
+          "agent": "tester",
+          "command": "pnpm check-types",
+          "description": "TypeScript type checking",
+          "timeout": 180
+        },
+        {
+          "id": "security-scan",
+          "agent": "security",
+          "command": "npx claude-flow sparc run security-review --non-interactive",
+          "description": "Security vulnerability scan",
+          "timeout": 300
+        }
+      ]
+    },
+    {
+      "name": "build",
+      "parallel": false,
+      "steps": [
+        {
+          "id": "build-app",
+          "agent": "developer",
+          "command": "pnpm build",
+          "description": "Build Next.js application",
+          "dependencies": ["lint", "typecheck"],
+          "timeout": 600
+        },
+        {
+          "id": "build-opennext",
+          "agent": "developer",
+          "command": "pnpm build:opennext",
+          "description": "Build for Cloudflare deployment",
+          "dependencies": ["build-app"],
+          "timeout": 600
+        }
+      ]
+    },
+    {
+      "name": "test",
+      "parallel": true,
+      "steps": [
+        {
+          "id": "unit-tests",
+          "agent": "tester",
+          "command": "pnpm test",
+          "description": "Run unit tests",
+          "dependencies": ["build-app"],
+          "timeout": 300
+        },
+        {
+          "id": "integration-tests",
+          "agent": "tester",
+          "command": "pnpm test:integration",
+          "description": "Run integration tests",
+          "dependencies": ["build-app"],
+          "timeout": 600
+        }
+      ]
+    },
+    {
+      "name": "deploy-staging",
+      "parallel": false,
+      "steps": [
+        {
+          "id": "deploy-preview",
+          "agent": "devops",
+          "command": "pnpm deploy:preview",
+          "description": "Deploy to preview environment",
+          "dependencies": ["unit-tests", "integration-tests"],
+          "timeout": 600
+        },
+        {
+          "id": "smoke-tests",
+          "agent": "tester",
+          "command": "npx claude-flow sparc run post-deployment-monitoring-mode --non-interactive",
+          "description": "Run smoke tests on preview",
+          "dependencies": ["deploy-preview"],
+          "timeout": 300
+        }
+      ]
+    },
+    {
+      "name": "deploy-production",
+      "parallel": false,
+      "steps": [
+        {
+          "id": "deploy-prod",
+          "agent": "devops",
+          "command": "pnpm deploy:production",
+          "description": "Deploy to production",
+          "dependencies": ["smoke-tests"],
+          "timeout": 600
+        },
+        {
+          "id": "monitor-deployment",
+          "agent": "monitor",
+          "command": "npx claude-flow monitor --duration 300",
+          "description": "Monitor production deployment",
+          "dependencies": ["deploy-prod"],
+          "timeout": 300
+        }
+      ]
+    }
+  ],
+  "rollback": {
+    "automatic": true,
+    "conditions": [
+      {
+        "type": "error-rate",
+        "threshold": 5,
+        "window": 300
+      },
+      {
+        "type": "response-time",
+        "threshold": 3000,
+        "window": 300
+      }
+    ]
+  }
+}

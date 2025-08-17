@@ -1,0 +1,149 @@
+import { initOpenNextCloudflareForDev } from '@opennextjs/cloudflare';
+import type { NextConfig } from 'next';
+import createNextIntlPlugin from 'next-intl/plugin';
+
+const nextConfig: NextConfig = {
+
+  // Compiler optimizations
+  compiler: {
+    // Remove console in production
+    removeConsole: process.env.NEXT_PUBLIC_WEBAPP_ENV === 'prod',
+  },
+
+  // Cache optimization headers
+  async headers() {
+    return [
+      {
+        // Static assets cache optimization
+        source: '/_next/static/:path*',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'public, max-age=31536000, immutable', // 1 year
+          },
+          {
+            key: 'X-Cache-Type',
+            value: 'static-asset',
+          },
+        ],
+      },
+      {
+        // Image optimization
+        source: '/_next/image',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'public, max-age=86400, s-maxage=604800', // 1 day browser, 1 week edge
+          },
+          {
+            key: 'X-Cache-Type',
+            value: 'optimized-image',
+          },
+        ],
+      },
+      {
+        // Public assets
+        source: '/favicon.ico',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'public, max-age=604800', // 1 week
+          },
+        ],
+      },
+      {
+        // Public assets folder
+        source: '/(robots.txt|sitemap.xml|manifest.json)',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'public, max-age=86400', // 1 day
+          },
+        ],
+      },
+      {
+        // API routes - no cache by default (handled by middleware)
+        source: '/api/:path*',
+        headers: [
+          {
+            key: 'X-API-Cache',
+            value: 'controlled-by-middleware',
+          },
+        ],
+      },
+      {
+        // Security headers for all routes
+        source: '/(.*)',
+        headers: [
+          {
+            key: 'X-DNS-Prefetch-Control',
+            value: 'on',
+          },
+          {
+            key: 'X-Content-Type-Options',
+            value: 'nosniff',
+          },
+          {
+            key: 'Referrer-Policy',
+            value: 'origin-when-cross-origin',
+          },
+          {
+            key: 'X-Frame-Options',
+            value: 'DENY',
+          },
+        ],
+      },
+    ];
+  },
+
+  // Optimize images
+  images: {
+    formats: ['image/avif', 'image/webp'],
+    deviceSizes: [640, 750, 828, 1080, 1200, 1920, 2048, 3840],
+    imageSizes: [16, 32, 48, 64, 96, 128, 256, 384],
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: 'uploads.example.com',
+      },
+      {
+        protocol: 'https',
+        hostname: 'uploads-preview.example.com',
+      },
+      {
+        protocol: 'http',
+        hostname: 'localhost',
+        port: '3000',
+      },
+      {
+        protocol: 'https',
+        hostname: '**',
+      },
+    ],
+  },
+
+  // PostHog rewrites with caching optimization
+  async rewrites() {
+    return [
+      {
+        source: '/ingest/static/:path*',
+        destination: 'https://eu-assets.i.posthog.com/static/:path*',
+      },
+      {
+        source: '/ingest/:path*',
+        destination: 'https://eu.i.posthog.com/:path*',
+      },
+      {
+        source: '/ingest/decide',
+        destination: 'https://eu.i.posthog.com/decide',
+      },
+    ];
+  },
+
+  // This is required to support PostHog trailing slash API requests
+  skipTrailingSlashRedirect: true,
+};
+
+const withNextIntl = createNextIntlPlugin('./src/i18n/request.ts');
+export default withNextIntl(nextConfig);
+initOpenNextCloudflareForDev();

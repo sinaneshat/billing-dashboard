@@ -1,0 +1,139 @@
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+
+# dependencies
+/node_modules
+/.pnp
+.pnp.js
+.yarn/install-state.gz
+
+# testing
+/coverage
+
+# next.js
+/.next/
+/out/
+/.open-next/
+
+# production
+/build
+
+# misc
+.DS_Store
+*.pem
+
+# local uploads storage for development
+.uploads/
+
+# claude code cache and hook artifacts
+.claude/.cache/
+.claude/cache/
+.claude/**/*.log
+.claude/**/*.tmp
+.claude/**/.tsbuildinfo
+
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# local env files
+.dev.vars
+.env
+.env.preview
+.env.prod
+.env.local
+
+# vercel
+.vercel
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
+
+# CF
+.wrangler
+.worker-next
+.wrangler-dev
+
+# lock files
+# pnpm-lock*
+.pnpm-store
+
+.claude/hooks/.debounce
+
+# Serena MCP - ignore entire directory
+.serena/
+
+# Claude logs - ignore all logs
+.claude/logs/
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# Claude Flow generated files
+.claude/settings.local.json
+.mcp.json
+claude-flow.config.json
+.swarm/
+.hive-mind/
+memory/claude-flow-data.json
+memory/sessions/*
+!memory/sessions/README.md
+memory/agents/*
+!memory/agents/README.md
+coordination/memory_bank/*
+coordination/subtasks/*
+coordination/orchestration/*
+*.db
+*.db-journal
+*.db-wal
+*.sqlite
+*.sqlite-journal
+*.sqlite-wal
+claude-flow
+claude-flow.bat
+claude-flow.ps1
+hive-mind-prompt-*.txt
