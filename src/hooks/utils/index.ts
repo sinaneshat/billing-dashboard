@@ -1,2 +1,3 @@
 export { useBoolean } from './useBoolean';
-export { trackEvent } from './useTrackEvent';
+export { type SlugCheckOptions, type SlugCheckResult, useDebouncedSlugCheck } from './useDebouncedSlugCheck';
+export { useTrackEvent } from './useTrackEvent';
