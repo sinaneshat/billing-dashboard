@@ -57,20 +57,20 @@ export function logError(error: unknown, context?: Record<string, unknown>): voi
 export function formatErrorResponse(error: unknown): ApiError {
   if (error instanceof HTTPException) {
     return {
-      code: error.status.toString(),
+      code: error.status || HttpStatusCodes.INTERNAL_SERVER_ERROR,
       message: error.message,
     };
   }
 
   if (error instanceof Error) {
     return {
-      code: '500',
+      code: HttpStatusCodes.INTERNAL_SERVER_ERROR,
       message: error.message,
     };
   }
 
   return {
-    code: '500',
+    code: HttpStatusCodes.INTERNAL_SERVER_ERROR,
     message: 'Unknown error occurred',
   };
 }

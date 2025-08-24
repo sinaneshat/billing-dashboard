@@ -34,8 +34,7 @@ export const queryKeys = {
     all: ['images'],
     avatars: (userId?: string) => ['images', 'avatars', userId || 'all'],
     currentAvatar: () => ['images', 'avatars', 'current'],
-    organization: (organizationId: string) => ['images', 'organization', organizationId],
-    organizationLogo: (organizationId: string) => ['images', 'organization', organizationId, 'logo'],
+    filtered: (query?: string, args?: unknown) => ['images', 'filtered', query, args],
   },
 };
 
@@ -97,12 +96,7 @@ export const invalidationPatterns = {
   ],
 
   // When organization images change
-  organizationImages: (organizationId: string) => [
-    queryKeys.images.organization(organizationId),
-    queryKeys.images.organizationLogo(organizationId),
-    queryKeys.organizations.detail(organizationId),
-    queryKeys.organizations.all,
-  ],
+  organizationImages: () => [queryKeys.images.all],
 };
 
 /**

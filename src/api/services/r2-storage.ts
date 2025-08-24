@@ -210,17 +210,6 @@ export class R2StorageService {
       };
     }
 
-    // Check organization access
-    if (
-      session?.activeOrganizationId
-      && metadata.organizationId === session.activeOrganizationId
-    ) {
-      return {
-        hasAccess: true,
-        accessLevel: 'organization',
-      };
-    }
-
     // Check if public access is allowed for this object
     if (options.allowPublic) {
       return {

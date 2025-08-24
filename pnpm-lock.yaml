@@ -11,9 +11,6 @@ importers:
       '@aws-sdk/client-ses':
         specifier: ^3.864.0
         version: 3.864.0
-      '@better-auth/stripe':
-        specifier: ^1.3.4
-        version: 1.3.4(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
       '@daveyplate/better-auth-ui':
         specifier: ^2.1.6
         version: 2.1.6(f57fe720e5e69429b2a9aab87894975a)
@@ -113,12 +110,6 @@ importers:
       '@scalar/openapi-to-markdown':
         specifier: ^0.2.26
         version: 0.2.26(typescript@5.8.3)
-      '@stripe/react-stripe-js':
-        specifier: ^3.7.0
-        version: 3.7.0(@stripe/stripe-js@7.4.0)(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
-      '@stripe/stripe-js':
-        specifier: ^7.4.0
-        version: 7.4.0
       '@tanstack/react-query':
         specifier: ^5.77.0
         version: 5.77.0(react@19.1.0)
@@ -190,7 +181,7 @@ importers:
         version: 2.4.3(next@15.3.2(@opentelemetry/api@1.9.0)(react-dom@19.1.0(react@19.1.0))(react@19.1.0))(react@19.1.0)
       posthog-js:
         specifier: ^1.246.0
-        version: 1.246.0
+        version: 1.260.2
       qrcode:
         specifier: ^1.5.4
         version: 1.5.4
@@ -224,9 +215,6 @@ importers:
       stoker:
         specifier: ^2.0.1
         version: 2.0.1(@asteasolutions/zod-to-openapi@8.1.0(zod@4.0.17))(@hono/zod-openapi@1.1.0(hono@4.9.1)(zod@4.0.17))(hono@4.9.1)(openapi3-ts@4.5.0)
-      stripe:
-        specifier: ^18.4.0
-        version: 18.4.0(@types/node@22.15.21)
       tailwind-merge:
         specifier: ^3.3.0
         version: 3.3.0
@@ -825,9 +813,6 @@ packages:
   '@babel/types@7.28.1':
     resolution: {integrity: sha512-x0LvFTekgSX+83TI28Y9wYPUfzrnl2aT5+5QLnO6v7mSJYtEEevuDRN0F0uSHRk1G1IWZC43o00Y0xDDrpBGPQ==}
     engines: {node: '>=6.9.0'}
-
-  '@better-auth/stripe@1.3.4':
-    resolution: {integrity: sha512-sFHEOvLDwKe0ZYxqNTlfoshekiXkomnAcOEH7ARq0r7XImpPjpUR+GHc9+0CGTXTCn3LYljmBt0paTX1rhRNjw==}
 
   '@better-auth/utils@0.2.5':
     resolution: {integrity: sha512-uI2+/8h/zVsH8RrYdG8eUErbuGBk16rZKQfz8CjxQOyCE6v7BqFYEbFwvOkvl1KbUdxhqOnXp78+uE5h8qVEgQ==}
@@ -3951,17 +3936,6 @@ packages:
   '@standard-schema/utils@0.3.0':
     resolution: {integrity: sha512-e7Mew686owMaPJVNNLs55PUvgz371nKgwsc4vxE49zsODpJEnxgxRo2y/OKrqueavXgZNMDVj3DdHFlaSAeU8g==}
 
-  '@stripe/react-stripe-js@3.7.0':
-    resolution: {integrity: sha512-PYls/2S9l0FF+2n0wHaEJsEU8x7CmBagiH7zYOsxbBlLIHEsqUIQ4MlIAbV9Zg6xwT8jlYdlRIyBTHmO3yM7kQ==}
-    peerDependencies:
-      '@stripe/stripe-js': '>=1.44.1 <8.0.0'
-      react: '>=16.8.0 <20.0.0'
-      react-dom: '>=16.8.0 <20.0.0'
-
-  '@stripe/stripe-js@7.4.0':
-    resolution: {integrity: sha512-lQHQPfXPTBeh0XFjq6PqSBAyR7umwcJbvJhXV77uGCUDD6ymXJU/f2164ydLMLCCceNuPlbV9b+1smx98efwWQ==}
-    engines: {node: '>=12.16'}
-
   '@stylistic/eslint-plugin@4.2.0':
     resolution: {integrity: sha512-8hXezgz7jexGHdo5WN6JBEIPHCSFyyU4vgbxevu4YLVS5vl+sxqAAGyXSzfNDyR6xMNSH5H1x67nsXcYMOHtZA==}
     engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
@@ -5137,9 +5111,6 @@ packages:
 
   core-js-compat@3.42.0:
     resolution: {integrity: sha512-bQasjMfyDGyaeWKBIu33lHh9qlSR0MFE/Nmc6nMjf/iU9b3rSMdAYz1Baxrv4lPdGUsTqZudHA4jIGSJy0SWZQ==}
-
-  core-js@3.42.0:
-    resolution: {integrity: sha512-Sz4PP4ZA+Rq4II21qkNqOEDTDrCvcANId3xpIgB34NDkWc3UduWj2dqEtN9yZIq8Dk3HyPI33x9sqqU5C8sr0g==}
 
   core-js@3.45.0:
     resolution: {integrity: sha512-c2KZL9lP4DjkN3hk/an4pWn5b5ZefhRJnAc42n6LJ19kSnbeRbdQZE5dSeE2LBol1OwJD3X1BQvFTAsa8ReeDA==}
@@ -7919,8 +7890,8 @@ packages:
     resolution: {integrity: sha512-9ZhXKM/rw350N1ovuWHbGxnGh/SNJ4cnxHiM0rxE4VN41wsg8P8zWn9hv/buK00RP4WvlOyr/RBDiptyxVbkZQ==}
     engines: {node: '>=0.10.0'}
 
-  posthog-js@1.246.0:
-    resolution: {integrity: sha512-5lN/UMqDfxsLeSnT3LsY4P+eD1H+P9qxgN/iUk473LmhCM7IV8TAfdjJj23nnXk/euGNQtvyINYoD2DG+d4eEw==}
+  posthog-js@1.260.2:
+    resolution: {integrity: sha512-2Q+QUz9j9+uG16wp0WcOEbezVsLZCobZyTX8NvWPMGKyPaf2lOsjbPjznsq5JiIt324B6NAqzpWYZTzvhn9k9Q==}
     peerDependencies:
       '@rrweb/types': 2.0.0-alpha.17
       rrweb-snapshot: 2.0.0-alpha.17
@@ -7930,8 +7901,8 @@ packages:
       rrweb-snapshot:
         optional: true
 
-  preact@10.26.5:
-    resolution: {integrity: sha512-fmpDkgfGU6JYux9teDWLhj9mKN55tyepwYbxHgQuIxbWQzgFg5vk7Mrrtfx7xRxq798ynkY4DDDxZr235Kk+4w==}
+  preact@10.27.1:
+    resolution: {integrity: sha512-V79raXEWch/rbqoNc7nT9E4ep7lu+mI3+sBmfRD4i1M73R3WLYcCtdI0ibxGVf4eQL8ZIz2nFacqEC+rmnOORQ==}
 
   prebuild-install@7.1.3:
     resolution: {integrity: sha512-8Mf2cbV7x1cXPUILADGI3wuhfqWvtiLA1iclTDbFRZkgRQS0NqsPZphna9V+HyTEadheuPmjaJMsbzKQFOzLug==}
@@ -8642,15 +8613,6 @@ packages:
   strip-json-comments@5.0.2:
     resolution: {integrity: sha512-4X2FR3UwhNUE9G49aIsJW5hRRR3GXGTBTZRMfv568O60ojM8HcWjV/VxAxCDW3SUND33O6ZY66ZuRcdkj73q2g==}
     engines: {node: '>=14.16'}
-
-  stripe@18.4.0:
-    resolution: {integrity: sha512-LKFeDnDYo4U/YzNgx2Lc9PT9XgKN0JNF1iQwZxgkS4lOw5NunWCnzyH5RhTlD3clIZnf54h7nyMWkS8VXPmtTQ==}
-    engines: {node: '>=12.*'}
-    peerDependencies:
-      '@types/node': '>=12.x.x'
-    peerDependenciesMeta:
-      '@types/node':
-        optional: true
 
   strnum@1.1.2:
     resolution: {integrity: sha512-vrN+B7DBIoTTZjnPNewwhx6cBA/H+IS7rfW68n7XxC1y7uoiGQBxaKzqucGUgavX15dJgiGztLJ8vxuEzwqBdA==}
@@ -10628,14 +10590,6 @@ snapshots:
     dependencies:
       '@babel/helper-string-parser': 7.27.1
       '@babel/helper-validator-identifier': 7.27.1
-
-  '@better-auth/stripe@1.3.4(react-dom@19.1.0(react@19.1.0))(react@19.1.0)':
-    dependencies:
-      better-auth: 1.3.4(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
-      zod: 4.0.17
-    transitivePeerDependencies:
-      - react
-      - react-dom
 
   '@better-auth/utils@0.2.5':
     dependencies:
@@ -13845,15 +13799,6 @@ snapshots:
 
   '@standard-schema/utils@0.3.0': {}
 
-  '@stripe/react-stripe-js@3.7.0(@stripe/stripe-js@7.4.0)(react-dom@19.1.0(react@19.1.0))(react@19.1.0)':
-    dependencies:
-      '@stripe/stripe-js': 7.4.0
-      prop-types: 15.8.1
-      react: 19.1.0
-      react-dom: 19.1.0(react@19.1.0)
-
-  '@stripe/stripe-js@7.4.0': {}
-
   '@stylistic/eslint-plugin@4.2.0(eslint@9.27.0(jiti@2.4.2))(typescript@5.8.3)':
     dependencies:
       '@typescript-eslint/utils': 8.32.1(eslint@9.27.0(jiti@2.4.2))(typescript@5.8.3)
@@ -15142,8 +15087,6 @@ snapshots:
   core-js-compat@3.42.0:
     dependencies:
       browserslist: 4.24.5
-
-  core-js@3.42.0: {}
 
   core-js@3.45.0: {}
 
@@ -18436,14 +18379,14 @@ snapshots:
       xtend: 4.0.2
     optional: true
 
-  posthog-js@1.246.0:
+  posthog-js@1.260.2:
     dependencies:
-      core-js: 3.42.0
+      core-js: 3.45.0
       fflate: 0.4.8
-      preact: 10.26.5
+      preact: 10.27.1
       web-vitals: 4.2.4
 
-  preact@10.26.5: {}
+  preact@10.27.1: {}
 
   prebuild-install@7.1.3:
     dependencies:
@@ -19362,12 +19305,6 @@ snapshots:
   strip-json-comments@3.1.1: {}
 
   strip-json-comments@5.0.2: {}
-
-  stripe@18.4.0(@types/node@22.15.21):
-    dependencies:
-      qs: 6.14.0
-    optionalDependencies:
-      '@types/node': 22.15.21
 
   strnum@1.1.2: {}
 

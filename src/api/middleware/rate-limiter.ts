@@ -186,8 +186,9 @@ export const storageRateLimiter = createMiddleware<ApiEnv>(async (c, next) => {
       ...RATE_LIMIT_CONFIGS.storageUpload,
       keyGenerator: (ctx) => {
         const u = ctx.get('user');
-        const org = ctx.get('session')?.activeOrganizationId;
-        return org ? `upload:org:${org}` : `upload:user:${u?.id || 'anonymous'}`;
+        // TODO: Organization support not implemented in Better Auth yet
+        // const org = ctx.get('session')?.activeOrganizationId;
+        return `upload:user:${u?.id || 'anonymous'}`;
       },
     };
   } else if (method === 'DELETE') {

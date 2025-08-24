@@ -47,32 +47,6 @@ import {
   uploadCompanyImageRoute,
   uploadUserAvatarRoute,
 } from './routes/images/route';
-import {
-  batchImportPassesHandler,
-  createTemplateHandler,
-  deleteTemplateHandler,
-  downloadPassHandler,
-  generatePassHandler,
-  getPassHandler,
-  getTemplateHandler,
-  listPassesHandler,
-  listTemplatesHandler,
-  revokePassHandler,
-  updateTemplateHandler,
-} from './routes/passes/handler';
-import {
-  batchImportPassesRoute,
-  createTemplateRoute,
-  deleteTemplateRoute,
-  downloadPassRoute,
-  generatePassRoute,
-  getPassRoute,
-  getTemplateRoute,
-  listPassesRoute,
-  listTemplatesRoute,
-  revokePassRoute,
-  updateTemplateRoute,
-} from './routes/passes/route';
 import { detailedHealthHandler, healthHandler } from './routes/system/handler';
 import { detailedHealthRoute, healthRoute } from './routes/system/route';
 
@@ -169,20 +143,7 @@ const appRoutes = app
   .openapi(uploadCompanyImageRoute, uploadCompanyImageHandler)
   .openapi(getImagesRoute, getImagesHandler)
   .openapi(getImageMetadataRoute, getImageMetadataHandler)
-  .openapi(deleteImageRoute, deleteImageHandler)
-  // Passes routes
-  .openapi(createTemplateRoute, createTemplateHandler)
-  .openapi(getTemplateRoute, getTemplateHandler)
-  .openapi(listTemplatesRoute, listTemplatesHandler)
-  .openapi(updateTemplateRoute, updateTemplateHandler)
-  .openapi(deleteTemplateRoute, deleteTemplateHandler)
-  .openapi(generatePassRoute, generatePassHandler)
-  .openapi(getPassRoute, getPassHandler)
-  .openapi(listPassesRoute, listPassesHandler)
-  .openapi(revokePassRoute, revokePassHandler)
-  .openapi(batchImportPassesRoute, batchImportPassesHandler)
-  // Download routes (public with token auth)
-  .openapi(downloadPassRoute, downloadPassHandler);
+  .openapi(deleteImageRoute, deleteImageHandler);
 
 // ============================================================================
 // Step 5: Export AppType for RPC client type inference (CRITICAL!)

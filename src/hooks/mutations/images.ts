@@ -56,14 +56,7 @@ export function useUploadCompanyLogoMutation() {
       // Update Better Auth organization with new logo URL
       if ('data' in uploadResult && uploadResult.data) {
         const logoUrl = uploadResult.data.url;
-        const orgId = args.organizationId || uploadResult.data.organizationId;
-
-        if (orgId) {
-          await authClient.organization.update({
-            organizationId: orgId,
-            data: { logo: logoUrl },
-          });
-        }
+        await authClient.updateUser({ image: logoUrl });
       }
 
       return uploadResult;
