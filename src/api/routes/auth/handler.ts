@@ -19,7 +19,6 @@ export const secureMeHandler: RouteHandler<typeof secureMeRoute, ApiEnv> = (c) =
   const payload = {
     userId: user?.id ?? session?.userId ?? 'unknown',
     email: user?.email ?? null,
-    activeOrganizationId: session?.activeOrganizationId ?? null,
   } as const;
   return ok(c, payload, undefined, HttpStatusCodes.OK);
 };

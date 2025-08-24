@@ -34,7 +34,7 @@ export const queryKeys = {
     all: ['images'],
     avatars: (userId?: string) => ['images', 'avatars', userId || 'all'],
     currentAvatar: () => ['images', 'avatars', 'current'],
-    filtered: (query?: string, args?: unknown) => ['images', 'filtered', query, args],
+    filtered: (query?: string) => ['images', 'filtered', query],
   },
 };
 

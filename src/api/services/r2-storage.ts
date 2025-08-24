@@ -8,7 +8,7 @@
 import { HTTPException } from 'hono/http-exception';
 import * as HttpStatusCodes from 'stoker/http-status-codes';
 
-import type { Session, User } from '@/lib/auth-types';
+import type { Session, User } from '@/lib/auth/types';
 
 export type R2Metadata = {
   userId?: string;

@@ -137,10 +137,10 @@ export function validateOrganizationBillingEmail(
   email: string,
   organizationDomain?: string,
 ): {
-  valid: boolean;
-  warnings: string[];
-  errors: string[];
-} {
+    valid: boolean;
+    warnings: string[];
+    errors: string[];
+  } {
   const warnings: string[] = [];
   const errors: string[] = [];
 

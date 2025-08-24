@@ -27,7 +27,7 @@ export function useCurrentUserAvatarQuery() {
 
 export function useImagesQuery(args?: GetImagesRequest) {
   return useQuery({
-    queryKey: queryKeys.images.filtered(args?.query, args),
+    queryKey: ['images', 'filtered', args],
     queryFn: () => getImagesService(args),
     staleTime: 5 * 60 * 1000,
     gcTime: 10 * 60 * 1000,

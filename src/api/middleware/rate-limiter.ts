@@ -186,8 +186,6 @@ export const storageRateLimiter = createMiddleware<ApiEnv>(async (c, next) => {
       ...RATE_LIMIT_CONFIGS.storageUpload,
       keyGenerator: (ctx) => {
         const u = ctx.get('user');
-        // TODO: Organization support not implemented in Better Auth yet
-        // const org = ctx.get('session')?.activeOrganizationId;
         return `upload:user:${u?.id || 'anonymous'}`;
       },
     };
@@ -211,11 +209,11 @@ export const storageRateLimiter = createMiddleware<ApiEnv>(async (c, next) => {
 });
 
 /**
- * Organization-level storage quota enforcement
+ * User-level storage quota enforcement
  */
 export const storageQuotaLimiter = createMiddleware<ApiEnv>(async (c, next) => {
   const method = c.req.method;
-  const session = c.get('session');
+  const user = c.get('user');
   const fileSize = c.get('fileSize');
 
   // Only check for upload operations
@@ -223,28 +221,28 @@ export const storageQuotaLimiter = createMiddleware<ApiEnv>(async (c, next) => {
     return next();
   }
 
-  // Skip if no organization context
-  if (!session?.activeOrganizationId) {
+  // Skip if no user context
+  if (!user?.id) {
     return next();
   }
 
-  // In production, check organization storage quota from database
+  // In production, check user storage quota from database
   // For now, we'll use a simple in-memory check
-  const orgQuotaKey = `quota:${session.activeOrganizationId}`;
-  const quotaLimit = 1024 * 1024 * 1024; // 1GB per organization
+  const userQuotaKey = `quota:${user.id}`;
+  const quotaLimit = 512 * 1024 * 1024; // 512MB per user
 
   // This would be fetched from database in production
-  const currentUsage = rateLimitStore.get(orgQuotaKey)?.count || 0;
+  const currentUsage = rateLimitStore.get(userQuotaKey)?.count || 0;
 
   if (currentUsage + (fileSize || 0) > quotaLimit) {
     throw new HTTPException(HttpStatusCodes.INSUFFICIENT_STORAGE, {
-      message: 'Organization storage quota exceeded',
+      message: 'User storage quota exceeded',
     });
   }
 
   // Update usage (in production, this would be done after successful upload)
   if (fileSize) {
-    rateLimitStore.set(orgQuotaKey, {
+    rateLimitStore.set(userQuotaKey, {
       count: currentUsage + fileSize,
       resetTime: Date.now() + 30 * 24 * 60 * 60 * 1000, // 30 days
     });

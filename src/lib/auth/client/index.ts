@@ -37,6 +37,4 @@ export const {
   verifyEmail,
 } = authClient;
 
-// Export types
-export type User = typeof authClient.$Infer.Session.user;
-export type Session = typeof authClient.$Infer.Session;
+// Types are exported from @/lib/auth/types for consistency

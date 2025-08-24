@@ -3,12 +3,10 @@ import { useCallback, useEffect, useState } from 'react';
 
 import { authClient } from '@/lib/auth/client';
 import { queryKeys } from '@/lib/data/query-keys';
-import type { DeleteImageRequest, UploadCompanyImageRequest, UploadUserAvatarRequest } from '@/services/api/images';
+import type { DeleteImageRequest, UploadUserAvatarRequest } from '@/services/api/images';
 import {
   deleteImageService,
-  replaceCompanyLogoService,
   replaceUserAvatarService,
-  uploadCompanyImageService,
   uploadUserAvatarService,
 } from '@/services/api/images';
 
@@ -46,67 +44,6 @@ export function useReplaceAvatarMutation() {
   });
 }
 
-export function useUploadCompanyLogoMutation() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async (args: UploadCompanyImageRequest & { organizationId?: string }) => {
-      const uploadResult = await uploadCompanyImageService(args);
-
-      // Update Better Auth organization with new logo URL
-      if ('data' in uploadResult && uploadResult.data) {
-        const logoUrl = uploadResult.data.url;
-        await authClient.updateUser({ image: logoUrl });
-      }
-
-      return uploadResult;
-    },
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.organizations.all });
-
-      if ('data' in data && data.data?.organizationId) {
-        queryClient.invalidateQueries({
-          queryKey: queryKeys.organizations.detail(data.data.organizationId),
-        });
-      }
-    },
-  });
-}
-
-export function useUploadCompanyBannerMutation() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: (args: UploadCompanyImageRequest) => uploadCompanyImageService(args),
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.organizations.all });
-
-      if (data.data?.organizationId) {
-        queryClient.invalidateQueries({
-          queryKey: queryKeys.organizations.detail(data.data.organizationId),
-        });
-      }
-    },
-  });
-}
-
-export function useReplaceCompanyLogoMutation() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: (args: UploadCompanyImageRequest) => replaceCompanyLogoService(args),
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.organizations.all });
-
-      if (data.data?.organizationId) {
-        queryClient.invalidateQueries({
-          queryKey: queryKeys.organizations.detail(data.data.organizationId),
-        });
-      }
-    },
-  });
-}
-
 export function useDeleteImageMutation() {
   const queryClient = useQueryClient();
 
@@ -115,7 +52,6 @@ export function useDeleteImageMutation() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.auth.all });
       queryClient.invalidateQueries({ queryKey: queryKeys.users.all });
-      queryClient.invalidateQueries({ queryKey: queryKeys.organizations.all });
     },
   });
 }

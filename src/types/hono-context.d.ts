@@ -1,10 +1,10 @@
-import type { auth } from '@/lib/auth';
+import type { Session, User } from '@/lib/auth/types';
 
 declare module 'hono' {
   // eslint-disable-next-line ts/consistent-type-definitions
   interface ContextVariableMap {
-    session: typeof auth.$Infer.Session.session | null;
-    user: typeof auth.$Infer.Session.user | null;
+    session: Session | null;
+    user: User | null;
     apiKey: string | undefined;
     requestId: string | undefined;
     // Storage-related context variables

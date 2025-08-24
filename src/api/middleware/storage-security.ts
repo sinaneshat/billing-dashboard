@@ -14,8 +14,6 @@ export enum StorageAccessLevel {
 // Allowed purposes for storage operations
 export enum StoragePurpose {
   USER_AVATAR = 'user_avatar',
-  COMPANY_LOGO = 'company_logo',
-  COMPANY_BANNER = 'company_banner',
   DOCUMENT = 'document',
   RECEIPT = 'receipt',
   INVOICE = 'invoice',
@@ -31,16 +29,6 @@ export const PURPOSE_FILE_RESTRICTIONS: Record<StoragePurpose, {
     allowedMimeTypes: ['image/jpeg', 'image/png', 'image/webp', 'image/gif'],
     maxSize: 5 * 1024 * 1024, // 5MB
     pathPrefix: 'images/avatar',
-  },
-  [StoragePurpose.COMPANY_LOGO]: {
-    allowedMimeTypes: ['image/jpeg', 'image/png', 'image/webp', 'image/svg+xml'],
-    maxSize: 2 * 1024 * 1024, // 2MB
-    pathPrefix: 'images/logo',
-  },
-  [StoragePurpose.COMPANY_BANNER]: {
-    allowedMimeTypes: ['image/jpeg', 'image/png', 'image/webp'],
-    maxSize: 10 * 1024 * 1024, // 10MB
-    pathPrefix: 'images/banner',
   },
   [StoragePurpose.DOCUMENT]: {
     allowedMimeTypes: ['application/pdf', 'image/jpeg', 'image/png'],
@@ -155,25 +143,11 @@ export const verifyStorageOwnership = createMiddleware<ApiEnv>(async (c, next) =
       }
     }
 
-    // Company assets - must be member of organization
-    if (purpose === StoragePurpose.COMPANY_LOGO || purpose === StoragePurpose.COMPANY_BANNER) {
-      if (!session.activeOrganizationId) {
-        throw new HTTPException(HttpStatusCodes.FORBIDDEN, {
-          message: 'No active organization for company asset upload',
-        });
-      }
-      if (!key.includes(`/${session.activeOrganizationId}/`)) {
-        throw new HTTPException(HttpStatusCodes.FORBIDDEN, {
-          message: 'Cannot upload assets for another organization',
-        });
-      }
-    }
-
-    // Documents/receipts/invoices - organization context required
+    // Documents/receipts/invoices - user context required
     if ([StoragePurpose.DOCUMENT, StoragePurpose.RECEIPT, StoragePurpose.INVOICE].includes(purpose as StoragePurpose)) {
-      if (!session.activeOrganizationId) {
+      if (!key.includes(`/${user.id}/`)) {
         throw new HTTPException(HttpStatusCodes.FORBIDDEN, {
-          message: 'Organization context required for document upload',
+          message: 'Cannot upload documents for another user',
         });
       }
     }
@@ -287,26 +261,6 @@ export const IMAGE_CONFIGS = {
       minHeight: 100,
       maxWidth: 2048,
       maxHeight: 2048,
-    },
-  },
-  companyLogo: {
-    maxSize: 2 * 1024 * 1024, // 2MB
-    allowedFormats: ['image/jpeg', 'image/png', 'image/webp', 'image/svg+xml'],
-    requireDimensions: {
-      minWidth: 200,
-      minHeight: 200,
-      maxWidth: 1024,
-      maxHeight: 1024,
-    },
-  },
-  companyBanner: {
-    maxSize: 10 * 1024 * 1024, // 10MB
-    allowedFormats: ['image/jpeg', 'image/png', 'image/webp'],
-    requireDimensions: {
-      minWidth: 800,
-      minHeight: 200,
-      maxWidth: 3840,
-      maxHeight: 2160,
     },
   },
 } as const;

@@ -76,4 +76,4 @@ export const auth = betterAuth({
   ],
 });
 
-export type AuthSession = typeof auth.$Infer.Session;
+// Auth types are exported from @/lib/auth/types for consistency

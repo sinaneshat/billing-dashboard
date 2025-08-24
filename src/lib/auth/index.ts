@@ -4,8 +4,13 @@
  */
 
 // Client exports
-export type { Session, User } from './client';
 export { authClient } from './client';
 
 // Server exports (for server-side only)
 export { auth } from './server';
+
+// Centralized types - single source of truth
+export type {
+  Session,
+  User,
+} from './types';
