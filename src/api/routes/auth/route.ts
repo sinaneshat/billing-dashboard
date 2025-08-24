@@ -4,7 +4,7 @@ import { SecureMeResponseSchema } from './schema';
 
 export const secureMeRoute = createRoute({
   method: 'get',
-  path: '/me',
+  path: '/auth/me',
   tags: ['auth'],
   responses: {
     200: {

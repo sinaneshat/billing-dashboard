@@ -155,20 +155,25 @@ export const verifyStorageOwnership = createMiddleware<ApiEnv>(async (c, next) =
       }
     }
 
-    // Company assets - user must own the asset
+    // Company assets - must be member of organization
     if (purpose === StoragePurpose.COMPANY_LOGO || purpose === StoragePurpose.COMPANY_BANNER) {
-      if (!key.includes(`/${session.userId}/`)) {
+      if (!session.activeOrganizationId) {
         throw new HTTPException(HttpStatusCodes.FORBIDDEN, {
-          message: 'Cannot upload assets for another user',
+          message: 'No active organization for company asset upload',
+        });
+      }
+      if (!key.includes(`/${session.activeOrganizationId}/`)) {
+        throw new HTTPException(HttpStatusCodes.FORBIDDEN, {
+          message: 'Cannot upload assets for another organization',
         });
       }
     }
 
-    // Documents/receipts/invoices - user context required
+    // Documents/receipts/invoices - organization context required
     if ([StoragePurpose.DOCUMENT, StoragePurpose.RECEIPT, StoragePurpose.INVOICE].includes(purpose as StoragePurpose)) {
-      if (!session.userId) {
+      if (!session.activeOrganizationId) {
         throw new HTTPException(HttpStatusCodes.FORBIDDEN, {
-          message: 'User authentication required for document upload',
+          message: 'Organization context required for document upload',
         });
       }
     }

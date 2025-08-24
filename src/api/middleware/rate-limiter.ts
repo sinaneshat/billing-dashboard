@@ -186,7 +186,8 @@ export const storageRateLimiter = createMiddleware<ApiEnv>(async (c, next) => {
       ...RATE_LIMIT_CONFIGS.storageUpload,
       keyGenerator: (ctx) => {
         const u = ctx.get('user');
-        return `upload:user:${u?.id || 'anonymous'}`;
+        const org = ctx.get('session')?.activeOrganizationId;
+        return org ? `upload:org:${org}` : `upload:user:${u?.id || 'anonymous'}`;
       },
     };
   } else if (method === 'DELETE') {
@@ -209,7 +210,7 @@ export const storageRateLimiter = createMiddleware<ApiEnv>(async (c, next) => {
 });
 
 /**
- * User-level storage quota enforcement
+ * Organization-level storage quota enforcement
  */
 export const storageQuotaLimiter = createMiddleware<ApiEnv>(async (c, next) => {
   const method = c.req.method;
@@ -221,27 +222,28 @@ export const storageQuotaLimiter = createMiddleware<ApiEnv>(async (c, next) => {
     return next();
   }
 
-  // Skip if no user context
-  if (!session?.userId) {
+  // Skip if no organization context
+  if (!session?.activeOrganizationId) {
     return next();
   }
 
-  // Check user storage quota
-  const userQuotaKey = `quota:user:${session.userId}`;
-  const quotaLimit = 1024 * 1024 * 1024; // 1GB per user
+  // In production, check organization storage quota from database
+  // For now, we'll use a simple in-memory check
+  const orgQuotaKey = `quota:${session.activeOrganizationId}`;
+  const quotaLimit = 1024 * 1024 * 1024; // 1GB per organization
 
   // This would be fetched from database in production
-  const currentUsage = rateLimitStore.get(userQuotaKey)?.count || 0;
+  const currentUsage = rateLimitStore.get(orgQuotaKey)?.count || 0;
 
   if (currentUsage + (fileSize || 0) > quotaLimit) {
     throw new HTTPException(HttpStatusCodes.INSUFFICIENT_STORAGE, {
-      message: 'Storage quota exceeded',
+      message: 'Organization storage quota exceeded',
     });
   }
 
   // Update usage (in production, this would be done after successful upload)
   if (fileSize) {
-    rateLimitStore.set(userQuotaKey, {
+    rateLimitStore.set(orgQuotaKey, {
       count: currentUsage + fileSize,
       resetTime: Date.now() + 30 * 24 * 60 * 60 * 1000, // 30 days
     });

@@ -1,12 +1,12 @@
 /**
- * Hono RPC Client for Billing Dashboard API
+ * Hono RPC Client for Shakewell Wallet API
  *
  * This client provides type-safe access to the backend API using Hono's RPC functionality.
  * It serves as the single source of truth for API communication and enables end-to-end
  * type safety between the backend routes and frontend services.
  */
 
-import { hc, parseResponse } from 'hono/client';
+import { hc } from 'hono/client';
 
 import type { AppType } from '@/api';
 
@@ -66,6 +66,3 @@ export function createApiClient(options?: {
     fetch: options?.fetch,
   });
 }
-
-// Typed parse helper re-export
-export { parseResponse };

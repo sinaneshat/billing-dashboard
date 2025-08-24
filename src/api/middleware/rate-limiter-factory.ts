@@ -148,7 +148,13 @@ function ipKeyGenerator(c: Context<ApiEnv>): string {
  * Organization-based key generator
  */
 function organizationKeyGenerator(c: Context<ApiEnv>): string {
+  const session = c.get('session');
   const user = c.get('user');
+
+  if (session?.activeOrganizationId) {
+    return `org:${session.activeOrganizationId}`;
+  }
+
   return `user:${user?.id || 'anonymous'}`;
 }
 
@@ -304,13 +310,17 @@ export class RateLimiterFactory {
         return next();
       }
 
-      // Use user-based quota
-      const quotaKey = `quota:user:${session?.userId || 'anonymous'}`;
+      // Skip if no organization context
+      if (!session?.activeOrganizationId) {
+        return next();
+      }
+
+      const quotaKey = `quota:${session.activeOrganizationId}`;
       const currentUsage = rateLimitStore.get(quotaKey)?.count || 0;
 
       if (currentUsage + (fileSize || 0) > quotaBytes) {
         throw new HTTPException(HttpStatusCodes.INSUFFICIENT_STORAGE, {
-          message: 'Storage quota exceeded',
+          message: 'Organization storage quota exceeded',
         });
       }
 

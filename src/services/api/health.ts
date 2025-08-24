@@ -1,45 +1,38 @@
 /**
- * Health Service - Clean Pass-Through Layer
+ * Health Service - 100% RPC Type Inference
  *
- * This service acts as a thin wrapper over the API client, providing:
- * - Type-safe function signatures using centralized types from @/api/client
- * - Consistent error handling via handleApiResponse
- * - No business logic or data transformation
- * - Clean function names for better developer experience
+ * This service uses Hono's InferRequestType and InferResponseType
+ * for complete type safety without any hardcoded types.
  */
 
 import type { InferRequestType, InferResponseType } from 'hono/client';
+import { parseResponse } from 'hono/client';
 
 import { apiClient } from '@/api/client';
 
 // ============================================================================
-// Exported Types for Health Service Functions
+//  Inferred Types for Components
 // ============================================================================
 
-export type CheckHealthRequest = InferRequestType<typeof apiClient.system.health.$get>;
-export type CheckHealthResponse = InferResponseType<typeof apiClient.system.health.$get>;
+// These types are 100% inferred from the RPC client
+export type CheckHealthRequest = InferRequestType<typeof apiClient.health['$get']>;
+export type CheckHealthResponse = InferResponseType<typeof apiClient.health['$get']>;
 
-export type CheckDetailedHealthRequest = InferRequestType<typeof apiClient.system.health.detailed.$get>;
-export type CheckDetailedHealthResponse = InferResponseType<typeof apiClient.system.health.detailed.$get>;
-
-// ============================================================================
-// Health Service Functions
-// ============================================================================
+export type CheckDetailedHealthRequest = InferRequestType<typeof apiClient.health.detailed['$get']>;
+export type CheckDetailedHealthResponse = InferResponseType<typeof apiClient.health.detailed['$get']>;
 
 /**
  * Check basic system health status
- *
- * @returns Promise<CheckHealthResponse> - Basic health status
+ * All types are inferred from the RPC client
  */
-export async function checkHealth() {
-  return apiClient.system.health.$get();
+export async function checkHealthService(args?: CheckHealthRequest) {
+  return parseResponse(apiClient.health.$get(args));
 }
 
 /**
- * Check detailed system health status with dependency information
- *
- * @returns Promise<CheckDetailedHealthResponse> - Detailed health status
+ * Check detailed system health status
+ * All types are inferred from the RPC client
  */
-export async function checkDetailedHealth() {
-  return apiClient.system.health.detailed.$get();
+export async function checkDetailedHealthService(args?: CheckDetailedHealthRequest) {
+  return parseResponse(apiClient.health.detailed.$get(args));
 }
