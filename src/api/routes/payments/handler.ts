@@ -4,10 +4,10 @@ import { HTTPException } from 'hono/http-exception';
 import * as HttpStatusCodes from 'stoker/http-status-codes';
 
 import { ok } from '@/api/common/responses';
+import { ZarinPalService } from '@/api/services/zarinpal';
 import type { ApiEnv } from '@/api/types';
 import { db } from '@/db';
 import { billingEvent, payment, paymentMethod, product, subscription } from '@/db/tables/billing';
-import { createZarinPalService } from '@/services/zarinpal';
 
 import type {
   getPaymentsRoute,
@@ -233,11 +233,8 @@ export const paymentCallbackHandler: RouteHandler<typeof paymentCallbackRoute, A
       });
     }
 
-    // Verify payment with ZarinPal
-    const zarinPal = createZarinPalService({
-      merchantId: c.env.ZARINPAL_MERCHANT_ID,
-      accessToken: c.env.ZARINPAL_ACCESS_TOKEN,
-    });
+    // Verify payment with ZarinPal using factory pattern
+    const zarinPal = ZarinPalService.fromEnv(c.env);
     const verification = await zarinPal.verifyPayment({
       authority: Authority,
       amount: paymentRecord.amount,
@@ -389,11 +386,8 @@ export const verifyPaymentHandler: RouteHandler<typeof verifyPaymentRoute, ApiEn
 
     const paymentRecord = paymentData[0]!;
 
-    // Verify with ZarinPal
-    const zarinPal = createZarinPalService({
-      merchantId: c.env.ZARINPAL_MERCHANT_ID,
-      accessToken: c.env.ZARINPAL_ACCESS_TOKEN,
-    });
+    // Verify with ZarinPal using factory pattern
+    const zarinPal = ZarinPalService.fromEnv(c.env);
     const verification = await zarinPal.verifyPayment({
       authority,
       amount: paymentRecord.amount,

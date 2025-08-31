@@ -3,11 +3,11 @@ import { and, desc, eq } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import * as HttpStatusCodes from 'stoker/http-status-codes';
 
-import { ok } from '@/api/common/responses';
+import { created, ok } from '@/api/common/responses';
+import { ZarinPalService } from '@/api/services/zarinpal';
 import type { ApiEnv } from '@/api/types';
 import { db } from '@/db';
 import { payment, product, subscription } from '@/db/tables/billing';
-import { createZarinPalService } from '@/services/zarinpal';
 
 import type {
   cancelSubscriptionRoute,
@@ -214,11 +214,8 @@ export const createSubscriptionHandler: RouteHandler<typeof createSubscriptionRo
       paymentMethod: 'zarinpal',
     });
 
-    // Initialize ZarinPal payment
-    const zarinPal = createZarinPalService({
-      merchantId: c.env.ZARINPAL_MERCHANT_ID,
-      accessToken: c.env.ZARINPAL_ACCESS_TOKEN,
-    });
+    // Initialize ZarinPal payment using factory pattern
+    const zarinPal = ZarinPalService.fromEnv(c.env);
     const paymentRequest = await zarinPal.requestPayment({
       amount: selectedProduct.price,
       currency: 'IRR',
@@ -258,14 +255,11 @@ export const createSubscriptionHandler: RouteHandler<typeof createSubscriptionRo
 
     const paymentUrl = zarinPal.getPaymentUrl(paymentRequest.data.authority);
 
-    return c.json({
-      success: true,
-      data: {
-        subscriptionId,
-        paymentUrl,
-        authority: paymentRequest.data?.authority,
-      },
-    }, HttpStatusCodes.CREATED);
+    return created(c, {
+      subscriptionId,
+      paymentUrl,
+      authority: paymentRequest.data?.authority,
+    });
   } catch (error) {
     if (error instanceof HTTPException) {
       throw error;
@@ -401,11 +395,8 @@ export const resubscribeHandler: RouteHandler<typeof resubscribeRoute, ApiEnv> =
       paymentMethod: 'zarinpal',
     });
 
-    // Initialize ZarinPal payment
-    const zarinPal = createZarinPalService({
-      merchantId: c.env.ZARINPAL_MERCHANT_ID,
-      accessToken: c.env.ZARINPAL_ACCESS_TOKEN,
-    });
+    // Initialize ZarinPal payment using factory pattern
+    const zarinPal = ZarinPalService.fromEnv(c.env);
     const paymentRequest = await zarinPal.requestPayment({
       amount: prod.price,
       currency: 'IRR',

@@ -6,11 +6,10 @@
 
 import { and, eq, isNull, lte } from 'drizzle-orm';
 
+import { ZarinPalService } from '@/api/services/zarinpal';
 import type { ApiEnv } from '@/api/types';
 import { db } from '@/db';
 import { payment, subscription } from '@/db/tables/billing';
-import type { ZarinPalService } from '@/services/zarinpal';
-import { createZarinPalService } from '@/services/zarinpal';
 
 type BillingResult = {
   processed: number;
@@ -54,10 +53,7 @@ export async function processMonthlyBilling(env: ApiEnv): Promise<BillingResult>
       return result;
     }
 
-    const zarinPal = createZarinPalService({
-      merchantId: env.Bindings.ZARINPAL_MERCHANT_ID,
-      accessToken: env.Bindings.ZARINPAL_ACCESS_TOKEN,
-    });
+    const zarinPal = ZarinPalService.fromEnv(env.Bindings);
 
     // Process each subscription
     for (const sub of dueSubscriptions) {

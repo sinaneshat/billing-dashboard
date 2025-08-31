@@ -4,10 +4,10 @@ import { HTTPException } from 'hono/http-exception';
 import * as HttpStatusCodes from 'stoker/http-status-codes';
 
 import { ok } from '@/api/common/responses';
+import { ZarinPalService } from '@/api/services/zarinpal';
 import type { ApiEnv } from '@/api/types';
 import { db } from '@/db';
 import { payment, subscription, webhookEvent } from '@/db/tables/billing';
-import { createZarinPalService } from '@/services/zarinpal';
 
 import type {
   getWebhookEventsRoute,
@@ -60,11 +60,8 @@ export const zarinPalWebhookHandler: RouteHandler<typeof zarinPalWebhookRoute, A
 
         // Process payment based on webhook status
         if (webhookPayload.status === 'OK') {
-          // Verify payment with ZarinPal to ensure authenticity
-          const zarinPal = createZarinPalService({
-            merchantId: c.env.ZARINPAL_MERCHANT_ID,
-            accessToken: c.env.ZARINPAL_ACCESS_TOKEN,
-          });
+          // Verify payment with ZarinPal to ensure authenticity using factory pattern
+          const zarinPal = ZarinPalService.fromEnv(c.env);
 
           try {
             const verification = await zarinPal.verifyPayment({

@@ -1,0 +1,44 @@
+[
+  {
+    "endpoint": "/api/v1/products",
+    "method": "GET",
+    "status": 0,
+    "success": false,
+    "error": "fetch failed"
+  },
+  {
+    "endpoint": "/api/v1/system/health",
+    "method": "GET",
+    "status": 0,
+    "success": false,
+    "error": "fetch failed"
+  },
+  {
+    "endpoint": "/api/v1/subscriptions",
+    "method": "GET",
+    "status": 0,
+    "success": false,
+    "error": "fetch failed"
+  },
+  {
+    "endpoint": "/api/v1/payments",
+    "method": "GET",
+    "status": 0,
+    "success": false,
+    "error": "fetch failed"
+  },
+  {
+    "endpoint": "/api/v1/webhooks/events",
+    "method": "GET",
+    "status": 0,
+    "success": false,
+    "error": "fetch failed"
+  },
+  {
+    "endpoint": "/api/v1/scalar",
+    "method": "GET",
+    "status": 0,
+    "success": false,
+    "error": "fetch failed"
+  }
+]
