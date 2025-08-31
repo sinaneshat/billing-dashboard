@@ -6,6 +6,8 @@ import { CommonErrorResponses } from '@/api/common';
 import {
   CancelSubscriptionRequestSchema,
   CancelSubscriptionResponseSchema,
+  ChangePlanRequestSchema,
+  ChangePlanResponseSchema,
   CreateSubscriptionRequestSchema,
   CreateSubscriptionResponseSchema,
   GetSubscriptionResponseSchema,
@@ -121,6 +123,31 @@ export const resubscribeRoute = createRoute({
       description: 'Resubscription initiated successfully',
       content: {
         'application/json': { schema: ResubscribeResponseSchema },
+      },
+    },
+    ...CommonErrorResponses.update,
+  },
+});
+
+export const changePlanRoute = createRoute({
+  method: 'post',
+  path: '/subscriptions/{id}/change-plan',
+  tags: ['subscriptions'],
+  summary: 'Change subscription plan',
+  description: 'Change a subscription to a different plan (upgrade or downgrade)',
+  request: {
+    params: SubscriptionParamsSchema,
+    body: {
+      content: {
+        'application/json': { schema: ChangePlanRequestSchema },
+      },
+    },
+  },
+  responses: {
+    [HttpStatusCodes.OK]: {
+      description: 'Plan changed successfully',
+      content: {
+        'application/json': { schema: ChangePlanResponseSchema },
       },
     },
     ...CommonErrorResponses.update,

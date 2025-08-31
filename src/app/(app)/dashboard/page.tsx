@@ -12,22 +12,7 @@ import { LoadingSpinner } from '@/components/ui/loading-spinner';
 import { useCurrentUserQuery } from '@/hooks/queries/auth';
 import { usePaymentHistoryQuery } from '@/hooks/queries/payments';
 import { useCurrentSubscriptionQuery } from '@/hooks/queries/subscriptions';
-
-function formatCurrency(amount: number, currency: string = 'IRR') {
-  return new Intl.NumberFormat('fa-IR', {
-    style: 'currency',
-    currency,
-    minimumFractionDigits: 0,
-  }).format(amount);
-}
-
-function formatDate(dateString: string) {
-  return new Intl.DateTimeFormat('fa-IR', {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-  }).format(new Date(dateString));
-}
+import { formatPersianDate, formatTomanCurrency } from '@/lib/i18n/currency-utils';
 
 function getStatusBadgeVariant(status: string) {
   switch (status) {
@@ -47,10 +32,10 @@ function getStatusBadgeVariant(status: string) {
 export default function DashboardOverviewPage() {
   const { data: user, isLoading: userLoading, error: userError } = useCurrentUserQuery();
   const { data: currentSubscription, isLoading: subscriptionLoading } = useCurrentSubscriptionQuery();
-  const { data: paymentHistory, isLoading: paymentsLoading } = usePaymentHistoryQuery({ query: { limit: '3' } });
+  const { data: paymentHistory, isLoading: paymentsLoading } = usePaymentHistoryQuery();
 
   const recentPayments = paymentHistory?.success && Array.isArray(paymentHistory.data)
-    ? paymentHistory.data
+    ? paymentHistory.data.slice(0, 3) // Show only recent 3 payments
     : [];
 
   if (userLoading) {
@@ -144,7 +129,7 @@ export default function DashboardOverviewPage() {
                       <p className="text-xs text-muted-foreground">
                         Next billing:
                         {' '}
-                        {currentSubscription.nextBillingDate ? formatDate(currentSubscription.nextBillingDate) : 'N/A'}
+                        {currentSubscription.nextBillingDate ? formatPersianDate(currentSubscription.nextBillingDate) : 'N/A'}
                       </p>
                     </div>
                   )
@@ -173,7 +158,7 @@ export default function DashboardOverviewPage() {
                 ? (
                     <div>
                       <span className="text-2xl font-bold">
-                        {formatCurrency(currentSubscription.currentPrice)}
+                        {formatTomanCurrency(currentSubscription.currentPrice)}
                       </span>
                       <p className="text-xs text-muted-foreground">
                         Current plan pricing
@@ -232,11 +217,11 @@ export default function DashboardOverviewPage() {
           <AlertDescription>
             Your next billing date is
             {' '}
-            {formatDate(currentSubscription.nextBillingDate)}
+            {formatPersianDate(currentSubscription.nextBillingDate)}
             {' '}
             for
             {' '}
-            {formatCurrency(currentSubscription.currentPrice)}
+            {formatTomanCurrency(currentSubscription.currentPrice)}
             .
             <Button variant="link" className="h-auto p-0 ml-2" asChild>
               <Link href="/dashboard/billing/methods">
@@ -274,12 +259,12 @@ export default function DashboardOverviewPage() {
                             <div>
                               <p className="font-medium text-sm">{payment.product?.name}</p>
                               <p className="text-xs text-muted-foreground">
-                                {formatDate(payment.createdAt)}
+                                {formatPersianDate(payment.createdAt)}
                               </p>
                             </div>
                           </div>
                           <div className="text-right">
-                            <p className="font-medium text-sm">{formatCurrency(payment.amount, payment.currency)}</p>
+                            <p className="font-medium text-sm">{formatTomanCurrency(payment.amount)}</p>
                             <Badge variant={payment.status === 'completed' ? 'default' : 'secondary'} className="text-xs">
                               {payment.status}
                             </Badge>

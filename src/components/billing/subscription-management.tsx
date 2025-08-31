@@ -1,10 +1,11 @@
 'use client';
 
-import { Calendar, Package, Plus, RefreshCw, X } from 'lucide-react';
+import { Calendar, Eye, Package, Plus, RefreshCw, X } from 'lucide-react';
 import Link from 'next/link';
 import { useState } from 'react';
 import { toast } from 'sonner';
 
+import { SubscriptionDetails } from '@/components/billing/subscription-details';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -16,22 +17,7 @@ import { Separator } from '@/components/ui/separator';
 import { Textarea } from '@/components/ui/textarea';
 import { useCancelSubscriptionMutation, useResubscribeMutation } from '@/hooks/mutations/subscriptions';
 import { useSubscriptionsQuery } from '@/hooks/queries/subscriptions';
-
-function formatCurrency(amount: number, currency: string = 'IRR') {
-  return new Intl.NumberFormat('fa-IR', {
-    style: 'currency',
-    currency,
-    minimumFractionDigits: 0,
-  }).format(amount);
-}
-
-function formatDate(dateString: string) {
-  return new Intl.DateTimeFormat('fa-IR', {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-  }).format(new Date(dateString));
-}
+import { formatPersianDate, formatTomanCurrency } from '@/lib/i18n/currency-utils';
 
 function getStatusBadgeVariant(status: string) {
   switch (status) {
@@ -100,7 +86,7 @@ function CancelSubscriptionDialog({ subscription, onCancel, isLoading }: CancelS
             </div>
             <p className="text-sm text-muted-foreground">{subscription.product?.name}</p>
             <p className="text-lg font-semibold">
-              {subscription.currentPrice ? formatCurrency(subscription.currentPrice) : 'N/A'}
+              {subscription.currentPrice ? formatTomanCurrency(subscription.currentPrice) : 'N/A'}
               {' '}
               /
               {subscription.billingPeriod || 'month'}
@@ -143,6 +129,7 @@ export function SubscriptionManagement() {
   const { data: subscriptions, isLoading, error, refetch } = useSubscriptionsQuery();
   const cancelMutation = useCancelSubscriptionMutation();
   const resubscribeMutation = useResubscribeMutation();
+  const [selectedSubscriptionId, setSelectedSubscriptionId] = useState<string | null>(null);
 
   const subscriptionList = subscriptions?.success && Array.isArray(subscriptions.data)
     ? subscriptions.data
@@ -181,6 +168,16 @@ export function SubscriptionManagement() {
     }
   };
 
+  // Show subscription details if one is selected
+  if (selectedSubscriptionId) {
+    return (
+      <SubscriptionDetails
+        subscriptionId={selectedSubscriptionId}
+        onBack={() => setSelectedSubscriptionId(null)}
+      />
+    );
+  }
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-96">
@@ -217,7 +214,7 @@ export function SubscriptionManagement() {
               You don't have any subscriptions yet. Choose a plan to get started.
             </p>
             <Button asChild>
-              <Link href="/billing/plans">
+              <Link href="/dashboard/billing/plans">
                 <Plus className="h-4 w-4 mr-2" />
                 Browse Plans
               </Link>
@@ -238,7 +235,7 @@ export function SubscriptionManagement() {
           </p>
         </div>
         <Button asChild>
-          <Link href="/billing/plans">
+          <Link href="/dashboard/billing/plans">
             <Plus className="h-4 w-4 mr-2" />
             Add Subscription
           </Link>
@@ -268,7 +265,7 @@ export function SubscriptionManagement() {
               <div className="grid gap-4 md:grid-cols-4">
                 <div>
                   <p className="text-sm font-medium text-muted-foreground">Price</p>
-                  <p className="text-xl font-bold">{formatCurrency(subscription.currentPrice)}</p>
+                  <p className="text-xl font-bold">{formatTomanCurrency(subscription.currentPrice)}</p>
                   <p className="text-sm text-muted-foreground">
                     per
                     {subscription.billingPeriod}
@@ -277,7 +274,7 @@ export function SubscriptionManagement() {
 
                 <div>
                   <p className="text-sm font-medium text-muted-foreground">Start Date</p>
-                  <p className="text-lg">{formatDate(subscription.startDate)}</p>
+                  <p className="text-lg">{formatPersianDate(subscription.startDate)}</p>
                 </div>
 
                 <div>
@@ -286,9 +283,9 @@ export function SubscriptionManagement() {
                   </p>
                   <p className="text-lg">
                     {subscription.endDate && subscription.status === 'canceled'
-                      ? formatDate(subscription.endDate)
+                      ? formatPersianDate(subscription.endDate)
                       : subscription.nextBillingDate
-                        ? formatDate(subscription.nextBillingDate)
+                        ? formatPersianDate(subscription.nextBillingDate)
                         : 'N/A'}
                   </p>
                 </div>
@@ -332,10 +329,13 @@ export function SubscriptionManagement() {
                   </Button>
                 )}
 
-                <Button variant="outline" size="sm" asChild>
-                  <Link href={`/billing/subscriptions/${subscription.id}`}>
-                    View Details
-                  </Link>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setSelectedSubscriptionId(subscription.id)}
+                >
+                  <Eye className="h-4 w-4 mr-1" />
+                  View Details
                 </Button>
               </div>
             </CardContent>

@@ -48,6 +48,26 @@ export type ResubscribeResponse = {
   data?: { subscriptionId: string; paymentUrl: string; authority: string } | undefined;
 };
 
+// Change Plan
+export type ChangePlanRequest = {
+  param: { id: string };
+  json: {
+    newProductId: string;
+    callbackUrl: string;
+    effectiveDate?: 'immediate' | 'next_billing_cycle';
+  };
+};
+export type ChangePlanResponse = {
+  success: boolean;
+  data?: {
+    subscriptionId: string;
+    changeType: 'upgrade' | 'downgrade';
+    prorationAmount?: number;
+    paymentUrl?: string;
+    authority?: string;
+  } | undefined;
+};
+
 // ============================================================================
 //  Service Functions
 // ============================================================================
@@ -65,7 +85,7 @@ export async function getSubscriptionsService(args?: GetSubscriptionsRequest) {
  * All types are inferred from the RPC client
  */
 export async function getSubscriptionService(subscriptionId: string) {
-  return parseResponse(apiClient.subscriptions.$get({
+  return parseResponse(apiClient.subscriptions[':id'].$get({
     param: { id: subscriptionId },
   }));
 }
@@ -98,4 +118,12 @@ export async function resubscribeService(subscriptionId: string, callbackUrl: st
     param: { id: subscriptionId },
     json: { callbackUrl },
   }));
+}
+
+/**
+ * Change subscription plan (upgrade or downgrade)
+ * All types are inferred from the RPC client
+ */
+export async function changePlanService(args: ChangePlanRequest) {
+  return parseResponse(apiClient.subscriptions[':id']['change-plan'].$post(args));
 }

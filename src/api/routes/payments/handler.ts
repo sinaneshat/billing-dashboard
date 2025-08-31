@@ -10,6 +10,7 @@ import { db } from '@/db';
 import { billingEvent, payment, paymentMethod, product, subscription } from '@/db/tables/billing';
 
 import type {
+  generateInvoiceRoute,
   getPaymentsRoute,
   paymentCallbackRoute,
   verifyPaymentRoute,
@@ -453,6 +454,89 @@ export const verifyPaymentHandler: RouteHandler<typeof verifyPaymentRoute, ApiEn
     console.error('Payment verification failed:', error);
     throw new HTTPException(HttpStatusCodes.INTERNAL_SERVER_ERROR, {
       message: 'Failed to verify payment',
+    });
+  }
+};
+
+/**
+ * Handler for POST /payments/{id}/invoice
+ * Generate a downloadable invoice for a payment
+ */
+export const generateInvoiceHandler: RouteHandler<typeof generateInvoiceRoute, ApiEnv> = async (c) => {
+  c.header('X-Route', 'generate-invoice');
+
+  const user = c.get('user');
+  if (!user) {
+    throw new HTTPException(HttpStatusCodes.UNAUTHORIZED, {
+      message: 'Authentication required',
+    });
+  }
+
+  const { id: paymentId } = c.req.valid('param');
+  const { format, language } = c.req.valid('json');
+
+  try {
+    // Fetch payment with related data
+    const paymentData = await db
+      .select()
+      .from(payment)
+      .leftJoin(product, eq(payment.productId, product.id))
+      .leftJoin(subscription, eq(payment.subscriptionId, subscription.id))
+      .where(
+        and(
+          eq(payment.id, paymentId),
+          eq(payment.userId, user.id),
+        ),
+      )
+      .limit(1);
+
+    if (!paymentData.length) {
+      throw new HTTPException(HttpStatusCodes.NOT_FOUND, {
+        message: 'Payment not found',
+      });
+    }
+
+    const paymentRecord = paymentData[0]!;
+
+    // Only generate invoices for completed payments
+    if (paymentRecord.payment.status !== 'completed') {
+      throw new HTTPException(HttpStatusCodes.BAD_REQUEST, {
+        message: 'Invoice can only be generated for completed payments',
+      });
+    }
+
+    // Generate unique invoice ID
+    const invoiceId = `INV-${paymentId.slice(-8).toUpperCase()}-${Date.now()}`;
+
+    // Invoice content generation would happen here in production
+    // For now, we just return metadata about the invoice
+
+    // In a production system, you would:
+    // 1. Save the invoice content to cloud storage (S3, GCS, etc.)
+    // 2. Generate a signed URL for download
+    // 3. Set appropriate expiration time
+
+    // For this example, we'll return the content directly
+    const downloadUrl = `/api/v1/payments/${paymentId}/download/${invoiceId}`;
+
+    return c.json({
+      success: true,
+      data: {
+        invoiceId,
+        downloadUrl,
+        format,
+        language,
+        generatedAt: new Date().toISOString(),
+        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), // 24 hours
+      },
+    }, HttpStatusCodes.CREATED);
+  } catch (error) {
+    if (error instanceof HTTPException) {
+      throw error;
+    }
+    console.error('Invoice generation failed:', error);
+    throw new HTTPException(HttpStatusCodes.INTERNAL_SERVER_ERROR, {
+      message: 'Failed to generate invoice',
     });
   }
 };

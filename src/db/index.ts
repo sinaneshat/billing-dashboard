@@ -21,19 +21,23 @@ function getLocalDbPath(): string {
     fs.mkdirSync(LOCAL_DB_PATH, { recursive: true });
   }
 
-  // Look for existing SQLite file
+  // Look for existing SQLite file (prioritize wrangler-generated files)
   try {
     const files = fs.readdirSync(LOCAL_DB_PATH);
     const dbFile = files.find(file => file.endsWith('.sqlite'));
     if (dbFile) {
-      return path.join(LOCAL_DB_PATH, dbFile);
+      const fullPath = path.join(LOCAL_DB_PATH, dbFile);
+      console.error(`[DB] Using SQLite database: ${fullPath}`);
+      return fullPath;
     }
-  } catch {
-    // Directory doesn't exist or can't be read
+  } catch (error) {
+    console.error('[DB] Error reading database directory:', error);
   }
 
   // Return default path
-  return path.join(LOCAL_DB_PATH, 'database.sqlite');
+  const defaultPath = path.join(LOCAL_DB_PATH, 'database.sqlite');
+  console.error(`[DB] Using default SQLite database: ${defaultPath}`);
+  return defaultPath;
 }
 
 /**
@@ -82,31 +86,31 @@ function initD1Db() {
   });
 }
 
+// Cached database instance
+let _db: ReturnType<typeof initLocalDb | typeof initD1Db> | null = null;
+
 /**
- * Database instance with performance optimizations
- * - In test: Uses in-memory SQLite from test setup
+ * Get database instance with lazy initialization
  * - In development: Uses local SQLite file via better-sqlite3
  * - In production/preview: Uses Cloudflare D1
  */
-let _testDatabase: ReturnType<typeof initLocalDb> | null = null;
-
-export function getDatabase() {
-  const isTest = process.env.NODE_ENV === 'test' || process.env.NEXT_PUBLIC_WEBAPP_ENV === 'test';
-  const isLocal = process.env.NODE_ENV === 'development' || process.env.NEXT_PUBLIC_WEBAPP_ENV === 'local';
-
-  // In test environment, use the test database if available
-  if (isTest && _testDatabase) {
-    return _testDatabase;
+function getDb() {
+  if (_db) {
+    return _db;
   }
+
+  const isLocal = process.env.NODE_ENV === 'development' || process.env.NEXT_PUBLIC_WEBAPP_ENV === 'local';
 
   // If we have a D1 binding, use it (even in development with wrangler)
   if (process.env.DB) {
-    return initD1Db();
+    _db = initD1Db();
+    return _db;
   }
 
   // Otherwise, use local SQLite in development
   if (isLocal) {
-    return initLocalDb();
+    _db = initLocalDb();
+    return _db;
   }
 
   // In production without D1 binding, throw error
@@ -115,18 +119,21 @@ export function getDatabase() {
   );
 }
 
-export function setTestDatabase(database: ReturnType<typeof initLocalDb>) {
-  _testDatabase = database;
-}
-
-// Lazy database connection - only initialize when accessed
-let _db: ReturnType<typeof getDatabase> | null = null;
-export const db = new Proxy({} as ReturnType<typeof getDatabase>, {
+/**
+ * Database instance with lazy initialization and performance optimizations
+ * This prevents database connection during build time when bindings are not available
+ */
+export const db = new Proxy({} as ReturnType<typeof getDb>, {
   get(target, prop) {
-    if (!_db) {
-      _db = getDatabase();
+    const dbInstance = getDb();
+    const value = dbInstance[prop as keyof typeof dbInstance];
+
+    // Bind methods to the correct context
+    if (typeof value === 'function') {
+      return value.bind(dbInstance);
     }
-    return (_db as ReturnType<typeof getDatabase>)[prop as keyof ReturnType<typeof getDatabase>];
+
+    return value;
   },
 });
 

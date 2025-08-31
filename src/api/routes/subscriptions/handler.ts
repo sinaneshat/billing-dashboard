@@ -8,9 +8,11 @@ import { ZarinPalService } from '@/api/services/zarinpal';
 import type { ApiEnv } from '@/api/types';
 import { db } from '@/db';
 import { payment, product, subscription } from '@/db/tables/billing';
+import type { PlanChangeHistoryItem } from '@/db/validation';
 
 import type {
   cancelSubscriptionRoute,
+  changePlanRoute,
   createSubscriptionRoute,
   getSubscriptionRoute,
   getSubscriptionsRoute,
@@ -449,6 +451,207 @@ export const resubscribeHandler: RouteHandler<typeof resubscribeRoute, ApiEnv> =
     console.error('Failed to resubscribe:', error);
     throw new HTTPException(HttpStatusCodes.INTERNAL_SERVER_ERROR, {
       message: 'Failed to resubscribe',
+    });
+  }
+};
+
+/**
+ * Handler for POST /subscriptions/:id/change-plan
+ * Changes a subscription to a different plan (upgrade or downgrade)
+ */
+export const changePlanHandler: RouteHandler<typeof changePlanRoute, ApiEnv> = async (c) => {
+  c.header('X-Route', 'change-plan');
+
+  const user = c.get('user');
+  if (!user) {
+    throw new HTTPException(HttpStatusCodes.UNAUTHORIZED, {
+      message: 'Authentication required',
+    });
+  }
+
+  const { id } = c.req.valid('param');
+  const { newProductId, callbackUrl, effectiveDate } = c.req.valid('json');
+
+  try {
+    // Get current subscription with product
+    const subscriptionData = await db
+      .select()
+      .from(subscription)
+      .innerJoin(product, eq(subscription.productId, product.id))
+      .where(and(eq(subscription.id, id), eq(subscription.userId, user.id)))
+      .limit(1);
+
+    if (!subscriptionData.length) {
+      throw new HTTPException(HttpStatusCodes.NOT_FOUND, {
+        message: 'Subscription not found',
+      });
+    }
+
+    const { subscription: currentSub, product: currentProduct } = subscriptionData[0]!;
+
+    if (currentSub.status !== 'active') {
+      throw new HTTPException(HttpStatusCodes.BAD_REQUEST, {
+        message: 'Only active subscriptions can change plans',
+      });
+    }
+
+    // Get the new product
+    const newProductData = await db
+      .select()
+      .from(product)
+      .where(and(eq(product.id, newProductId), eq(product.isActive, true)))
+      .limit(1);
+
+    if (!newProductData.length) {
+      throw new HTTPException(HttpStatusCodes.NOT_FOUND, {
+        message: 'New product not found or inactive',
+      });
+    }
+
+    const newProduct = newProductData[0]!;
+
+    if (currentProduct.id === newProduct.id) {
+      throw new HTTPException(HttpStatusCodes.BAD_REQUEST, {
+        message: 'Cannot change to the same plan',
+      });
+    }
+
+    const priceDifference = newProduct.price - currentProduct.price;
+    let paymentUrl: string | null = null;
+    let authority: string | null = null;
+    let prorationAmount: number | null = null;
+
+    const now = new Date();
+    let effectiveDateTimestamp = now;
+
+    // Calculate effective date
+    if (effectiveDate === 'next_billing_cycle' && currentSub.nextBillingDate) {
+      effectiveDateTimestamp = currentSub.nextBillingDate;
+    }
+
+    // For immediate changes, calculate proration if it's an upgrade
+    if (effectiveDate === 'immediate' && priceDifference > 0) {
+      // Calculate prorated amount based on remaining days in current billing cycle
+      if (currentSub.nextBillingDate && currentProduct.billingPeriod === 'monthly') {
+        const daysInMonth = 30; // Simplified - could be more accurate
+        const remainingDays = Math.ceil(
+          (currentSub.nextBillingDate.getTime() - now.getTime()) / (24 * 60 * 60 * 1000),
+        );
+        prorationAmount = Math.round((priceDifference * remainingDays) / daysInMonth);
+      } else {
+        prorationAmount = priceDifference;
+      }
+
+      // If it's an upgrade requiring payment, create payment flow
+      if (prorationAmount > 0) {
+        const paymentId = crypto.randomUUID();
+        await db.insert(payment).values({
+          id: paymentId,
+          userId: user.id,
+          subscriptionId: currentSub.id,
+          productId: newProduct.id,
+          amount: prorationAmount,
+          status: 'pending',
+          paymentMethod: 'zarinpal',
+        });
+
+        // Initialize ZarinPal payment
+        const zarinPal = ZarinPalService.fromEnv(c.env);
+        const paymentRequest = await zarinPal.requestPayment({
+          amount: prorationAmount,
+          currency: 'IRR',
+          description: `Plan upgrade from ${currentProduct.name} to ${newProduct.name}`,
+          callbackUrl,
+          metadata: {
+            subscriptionId: currentSub.id,
+            paymentId,
+            userId: user.id,
+            planChange: true,
+            oldProductId: currentProduct.id,
+            newProductId: newProduct.id,
+          },
+        });
+
+        if (!paymentRequest.data?.authority) {
+          await db
+            .update(payment)
+            .set({
+              status: 'failed',
+              failureReason: paymentRequest.data?.message || 'Failed to initialize payment',
+              failedAt: now,
+            })
+            .where(eq(payment.id, paymentId));
+
+          throw new HTTPException(HttpStatusCodes.INTERNAL_SERVER_ERROR, {
+            message: `Payment initialization failed: ${paymentRequest.data?.message}`,
+          });
+        }
+
+        await db
+          .update(payment)
+          .set({
+            zarinpalAuthority: paymentRequest.data?.authority,
+            metadata: paymentRequest,
+          })
+          .where(eq(payment.id, paymentId));
+
+        paymentUrl = zarinPal.getPaymentUrl(paymentRequest.data.authority);
+        authority = paymentRequest.data?.authority;
+      }
+    }
+
+    // Update subscription if no payment required or it's a downgrade/next cycle change
+    if (!paymentUrl) {
+      const nextBillingDate = effectiveDateTimestamp.getTime() === now.getTime()
+        ? (newProduct.billingPeriod === 'monthly'
+            ? new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000)
+            : null)
+        : currentSub.nextBillingDate;
+
+      await db
+        .update(subscription)
+        .set({
+          productId: newProduct.id,
+          currentPrice: newProduct.price,
+          billingPeriod: newProduct.billingPeriod,
+          nextBillingDate,
+          updatedAt: now,
+          metadata: {
+            planChangeHistory: [
+              ...(currentSub.metadata && typeof currentSub.metadata === 'object' && 'planChangeHistory' in currentSub.metadata
+                ? currentSub.metadata.planChangeHistory as PlanChangeHistoryItem[]
+                : []),
+              {
+                fromProductId: currentProduct.id,
+                toProductId: newProduct.id,
+                fromPrice: currentProduct.price,
+                toPrice: newProduct.price,
+                changedAt: effectiveDateTimestamp.toISOString(),
+                effectiveDate,
+              },
+            ],
+          },
+        })
+        .where(eq(subscription.id, id));
+    }
+
+    return ok(c, {
+      subscriptionId: id,
+      oldProductId: currentProduct.id,
+      newProductId: newProduct.id,
+      effectiveDate: effectiveDateTimestamp.toISOString(),
+      paymentUrl,
+      authority,
+      priceDifference,
+      prorationAmount,
+    });
+  } catch (error) {
+    if (error instanceof HTTPException) {
+      throw error;
+    }
+    console.error('Failed to change plan:', error);
+    throw new HTTPException(HttpStatusCodes.INTERNAL_SERVER_ERROR, {
+      message: 'Failed to change plan',
     });
   }
 };

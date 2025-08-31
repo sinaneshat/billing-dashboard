@@ -10,14 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { LoadingSpinner } from '@/components/ui/loading-spinner';
 import { useCreateSubscriptionMutation } from '@/hooks/mutations/subscriptions';
 import { useProductsQuery } from '@/hooks/queries/products';
-
-function formatCurrency(amount: number, currency: string = 'IRR') {
-  return new Intl.NumberFormat('fa-IR', {
-    style: 'currency',
-    currency,
-    minimumFractionDigits: 0,
-  }).format(amount);
-}
+import { formatTomanCurrency } from '@/lib/i18n/currency-utils';
 
 function getPopularPlan(products: Array<{ id: string; name: string }>) {
   // Mark the middle-tier plan as popular, or the one with "pro" in the name
@@ -26,7 +19,8 @@ function getPopularPlan(products: Array<{ id: string; name: string }>) {
 }
 
 export function SubscriptionPlans() {
-  const { data: products, isLoading, error } = useProductsQuery({ query: { limit: '20' } });
+  // Note: API doesn't support query parameters yet
+  const { data: products, isLoading, error } = useProductsQuery();
   const createSubscriptionMutation = useCreateSubscriptionMutation();
   const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
 
@@ -139,7 +133,7 @@ export function SubscriptionPlans() {
                 </CardDescription>
                 <div className="mt-4">
                   <div className="text-4xl font-bold">
-                    {formatCurrency(product.price)}
+                    {formatTomanCurrency(product.price)}
                   </div>
                   <div className="text-muted-foreground">
                     per

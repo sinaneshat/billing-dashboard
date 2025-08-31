@@ -1,3 +1,3 @@
 export { DashboardHeader } from './dashboard-header';
-export { DashboardNav } from './dashboard-nav';
+export { AppSidebar } from './dashboard-nav';
 export { PageHeader, PageHeaderAction } from './page-header';

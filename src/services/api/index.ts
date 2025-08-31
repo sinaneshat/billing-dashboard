@@ -28,6 +28,22 @@ export {
   validateImageFileService,
 } from './images';
 
+// Payment Methods service exports
+export {
+  type CreatePaymentMethodRequest,
+  type CreatePaymentMethodResponse,
+  createPaymentMethodService,
+  type DeletePaymentMethodRequest,
+  type DeletePaymentMethodResponse,
+  deletePaymentMethodService,
+  type GetPaymentMethodsRequest,
+  type GetPaymentMethodsResponse,
+  getPaymentMethodsService,
+  type SetDefaultPaymentMethodRequest,
+  type SetDefaultPaymentMethodResponse,
+  setDefaultPaymentMethodService,
+} from './payment-methods';
+
 // Payments service exports
 export {
   type GetPaymentsRequest,

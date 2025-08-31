@@ -55,6 +55,12 @@ export const queryKeys = {
     history: (filters?: Record<string, unknown>) => ['payments', 'history', filters],
     detail: (paymentId: string) => ['payments', 'detail', paymentId],
   },
+
+  paymentMethods: {
+    all: ['paymentMethods'],
+    list: (filters?: Record<string, unknown>) => ['paymentMethods', 'list', filters],
+    detail: (paymentMethodId: string) => ['paymentMethods', 'detail', paymentMethodId],
+  },
 };
 
 /**
@@ -150,6 +156,19 @@ export const invalidationPatterns = {
     queryKeys.payments.detail(paymentId),
     queryKeys.payments.all,
     queryKeys.payments.history(),
+  ],
+
+  // When payment methods change
+  paymentMethods: [
+    queryKeys.paymentMethods.all,
+    queryKeys.paymentMethods.list(),
+  ],
+
+  // When payment method details change
+  paymentMethodDetail: (paymentMethodId: string) => [
+    queryKeys.paymentMethods.detail(paymentMethodId),
+    queryKeys.paymentMethods.all,
+    queryKeys.paymentMethods.list(),
   ],
 };
 

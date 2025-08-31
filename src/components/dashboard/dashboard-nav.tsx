@@ -2,8 +2,8 @@
 
 import {
   BarChart3,
+  ChevronDown,
   CreditCard,
-  Menu,
   Package,
   Receipt,
   Settings,
@@ -11,197 +11,230 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useState } from 'react';
 
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarFooter,
+  SidebarGroup,
+  SidebarGroupContent,
+  SidebarGroupLabel,
+  SidebarHeader,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  SidebarMenuSub,
+  SidebarMenuSubButton,
+  SidebarMenuSubItem,
+  SidebarRail,
+} from '@/components/ui/sidebar';
 import { useCurrentSubscriptionQuery } from '@/hooks/queries/subscriptions';
-import { cn } from '@/lib/utils';
 
+// Navigation structure
 const navigation = [
   {
-    name: 'Dashboard',
-    href: '/dashboard',
+    title: 'Dashboard',
+    url: '/dashboard',
     icon: BarChart3,
-    description: 'Dashboard overview and account information',
   },
   {
-    name: 'Billing',
-    href: '/dashboard/billing',
+    title: 'Billing',
+    url: '/dashboard/billing',
     icon: CreditCard,
-    description: 'Subscription and payment management',
-    badge: true,
-  },
-  {
-    name: 'Subscriptions',
-    href: '/dashboard/billing/subscriptions',
-    icon: Package,
-    description: 'Manage your active subscriptions',
-    parent: 'billing',
-  },
-  {
-    name: 'Payment History',
-    href: '/dashboard/billing/payments',
-    icon: Receipt,
-    description: 'View payment history and receipts',
-    parent: 'billing',
-  },
-  {
-    name: 'Plans',
-    href: '/dashboard/billing/plans',
-    icon: ShoppingCart,
-    description: 'Browse and upgrade subscription plans',
-    parent: 'billing',
-  },
-  {
-    name: 'Payment Methods',
-    href: '/dashboard/billing/methods',
-    icon: Settings,
-    description: 'Manage payment methods and billing settings',
-    parent: 'billing',
+    badge: 'subscription',
+    items: [
+      {
+        title: 'Overview',
+        url: '/dashboard/billing',
+        icon: CreditCard,
+      },
+      {
+        title: 'Subscriptions',
+        url: '/dashboard/billing/subscriptions',
+        icon: Package,
+      },
+      {
+        title: 'Plans',
+        url: '/dashboard/billing/plans',
+        icon: ShoppingCart,
+      },
+      {
+        title: 'Payment History',
+        url: '/dashboard/billing/payments',
+        icon: Receipt,
+      },
+      {
+        title: 'Payment Methods',
+        url: '/dashboard/billing/methods',
+        icon: Settings,
+      },
+    ],
   },
 ];
 
-function NavLink({ item }: { item: typeof navigation[0] }) {
+export function AppSidebar({ user, ...props }: React.ComponentProps<typeof Sidebar> & {
+  user?: {
+    name?: string | null;
+    email?: string | null;
+    image?: string | null;
+  };
+}) {
   const pathname = usePathname();
-  const isActive = pathname === item.href || (item.name === 'Billing' && pathname.startsWith('/dashboard/billing'));
   const { data: currentSubscription } = useCurrentSubscriptionQuery();
 
-  const showBadge = item.badge && currentSubscription?.status === 'active';
-  const isSubItem = item.parent;
+  const userInitials = user?.name
+    ? user.name.split(' ').map((n: string) => n[0]).join('').toUpperCase()
+    : user?.email?.[0]?.toUpperCase() || 'U';
+
+  const hasActiveSubscription = currentSubscription?.status === 'active';
 
   return (
-    <Link
-      href={item.href}
-      className={cn(
-        'flex items-center justify-between gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground group',
-        isActive
-          ? 'bg-accent text-accent-foreground'
-          : 'text-muted-foreground',
-        isSubItem && 'ml-6 border-l border-border pl-4',
-      )}
-      title={item.description}
-    >
-      <div className="flex items-center gap-3">
-        <item.icon className="h-4 w-4" />
-        <span>{item.name}</span>
-      </div>
-      {showBadge && (
-        <Badge variant="secondary" className="h-5 px-1.5 text-xs">
-          Active
-        </Badge>
-      )}
-    </Link>
-  );
-}
-
-function DesktopNav() {
-  const mainItems = navigation.filter(item => !item.parent);
-  const billingItems = navigation.filter(item => item.parent === 'billing');
-  const pathname = usePathname();
-  const showBillingSubItems = pathname.startsWith('/dashboard/billing');
-
-  return (
-    <nav className="hidden md:flex md:flex-col md:w-64 md:fixed md:inset-y-0 md:bg-card md:border-r">
-      <div className="flex flex-col flex-1 min-h-0">
-        <div className="flex flex-col flex-1 pt-5 pb-4 overflow-y-auto">
-          <div className="flex items-center flex-shrink-0 px-4 mb-8">
-            <Link href="/dashboard" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
-              <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
-                <CreditCard className="w-4 h-4 text-primary-foreground" />
-              </div>
-              <span className="text-lg font-semibold">Billing Dashboard</span>
-            </Link>
-          </div>
-          <nav className="mt-2 flex-1 px-3 space-y-1">
-            {mainItems.map(item => (
-              <NavLink key={item.name} item={item} />
-            ))}
-            {showBillingSubItems && (
-              <div className="pt-2 space-y-1">
-                {billingItems.map(item => (
-                  <NavLink key={item.name} item={item} />
-                ))}
-              </div>
-            )}
-          </nav>
-        </div>
-      </div>
-    </nav>
-  );
-}
-
-function MobileNav() {
-  const [isOpen, setIsOpen] = useState(false);
-  const mainItems = navigation.filter(item => !item.parent);
-  const billingItems = navigation.filter(item => item.parent === 'billing');
-  const pathname = usePathname();
-  const showBillingSubItems = pathname.startsWith('/dashboard/billing');
-
-  const handleNavClick = () => {
-    setIsOpen(false);
-  };
-
-  return (
-    <div className="md:hidden">
-      <Sheet open={isOpen} onOpenChange={setIsOpen}>
-        <SheetTrigger asChild>
-          <Button variant="ghost" size="sm" className="md:hidden">
-            <Menu className="h-5 w-5" />
-            <span className="sr-only">Open menu</span>
-          </Button>
-        </SheetTrigger>
-        <SheetContent side="left" className="w-64 p-0">
-          <div className="flex flex-col h-full">
-            <div className="flex items-center justify-between p-4 border-b">
-              <Link href="/dashboard" onClick={handleNavClick} className="flex items-center gap-2 hover:opacity-80 transition-opacity">
-                <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
-                  <CreditCard className="w-4 h-4 text-primary-foreground" />
+    <Sidebar variant="sidebar" collapsible="icon" {...props}>
+      <SidebarHeader className="h-16 border-b border-sidebar-border">
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton size="lg" asChild className="w-full">
+              <Link href="/dashboard" className="flex items-center gap-2">
+                <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
+                  <CreditCard className="size-4" />
                 </div>
-                <span className="text-lg font-semibold">Billing Dashboard</span>
+                <div className="grid flex-1 text-left text-sm leading-tight">
+                  <span className="truncate font-semibold">Billing Dashboard</span>
+                  <span className="truncate text-xs text-sidebar-foreground/70">Manage your subscriptions</span>
+                </div>
               </Link>
-            </div>
-            <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
-              {mainItems.map(item => (
-                <div
-                  key={item.name}
-                  onClick={handleNavClick}
-                  onKeyDown={e => e.key === 'Enter' && handleNavClick()}
-                  role="button"
-                  tabIndex={0}
-                >
-                  <NavLink item={item} />
-                </div>
-              ))}
-              {showBillingSubItems && (
-                <div className="pt-2 space-y-1 border-t border-border mt-2">
-                  {billingItems.map(item => (
-                    <div
-                      key={item.name}
-                      onClick={handleNavClick}
-                      onKeyDown={e => e.key === 'Enter' && handleNavClick()}
-                      role="button"
-                      tabIndex={0}
-                    >
-                      <NavLink item={item} />
-                    </div>
-                  ))}
-                </div>
-              )}
-            </nav>
-          </div>
-        </SheetContent>
-      </Sheet>
-    </div>
-  );
-}
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
+      </SidebarHeader>
 
-export function DashboardNav() {
-  return (
-    <>
-      <DesktopNav />
-      <MobileNav />
-    </>
+      <SidebarContent className="flex-1 overflow-auto">
+        <SidebarGroup className="px-0">
+          <SidebarGroupLabel className="px-2 pb-2 text-xs font-medium text-sidebar-foreground/70">
+            Navigation
+          </SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu className="gap-1">
+              {navigation.map((item) => {
+                // More precise active state detection
+                const isExactMatch = pathname === item.url;
+                const hasActiveSubItem = item.items?.some(subItem => pathname === subItem.url);
+                const isParentActive = hasActiveSubItem || (pathname.startsWith(`${item.url}/`) && pathname !== item.url);
+                const shouldExpand = hasActiveSubItem || isParentActive;
+                const showBadge = item.badge === 'subscription' && hasActiveSubscription;
+
+                if (item.items) {
+                  return (
+                    <Collapsible
+                      key={item.title}
+                      asChild
+                      defaultOpen={shouldExpand}
+                      className="group/collapsible"
+                    >
+                      <SidebarMenuItem>
+                        <CollapsibleTrigger asChild>
+                          <SidebarMenuButton
+                            tooltip={item.title}
+                            isActive={false} // Parent items should not be highlighted
+                            className="w-full px-2 transition-colors hover:bg-sidebar-accent text-sidebar-foreground/90 hover:text-sidebar-foreground"
+                          >
+                            <item.icon className="size-4" />
+                            <span className="flex-1 text-left">{item.title}</span>
+                            {showBadge && (
+                              <Badge variant="secondary" className="ml-2 h-5 px-1.5 text-xs">
+                                Active
+                              </Badge>
+                            )}
+                            <ChevronDown className="ml-2 size-4 transition-transform duration-200 group-data-[state=open]/collapsible:rotate-180" />
+                          </SidebarMenuButton>
+                        </CollapsibleTrigger>
+                        <CollapsibleContent className="overflow-hidden data-[state=closed]:animate-collapsible-up data-[state=open]:animate-collapsible-down">
+                          <SidebarMenuSub className="mx-0 px-0">
+                            {item.items.map((subItem) => {
+                              const isSubActive = pathname === subItem.url;
+                              return (
+                                <SidebarMenuSubItem key={subItem.title}>
+                                  <SidebarMenuSubButton
+                                    asChild
+                                    isActive={isSubActive}
+                                    className={`w-full transition-colors ${
+                                      isSubActive
+                                        ? 'bg-sidebar-primary/10 text-sidebar-primary border-r-2 border-sidebar-primary font-medium'
+                                        : 'hover:bg-sidebar-accent text-sidebar-foreground/80 hover:text-sidebar-foreground'
+                                    }`}
+                                  >
+                                    <Link href={subItem.url} className="flex items-center gap-2 px-2">
+                                      <subItem.icon className="size-4" />
+                                      <span className="flex-1 text-left">{subItem.title}</span>
+                                    </Link>
+                                  </SidebarMenuSubButton>
+                                </SidebarMenuSubItem>
+                              );
+                            })}
+                          </SidebarMenuSub>
+                        </CollapsibleContent>
+                      </SidebarMenuItem>
+                    </Collapsible>
+                  );
+                }
+
+                return (
+                  <SidebarMenuItem key={item.title}>
+                    <SidebarMenuButton
+                      asChild
+                      tooltip={item.title}
+                      isActive={isExactMatch}
+                      className={`w-full px-2 transition-colors ${
+                        isExactMatch
+                          ? 'bg-sidebar-primary/10 text-sidebar-primary border-r-2 border-sidebar-primary font-medium'
+                          : 'hover:bg-sidebar-accent text-sidebar-foreground/80 hover:text-sidebar-foreground'
+                      }`}
+                    >
+                      <Link href={item.url} className="flex items-center gap-2">
+                        <item.icon className="size-4" />
+                        <span className="flex-1 text-left">{item.title}</span>
+                        {showBadge && (
+                          <Badge variant="secondary" className="ml-2 h-5 px-1.5 text-xs">
+                            Active
+                          </Badge>
+                        )}
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                );
+              })}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+      </SidebarContent>
+
+      <SidebarFooter className="mt-auto border-t border-sidebar-border">
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              size="lg"
+              className="w-full px-2 data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
+            >
+              <Avatar className="h-8 w-8 rounded-lg">
+                <AvatarImage src={user?.image || undefined} alt={user?.name || 'User'} />
+                <AvatarFallback className="rounded-lg">{userInitials}</AvatarFallback>
+              </Avatar>
+              <div className="grid flex-1 text-left text-sm leading-tight">
+                <span className="truncate font-semibold">{user?.name || 'User'}</span>
+                <span className="truncate text-xs text-sidebar-foreground/70">{user?.email}</span>
+              </div>
+              {hasActiveSubscription && (
+                <div className="ml-2 size-2 rounded-full bg-green-500" />
+              )}
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
+      </SidebarFooter>
+
+      <SidebarRail />
+    </Sidebar>
   );
 }

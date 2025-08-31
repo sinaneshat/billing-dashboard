@@ -76,6 +76,34 @@ export const VerifyPaymentResponseSchema = ApiResponseSchema(
   }),
 ).openapi('VerifyPaymentResponse');
 
+// Invoice generation request
+export const GenerateInvoiceRequestSchema = z.object({
+  format: z.enum(['pdf', 'html']).default('pdf').openapi({
+    example: 'pdf',
+    description: 'Invoice format (PDF or HTML)',
+  }),
+  language: z.enum(['en', 'fa']).default('en').openapi({
+    example: 'en',
+    description: 'Invoice language (English or Persian)',
+  }),
+  includeDetails: z.boolean().default(true).openapi({
+    example: true,
+    description: 'Include detailed payment information',
+  }),
+}).openapi('GenerateInvoiceRequest');
+
+// Invoice generation response
+export const GenerateInvoiceResponseSchema = ApiResponseSchema(
+  z.object({
+    invoiceId: z.string(),
+    downloadUrl: z.string(),
+    format: z.string(),
+    language: z.string(),
+    generatedAt: z.string().datetime(),
+    expiresAt: z.string().datetime(),
+  }),
+).openapi('GenerateInvoiceResponse');
+
 // Path parameter schemas
 export const PaymentParamsSchema = z.object({
   id: z.string().min(1).openapi({
@@ -91,3 +119,4 @@ export type PaymentWithDetails = z.infer<typeof PaymentWithDetailsSchema>;
 export type PaymentCallbackRequest = z.infer<typeof PaymentCallbackRequestSchema>;
 export type VerifyPaymentRequest = z.infer<typeof VerifyPaymentRequestSchema>;
 export type PaymentParams = z.infer<typeof PaymentParamsSchema>;
+export type GenerateInvoiceRequest = z.infer<typeof GenerateInvoiceRequestSchema>;

@@ -17,6 +17,10 @@ export {
   useUserAvatarsQuery,
 } from './images';
 export {
+  usePaymentMethodsQuery,
+  usePrefetchPaymentMethods,
+} from './payment-methods';
+export {
   usePaymentCallbackQuery,
   usePaymentHistoryInfiniteQuery,
   usePaymentHistoryQuery,
@@ -29,5 +33,6 @@ export {
 export {
   useCurrentSubscriptionQuery,
   usePrefetchSubscriptions,
+  useSubscriptionQuery,
   useSubscriptionsQuery,
 } from './subscriptions';

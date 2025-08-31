@@ -48,12 +48,27 @@ import {
   uploadCompanyImageRoute,
   uploadUserAvatarRoute,
 } from './routes/images/route';
+// Payment methods routes
 import {
+  createPaymentMethodHandler,
+  deletePaymentMethodHandler,
+  getPaymentMethodsHandler,
+  setDefaultPaymentMethodHandler,
+} from './routes/payment-methods/handler';
+import {
+  createPaymentMethodRoute,
+  deletePaymentMethodRoute,
+  getPaymentMethodsRoute,
+  setDefaultPaymentMethodRoute,
+} from './routes/payment-methods/route';
+import {
+  generateInvoiceHandler,
   getPaymentsHandler,
   paymentCallbackHandler,
   verifyPaymentHandler,
 } from './routes/payments/handler';
 import {
+  generateInvoiceRoute,
   getPaymentsRoute,
   paymentCallbackRoute,
   verifyPaymentRoute,
@@ -63,6 +78,7 @@ import { getProductsRoute } from './routes/products/route';
 // Billing routes
 import {
   cancelSubscriptionHandler,
+  changePlanHandler,
   createSubscriptionHandler,
   getSubscriptionHandler,
   getSubscriptionsHandler,
@@ -70,6 +86,7 @@ import {
 } from './routes/subscriptions/handler';
 import {
   cancelSubscriptionRoute,
+  changePlanRoute,
   createSubscriptionRoute,
   getSubscriptionRoute,
   getSubscriptionsRoute,
@@ -165,6 +182,7 @@ app.use('/auth/*', requireSession);
 app.use('/images/*', requireSession);
 app.use('/subscriptions/*', requireSession);
 app.use('/payments/verify', requireSession);
+app.use('/payment-methods/*', requireSession);
 app.use('/webhooks/events', requireSession);
 app.use('/webhooks/test', requireSession);
 app.use('/passes/*', createRateLimiter(RATE_LIMIT_CONFIGS.apiGeneral));
@@ -185,10 +203,17 @@ const appRoutes = app
   .openapi(createSubscriptionRoute, createSubscriptionHandler)
   .openapi(cancelSubscriptionRoute, cancelSubscriptionHandler)
   .openapi(resubscribeRoute, resubscribeHandler)
+  .openapi(changePlanRoute, changePlanHandler)
   // Payments routes
   .openapi(getPaymentsRoute, getPaymentsHandler)
   .openapi(paymentCallbackRoute, paymentCallbackHandler)
   .openapi(verifyPaymentRoute, verifyPaymentHandler)
+  .openapi(generateInvoiceRoute, generateInvoiceHandler)
+  // Payment methods routes
+  .openapi(getPaymentMethodsRoute, getPaymentMethodsHandler)
+  .openapi(createPaymentMethodRoute, createPaymentMethodHandler)
+  .openapi(deletePaymentMethodRoute, deletePaymentMethodHandler)
+  .openapi(setDefaultPaymentMethodRoute, setDefaultPaymentMethodHandler)
   // Webhooks routes
   .openapi(zarinPalWebhookRoute, zarinPalWebhookHandler)
   .openapi(getWebhookEventsRoute, getWebhookEventsHandler)
@@ -227,6 +252,7 @@ appRoutes.doc('/doc', c => ({
     { name: 'products', description: 'Product management and catalog' },
     { name: 'subscriptions', description: 'Subscription management and billing' },
     { name: 'payments', description: 'Payment processing and verification' },
+    { name: 'payment-methods', description: 'Payment method management and card tokenization' },
     { name: 'webhooks', description: 'Webhook events and external integrations' },
     { name: 'images', description: 'Image upload and management' },
     { name: 'passes', description: 'Pass generation and management' },

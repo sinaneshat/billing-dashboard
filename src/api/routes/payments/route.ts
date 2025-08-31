@@ -4,9 +4,12 @@ import * as HttpStatusCodes from 'stoker/http-status-codes';
 import { CommonErrorResponses } from '@/api/common';
 
 import {
+  GenerateInvoiceRequestSchema,
+  GenerateInvoiceResponseSchema,
   GetPaymentsResponseSchema,
   PaymentCallbackRequestSchema,
   PaymentCallbackResponseSchema,
+  PaymentParamsSchema,
   VerifyPaymentRequestSchema,
   VerifyPaymentResponseSchema,
 } from './schema';
@@ -69,5 +72,30 @@ export const verifyPaymentRoute = createRoute({
       },
     },
     ...CommonErrorResponses.update,
+  },
+});
+
+export const generateInvoiceRoute = createRoute({
+  method: 'post',
+  path: '/payments/{id}/invoice',
+  tags: ['payments'],
+  summary: 'Generate payment invoice',
+  description: 'Generate a downloadable invoice (PDF or HTML) for a specific payment',
+  request: {
+    params: PaymentParamsSchema,
+    body: {
+      content: {
+        'application/json': { schema: GenerateInvoiceRequestSchema },
+      },
+    },
+  },
+  responses: {
+    [HttpStatusCodes.CREATED]: {
+      description: 'Invoice generated successfully',
+      content: {
+        'application/json': { schema: GenerateInvoiceResponseSchema },
+      },
+    },
+    ...CommonErrorResponses.create,
   },
 });

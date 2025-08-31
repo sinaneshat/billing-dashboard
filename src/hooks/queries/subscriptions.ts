@@ -5,6 +5,7 @@ import type {
   GetSubscriptionsRequest,
 } from '@/services/api/subscriptions';
 import {
+  getSubscriptionService,
   getSubscriptionsService,
 } from '@/services/api/subscriptions';
 
@@ -40,6 +41,21 @@ export function useCurrentSubscriptionQuery() {
       }
       return null;
     },
+  });
+}
+
+/**
+ * Hook to fetch a single subscription by ID
+ * Following the Shakewell pattern for React Query hooks
+ */
+export function useSubscriptionQuery(subscriptionId: string) {
+  return useQuery({
+    queryKey: queryKeys.subscriptions.detail(subscriptionId),
+    queryFn: () => getSubscriptionService(subscriptionId),
+    staleTime: 2 * 60 * 1000, // 2 minutes - subscription details change fairly frequently
+    gcTime: 10 * 60 * 1000, // 10 minutes
+    retry: 2,
+    enabled: !!subscriptionId, // Only run if subscription ID is provided
   });
 }
 

@@ -15,6 +15,13 @@
       "when": 1756632749247,
       "tag": "0001_tense_black_bolt",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1756684142892,
+      "tag": "0002_mean_pepper_potts",
+      "breakpoints": true
     }
   ]
 }

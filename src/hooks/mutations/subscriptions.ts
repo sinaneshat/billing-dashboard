@@ -3,11 +3,13 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/lib/data/query-keys';
 import type {
   CancelSubscriptionRequest,
+  ChangePlanRequest,
   CreateSubscriptionRequest,
   ResubscribeRequest,
 } from '@/services/api/subscriptions';
 import {
   cancelSubscriptionService,
+  changePlanService,
   createSubscriptionService,
   resubscribeService,
 } from '@/services/api/subscriptions';
@@ -117,6 +119,52 @@ export function useResubscribeMutation() {
     },
     onError: (error) => {
       console.error('Failed to resubscribe:', error);
+    },
+    retry: 1,
+  });
+}
+
+export function useChangePlanMutation() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (args: ChangePlanRequest) => {
+      const result = await changePlanService(args);
+      return result;
+    },
+    onMutate: async (args) => {
+      // Cancel any outgoing refetches for the specific subscription
+      await queryClient.cancelQueries({
+        queryKey: queryKeys.subscriptions.detail(args.param.id),
+      });
+
+      // Snapshot the previous subscription data
+      const previousSubscription = queryClient.getQueryData(
+        queryKeys.subscriptions.detail(args.param.id),
+      );
+
+      return { previousSubscription };
+    },
+    onError: (error, _variables, context) => {
+      // Rollback optimistic update on error
+      if (context?.previousSubscription) {
+        queryClient.setQueryData(
+          queryKeys.subscriptions.detail(_variables.param.id),
+          context.previousSubscription,
+        );
+      }
+      console.error('Failed to change subscription plan:', error);
+    },
+    onSuccess: (data, variables) => {
+      // Invalidate relevant queries
+      queryClient.invalidateQueries({ queryKey: queryKeys.subscriptions.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.subscriptions.list() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.subscriptions.current() });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.subscriptions.detail(variables.param.id),
+      });
+      queryClient.invalidateQueries({ queryKey: queryKeys.payments.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.products.all });
     },
     retry: 1,
   });

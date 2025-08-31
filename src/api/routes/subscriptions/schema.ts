@@ -90,6 +90,43 @@ export const ResubscribeResponseSchema = ApiResponseSchema(
   }),
 ).openapi('ResubscribeResponse');
 
+// Plan change schemas
+export const ChangePlanRequestSchema = z.object({
+  newProductId: z.string().min(1).openapi({
+    example: 'prod_456',
+    description: 'New product ID to change to',
+  }),
+  callbackUrl: z.string().url().openapi({
+    example: 'https://app.example.com/payment/callback',
+    description: 'URL to redirect after payment (if additional payment required)',
+  }),
+  effectiveDate: z.enum(['immediate', 'next_billing_cycle']).default('immediate').openapi({
+    example: 'immediate',
+    description: 'When the plan change should take effect',
+  }),
+}).openapi('ChangePlanRequest');
+
+export const ChangePlanResponseSchema = ApiResponseSchema(
+  z.object({
+    subscriptionId: z.string(),
+    oldProductId: z.string(),
+    newProductId: z.string(),
+    effectiveDate: z.string().datetime(),
+    paymentUrl: z.string().url().nullable().openapi({
+      description: 'Payment URL if additional payment is required (for upgrades)',
+    }),
+    authority: z.string().nullable().openapi({
+      description: 'ZarinPal authority if payment is required',
+    }),
+    priceDifference: z.number().openapi({
+      description: 'Price difference (positive for upgrade, negative for downgrade)',
+    }),
+    prorationAmount: z.number().nullable().openapi({
+      description: 'Prorated amount for immediate plan changes',
+    }),
+  }),
+).openapi('ChangePlanResponse');
+
 // Path parameter schemas
 export const SubscriptionParamsSchema = z.object({
   id: z.string().min(1).openapi({

@@ -13,22 +13,7 @@ import { Separator } from '@/components/ui/separator';
 import { usePaymentHistoryQuery } from '@/hooks/queries/payments';
 import { useProductsQuery } from '@/hooks/queries/products';
 import { useCurrentSubscriptionQuery } from '@/hooks/queries/subscriptions';
-
-function formatCurrency(amount: number, currency: string = 'IRR') {
-  return new Intl.NumberFormat('fa-IR', {
-    style: 'currency',
-    currency,
-    minimumFractionDigits: 0,
-  }).format(amount);
-}
-
-function formatDate(dateString: string) {
-  return new Intl.DateTimeFormat('fa-IR', {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-  }).format(new Date(dateString));
-}
+import { formatPersianDate, formatTomanCurrency } from '@/lib/i18n/currency-utils';
 
 function getStatusBadgeVariant(status: string) {
   switch (status) {
@@ -140,7 +125,7 @@ export function BillingOverviewPage() {
                   <div className="grid gap-4 md:grid-cols-3">
                     <div>
                       <p className="text-sm font-medium text-muted-foreground">Current Price</p>
-                      <p className="text-2xl font-bold">{formatCurrency(currentSubscription.currentPrice)}</p>
+                      <p className="text-2xl font-bold">{formatTomanCurrency(currentSubscription.currentPrice)}</p>
                       <p className="text-sm text-muted-foreground">
                         per
                         {currentSubscription.billingPeriod}
@@ -149,14 +134,14 @@ export function BillingOverviewPage() {
 
                     <div>
                       <p className="text-sm font-medium text-muted-foreground">Start Date</p>
-                      <p className="text-lg">{formatDate(currentSubscription.startDate)}</p>
+                      <p className="text-lg">{formatPersianDate(currentSubscription.startDate)}</p>
                     </div>
 
                     <div>
                       <p className="text-sm font-medium text-muted-foreground">Next Billing</p>
                       <p className="text-lg">
                         {currentSubscription.nextBillingDate
-                          ? formatDate(currentSubscription.nextBillingDate)
+                          ? formatPersianDate(currentSubscription.nextBillingDate)
                           : 'N/A'}
                       </p>
                     </div>
@@ -208,14 +193,14 @@ export function BillingOverviewPage() {
                         <div className="flex-1">
                           <p className="font-medium">{payment.product?.name}</p>
                           <p className="text-sm text-muted-foreground">
-                            {formatDate(payment.createdAt)}
+                            {formatPersianDate(payment.createdAt)}
                             {' '}
                             •
                             {payment.paymentMethod}
                           </p>
                         </div>
                         <div className="text-right">
-                          <p className="font-medium">{formatCurrency(payment.amount, payment.currency)}</p>
+                          <p className="font-medium">{formatTomanCurrency(payment.amount)}</p>
                           <Badge variant={payment.status === 'completed' ? 'default' : 'secondary'} className="text-xs">
                             {payment.status}
                           </Badge>
@@ -249,7 +234,7 @@ export function BillingOverviewPage() {
                     <p className="text-sm text-muted-foreground">{product.description}</p>
                   </div>
                   <div>
-                    <p className="text-2xl font-bold">{formatCurrency(product.price)}</p>
+                    <p className="text-2xl font-bold">{formatTomanCurrency(product.price)}</p>
                     <p className="text-sm text-muted-foreground">
                       per
                       {product.billingPeriod}

@@ -1,35 +1,14 @@
 'use client';
 
-import { CreditCard, Filter, Search } from 'lucide-react';
-import { useState } from 'react';
+import { CreditCard } from 'lucide-react';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { LoadingSpinner } from '@/components/ui/loading-spinner';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { usePaymentHistoryQuery } from '@/hooks/queries/payments';
-
-function formatCurrency(amount: number, currency: string = 'IRR') {
-  return new Intl.NumberFormat('fa-IR', {
-    style: 'currency',
-    currency,
-    minimumFractionDigits: 0,
-  }).format(amount);
-}
-
-function formatDate(dateString: string) {
-  return new Intl.DateTimeFormat('fa-IR', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(new Date(dateString));
-}
+import { formatPersianDateTime, formatTomanCurrency } from '@/lib/i18n/currency-utils';
 
 function getStatusBadgeVariant(status: string) {
   switch (status) {
@@ -65,45 +44,15 @@ function getStatusColor(status: string) {
   }
 }
 
-type PaymentFilters = {
-  status?: string;
-  dateRange?: string;
-  search?: string;
-};
-
 export function PaymentHistory() {
-  const [filters, setFilters] = useState<PaymentFilters>({});
-  const [page, setPage] = useState(1);
-  const limit = 20;
-
-  const queryParams = {
-    query: {
-      ...(filters.status && filters.status !== 'all' && { status: filters.status }),
-      ...(filters.search && { search: filters.search }),
-      page: page.toString(),
-      limit: limit.toString(),
-    },
-  };
-
-  const { data: paymentHistory, isLoading, error, refetch } = usePaymentHistoryQuery(queryParams);
+  // Note: API doesn't support filtering/pagination yet
+  const { data: paymentHistory, isLoading, error, refetch } = usePaymentHistoryQuery();
 
   const paymentList = paymentHistory?.success && Array.isArray(paymentHistory.data)
     ? paymentHistory.data
     : [];
 
-  const handleFilterChange = (key: keyof PaymentFilters, value: string) => {
-    setFilters(prev => ({
-      ...prev,
-      [key]: value || undefined,
-    }));
-    setPage(1); // Reset to first page when filtering
-  };
-
-  const handleSearch = (searchTerm: string) => {
-    handleFilterChange('search', searchTerm);
-  };
-
-  if (isLoading && page === 1) {
+  if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-96">
         <LoadingSpinner className="h-8 w-8 mr-2" />
@@ -138,69 +87,6 @@ export function PaymentHistory() {
           </p>
         </div>
       </div>
-
-      {/* Filters */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Filter className="h-5 w-5" />
-            Filters
-          </CardTitle>
-          <CardDescription>
-            Filter your payment history to find specific transactions
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid gap-4 md:grid-cols-3">
-            <div className="space-y-2">
-              <Label className="text-sm font-medium" htmlFor="search-input">Search</Label>
-              <div className="relative">
-                <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                <Input
-                  id="search-input"
-                  placeholder="Search by product, ID..."
-                  className="pl-10"
-                  value={filters.search || ''}
-                  onChange={e => handleSearch(e.target.value)}
-                />
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label className="text-sm font-medium">Status</Label>
-              <Select value={filters.status || 'all'} onValueChange={value => handleFilterChange('status', value)}>
-                <SelectTrigger>
-                  <SelectValue placeholder="All statuses" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Statuses</SelectItem>
-                  <SelectItem value="completed">Completed</SelectItem>
-                  <SelectItem value="pending">Pending</SelectItem>
-                  <SelectItem value="failed">Failed</SelectItem>
-                  <SelectItem value="refunded">Refunded</SelectItem>
-                  <SelectItem value="canceled">Canceled</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <Label className="text-sm font-medium">Date Range</Label>
-              <Select value={filters.dateRange || 'all'} onValueChange={value => handleFilterChange('dateRange', value)}>
-                <SelectTrigger>
-                  <SelectValue placeholder="All time" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Time</SelectItem>
-                  <SelectItem value="7d">Last 7 Days</SelectItem>
-                  <SelectItem value="30d">Last 30 Days</SelectItem>
-                  <SelectItem value="90d">Last 90 Days</SelectItem>
-                  <SelectItem value="1y">Last Year</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
 
       {/* Payment Table */}
       <Card>
@@ -243,7 +129,7 @@ export function PaymentHistory() {
                         <TableRow key={payment.id}>
                           <TableCell>
                             <div className="space-y-1">
-                              <p className="font-medium">{formatDate(payment.createdAt)}</p>
+                              <p className="font-medium">{formatPersianDateTime(payment.createdAt)}</p>
                               <p className="text-sm text-muted-foreground font-mono">
                                 {payment.id.slice(0, 8)}
                                 ...
@@ -264,7 +150,7 @@ export function PaymentHistory() {
                             </div>
                           </TableCell>
                           <TableCell>
-                            <p className="font-semibold">{formatCurrency(payment.amount, payment.currency)}</p>
+                            <p className="font-semibold">{formatTomanCurrency(payment.amount)}</p>
                           </TableCell>
                           <TableCell>
                             <div className="flex items-center gap-2">
@@ -282,31 +168,6 @@ export function PaymentHistory() {
                     </TableBody>
                   </Table>
 
-                  {/* Pagination */}
-                  {paymentList.length >= limit && (
-                    <div className="flex items-center justify-between">
-                      <Button
-                        variant="outline"
-                        onClick={() => setPage(p => Math.max(1, p - 1))}
-                        disabled={page === 1 || isLoading}
-                      >
-                        Previous
-                      </Button>
-                      <span className="text-sm text-muted-foreground">
-                        Page
-                        {' '}
-                        {page}
-                      </span>
-                      <Button
-                        variant="outline"
-                        onClick={() => setPage(p => p + 1)}
-                        disabled={paymentList.length < limit || isLoading}
-                      >
-                        {isLoading && <LoadingSpinner className="h-4 w-4 mr-2" />}
-                        Next
-                      </Button>
-                    </div>
-                  )}
                 </div>
               )}
         </CardContent>

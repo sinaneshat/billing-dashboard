@@ -1,7 +1,9 @@
 import { headers } from 'next/headers';
 import type React from 'react';
 
-import { DashboardHeader, DashboardNav } from '@/components/dashboard';
+import { DashboardHeader } from '@/components/dashboard/dashboard-header';
+import { AppSidebar } from '@/components/dashboard/dashboard-nav';
+import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar';
 import { auth } from '@/lib/auth';
 
 export default async function DashboardLayout({
@@ -14,20 +16,14 @@ export default async function DashboardLayout({
   });
 
   return (
-    <div className="min-h-screen bg-background">
-      <DashboardNav />
-
-      {/* Main content area */}
-      <div className="md:pl-64">
-        <DashboardHeader user={session?.user} />
-
-        {/* Page content */}
-        <main className="flex-1">
-          <div className="container mx-auto px-4 py-6 md:px-6">
-            {children}
-          </div>
-        </main>
-      </div>
-    </div>
+    <SidebarProvider>
+      <AppSidebar user={session?.user} />
+      <SidebarInset>
+        <DashboardHeader />
+        <div className="flex flex-1 flex-col gap-4 p-4">
+          {children}
+        </div>
+      </SidebarInset>
+    </SidebarProvider>
   );
 }
