@@ -1,66 +1,138 @@
-import { headers } from 'next/headers';
-import { redirect } from 'next/navigation';
+'use client';
 
-import { auth } from '@/lib/auth';
+import { Activity, Calendar, Settings, User } from 'lucide-react';
 
-export default async function DashboardPage() {
-  const session = await auth.api.getSession({
-    headers: await headers(),
-  });
+import { PageHeader } from '@/components/dashboard';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { LoadingSpinner } from '@/components/ui/loading-spinner';
+import { useCurrentUserQuery } from '@/hooks/queries/auth';
 
-  if (!session) {
-    redirect('/auth/sign-in');
+export default function DashboardOverviewPage() {
+  const { data: user, isLoading, error } = useCurrentUserQuery();
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-96">
+        <LoadingSpinner className="h-8 w-8 mr-2" />
+        <span>Loading dashboard...</span>
+      </div>
+    );
   }
 
-  return (
-    <div className="container mx-auto py-10">
-      <div className="space-y-6">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
-          <p className="text-muted-foreground">
-            Welcome back,
-            {' '}
-            {session.user.name || session.user.email}
-          </p>
-        </div>
-
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          <div className="rounded-lg border bg-card p-6">
-            <h3 className="font-semibold">Profile</h3>
-            <p className="mt-2 text-sm text-muted-foreground">
-              Email:
-              {' '}
-              {session.user.email}
-            </p>
-            <p className="text-sm text-muted-foreground">
-              Verified:
-              {' '}
-              {session.user.emailVerified ? 'Yes' : 'No'}
-            </p>
-          </div>
-
-          <div className="rounded-lg border bg-card p-6">
-            <h3 className="font-semibold">Session</h3>
-            <p className="mt-2 text-sm text-muted-foreground">
-              Active session
-            </p>
-            <p className="text-sm text-muted-foreground">
-              Expires:
-              {' '}
-              {session.session?.expiresAt ? new Date(session.session.expiresAt).toLocaleDateString() : 'Unknown'}
-            </p>
-          </div>
-
-          <div className="rounded-lg border bg-card p-6">
-            <h3 className="font-semibold">Quick Actions</h3>
-            <div className="mt-2 space-y-2">
-              <a href="/auth/sign-out" className="block text-sm text-primary hover:underline">
-                Sign Out
-              </a>
-            </div>
-          </div>
+  if (error || !user?.success || !user.data) {
+    return (
+      <div className="flex items-center justify-center min-h-96">
+        <div className="text-center">
+          <p className="text-destructive mb-2">Failed to load user information</p>
+          <Button variant="outline" onClick={() => window.location.reload()}>
+            Try Again
+          </Button>
         </div>
       </div>
+    );
+  }
+
+  const userData = user.data;
+
+  return (
+    <div className="space-y-6">
+      <PageHeader
+        title="Welcome back, User!"
+        description="Your dashboard overview"
+      />
+
+      {/* User Info Card */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <User className="h-5 w-5" />
+            Account Information
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-4 md:grid-cols-2">
+            <div>
+              <p className="text-sm font-medium text-muted-foreground">Email</p>
+              <p className="text-lg">{userData.email || 'Not provided'}</p>
+            </div>
+            <div>
+              <p className="text-sm font-medium text-muted-foreground">User ID</p>
+              <p className="text-sm font-mono">{userData.userId}</p>
+            </div>
+            <div>
+              <p className="text-sm font-medium text-muted-foreground">Status</p>
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                <span className="text-sm">Active</span>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Quick Actions */}
+      <div className="grid gap-4 md:grid-cols-3">
+        <Card className="hover:shadow-md transition-shadow cursor-pointer">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Activity className="h-4 w-4" />
+              Activity
+            </CardTitle>
+            <CardDescription>
+              View your recent activity and logs
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted-foreground">Coming soon...</p>
+          </CardContent>
+        </Card>
+
+        <Card className="hover:shadow-md transition-shadow cursor-pointer">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Settings className="h-4 w-4" />
+              Settings
+            </CardTitle>
+            <CardDescription>
+              Manage your account preferences
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted-foreground">Coming soon...</p>
+          </CardContent>
+        </Card>
+
+        <Card className="hover:shadow-md transition-shadow cursor-pointer">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Calendar className="h-4 w-4" />
+              Schedule
+            </CardTitle>
+            <CardDescription>
+              View upcoming events and tasks
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted-foreground">Coming soon...</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Welcome Message */}
+      <Card className="border-blue-200 bg-blue-50 dark:border-blue-900 dark:bg-blue-950/30">
+        <CardHeader>
+          <CardTitle className="text-blue-800 dark:text-blue-200">
+            Welcome to your Dashboard!
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-blue-700 dark:text-blue-300">
+            You're successfully logged in and ready to explore the dashboard features.
+            More functionality will be added over time.
+          </p>
+        </CardContent>
+      </Card>
     </div>
   );
 }

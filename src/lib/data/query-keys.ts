@@ -36,6 +36,25 @@ export const queryKeys = {
     currentAvatar: () => ['images', 'avatars', 'current'],
     filtered: (query?: string) => ['images', 'filtered', query],
   },
+
+  // Billing queries
+  products: {
+    all: ['products'],
+    list: (filters?: Record<string, unknown>) => ['products', 'list', filters],
+  },
+
+  subscriptions: {
+    all: ['subscriptions'],
+    list: (filters?: Record<string, unknown>) => ['subscriptions', 'list', filters],
+    detail: (subscriptionId: string) => ['subscriptions', 'detail', subscriptionId],
+    current: () => ['subscriptions', 'current'],
+  },
+
+  payments: {
+    all: ['payments'],
+    history: (filters?: Record<string, unknown>) => ['payments', 'history', filters],
+    detail: (paymentId: string) => ['payments', 'detail', paymentId],
+  },
 };
 
 /**
@@ -97,6 +116,41 @@ export const invalidationPatterns = {
 
   // When organization images change
   organizationImages: () => [queryKeys.images.all],
+
+  // When products change
+  products: [
+    queryKeys.products.all,
+    queryKeys.products.list(),
+  ],
+
+  // When subscriptions change
+  subscriptions: [
+    queryKeys.subscriptions.all,
+    queryKeys.subscriptions.list(),
+    queryKeys.subscriptions.current(),
+  ],
+
+  // When subscription details change
+  subscriptionDetail: (subscriptionId: string) => [
+    queryKeys.subscriptions.detail(subscriptionId),
+    queryKeys.subscriptions.all,
+    queryKeys.subscriptions.list(),
+    queryKeys.subscriptions.current(),
+    queryKeys.payments.all, // Subscription changes may affect payment history
+  ],
+
+  // When payments change
+  payments: [
+    queryKeys.payments.all,
+    queryKeys.payments.history(),
+  ],
+
+  // When payment details change
+  paymentDetail: (paymentId: string) => [
+    queryKeys.payments.detail(paymentId),
+    queryKeys.payments.all,
+    queryKeys.payments.history(),
+  ],
 };
 
 /**
@@ -116,17 +170,21 @@ export const queryPatterns = {
     'organizations.members',
     'organizations.team',
     'users.detail',
+    'subscriptions.list',
+    'payments.history',
   ],
 
   // Stable data - rarely changes
   stable: [
     'organizations.detail',
+    'products.list',
   ],
 
   // Critical data - important for app state
   critical: [
     'auth.current',
     'users.current',
+    'subscriptions.current',
   ],
 
   // Background data - low priority
@@ -145,4 +203,10 @@ export const commonQueries = {
 
   // Health check
   healthStatus: queryKeys.health.status,
+
+  // Billing related
+  allProducts: queryKeys.products.list(),
+  userSubscriptions: queryKeys.subscriptions.list(),
+  currentSubscription: queryKeys.subscriptions.current(),
+  paymentHistory: queryKeys.payments.history(),
 };

@@ -29,6 +29,7 @@ import onError from 'stoker/middlewares/on-error';
 
 import { createOpenApiApp } from './factory';
 import { attachSession, createRateLimitMiddleware, requireSession } from './middleware';
+import { metricsMiddleware, performanceMiddleware } from './middleware/performance';
 import { createRateLimiter, RATE_LIMIT_CONFIGS } from './middleware/rate-limiter';
 // Import routes and handlers directly for proper RPC type inference
 import { secureMeHandler } from './routes/auth/handler';
@@ -47,8 +48,46 @@ import {
   uploadCompanyImageRoute,
   uploadUserAvatarRoute,
 } from './routes/images/route';
+import {
+  getPaymentsHandler,
+  paymentCallbackHandler,
+  verifyPaymentHandler,
+} from './routes/payments/handler';
+import {
+  getPaymentsRoute,
+  paymentCallbackRoute,
+  verifyPaymentRoute,
+} from './routes/payments/route';
+import { getProductsHandler } from './routes/products/handler';
+import { getProductsRoute } from './routes/products/route';
+// Billing routes
+import {
+  cancelSubscriptionHandler,
+  createSubscriptionHandler,
+  getSubscriptionHandler,
+  getSubscriptionsHandler,
+  resubscribeHandler,
+} from './routes/subscriptions/handler';
+import {
+  cancelSubscriptionRoute,
+  createSubscriptionRoute,
+  getSubscriptionRoute,
+  getSubscriptionsRoute,
+  resubscribeRoute,
+} from './routes/subscriptions/route';
 import { detailedHealthHandler, healthHandler } from './routes/system/handler';
 import { detailedHealthRoute, healthRoute } from './routes/system/route';
+import {
+  getWebhookEventsHandler,
+  testWebhookHandler,
+  zarinPalWebhookHandler,
+} from './routes/webhooks/handler';
+import {
+  getWebhookEventsRoute,
+  testWebhookRoute,
+  zarinPalWebhookRoute,
+} from './routes/webhooks/route';
+import type { ApiEnv } from './types';
 
 // ============================================================================
 // Step 1: Create the main OpenAPIHono app with defaultHook (following docs)
@@ -99,13 +138,9 @@ app.use('*', (c, next) => {
 // ETag support
 app.use('*', etag());
 
-// Response time header
-app.use('*', (c, next) => {
-  const started = Date.now();
-  return next().finally(() => {
-    c.res.headers.set('X-Response-Time', `${Date.now() - started}ms`);
-  });
-});
+// Performance monitoring and metrics collection
+app.use('*', performanceMiddleware);
+app.use('*', metricsMiddleware);
 
 // Session attachment
 app.use('*', attachSession);
@@ -128,6 +163,10 @@ app.notFound(notFound);
 // Apply middleware for protected routes
 app.use('/auth/*', requireSession);
 app.use('/images/*', requireSession);
+app.use('/subscriptions/*', requireSession);
+app.use('/payments/verify', requireSession);
+app.use('/webhooks/events', requireSession);
+app.use('/webhooks/test', requireSession);
 app.use('/passes/*', createRateLimiter(RATE_LIMIT_CONFIGS.apiGeneral));
 app.use('/passes/*', requireSession);
 
@@ -138,6 +177,22 @@ const appRoutes = app
   .openapi(detailedHealthRoute, detailedHealthHandler)
   // Auth routes
   .openapi(secureMeRoute, secureMeHandler)
+  // Products routes
+  .openapi(getProductsRoute, getProductsHandler)
+  // Subscriptions routes
+  .openapi(getSubscriptionsRoute, getSubscriptionsHandler)
+  .openapi(getSubscriptionRoute, getSubscriptionHandler)
+  .openapi(createSubscriptionRoute, createSubscriptionHandler)
+  .openapi(cancelSubscriptionRoute, cancelSubscriptionHandler)
+  .openapi(resubscribeRoute, resubscribeHandler)
+  // Payments routes
+  .openapi(getPaymentsRoute, getPaymentsHandler)
+  .openapi(paymentCallbackRoute, paymentCallbackHandler)
+  .openapi(verifyPaymentRoute, verifyPaymentHandler)
+  // Webhooks routes
+  .openapi(zarinPalWebhookRoute, zarinPalWebhookHandler)
+  .openapi(getWebhookEventsRoute, getWebhookEventsHandler)
+  .openapi(testWebhookRoute, testWebhookHandler)
   // Images routes
   .openapi(uploadUserAvatarRoute, uploadUserAvatarHandler)
   .openapi(uploadCompanyImageRoute, uploadCompanyImageHandler)
@@ -169,6 +224,10 @@ appRoutes.doc('/doc', c => ({
   tags: [
     { name: 'system', description: 'System health and diagnostics' },
     { name: 'auth', description: 'Authentication and authorization' },
+    { name: 'products', description: 'Product management and catalog' },
+    { name: 'subscriptions', description: 'Subscription management and billing' },
+    { name: 'payments', description: 'Payment processing and verification' },
+    { name: 'webhooks', description: 'Webhook events and external integrations' },
     { name: 'images', description: 'Image upload and management' },
     { name: 'passes', description: 'Pass generation and management' },
   ],
@@ -233,4 +292,15 @@ appRoutes.get('/llms.txt', async (c) => {
 // Step 8: Export the app (default export for Cloudflare Workers/Bun)
 // ============================================================================
 
-export default appRoutes;
+export default {
+  fetch: appRoutes.fetch,
+  // Export scheduled handler for cron jobs
+  scheduled: (event: ScheduledEvent, env: ApiEnv, ctx: ExecutionContext) => {
+    // Import scheduled handlers dynamically to avoid circular imports
+    import('./scheduled/monthly-billing').then(({ default: billingScheduler }) => {
+      return billingScheduler.scheduled(event, env, ctx);
+    }).catch((error) => {
+      console.error('Failed to load billing scheduler:', error);
+    });
+  },
+};

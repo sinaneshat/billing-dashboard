@@ -22,6 +22,26 @@ export const product = sqliteTable('product', {
   index('product_is_active_idx').on(table.isActive),
 ]);
 
+// Payment methods table - stores user's saved payment methods
+export const paymentMethod = sqliteTable('payment_method', {
+  id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+  userId: text('user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
+  zarinpalCardHash: text('zarinpal_card_hash').unique().notNull(),
+  cardMask: text('card_mask').notNull(), // e.g., "**** **** **** 1234"
+  cardType: text('card_type'), // e.g., "VISA", "MASTERCARD", "IRAN_KISH"
+  isPrimary: integer('is_primary', { mode: 'boolean' }).default(false),
+  isActive: integer('is_active', { mode: 'boolean' }).default(true),
+  lastUsedAt: integer('last_used_at', { mode: 'timestamp' }),
+  expiresAt: integer('expires_at', { mode: 'timestamp' }),
+  metadata: text('metadata', { mode: 'json' }),
+  ...timestamps,
+}, table => [
+  index('payment_method_user_id_idx').on(table.userId),
+  index('payment_method_zarinpal_card_hash_idx').on(table.zarinpalCardHash),
+  index('payment_method_is_primary_idx').on(table.isPrimary),
+  index('payment_method_is_active_idx').on(table.isActive),
+]);
+
 // Subscriptions table - tracks user subscriptions to products
 export const subscription = sqliteTable('subscription', {
   id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
@@ -45,6 +65,17 @@ export const subscription = sqliteTable('subscription', {
   billingPeriod: text('billing_period', {
     enum: ['one_time', 'monthly'],
   }).notNull(),
+
+  // Enhanced subscription features
+  paymentMethodId: text('payment_method_id').references(() => paymentMethod.id, { onDelete: 'set null' }),
+  trialEndDate: integer('trial_end_date', { mode: 'timestamp' }),
+  gracePeriodEndDate: integer('grace_period_end_date', { mode: 'timestamp' }),
+  cancellationReason: text('cancellation_reason'),
+  upgradeDowngradeAt: integer('upgrade_downgrade_at', { mode: 'timestamp' }),
+  prorationCredit: real('proration_credit').default(0),
+  billingCycleCount: integer('billing_cycle_count').default(0),
+  lastBillingAttempt: integer('last_billing_attempt', { mode: 'timestamp' }),
+  failedBillingAttempts: integer('failed_billing_attempts').default(0),
 
   metadata: text('metadata', { mode: 'json' }), // For additional subscription data
   ...timestamps,
@@ -101,6 +132,26 @@ export const payment = sqliteTable('payment', {
   index('payment_next_retry_at_idx').on(table.nextRetryAt),
 ]);
 
+// Billing events table - comprehensive audit trail
+export const billingEvent = sqliteTable('billing_event', {
+  id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+  userId: text('user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
+  subscriptionId: text('subscription_id').references(() => subscription.id, { onDelete: 'set null' }),
+  paymentId: text('payment_id').references(() => payment.id, { onDelete: 'set null' }),
+  paymentMethodId: text('payment_method_id').references(() => paymentMethod.id, { onDelete: 'set null' }),
+  eventType: text('event_type').notNull(), // 'payment_success', 'payment_failed', 'subscription_created', etc.
+  eventData: text('event_data', { mode: 'json' }).notNull(),
+  severity: text('severity', { enum: ['info', 'warning', 'error', 'critical'] }).default('info'),
+  ...timestamps,
+}, table => [
+  index('billing_event_user_id_idx').on(table.userId),
+  index('billing_event_subscription_id_idx').on(table.subscriptionId),
+  index('billing_event_payment_id_idx').on(table.paymentId),
+  index('billing_event_type_idx').on(table.eventType),
+  index('billing_event_severity_idx').on(table.severity),
+  index('billing_event_created_at_idx').on(table.createdAt),
+]);
+
 // Webhook events table - for audit trail and debugging
 export const webhookEvent = sqliteTable('webhook_event', {
   id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
@@ -146,7 +197,12 @@ export const subscriptionRelations = relations(subscription, ({ one, many }) => 
     fields: [subscription.productId],
     references: [product.id],
   }),
+  paymentMethod: one(paymentMethod, {
+    fields: [subscription.paymentMethodId],
+    references: [paymentMethod.id],
+  }),
   payments: many(payment),
+  billingEvents: many(billingEvent),
 }));
 
 export const paymentRelations = relations(payment, ({ one }) => ({
@@ -171,9 +227,41 @@ export const webhookEventRelations = relations(webhookEvent, ({ one }) => ({
   }),
 }));
 
+// Payment method relations
+export const paymentMethodRelations = relations(paymentMethod, ({ one, many }) => ({
+  user: one(user, {
+    fields: [paymentMethod.userId],
+    references: [user.id],
+  }),
+  subscriptions: many(subscription),
+  billingEvents: many(billingEvent),
+}));
+
+// Billing event relations
+export const billingEventRelations = relations(billingEvent, ({ one }) => ({
+  user: one(user, {
+    fields: [billingEvent.userId],
+    references: [user.id],
+  }),
+  subscription: one(subscription, {
+    fields: [billingEvent.subscriptionId],
+    references: [subscription.id],
+  }),
+  payment: one(payment, {
+    fields: [billingEvent.paymentId],
+    references: [payment.id],
+  }),
+  paymentMethod: one(paymentMethod, {
+    fields: [billingEvent.paymentMethodId],
+    references: [paymentMethod.id],
+  }),
+}));
+
 // Extended user relations to include billing tables
 // Note: This extends the existing userRelations from auth.ts
 export const userBillingRelations = relations(user, ({ many }) => ({
   subscriptions: many(subscription),
   payments: many(payment),
+  paymentMethods: many(paymentMethod),
+  billingEvents: many(billingEvent),
 }));

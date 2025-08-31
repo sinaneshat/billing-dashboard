@@ -27,3 +27,33 @@ export {
   uploadUserAvatarService,
   validateImageFileService,
 } from './images';
+
+// Payments service exports
+export {
+  type GetPaymentsRequest,
+  type GetPaymentsResponse,
+  getPaymentsService,
+  handlePaymentCallbackService,
+  type PaymentCallbackRequest,
+  type PaymentCallbackResponse,
+  type VerifyPaymentRequest,
+  type VerifyPaymentResponse,
+  verifyPaymentService,
+} from './payments';
+
+// Products service exports
+export {
+  type GetProductsRequest,
+  type GetProductsResponse,
+  getProductsService,
+} from './products';
+
+// Subscriptions service exports
+export {
+  type CreateSubscriptionRequest,
+  type CreateSubscriptionResponse,
+  createSubscriptionService,
+  type GetSubscriptionsRequest,
+  type GetSubscriptionsResponse,
+  getSubscriptionsService,
+} from './subscriptions';

@@ -3,6 +3,9 @@
   "main": ".open-next/worker.js",
   "name": "billing-dashboard",
   "compatibility_date": "2024-12-30",
+  "triggers": {
+    "crons": ["0 0 1 * *", "0 2 * * *"]
+  },
   "compatibility_flags": [
     // Enable Node.js API
     // see https://developers.cloudflare.com/workers/configuration/compatibility-flags/#nodejs-compatibility-flag
@@ -62,18 +65,14 @@
     "NEXT_PUBLIC_WEBAPP_ENV": "local",
     "NEXT_PUBLIC_APP_URL": "http://localhost:3000",
     "NEXT_PUBLIC_MAINTENANCE": "false",
-    "NEXT_PUBLIC_TURNSTILE_SITE_KEY": "site-key",
+    "NEXT_PUBLIC_TURNSTILE_SITE_KEY": "1x00000000000000000000AA",
     "R2_PUBLIC_URL": "http://localhost:3000/uploads",
     "OPEN_NEXT_DEBUG": "true",
     "NEXTJS_ENV": "development",
-    "WRANGLER_LOG": "debug",
-    "WRANGLER_DEBUG_ENABLE": "1",
-    "DEBUG": "1",
-    "NEXT_DEBUG": "1",
     "NODE_VERSION": "22.14.0",
     "PNPM_VERSION": "10.10.0",
     "NODE_ENV": "development"
-    // Pass variables are in .dev.vars for security
+    // Secrets are in .dev.vars for security
   },
   "env": {
     "preview": {
@@ -98,16 +97,6 @@
           "binding": "KV",
           "id": "dc64f6f64b9945e8b9d0c0eebfb01b4d",
           "preview_id": "dc64f6f64b9945e8b9d0c0eebfb01b4d"
-        },
-        {
-          "binding": "PASS_CACHE",
-          "id": "8a32f0f3de9d4980ae75d168629e779c",
-          "preview_id": "8a32f0f3de9d4980ae75d168629e779c"
-        },
-        {
-          "binding": "QUOTA_CACHE",
-          "id": "9f4c16d069214072bef34cc108446f45",
-          "preview_id": "9f4c16d069214072bef34cc108446f45"
         }
       ],
       "r2_buckets": [
@@ -120,32 +109,20 @@
           "binding": "UPLOADS_R2_BUCKET",
           "bucket_name": "billing-dashboard-uploads-preview",
           "preview_bucket_name": "billing-dashboard-uploads-preview"
-        },
-        {
-          "binding": "PASSES_R2_BUCKET",
-          "bucket_name": "billing-dashboard-files-preview",
-          "preview_bucket_name": "billing-dashboard-files-preview"
         }
       ],
       "vars": {
         "NEXT_PUBLIC_WEBAPP_ENV": "preview",
         "NEXT_PUBLIC_APP_URL": "https://preview.example.com",
         "NEXT_PUBLIC_MAINTENANCE": "false",
-        "NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY": "pk_live_51MiAu8FfEl0dJFWaK6PB7SYMiBTQoDbPEjAsF7qelE33YoQAM53Z9q9MT4mxN5TWNvxWyPAtYzvq2knmKpiNebX800qLCa03cr",
-        "NEXT_PUBLIC_POSTHOG_KEY": "phc_something",
-        "NEXT_PUBLIC_POSTHOG_HOST": "https://us.i.posthog.com",
         "NEXT_PUBLIC_TURNSTILE_SITE_KEY": "site-key",
         "R2_PUBLIC_URL": "https://uploads-preview.example.com",
         "OPEN_NEXT_DEBUG": "false",
         "NEXTJS_ENV": "production",
-        "WRANGLER_LOG": "",
-        "WRANGLER_DEBUG_ENABLE": "0",
-        "DEBUG": "0",
-        "NEXT_DEBUG": "0",
         "NODE_VERSION": "22.14.0",
         "PNPM_VERSION": "10.10.0",
         "NODE_ENV": "production"
-        // Pass variables set via wrangler secrets for security
+        // Secrets set via wrangler secrets for security
       },
       "routes": [
         {
@@ -180,16 +157,6 @@
           "binding": "KV",
           "id": "fa4da7627c5d420780ec45920420391f",
           "preview_id": "dc64f6f64b9945e8b9d0c0eebfb01b4d"
-        },
-        {
-          "binding": "PASS_CACHE",
-          "id": "8a32f0f3de9d4980ae75d168629e779c",
-          "preview_id": "8a32f0f3de9d4980ae75d168629e779c"
-        },
-        {
-          "binding": "QUOTA_CACHE",
-          "id": "9f4c16d069214072bef34cc108446f45",
-          "preview_id": "9f4c16d069214072bef34cc108446f45"
         }
       ],
       "r2_buckets": [
@@ -202,32 +169,20 @@
           "binding": "UPLOADS_R2_BUCKET",
           "bucket_name": "billing-dashboard-uploads-prod",
           "preview_bucket_name": "billing-dashboard-uploads-preview"
-        },
-        {
-          "binding": "PASSES_R2_BUCKET",
-          "bucket_name": "billing-dashboard-files-prod",
-          "preview_bucket_name": "billing-dashboard-files-preview"
         }
       ],
       "vars": {
         "NEXT_PUBLIC_WEBAPP_ENV": "prod",
         "NEXT_PUBLIC_APP_URL": "https://app.example.com",
         "NEXT_PUBLIC_MAINTENANCE": "false",
-        "NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY": "pk_live_51MiAu8FfEl0dJFWaK6PB7SYMiBTQoDbPEjAsF7qelE33YoQAM53Z9q9MT4mxN5TWNvxWyPAtYzvq2knmKpiNebX800qLCa03cr",
-        "NEXT_PUBLIC_POSTHOG_KEY": "phc_something",
-        "NEXT_PUBLIC_POSTHOG_HOST": "https://us.i.posthog.com",
         "NEXT_PUBLIC_TURNSTILE_SITE_KEY": "site-key",
         "R2_PUBLIC_URL": "https://uploads.example.com",
         "OPEN_NEXT_DEBUG": "false",
         "NEXTJS_ENV": "production",
-        "WRANGLER_LOG": "",
-        "WRANGLER_DEBUG_ENABLE": "0",
-        "DEBUG": "0",
-        "NEXT_DEBUG": "0",
         "NODE_VERSION": "22.14.0",
         "PNPM_VERSION": "10.10.0",
         "NODE_ENV": "production"
-        // Pass variables set via wrangler secrets for security
+        // Secrets set via wrangler secrets for security
       },
       "routes": [
         {

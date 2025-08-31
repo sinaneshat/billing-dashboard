@@ -1,0 +1,171 @@
+'use client';
+
+import { CheckCircle, XCircle } from 'lucide-react';
+import { useSearchParams } from 'next/navigation';
+import { Suspense, useEffect, useState } from 'react';
+
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { LoadingSpinner } from '@/components/ui/loading-spinner';
+import { handlePaymentCallbackService } from '@/services/api';
+
+type PaymentResult = {
+  success: boolean;
+  paymentId?: string;
+  subscriptionId?: string;
+  refId?: string;
+  error?: string;
+};
+
+function PaymentCallbackContent() {
+  const searchParams = useSearchParams();
+  const [result, setResult] = useState<PaymentResult | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const handleCallback = async () => {
+      try {
+        const authority = searchParams.get('Authority');
+        const status = searchParams.get('Status');
+
+        if (!authority || !status) {
+          setResult({
+            success: false,
+            error: 'Invalid payment parameters',
+          });
+          return;
+        }
+
+        const response = await handlePaymentCallbackService({
+          query: {
+            Authority: authority,
+            Status: status as 'OK' | 'NOK',
+          },
+        });
+
+        if (response.success && response.data) {
+          setResult({
+            success: response.data.success,
+            paymentId: response.data.paymentId,
+            subscriptionId: response.data.subscriptionId!,
+            refId: response.data.refId,
+          });
+        } else {
+          setResult({
+            success: false,
+            error: 'Payment processing error',
+          });
+        }
+      } catch (error) {
+        console.error('Payment callback error:', error);
+        setResult({
+          success: false,
+          error: 'Payment processing error',
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    handleCallback();
+  }, [searchParams]);
+
+  const handleGoToDashboard = () => {
+    window.location.href = '/dashboard';
+  };
+
+  const handleRetry = () => {
+    window.location.href = '/products';
+  };
+
+  if (isLoading) {
+    return (
+      <div className="container mx-auto max-w-md py-8">
+        <Card>
+          <CardContent className="flex items-center justify-center py-12">
+            <LoadingSpinner className="h-8 w-8" />
+            <span className="mr-3 text-lg">Processing payment...</span>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  return (
+    <div className="container mx-auto max-w-md py-8">
+      <Card>
+        <CardHeader className="text-center">
+          <div className="mx-auto mb-4">
+            {result?.success
+              ? (
+                  <CheckCircle className="h-16 w-16 text-green-500" />
+                )
+              : (
+                  <XCircle className="h-16 w-16 text-red-500" />
+                )}
+          </div>
+          <CardTitle className="text-2xl">
+            {result?.success ? 'Payment Successful' : 'Payment Failed'}
+          </CardTitle>
+          <CardDescription>
+            {result?.success
+              ? 'Your payment was successful and your subscription has been activated.'
+              : result?.error || 'Unfortunately your payment was not completed.'}
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {result?.success && result.refId && (
+            <div className="text-center">
+              <p className="text-sm text-muted-foreground">Reference ID:</p>
+              <code className="text-sm bg-muted px-3 py-1 rounded">
+                {result.refId}
+              </code>
+            </div>
+          )}
+
+          <div className="flex flex-col gap-2">
+            {result?.success
+              ? (
+                  <Button onClick={handleGoToDashboard} size="lg" className="w-full">
+                    View Dashboard
+                  </Button>
+                )
+              : (
+                  <>
+                    <Button onClick={handleRetry} size="lg" className="w-full">
+                      Try Again
+                    </Button>
+                    <Button
+                      onClick={handleGoToDashboard}
+                      variant="outline"
+                      size="lg"
+                      className="w-full"
+                    >
+                      Return to Dashboard
+                    </Button>
+                  </>
+                )}
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+export default function PaymentCallbackPage() {
+  return (
+    <Suspense fallback={(
+      <div className="container mx-auto max-w-md py-8">
+        <Card>
+          <CardContent className="flex items-center justify-center py-12">
+            <LoadingSpinner className="h-8 w-8" />
+            <span className="mr-3 text-lg">Loading...</span>
+          </CardContent>
+        </Card>
+      </div>
+    )}
+    >
+      <PaymentCallbackContent />
+    </Suspense>
+  );
+}

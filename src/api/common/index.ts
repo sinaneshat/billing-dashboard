@@ -1,5 +1,6 @@
 // New consolidated utilities
 export * from './auth-utils';
+export * from './error-responses';
 export * from './file-validation';
 export * from './image-validation';
 export * from './responses';
