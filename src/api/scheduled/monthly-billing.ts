@@ -30,7 +30,7 @@ export async function processMonthlyBilling(env: ApiEnv): Promise<BillingResult>
     errors: [],
   };
 
-  console.log('Starting monthly billing process...');
+  console.warn('Starting monthly billing process...');
 
   try {
     // Get all active monthly subscriptions that are due for billing
@@ -47,7 +47,7 @@ export async function processMonthlyBilling(env: ApiEnv): Promise<BillingResult>
         ),
       );
 
-    console.log(`Found ${dueSubscriptions.length} subscriptions due for billing`);
+    console.warn(`Found ${dueSubscriptions.length} subscriptions due for billing`);
 
     if (dueSubscriptions.length === 0) {
       return result;
@@ -72,7 +72,7 @@ export async function processMonthlyBilling(env: ApiEnv): Promise<BillingResult>
       }
     }
 
-    console.log('Monthly billing process completed:', result);
+    console.warn('Monthly billing process completed:', result);
     return result;
   } catch (error) {
     const errorMessage = `Monthly billing process failed: ${error instanceof Error ? error.message : 'Unknown error'}`;
@@ -215,7 +215,7 @@ async function processSingleSubscription(
         .where(eq(subscription.id, sub.id));
 
       result.successful++;
-      console.log(`✅ Subscription ${sub.id} billed successfully`);
+      console.warn(`✅ Subscription ${sub.id} billed successfully`);
     } else {
       // Payment failed
       const nextRetryAt = calculateNextRetryTime(retryCount + 1);
@@ -293,7 +293,7 @@ async function handleSubscriptionBillingFailure(subscriptionId: string, errorMes
         })
         .where(eq(subscription.id, subscriptionId));
 
-      console.log(`🚫 Subscription ${subscriptionId} suspended due to repeated billing failures`);
+      console.warn(`🚫 Subscription ${subscriptionId} suspended due to repeated billing failures`);
     }
   } catch (error) {
     console.error('Failed to handle subscription billing failure:', error);
@@ -315,14 +315,14 @@ function calculateNextRetryTime(retryCount: number): Date {
  */
 export default {
   async scheduled(event: ScheduledEvent, env: ApiEnv, ctx: ExecutionContext): Promise<void> {
-    console.log('🔄 Monthly billing cron job triggered:', event.cron);
+    console.warn('🔄 Monthly billing cron job triggered:', event.cron);
 
     ctx.waitUntil((async () => {
       try {
         const result = await processMonthlyBilling(env);
 
         // Log results for monitoring
-        console.log('📊 Monthly billing results:', {
+        console.warn('📊 Monthly billing results:', {
           timestamp: new Date().toISOString(),
           cron: event.cron,
           ...result,

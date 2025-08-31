@@ -84,11 +84,20 @@ function initD1Db() {
 
 /**
  * Database instance with performance optimizations
+ * - In test: Uses in-memory SQLite from test setup
  * - In development: Uses local SQLite file via better-sqlite3
  * - In production/preview: Uses Cloudflare D1
  */
-export const db = (() => {
+let _testDatabase: ReturnType<typeof initLocalDb> | null = null;
+
+export function getDatabase() {
+  const isTest = process.env.NODE_ENV === 'test' || process.env.NEXT_PUBLIC_WEBAPP_ENV === 'test';
   const isLocal = process.env.NODE_ENV === 'development' || process.env.NEXT_PUBLIC_WEBAPP_ENV === 'local';
+
+  // In test environment, use the test database if available
+  if (isTest && _testDatabase) {
+    return _testDatabase;
+  }
 
   // If we have a D1 binding, use it (even in development with wrangler)
   if (process.env.DB) {
@@ -104,7 +113,22 @@ export const db = (() => {
   throw new Error(
     'No database connection available. In production, D1 binding is required.',
   );
-})();
+}
+
+export function setTestDatabase(database: ReturnType<typeof initLocalDb>) {
+  _testDatabase = database;
+}
+
+// Lazy database connection - only initialize when accessed
+let _db: ReturnType<typeof getDatabase> | null = null;
+export const db = new Proxy({} as ReturnType<typeof getDatabase>, {
+  get(target, prop) {
+    if (!_db) {
+      _db = getDatabase();
+    }
+    return (_db as ReturnType<typeof getDatabase>)[prop as keyof ReturnType<typeof getDatabase>];
+  },
+});
 
 // Database type for prepared queries
 export type DbType = typeof db;

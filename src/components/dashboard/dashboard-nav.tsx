@@ -2,11 +2,7 @@
 
 import {
   BarChart3,
-  CreditCard,
   Menu,
-  Package,
-  Settings,
-  User,
 } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
@@ -21,31 +17,7 @@ const navigation = [
     name: 'Overview',
     href: '/dashboard',
     icon: BarChart3,
-    description: 'Dashboard overview and key metrics',
-  },
-  {
-    name: 'Subscriptions',
-    href: '/dashboard/subscriptions',
-    icon: Package,
-    description: 'Manage your active subscriptions',
-  },
-  {
-    name: 'Billing',
-    href: '/dashboard/billing',
-    icon: CreditCard,
-    description: 'Payment methods and billing history',
-  },
-  {
-    name: 'Plans',
-    href: '/dashboard/plans',
-    icon: User,
-    description: 'Browse and subscribe to plans',
-  },
-  {
-    name: 'Settings',
-    href: '/dashboard/settings',
-    icon: Settings,
-    description: 'Account settings and preferences',
+    description: 'Dashboard overview and account information',
   },
 ];
 

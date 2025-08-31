@@ -1,10 +1,10 @@
 'use client';
 
-import { Activity, Calendar, Settings, User } from 'lucide-react';
+import { User } from 'lucide-react';
 
 import { PageHeader } from '@/components/dashboard';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { LoadingSpinner } from '@/components/ui/loading-spinner';
 import { useCurrentUserQuery } from '@/hooks/queries/auth';
 
@@ -71,54 +71,6 @@ export default function DashboardOverviewPage() {
         </CardContent>
       </Card>
 
-      {/* Quick Actions */}
-      <div className="grid gap-4 md:grid-cols-3">
-        <Card className="hover:shadow-md transition-shadow cursor-pointer">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base flex items-center gap-2">
-              <Activity className="h-4 w-4" />
-              Activity
-            </CardTitle>
-            <CardDescription>
-              View your recent activity and logs
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm text-muted-foreground">Coming soon...</p>
-          </CardContent>
-        </Card>
-
-        <Card className="hover:shadow-md transition-shadow cursor-pointer">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base flex items-center gap-2">
-              <Settings className="h-4 w-4" />
-              Settings
-            </CardTitle>
-            <CardDescription>
-              Manage your account preferences
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm text-muted-foreground">Coming soon...</p>
-          </CardContent>
-        </Card>
-
-        <Card className="hover:shadow-md transition-shadow cursor-pointer">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base flex items-center gap-2">
-              <Calendar className="h-4 w-4" />
-              Schedule
-            </CardTitle>
-            <CardDescription>
-              View upcoming events and tasks
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm text-muted-foreground">Coming soon...</p>
-          </CardContent>
-        </Card>
-      </div>
-
       {/* Welcome Message */}
       <Card className="border-blue-200 bg-blue-50 dark:border-blue-900 dark:bg-blue-950/30">
         <CardHeader>
@@ -128,8 +80,7 @@ export default function DashboardOverviewPage() {
         </CardHeader>
         <CardContent>
           <p className="text-sm text-blue-700 dark:text-blue-300">
-            You're successfully logged in and ready to explore the dashboard features.
-            More functionality will be added over time.
+            You're successfully logged in and can manage your account information here.
           </p>
         </CardContent>
       </Card>

@@ -1,7 +1,19 @@
-export { useHealthQuery } from './health';
+export {
+  useAuthSessionQuery,
+  useCurrentUserQuery,
+  usePrefetchAuthSession,
+  usePrefetchCurrentUser,
+} from './auth';
+export {
+  useHealthQuery,
+  usePrefetchHealth,
+} from './health';
 export {
   useCurrentUserAvatarQuery,
   useImagesQuery,
+  usePrefetchCurrentUserAvatar,
+  usePrefetchImages,
+  usePrefetchUserAvatars,
   useUserAvatarsQuery,
 } from './images';
 export {
