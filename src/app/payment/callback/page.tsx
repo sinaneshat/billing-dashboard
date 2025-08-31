@@ -71,11 +71,11 @@ function PaymentCallbackContent() {
   }, [searchParams]);
 
   const handleGoToDashboard = () => {
-    window.location.href = '/dashboard';
+    window.location.href = result?.success ? '/dashboard/billing' : '/dashboard';
   };
 
   const handleRetry = () => {
-    window.location.href = '/products';
+    window.location.href = '/dashboard/billing/plans';
   };
 
   if (isLoading) {
@@ -127,13 +127,13 @@ function PaymentCallbackContent() {
             {result?.success
               ? (
                   <Button onClick={handleGoToDashboard} size="lg" className="w-full">
-                    View Dashboard
+                    View Billing Dashboard
                   </Button>
                 )
               : (
                   <>
                     <Button onClick={handleRetry} size="lg" className="w-full">
-                      Try Again
+                      Choose Another Plan
                     </Button>
                     <Button
                       onClick={handleGoToDashboard}
