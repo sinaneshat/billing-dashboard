@@ -12,7 +12,6 @@ import { Separator } from '@/components/ui/separator';
 import { useProductsQuery } from '@/hooks/queries/products';
 import { useCurrentSubscriptionQuery } from '@/hooks/queries/subscriptions';
 import {
-  formatPersianDate,
   formatTomanCurrency,
 } from '@/lib/i18n/currency-utils';
 
@@ -115,7 +114,7 @@ export default function BillingOverviewPage() {
                       <p className="text-sm font-medium">Next Billing</p>
                       <p className="text-sm text-muted-foreground">
                         {subscription.nextBillingDate
-                          ? formatPersianDate(subscription.nextBillingDate)
+                          ? new Date(subscription.nextBillingDate).toLocaleDateString()
                           : 'N/A'}
                       </p>
                     </div>

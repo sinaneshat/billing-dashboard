@@ -60,9 +60,9 @@ export class R2StorageService {
   }
 
   /**
-   * Factory method to create service from environment
+   * Create service with environment validation
    */
-  static fromEnv(env: CloudflareEnv): R2StorageService {
+  static create(env: CloudflareEnv): R2StorageService {
     const bucket = env.UPLOADS_R2_BUCKET;
     if (!bucket) {
       throw new HTTPException(HttpStatusCodes.INTERNAL_SERVER_ERROR, {

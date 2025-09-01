@@ -216,8 +216,8 @@ export const createSubscriptionHandler: RouteHandler<typeof createSubscriptionRo
       paymentMethod: 'zarinpal',
     });
 
-    // Initialize ZarinPal payment using factory pattern
-    const zarinPal = ZarinPalService.fromEnv(c.env);
+    // Initialize ZarinPal payment
+    const zarinPal = ZarinPalService.create(c.env);
     const paymentRequest = await zarinPal.requestPayment({
       amount: selectedProduct.price,
       currency: 'IRR',
@@ -397,8 +397,8 @@ export const resubscribeHandler: RouteHandler<typeof resubscribeRoute, ApiEnv> =
       paymentMethod: 'zarinpal',
     });
 
-    // Initialize ZarinPal payment using factory pattern
-    const zarinPal = ZarinPalService.fromEnv(c.env);
+    // Initialize ZarinPal payment
+    const zarinPal = ZarinPalService.create(c.env);
     const paymentRequest = await zarinPal.requestPayment({
       amount: prod.price,
       currency: 'IRR',
@@ -556,7 +556,7 @@ export const changePlanHandler: RouteHandler<typeof changePlanRoute, ApiEnv> = a
         });
 
         // Initialize ZarinPal payment
-        const zarinPal = ZarinPalService.fromEnv(c.env);
+        const zarinPal = ZarinPalService.create(c.env);
         const paymentRequest = await zarinPal.requestPayment({
           amount: prorationAmount,
           currency: 'IRR',

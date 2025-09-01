@@ -17,7 +17,7 @@ import { Separator } from '@/components/ui/separator';
 import { Textarea } from '@/components/ui/textarea';
 import { useCancelSubscriptionMutation, useResubscribeMutation } from '@/hooks/mutations/subscriptions';
 import { useSubscriptionsQuery } from '@/hooks/queries/subscriptions';
-import { formatPersianDate, formatTomanCurrency } from '@/lib/i18n/currency-utils';
+import { formatTomanCurrency } from '@/lib/i18n/currency-utils';
 
 function getStatusBadgeVariant(status: string) {
   switch (status) {
@@ -274,7 +274,7 @@ export function SubscriptionManagement() {
 
                 <div>
                   <p className="text-sm font-medium text-muted-foreground">Start Date</p>
-                  <p className="text-lg">{formatPersianDate(subscription.startDate)}</p>
+                  <p className="text-lg">{new Date(subscription.startDate).toLocaleDateString()}</p>
                 </div>
 
                 <div>
@@ -283,9 +283,9 @@ export function SubscriptionManagement() {
                   </p>
                   <p className="text-lg">
                     {subscription.endDate && subscription.status === 'canceled'
-                      ? formatPersianDate(subscription.endDate)
+                      ? new Date(subscription.endDate).toLocaleDateString()
                       : subscription.nextBillingDate
-                        ? formatPersianDate(subscription.nextBillingDate)
+                        ? new Date(subscription.nextBillingDate).toLocaleDateString()
                         : 'N/A'}
                   </p>
                 </div>

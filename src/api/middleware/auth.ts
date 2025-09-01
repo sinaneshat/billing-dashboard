@@ -37,8 +37,20 @@ export const attachSession = createMiddleware<ApiEnv>(async (c, next) => {
 export const requireSession = createMiddleware<ApiEnv>(async (c, next) => {
   try {
     const { auth } = await import('@/lib/auth');
+    // Debug: Log headers for troubleshooting
+    const cookies = c.req.header('cookie');
+    console.error(`[AUTH DEBUG] Cookie header: ${cookies?.substring(0, 100)}...`);
+
     const result = await auth.api.getSession({ headers: c.req.raw.headers });
+    console.error('[AUTH DEBUG] getSession result:', {
+      hasSession: !!result?.session,
+      hasUser: !!result?.user,
+      sessionId: result?.session?.id,
+      userId: result?.user?.id,
+    });
+
     if (!result?.session) {
+      console.error('[AUTH DEBUG] No session found, rejecting request');
       const res = new Response(JSON.stringify({ code: 401, message: 'Unauthorized' }), {
         status: 401,
         headers: {
@@ -48,10 +60,13 @@ export const requireSession = createMiddleware<ApiEnv>(async (c, next) => {
       });
       throw new HTTPException(401, { res });
     }
+
+    console.error('[AUTH DEBUG] Session validated successfully for user:', result.user?.email);
     c.set('session', result.session);
     c.set('user', result.user ?? null);
     return next();
   } catch (e) {
+    console.error('[AUTH DEBUG] Auth error:', e);
     const res = new Response(JSON.stringify({ code: 401, message: 'Unauthorized' }), {
       status: 401,
       headers: {

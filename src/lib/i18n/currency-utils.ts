@@ -1,6 +1,6 @@
 /**
- * Iranian Currency and Date Formatting Utilities
- * Utilities for formatting Iranian currency (IRR) and Persian dates
+ * Iranian Currency Formatting Utilities
+ * Utilities for formatting Iranian currency (IRR) with Persian digits
  */
 
 // Persian number mapping
@@ -36,10 +36,10 @@ export function toEnglishDigits(str: string): string {
 }
 
 /**
- * Format currency in Persian style
+ * Format currency with Persian digits
  */
 export function formatPersianCurrency(amount: number, currency: string = 'IRR'): string {
-  const formatted = new Intl.NumberFormat('fa-IR', {
+  const formatted = new Intl.NumberFormat('en-US', {
     style: 'currency',
     currency,
     minimumFractionDigits: 0,
@@ -54,40 +54,10 @@ export function formatPersianCurrency(amount: number, currency: string = 'IRR'):
  */
 export function formatTomanCurrency(amount: number): string {
   const tomanAmount = amount / 10;
-  const formatted = new Intl.NumberFormat('fa-IR', {
+  const formatted = new Intl.NumberFormat('en-US', {
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
   }).format(tomanAmount);
 
-  return `${toPersianDigits(formatted)} تومان`;
-}
-
-/**
- * Format date in Persian (Jalali calendar would require additional library)
- */
-export function formatPersianDate(dateString: string, options?: Intl.DateTimeFormatOptions): string {
-  const defaultOptions: Intl.DateTimeFormatOptions = {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-    ...options,
-  };
-
-  const formatted = new Intl.DateTimeFormat('fa-IR', defaultOptions).format(new Date(dateString));
-  return toPersianDigits(formatted);
-}
-
-/**
- * Format date and time in Persian
- */
-export function formatPersianDateTime(dateString: string): string {
-  const formatted = new Intl.DateTimeFormat('fa-IR', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(new Date(dateString));
-
-  return toPersianDigits(formatted);
+  return `${toPersianDigits(formatted)} Toman`;
 }

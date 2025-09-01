@@ -7,7 +7,7 @@ import { Suspense, useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { LoadingSpinner } from '@/components/ui/loading-spinner';
-// Payment callback service removed - using subscription-specific callback handling
+import { processPaymentCallbackService } from '@/services/api';
 
 type PaymentResult = {
   success: boolean;
@@ -36,27 +36,34 @@ function PaymentCallbackContent() {
           return;
         }
 
-        // Mock callback handling for subscription payments
-        // In a real implementation, this would validate with ZarinPal and update subscription status
-        const response = {
-          success: true,
-          data: {
-            success: status === 'OK',
-            subscriptionId: 'sub_example',
-            refId: authority,
-          },
+        // Process payment callback using proper service pattern
+        const data = await processPaymentCallbackService({
+          Authority: authority,
+          Status: status as 'OK' | 'NOK',
+        });
+
+        // The API returns { success: boolean, paymentId?, subscriptionId?, refId? }
+        // But the inferred type shows different structure, so cast it properly
+        const result = data as unknown as {
+          success: boolean;
+          paymentId?: string;
+          subscriptionId?: string;
+          refId?: string;
         };
 
-        if (response.success && response.data) {
+        if (result.success) {
           setResult({
-            success: response.data.success,
-            subscriptionId: response.data.subscriptionId!,
-            refId: response.data.refId,
+            success: true,
+            paymentId: result.paymentId,
+            subscriptionId: result.subscriptionId,
+            refId: result.refId,
           });
         } else {
           setResult({
             success: false,
-            error: 'Payment processing error',
+            paymentId: result.paymentId,
+            subscriptionId: result.subscriptionId,
+            error: 'Payment was not completed successfully',
           });
         }
       } catch (error) {

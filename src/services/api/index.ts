@@ -44,7 +44,12 @@ export {
   setDefaultPaymentMethodService,
 } from './payment-methods';
 
-// Payments service exports removed - subscription platform only
+// Payments service exports
+export {
+  type PaymentCallbackRequest,
+  type PaymentCallbackResponse,
+  processPaymentCallbackService,
+} from './payments';
 
 // Products service exports
 export {

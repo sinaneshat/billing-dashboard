@@ -2,14 +2,13 @@
 
 import { CreditCard, Download } from 'lucide-react';
 
-import { BidiText, PersianText } from '@/components/rtl/bidi-text';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { LoadingSpinner } from '@/components/ui/loading-spinner';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useSubscriptionsQuery } from '@/hooks/queries/subscriptions';
-import { formatPersianDateTime, formatTomanCurrency } from '@/lib/i18n/currency-utils';
+import { formatTomanCurrency } from '@/lib/i18n/currency-utils';
 
 function getSubscriptionStatusBadgeVariant(status: string) {
   switch (status) {
@@ -109,42 +108,36 @@ export function SubscriptionBillingHistory() {
                 <TableCell>
                   <div className="font-medium">{subscription.product?.name || 'Unknown Product'}</div>
                   <div className="text-sm text-muted-foreground">
-                    {formatPersianDateTime(subscription.createdAt.toString())}
+                    {new Date(subscription.createdAt).toLocaleDateString()}
                   </div>
                 </TableCell>
                 <TableCell>
                   <div className="text-sm">
-                    <BidiText>
-                      {subscription.billingPeriod === 'monthly' ? 'ماهانه' : 'یکباره'}
-                    </BidiText>
+                    {subscription.billingPeriod === 'monthly' ? 'Monthly' : 'One-time'}
                   </div>
                 </TableCell>
                 <TableCell>
                   <Badge variant={getSubscriptionStatusBadgeVariant(subscription.status)}>
-                    <PersianText className={getSubscriptionStatusColor(subscription.status)}>
+                    <span className={getSubscriptionStatusColor(subscription.status)}>
                       {subscription.status === 'active'
-                        ? 'فعال'
+                        ? 'Active'
                         : subscription.status === 'canceled'
-                          ? 'لغو شده'
+                          ? 'Canceled'
                           : subscription.status === 'expired'
-                            ? 'منقضی شده'
+                            ? 'Expired'
                             : subscription.status === 'pending'
-                              ? 'در انتظار'
+                              ? 'Pending'
                               : subscription.status}
-                    </PersianText>
+                    </span>
                   </Badge>
                 </TableCell>
                 <TableCell className="font-medium">
-                  <BidiText className="persian-currency">
-                    {formatTomanCurrency(subscription.currentPrice)}
-                  </BidiText>
+                  {formatTomanCurrency(subscription.currentPrice)}
                 </TableCell>
                 <TableCell>
-                  <BidiText>
-                    {subscription.nextBillingDate
-                      ? formatPersianDateTime(subscription.nextBillingDate.toString())
-                      : 'N/A'}
-                  </BidiText>
+                  {subscription.nextBillingDate
+                    ? new Date(subscription.nextBillingDate).toLocaleDateString()
+                    : 'N/A'}
                 </TableCell>
                 <TableCell>
                   <div className="flex items-center gap-2">

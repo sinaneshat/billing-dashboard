@@ -31,19 +31,32 @@ export const initiateCardAdditionHandler: RouteHandler<typeof initiateCardAdditi
   c.header('X-Route', 'initiate-card-addition');
 
   const user = c.get('user');
+
   if (!user) {
     throw new HTTPException(HttpStatusCodes.UNAUTHORIZED, {
-      message: 'Authentication required',
+      message: 'Authentication required. Please log in to add payment methods.',
+    });
+  }
+
+  // Validate user object has required fields
+  if (!user.id || !user.email) {
+    throw new HTTPException(HttpStatusCodes.UNAUTHORIZED, {
+      message: 'Invalid user session. Please log in again.',
     });
   }
 
   const { callbackUrl, metadata } = c.req.valid('json');
 
   try {
-    const zarinPal = ZarinPalService.fromEnv(c.env);
+    console.error('[CARD ADDITION] Starting card addition process for user:', user.id);
+    console.error('[CARD ADDITION] Request data:', { callbackUrl, metadata });
+
+    const zarinPal = ZarinPalService.create(c.env);
+    console.error('[CARD ADDITION] ZarinPal service created successfully');
 
     // Use configuration from environment instead of hardcoded values
     const verificationAmount = Number(c.env.CARD_VERIFICATION_AMOUNT) || 1000;
+    console.error('[CARD ADDITION] Verification amount:', verificationAmount);
 
     // Create a minimal payment request for card verification
     const verificationResult = await zarinPal.requestPayment({
@@ -57,6 +70,7 @@ export const initiateCardAdditionHandler: RouteHandler<typeof initiateCardAdditi
         ...metadata,
       },
     });
+    console.error('[CARD ADDITION] ZarinPal payment request result:', verificationResult);
 
     if (!verificationResult.data?.authority) {
       throw new HTTPException(HttpStatusCodes.BAD_GATEWAY, {
@@ -65,27 +79,36 @@ export const initiateCardAdditionHandler: RouteHandler<typeof initiateCardAdditi
     }
 
     const authority = verificationResult.data.authority;
+    console.error('[CARD ADDITION] Got authority from ZarinPal:', authority);
 
     // Store verification request in database using payment table
     const verificationPaymentId = crypto.randomUUID();
-    await db.insert(payment).values({
-      id: verificationPaymentId,
-      userId: user.id,
-      productId: 'card-verification', // Special product ID for verification
-      amount: verificationAmount,
-      status: 'pending',
-      paymentMethod: 'zarinpal',
-      zarinpalAuthority: authority,
-      metadata: {
-        type: 'card_verification',
-        callbackUrl,
-        ...metadata,
-      },
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    });
+    console.error('[CARD ADDITION] Generated payment ID:', verificationPaymentId);
+    try {
+      await db.insert(payment).values({
+        id: verificationPaymentId,
+        userId: user.id,
+        productId: 'card-verification', // Special product ID for verification
+        amount: verificationAmount,
+        status: 'pending',
+        paymentMethod: 'zarinpal',
+        zarinpalAuthority: authority,
+        metadata: JSON.stringify({
+          type: 'card_verification',
+          callbackUrl,
+          ...metadata,
+        }),
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+      console.error('[CARD ADDITION] Database insert successful');
+    } catch (dbError) {
+      console.error('[CARD ADDITION] Database insert failed:', dbError);
+      throw dbError;
+    }
 
     const verificationUrl = zarinPal.getPaymentUrl(authority);
+    console.error('[CARD ADDITION] Generated verification URL:', verificationUrl);
 
     return ok(c, {
       verificationUrl,
@@ -96,7 +119,11 @@ export const initiateCardAdditionHandler: RouteHandler<typeof initiateCardAdditi
     if (error instanceof HTTPException) {
       throw error;
     }
-    console.error('Failed to initiate card addition:', error);
+    console.error('[CARD ADDITION] Detailed error:', {
+      message: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined,
+      error,
+    });
     throw new HTTPException(HttpStatusCodes.INTERNAL_SERVER_ERROR, {
       message: 'Failed to initiate card addition process',
     });
@@ -159,7 +186,7 @@ export const verifyCardAdditionHandler: RouteHandler<typeof verifyCardAdditionRo
       });
     }
 
-    const zarinPal = ZarinPalService.fromEnv(c.env);
+    const zarinPal = ZarinPalService.create(c.env);
 
     // Verify the payment with ZarinPal using the same amount from the stored request
     const verificationResult = await zarinPal.verifyPayment({

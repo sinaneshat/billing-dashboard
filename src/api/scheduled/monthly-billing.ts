@@ -53,7 +53,7 @@ export async function processMonthlyBilling(env: ApiEnv): Promise<BillingResult>
       return result;
     }
 
-    const zarinPal = ZarinPalService.fromEnv(env.Bindings);
+    const zarinPal = ZarinPalService.create(env.Bindings);
 
     // Process each subscription
     for (const sub of dueSubscriptions) {

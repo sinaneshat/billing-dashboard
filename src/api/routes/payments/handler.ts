@@ -234,8 +234,8 @@ export const paymentCallbackHandler: RouteHandler<typeof paymentCallbackRoute, A
       });
     }
 
-    // Verify payment with ZarinPal using factory pattern
-    const zarinPal = ZarinPalService.fromEnv(c.env);
+    // Verify payment with ZarinPal
+    const zarinPal = ZarinPalService.create(c.env);
     const verification = await zarinPal.verifyPayment({
       authority: Authority,
       amount: paymentRecord.amount,
@@ -387,8 +387,8 @@ export const verifyPaymentHandler: RouteHandler<typeof verifyPaymentRoute, ApiEn
 
     const paymentRecord = paymentData[0]!;
 
-    // Verify with ZarinPal using factory pattern
-    const zarinPal = ZarinPalService.fromEnv(c.env);
+    // Verify with ZarinPal
+    const zarinPal = ZarinPalService.create(c.env);
     const verification = await zarinPal.verifyPayment({
       authority,
       amount: paymentRecord.amount,

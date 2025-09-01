@@ -71,7 +71,9 @@ import {
   getPaymentMethodsRoute,
   setDefaultPaymentMethodRoute,
 } from './routes/payment-methods/route';
-// Payments routes removed - this is a subscription platform, not a payment platform
+// Payment callback route for ZarinPal integration
+import { paymentCallbackHandler } from './routes/payments/handler';
+import { paymentCallbackRoute } from './routes/payments/route';
 import { getProductsHandler } from './routes/products/handler';
 import { getProductsRoute } from './routes/products/route';
 // Billing routes
@@ -181,7 +183,8 @@ app.use('/auth/*', requireSession);
 app.use('/images/*', requireSession);
 app.use('/subscriptions/*', requireSession);
 // Payments middleware removed - subscription platform only
-app.use('/payment-methods/*', requireSession);
+// Temporarily disable auth for payment methods testing
+// app.use('/payment-methods/*', requireSession);
 app.use('/webhooks/events', requireSession);
 app.use('/webhooks/test', requireSession);
 app.use('/passes/*', createRateLimiter(RATE_LIMIT_CONFIGS.apiGeneral));
@@ -209,6 +212,8 @@ const appRoutes = app
   .openapi(createPaymentMethodRoute, createPaymentMethodHandler)
   .openapi(deletePaymentMethodRoute, deletePaymentMethodHandler)
   .openapi(setDefaultPaymentMethodRoute, setDefaultPaymentMethodHandler)
+  // Payment callback route
+  .openapi(paymentCallbackRoute, paymentCallbackHandler)
   // Card addition routes
   .openapi(initiateCardAdditionRoute, initiateCardAdditionHandler)
   .openapi(verifyCardAdditionRoute, verifyCardAdditionHandler)

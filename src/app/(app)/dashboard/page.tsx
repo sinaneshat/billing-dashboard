@@ -11,7 +11,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { LoadingSpinner } from '@/components/ui/loading-spinner';
 import { useCurrentUserQuery } from '@/hooks/queries/auth';
 import { useCurrentSubscriptionQuery } from '@/hooks/queries/subscriptions';
-import { formatPersianDate, formatTomanCurrency } from '@/lib/i18n/currency-utils';
+import { formatTomanCurrency } from '@/lib/i18n/currency-utils';
 
 function getStatusBadgeVariant(status: string) {
   switch (status) {
@@ -163,7 +163,7 @@ export default function DashboardOverviewPage() {
           <AlertDescription>
             Your next billing date is
             {' '}
-            {formatPersianDate(currentSubscription.nextBillingDate)}
+            {new Date(currentSubscription.nextBillingDate).toLocaleDateString()}
             {' '}
             for
             {' '}
@@ -206,7 +206,7 @@ export default function DashboardOverviewPage() {
                             <p className="text-xs text-muted-foreground">
                               Next billing:
                               {' '}
-                              {currentSubscription.nextBillingDate ? formatPersianDate(currentSubscription.nextBillingDate) : 'N/A'}
+                              {currentSubscription.nextBillingDate ? new Date(currentSubscription.nextBillingDate).toLocaleDateString() : 'N/A'}
                             </p>
                           </div>
                         </div>

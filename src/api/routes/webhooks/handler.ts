@@ -16,13 +16,139 @@ import type {
 } from './route';
 
 /**
+ * Rate limiting map for webhook requests
+ * In production, use Redis or similar distributed storage
+ */
+const webhookRateLimiter = new Map<string, { count: number; resetTime: number }>();
+
+/**
+ * Clean up expired rate limit entries to prevent memory leaks
+ */
+function cleanupRateLimiter(): void {
+  const now = Date.now();
+  for (const [key, value] of webhookRateLimiter.entries()) {
+    if (value.resetTime <= now) {
+      webhookRateLimiter.delete(key);
+    }
+  }
+}
+
+// Clean up rate limiter every 5 minutes
+setInterval(cleanupRateLimiter, 5 * 60 * 1000);
+
+/**
+ * Validate webhook security including signature, origin, and rate limiting
+ */
+async function validateWebhookSecurity(c: { req: { header: (name: string) => string | undefined } }): Promise<void> {
+  const clientIP = c.req.header('cf-connecting-ip') || c.req.header('x-forwarded-for') || 'unknown';
+  const userAgent = c.req.header('user-agent') || '';
+  const timestamp = c.req.header('x-zarinpal-timestamp') || '';
+  // const signature = c.req.header('x-zarinpal-signature') || ''; // Not used yet
+  // Rate limiting: max 10 requests per minute per IP
+  const rateLimitKey = `webhook:${clientIP}`;
+  const now = Date.now();
+  const windowMs = 60 * 1000; // 1 minute
+  const maxRequests = 10;
+
+  const current = webhookRateLimiter.get(rateLimitKey);
+  if (current && current.resetTime > now) {
+    if (current.count >= maxRequests) {
+      throw new HTTPException(HttpStatusCodes.TOO_MANY_REQUESTS, {
+        message: 'Webhook rate limit exceeded',
+      });
+    }
+    current.count++;
+  } else {
+    webhookRateLimiter.set(rateLimitKey, {
+      count: 1,
+      resetTime: now + windowMs,
+    });
+  }
+
+  // Validate User-Agent (should contain ZarinPal identifier)
+  if (!userAgent.toLowerCase().includes('zarinpal')) {
+    console.warn(`[WEBHOOK SECURITY] Suspicious user agent: ${userAgent} from IP: ${clientIP}`);
+    throw new HTTPException(HttpStatusCodes.FORBIDDEN, {
+      message: 'Invalid webhook source',
+    });
+  }
+
+  // Timestamp validation (prevent replay attacks)
+  if (timestamp) {
+    const webhookTimestamp = Number.parseInt(timestamp, 10);
+    const currentTimestamp = Math.floor(Date.now() / 1000);
+    const timeDiff = Math.abs(currentTimestamp - webhookTimestamp);
+
+    // Reject webhooks older than 5 minutes or from the future
+    if (timeDiff > 300) {
+      console.warn(`[WEBHOOK SECURITY] Timestamp validation failed. Webhook timestamp: ${webhookTimestamp}, Current: ${currentTimestamp}, Diff: ${timeDiff}s`);
+      throw new HTTPException(HttpStatusCodes.UNAUTHORIZED, {
+        message: 'Webhook timestamp validation failed',
+      });
+    }
+  }
+
+  // IP whitelist validation (ZarinPal's IP ranges)
+  // Note: In production, maintain an updated list of ZarinPal's IP ranges
+  const zarinpalIPRanges = [
+    '185.231.115.0/24', // ZarinPal primary range
+    '5.253.26.0/24', // ZarinPal secondary range
+    // Add more as needed based on ZarinPal documentation
+  ];
+
+  // For development, allow localhost
+  const isLocalhost = clientIP === '127.0.0.1' || clientIP === 'unknown' || clientIP.startsWith('192.168.');
+
+  if (!isLocalhost && process.env.NODE_ENV === 'production') {
+    const isValidIP = zarinpalIPRanges.some((range) => {
+      // Simple IP validation - in production use proper CIDR validation library
+      return range.includes(clientIP.split('.').slice(0, 3).join('.'));
+    });
+
+    if (!isValidIP) {
+      console.warn(`[WEBHOOK SECURITY] Request from unauthorized IP: ${clientIP}`);
+      throw new HTTPException(HttpStatusCodes.FORBIDDEN, {
+        message: 'Webhook request from unauthorized IP',
+      });
+    }
+  }
+
+  // Content-Type validation
+  const contentType = c.req.header('content-type');
+  if (!contentType || !contentType.includes('application/json')) {
+    throw new HTTPException(HttpStatusCodes.BAD_REQUEST, {
+      message: 'Invalid content type for webhook',
+    });
+  }
+
+  console.error(`[WEBHOOK SECURITY] Validated webhook from IP: ${clientIP}, User-Agent: ${userAgent}`);
+}
+
+/**
  * Handler for POST /webhooks/zarinpal
  * Receives and processes ZarinPal webhooks
  */
 export const zarinPalWebhookHandler: RouteHandler<typeof zarinPalWebhookRoute, ApiEnv> = async (c) => {
   c.header('X-Route', 'zarinpal-webhook');
 
+  // Security validations
+  await validateWebhookSecurity(c);
+
   const webhookPayload = c.req.valid('json');
+
+  // Validate webhook payload structure
+  if (!webhookPayload || typeof webhookPayload !== 'object') {
+    throw new HTTPException(HttpStatusCodes.BAD_REQUEST, {
+      message: 'Invalid webhook payload structure',
+    });
+  }
+
+  // Validate required fields
+  if (!webhookPayload.authority || !webhookPayload.status) {
+    throw new HTTPException(HttpStatusCodes.BAD_REQUEST, {
+      message: 'Missing required webhook fields: authority or status',
+    });
+  }
 
   // Create webhook event record immediately for audit trail
   const eventId = crypto.randomUUID();
@@ -60,8 +186,8 @@ export const zarinPalWebhookHandler: RouteHandler<typeof zarinPalWebhookRoute, A
 
         // Process payment based on webhook status
         if (webhookPayload.status === 'OK') {
-          // Verify payment with ZarinPal to ensure authenticity using factory pattern
-          const zarinPal = ZarinPalService.fromEnv(c.env);
+          // Verify payment with ZarinPal to ensure authenticity
+          const zarinPal = ZarinPalService.create(c.env);
 
           try {
             const verification = await zarinPal.verifyPayment({

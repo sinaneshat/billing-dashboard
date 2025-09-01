@@ -17,7 +17,7 @@ import { Separator } from '@/components/ui/separator';
 import { useChangePlanMutation } from '@/hooks/mutations/subscriptions';
 import { useProductsQuery } from '@/hooks/queries/products';
 import { useSubscriptionQuery } from '@/hooks/queries/subscriptions';
-import { formatPersianDate, formatPersianDateTime, formatTomanCurrency } from '@/lib/i18n/currency-utils';
+import { formatTomanCurrency } from '@/lib/i18n/currency-utils';
 
 // Form schema for plan change
 const changePlanSchema = z.object({
@@ -339,7 +339,7 @@ export function SubscriptionDetails({ subscriptionId, onBack }: SubscriptionDeta
             <span className="text-sm text-muted-foreground">
               as of
               {' '}
-              {formatPersianDateTime(subscription.updatedAt)}
+              {new Date(subscription.updatedAt).toLocaleDateString()}
             </span>
           </div>
 
@@ -371,7 +371,7 @@ export function SubscriptionDetails({ subscriptionId, onBack }: SubscriptionDeta
                 {subscription.nextBillingDate && (
                   <div>
                     <p className="text-sm font-medium text-muted-foreground">Next Billing Date</p>
-                    <p className="text-lg">{formatPersianDate(subscription.nextBillingDate)}</p>
+                    <p className="text-lg">{new Date(subscription.nextBillingDate).toLocaleDateString()}</p>
                   </div>
                 )}
               </div>
@@ -386,7 +386,7 @@ export function SubscriptionDetails({ subscriptionId, onBack }: SubscriptionDeta
               <div className="space-y-3">
                 <div>
                   <p className="text-sm font-medium text-muted-foreground">Started</p>
-                  <p className="text-lg">{formatPersianDate(subscription.startDate)}</p>
+                  <p className="text-lg">{new Date(subscription.startDate).toLocaleDateString()}</p>
                 </div>
 
                 {subscription.endDate && (
@@ -394,13 +394,13 @@ export function SubscriptionDetails({ subscriptionId, onBack }: SubscriptionDeta
                     <p className="text-sm font-medium text-muted-foreground">
                       {subscription.status === 'canceled' ? 'Canceled' : 'Ends'}
                     </p>
-                    <p className="text-lg">{formatPersianDate(subscription.endDate)}</p>
+                    <p className="text-lg">{new Date(subscription.endDate).toLocaleDateString()}</p>
                   </div>
                 )}
 
                 <div>
                   <p className="text-sm font-medium text-muted-foreground">Created</p>
-                  <p className="text-lg">{formatPersianDateTime(subscription.createdAt)}</p>
+                  <p className="text-lg">{new Date(subscription.createdAt).toLocaleString()}</p>
                 </div>
               </div>
             </div>
@@ -445,7 +445,7 @@ export function SubscriptionDetails({ subscriptionId, onBack }: SubscriptionDeta
 
             <div>
               <p className="text-sm font-medium text-muted-foreground">Last Updated</p>
-              <p className="text-sm">{formatPersianDateTime(subscription.updatedAt)}</p>
+              <p className="text-sm">{new Date(subscription.updatedAt).toLocaleString()}</p>
             </div>
           </div>
         </CardContent>
