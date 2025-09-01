@@ -20,12 +20,7 @@ export {
   usePaymentMethodsQuery,
   usePrefetchPaymentMethods,
 } from './payment-methods';
-export {
-  usePaymentCallbackQuery,
-  usePaymentHistoryInfiniteQuery,
-  usePaymentHistoryQuery,
-  usePrefetchPaymentHistory,
-} from './payments';
+// Payment queries removed - subscription platform only
 export {
   usePrefetchProducts,
   useProductsQuery,

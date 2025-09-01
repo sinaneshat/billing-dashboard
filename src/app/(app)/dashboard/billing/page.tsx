@@ -1,3 +1,3 @@
-import { BillingOverviewPage } from './billing-overview';
+import BillingOverviewPage from '@/components/billing/billing-overview';
 
 export default BillingOverviewPage;

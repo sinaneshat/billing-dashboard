@@ -1,6 +1,6 @@
 'use client';
 
-import { Calendar, CreditCard, Package, Plus } from 'lucide-react';
+import { Calendar, Package, Plus } from 'lucide-react';
 import Link from 'next/link';
 
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -9,11 +9,9 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { LoadingSpinner } from '@/components/ui/loading-spinner';
 import { Separator } from '@/components/ui/separator';
-import { usePaymentHistoryQuery } from '@/hooks/queries/payments';
 import { useProductsQuery } from '@/hooks/queries/products';
 import { useCurrentSubscriptionQuery } from '@/hooks/queries/subscriptions';
 import {
-  formatPersianCurrency,
   formatPersianDate,
   formatTomanCurrency,
 } from '@/lib/i18n/currency-utils';
@@ -35,12 +33,7 @@ function getStatusBadgeVariant(status: string) {
 
 export default function BillingOverviewPage() {
   const { data: currentSubscription, isLoading: subscriptionLoading, error: subscriptionError } = useCurrentSubscriptionQuery();
-  const { data: paymentHistory, isLoading: paymentsLoading } = usePaymentHistoryQuery({ query: { limit: '5' } });
   const { data: products } = useProductsQuery({ query: { limit: '10' } });
-
-  const recentPayments = paymentHistory?.success && Array.isArray(paymentHistory.data)
-    ? paymentHistory.data.slice(0, 3)
-    : [];
 
   const availableProducts = products?.success && Array.isArray(products.data)
     ? products.data.filter(product => product.isActive)
@@ -49,218 +42,160 @@ export default function BillingOverviewPage() {
   if (subscriptionLoading) {
     return (
       <div className="flex items-center justify-center min-h-96">
-        <LoadingSpinner className="h-8 w-8 mr-2" />
-        <span>Loading billing overview...</span>
+        <LoadingSpinner size="lg" />
       </div>
     );
   }
+
+  if (subscriptionError) {
+    return (
+      <div className="space-y-6">
+        <Alert variant="destructive">
+          <AlertTitle>Error Loading Subscription</AlertTitle>
+          <AlertDescription>
+            Unable to load your subscription information. Please try again later.
+          </AlertDescription>
+        </Alert>
+      </div>
+    );
+  }
+
+  const subscription = currentSubscription || null;
 
   return (
     <div className="space-y-6">
       {/* Current Subscription Status */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Package className="h-5 w-5" />
-            Current Subscription
-          </CardTitle>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Package className="h-5 w-5" />
+              <CardTitle>Current Subscription</CardTitle>
+            </div>
+            {!subscription && (
+              <Button asChild>
+                <Link href="/dashboard/billing/plans">
+                  <Plus className="h-4 w-4 mr-2" />
+                  Subscribe Now
+                </Link>
+              </Button>
+            )}
+          </div>
+          <CardDescription>
+            Your subscription status and billing information
+          </CardDescription>
         </CardHeader>
         <CardContent>
-          {subscriptionError || !currentSubscription
+          {subscription
             ? (
-                <div className="text-center py-6">
-                  <Package className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                  <h3 className="text-lg font-semibold mb-2">No Active Subscription</h3>
-                  <p className="text-muted-foreground mb-4">
-                    You don't have an active subscription. Choose a plan to get started.
-                  </p>
-                  <Button asChild>
-                    <Link href="/dashboard/billing/plans">
-                      <Plus className="h-4 w-4 mr-2" />
-                      Choose a Plan
-                    </Link>
-                  </Button>
-                </div>
-              )
-            : (
                 <div className="space-y-4">
-                  <div className="flex items-start justify-between">
+                  <div className="flex items-center justify-between">
                     <div>
-                      <h3 className="font-semibold text-lg">{currentSubscription.product?.name}</h3>
-                      <p className="text-muted-foreground">{currentSubscription.product?.description}</p>
+                      <h3 className="font-medium text-lg">{subscription.product?.name}</h3>
+                      <p className="text-sm text-muted-foreground">
+                        {subscription.billingPeriod === 'monthly' ? 'Monthly Subscription' : 'One-time Purchase'}
+                      </p>
                     </div>
-                    <Badge variant={getStatusBadgeVariant(currentSubscription.status)}>
-                      {currentSubscription.status}
+                    <Badge variant={getStatusBadgeVariant(subscription.status)}>
+                      {subscription.status === 'active' && 'Active'}
+                      {subscription.status === 'canceled' && 'Canceled'}
+                      {subscription.status === 'expired' && 'Expired'}
+                      {subscription.status === 'pending' && 'Pending'}
                     </Badge>
                   </div>
 
-                  <div className="grid gap-4 md:grid-cols-3">
+                  <Separator />
+
+                  <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <p className="text-sm font-medium text-muted-foreground">Current Price</p>
-                      <p className="text-2xl font-bold">
-                        {formatTomanCurrency(currentSubscription.currentPrice)}
-                      </p>
-                      <p className="text-lg text-muted-foreground">
-                        (
-                        {formatPersianCurrency(currentSubscription.currentPrice)}
-                        )
-                      </p>
+                      <p className="text-sm font-medium">Amount</p>
+                      <p className="text-lg">{formatTomanCurrency(subscription.currentPrice)}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium">Next Billing</p>
                       <p className="text-sm text-muted-foreground">
-                        per
-                        {' '}
-                        {currentSubscription.billingPeriod === 'monthly' ? 'month' : 'year'}
-                      </p>
-                    </div>
-
-                    <div>
-                      <p className="text-sm font-medium text-muted-foreground">Start Date</p>
-                      <p className="text-lg">{formatPersianDate(currentSubscription.startDate)}</p>
-                    </div>
-
-                    <div>
-                      <p className="text-sm font-medium text-muted-foreground">Next Billing</p>
-                      <p className="text-lg">
-                        {currentSubscription.nextBillingDate
-                          ? formatPersianDate(currentSubscription.nextBillingDate)
+                        {subscription.nextBillingDate
+                          ? formatPersianDate(subscription.nextBillingDate)
                           : 'N/A'}
                       </p>
                     </div>
                   </div>
 
-                  <Separator />
-
                   <div className="flex gap-2">
-                    <Button variant="outline" asChild>
-                      <Link href="/dashboard/billing/subscriptions">جزئیات بیشتر</Link>
+                    <Button asChild variant="outline">
+                      <Link href="/dashboard/billing/subscriptions">
+                        Manage Subscription
+                      </Link>
                     </Button>
-                    {currentSubscription.status === 'active' && (
-                      <Button variant="outline" asChild>
-                        <Button variant="ghost" size="sm" onClick={() => console.warn('Cancel functionality not implemented')}>لغو اشتراک</Button>
-                      </Button>
-                    )}
+                    <Button asChild variant="outline">
+                      <Link href="/dashboard/billing/methods">
+                        Setup Direct Debit
+                      </Link>
+                    </Button>
                   </div>
+                </div>
+              )
+            : (
+                <div className="text-center py-6">
+                  <Package className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                  <h3 className="text-lg font-semibold mb-2">No Active Subscription</h3>
+                  <p className="text-muted-foreground mb-4">
+                    Start your subscription journey by choosing a plan that works for you.
+                  </p>
+                  <Button asChild>
+                    <Link href="/dashboard/billing/plans">
+                      <Plus className="h-4 w-4 mr-2" />
+                      Browse Plans
+                    </Link>
+                  </Button>
                 </div>
               )}
         </CardContent>
       </Card>
 
-      {/* Recent Payments */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <CreditCard className="h-5 w-5" />
-            Recent Payments
-          </CardTitle>
-          <CardDescription>آخرین تراکنش‌های پرداختی شما</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {paymentsLoading
-            ? (
-                <div className="flex items-center justify-center py-6">
-                  <LoadingSpinner className="h-6 w-6 mr-2" />
-                  <span>Loading payments...</span>
-                </div>
-              )
-            : recentPayments.length === 0
-              ? (
-                  <div className="text-center py-6">
-                    <CreditCard className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                    <p className="text-muted-foreground">No payment history found</p>
-                  </div>
-                )
-              : (
-                  <div className="space-y-4">
-                    {recentPayments.map(payment => (
-                      <div key={payment.id} className="flex items-center justify-between p-4 border rounded-lg">
-                        <div className="flex-1">
-                          <p className="font-medium">{payment.product?.name}</p>
-                          <p className="text-sm text-muted-foreground">
-                            {formatPersianDate(payment.createdAt)}
-                            {' '}
-                            •
-                            {payment.paymentMethod}
-                          </p>
-                        </div>
-                        <div className="text-right">
-                          <p className="font-medium">
-                            {formatTomanCurrency(payment.amount)}
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            {formatPersianCurrency(payment.amount, payment.currency)}
-                          </p>
-                          <Badge variant={payment.status === 'completed' ? 'default' : 'secondary'} className="text-xs">
-                            {payment.status}
-                          </Badge>
-                        </div>
-                      </div>
-                    ))}
-
-                    <Separator />
-
-                    <Button variant="outline" className="w-full" asChild>
-                      <Link href="/dashboard/billing/payments">View All Payments</Link>
-                    </Button>
-                  </div>
-                )}
-        </CardContent>
-      </Card>
-
-      {/* Available Plans (if no active subscription) */}
-      {(!currentSubscription || currentSubscription.status !== 'active') && availableProducts.length > 0 && (
+      {/* Available Subscription Plans */}
+      {availableProducts.length > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle>Available Plans</CardTitle>
-            <CardDescription>Choose a subscription plan that fits your needs</CardDescription>
+            <div className="flex items-center gap-2">
+              <Calendar className="h-5 w-5" />
+              <CardTitle>Available Plans</CardTitle>
+            </div>
+            <CardDescription>
+              Explore our subscription plans and find the perfect fit
+            </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {availableProducts.slice(0, 3).map(product => (
-                <div key={product.id} className="border rounded-lg p-4 space-y-3">
-                  <div>
-                    <h3 className="font-semibold">{product.name}</h3>
-                    <p className="text-sm text-muted-foreground">{product.description}</p>
+                <div key={product.id} className="border rounded-lg p-4 space-y-2">
+                  <h4 className="font-medium">{product.name}</h4>
+                  <p className="text-sm text-muted-foreground">{product.description}</p>
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-lg">
+                      {formatTomanCurrency(product.price)}
+                    </span>
+                    <Button asChild size="sm">
+                      <Link href={`/dashboard/billing/plans/${product.id}`}>
+                        Select Plan
+                      </Link>
+                    </Button>
                   </div>
-                  <div>
-                    <p className="text-2xl font-bold">{formatTomanCurrency(product.price)}</p>
-                    <p className="text-sm text-muted-foreground">
-                      (
-                      {formatPersianCurrency(product.price)}
-                      )
-                    </p>
-                    <p className="text-sm text-muted-foreground">
-                      per
-                      {' '}
-                      {product.billingPeriod === 'monthly' ? 'month' : 'year'}
-                    </p>
-                  </div>
-                  <Button className="w-full" asChild>
-                    <Link href="/dashboard/billing/plans">
-                      Subscribe Now
-                    </Link>
-                  </Button>
                 </div>
               ))}
             </div>
-
             {availableProducts.length > 3 && (
-              <div className="mt-4">
-                <Button variant="outline" className="w-full" asChild>
-                  <Link href="/dashboard/billing/plans">View All Plans</Link>
+              <div className="text-center mt-4">
+                <Button asChild variant="outline">
+                  <Link href="/dashboard/billing/plans">
+                    View All Plans
+                  </Link>
                 </Button>
               </div>
             )}
           </CardContent>
         </Card>
       )}
-
-      {/* Payment Method Alert */}
-      <Alert>
-        <Calendar className="h-4 w-4" />
-        <AlertTitle>Automatic Payments</AlertTitle>
-        <AlertDescription>
-          Set up automatic payments to ensure uninterrupted service. Your subscription will renew automatically using your selected payment method.
-        </AlertDescription>
-      </Alert>
     </div>
   );
 }

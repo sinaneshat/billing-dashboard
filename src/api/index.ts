@@ -48,7 +48,17 @@ import {
   uploadCompanyImageRoute,
   uploadUserAvatarRoute,
 } from './routes/images/route';
+import {
+  enableDirectDebitRoute,
+  initiateCardAdditionRoute,
+  verifyCardAdditionRoute,
+} from './routes/payment-methods/card-addition';
 // Payment methods routes
+import {
+  enableDirectDebitHandler,
+  initiateCardAdditionHandler,
+  verifyCardAdditionHandler,
+} from './routes/payment-methods/card-addition-handler';
 import {
   createPaymentMethodHandler,
   deletePaymentMethodHandler,
@@ -61,18 +71,7 @@ import {
   getPaymentMethodsRoute,
   setDefaultPaymentMethodRoute,
 } from './routes/payment-methods/route';
-import {
-  generateInvoiceHandler,
-  getPaymentsHandler,
-  paymentCallbackHandler,
-  verifyPaymentHandler,
-} from './routes/payments/handler';
-import {
-  generateInvoiceRoute,
-  getPaymentsRoute,
-  paymentCallbackRoute,
-  verifyPaymentRoute,
-} from './routes/payments/route';
+// Payments routes removed - this is a subscription platform, not a payment platform
 import { getProductsHandler } from './routes/products/handler';
 import { getProductsRoute } from './routes/products/route';
 // Billing routes
@@ -181,7 +180,7 @@ app.notFound(notFound);
 app.use('/auth/*', requireSession);
 app.use('/images/*', requireSession);
 app.use('/subscriptions/*', requireSession);
-app.use('/payments/verify', requireSession);
+// Payments middleware removed - subscription platform only
 app.use('/payment-methods/*', requireSession);
 app.use('/webhooks/events', requireSession);
 app.use('/webhooks/test', requireSession);
@@ -204,16 +203,16 @@ const appRoutes = app
   .openapi(cancelSubscriptionRoute, cancelSubscriptionHandler)
   .openapi(resubscribeRoute, resubscribeHandler)
   .openapi(changePlanRoute, changePlanHandler)
-  // Payments routes
-  .openapi(getPaymentsRoute, getPaymentsHandler)
-  .openapi(paymentCallbackRoute, paymentCallbackHandler)
-  .openapi(verifyPaymentRoute, verifyPaymentHandler)
-  .openapi(generateInvoiceRoute, generateInvoiceHandler)
+  // Payments routes removed - subscription platform only
   // Payment methods routes
   .openapi(getPaymentMethodsRoute, getPaymentMethodsHandler)
   .openapi(createPaymentMethodRoute, createPaymentMethodHandler)
   .openapi(deletePaymentMethodRoute, deletePaymentMethodHandler)
   .openapi(setDefaultPaymentMethodRoute, setDefaultPaymentMethodHandler)
+  // Card addition routes
+  .openapi(initiateCardAdditionRoute, initiateCardAdditionHandler)
+  .openapi(verifyCardAdditionRoute, verifyCardAdditionHandler)
+  .openapi(enableDirectDebitRoute, enableDirectDebitHandler)
   // Webhooks routes
   .openapi(zarinPalWebhookRoute, zarinPalWebhookHandler)
   .openapi(getWebhookEventsRoute, getWebhookEventsHandler)
@@ -241,19 +240,18 @@ appRoutes.doc('/doc', c => ({
   openapi: '3.0.0',
   info: {
     version: '1.0.0',
-    title: 'Shakewell Wallet API',
-    description: 'API for Shakewell Wallet. Built with Hono, Zod, and OpenAPI.',
+    title: 'Subscription Management API',
+    description: 'API for subscription billing and direct debit automation. Built with Hono, Zod, and OpenAPI.',
     contact: { name: 'Shakewell', url: 'https://shakewell.app' },
     license: { name: 'Proprietary' },
   },
   tags: [
     { name: 'system', description: 'System health and diagnostics' },
     { name: 'auth', description: 'Authentication and authorization' },
-    { name: 'products', description: 'Product management and catalog' },
-    { name: 'subscriptions', description: 'Subscription management and billing' },
-    { name: 'payments', description: 'Payment processing and verification' },
-    { name: 'payment-methods', description: 'Payment method management and card tokenization' },
-    { name: 'webhooks', description: 'Webhook events and external integrations' },
+    { name: 'products', description: 'Subscription plans and pricing' },
+    { name: 'subscriptions', description: 'Subscription lifecycle management and automated billing' },
+    { name: 'payment-methods', description: 'Subscription payment methods and direct debit automation' },
+    { name: 'webhooks', description: 'Subscription webhooks and billing notifications' },
     { name: 'images', description: 'Image upload and management' },
     { name: 'passes', description: 'Pass generation and management' },
   ],
@@ -282,7 +280,7 @@ appRoutes.doc('/doc', c => ({
 // Scalar API documentation UI
 appRoutes.get('/scalar', Scalar({
   url: '/api/v1/doc',
-  pageTitle: 'Shakewell API',
+  pageTitle: 'Subscription Management API',
   theme: 'purple',
 }));
 
@@ -303,7 +301,7 @@ appRoutes.get('/llms.txt', async (c) => {
     const document = appRoutes.getOpenAPI31Document({
       openapi: '3.1.0',
       info: {
-        title: 'Shakewell Wallet API',
+        title: 'Subscription Management API',
         version: '1.0.0',
       },
     });

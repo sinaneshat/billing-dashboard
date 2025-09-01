@@ -1,6 +1,6 @@
 'use client';
 
-import { ArrowRight, CreditCard, Package, Plus, TrendingUp, User } from 'lucide-react';
+import { ArrowRight, Package, Plus, TrendingUp, User } from 'lucide-react';
 import Link from 'next/link';
 
 import { PageHeader } from '@/components/dashboard';
@@ -10,7 +10,6 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { LoadingSpinner } from '@/components/ui/loading-spinner';
 import { useCurrentUserQuery } from '@/hooks/queries/auth';
-import { usePaymentHistoryQuery } from '@/hooks/queries/payments';
 import { useCurrentSubscriptionQuery } from '@/hooks/queries/subscriptions';
 import { formatPersianDate, formatTomanCurrency } from '@/lib/i18n/currency-utils';
 
@@ -32,64 +31,43 @@ function getStatusBadgeVariant(status: string) {
 export default function DashboardOverviewPage() {
   const { data: user, isLoading: userLoading, error: userError } = useCurrentUserQuery();
   const { data: currentSubscription, isLoading: subscriptionLoading } = useCurrentSubscriptionQuery();
-  const { data: paymentHistory, isLoading: paymentsLoading } = usePaymentHistoryQuery();
-
-  const recentPayments = paymentHistory?.success && Array.isArray(paymentHistory.data)
-    ? paymentHistory.data.slice(0, 3) // Show only recent 3 payments
-    : [];
 
   if (userLoading) {
     return (
       <div className="flex items-center justify-center min-h-96">
         <LoadingSpinner className="h-8 w-8 mr-2" />
-        <span>Loading dashboard...</span>
+        <span className="text-lg">Loading dashboard...</span>
       </div>
     );
   }
 
-  if (userError || !user?.success || !user.data) {
+  if (userError) {
     return (
-      <div className="flex items-center justify-center min-h-96">
-        <div className="text-center">
-          <p className="text-destructive mb-2">Failed to load user information</p>
-          <Button variant="outline" onClick={() => window.location.reload()}>
-            Try Again
-          </Button>
-        </div>
+      <div className="space-y-6">
+        <PageHeader
+          title="Dashboard"
+          description="Welcome back! Here's an overview of your account."
+        />
+        <Alert variant="destructive">
+          <AlertTitle>Error Loading Dashboard</AlertTitle>
+          <AlertDescription>
+            Unable to load your account information. Please try refreshing the page or contact support if the issue persists.
+          </AlertDescription>
+        </Alert>
       </div>
     );
   }
 
-  const userData = user.data;
   const hasActiveSubscription = currentSubscription?.status === 'active';
 
   return (
     <div className="space-y-6">
       <PageHeader
-        title={`Welcome back${userData.email ? `, ${userData.email.split('@')[0]}` : ''}!`}
-        description="Your dashboard overview and account summary"
-        action={
-          !hasActiveSubscription
-            ? (
-                <Button asChild>
-                  <Link href="/dashboard/billing/plans">
-                    <Plus className="h-4 w-4 mr-2" />
-                    Get Started
-                  </Link>
-                </Button>
-              )
-            : (
-                <Button variant="outline" asChild>
-                  <Link href="/dashboard/billing">
-                    <CreditCard className="h-4 w-4 mr-2" />
-                    Manage Billing
-                  </Link>
-                </Button>
-              )
-        }
+        title={`Welcome back, ${user?.data?.email || 'User'}!`}
+        description="Here's an overview of your subscription and account activity."
       />
 
-      {/* Status Cards */}
+      {/* Stats Cards */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -97,95 +75,63 @@ export default function DashboardOverviewPage() {
             <User className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="flex items-center gap-2">
-              <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-              <span className="text-2xl font-bold">Active</span>
+            <div>
+              <span className="text-2xl font-bold">{user?.data?.email ? 'Active' : 'Inactive'}</span>
+              <p className="text-xs text-muted-foreground">
+                Email verification status
+              </p>
             </div>
-            <p className="text-xs text-muted-foreground">
-              Account verified and ready
-            </p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Subscription</CardTitle>
+            <CardTitle className="text-sm font-medium">Subscription Status</CardTitle>
             <Package className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            {subscriptionLoading
-              ? (
-                  <LoadingSpinner className="h-6 w-6" />
-                )
-              : currentSubscription
-                ? (
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-2xl font-bold">{currentSubscription.product?.name || 'Active'}</span>
-                        <Badge variant={getStatusBadgeVariant(currentSubscription.status)} className="text-xs">
-                          {currentSubscription.status}
-                        </Badge>
-                      </div>
-                      <p className="text-xs text-muted-foreground">
-                        Next billing:
-                        {' '}
-                        {currentSubscription.nextBillingDate ? formatPersianDate(currentSubscription.nextBillingDate) : 'N/A'}
-                      </p>
-                    </div>
-                  )
-                : (
-                    <div>
-                      <span className="text-2xl font-bold">No Plan</span>
-                      <p className="text-xs text-muted-foreground">
-                        Choose a subscription plan
-                      </p>
-                    </div>
-                  )}
+            <div>
+              <span className="text-2xl font-bold">{hasActiveSubscription ? 'Active' : 'None'}</span>
+              <p className="text-xs text-muted-foreground">
+                Current subscription
+              </p>
+            </div>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Monthly Spend</CardTitle>
+            <CardTitle className="text-sm font-medium">Plan</CardTitle>
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            {subscriptionLoading
-              ? (
-                  <LoadingSpinner className="h-6 w-6" />
-                )
-              : currentSubscription
-                ? (
-                    <div>
-                      <span className="text-2xl font-bold">
-                        {formatTomanCurrency(currentSubscription.currentPrice)}
-                      </span>
-                      <p className="text-xs text-muted-foreground">
-                        Current plan pricing
-                      </p>
-                    </div>
-                  )
-                : (
-                    <div>
-                      <span className="text-2xl font-bold">₦0</span>
-                      <p className="text-xs text-muted-foreground">
-                        No active subscription
-                      </p>
-                    </div>
-                  )}
+            <div>
+              <span className="text-2xl font-bold">
+                {currentSubscription?.product?.name || 'None'}
+              </span>
+              <p className="text-xs text-muted-foreground">
+                {hasActiveSubscription ? 'Active plan' : 'No active plan'}
+              </p>
+            </div>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Payments</CardTitle>
-            <CreditCard className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium">Monthly Cost</CardTitle>
+            <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div>
-              <span className="text-2xl font-bold">{recentPayments.length}</span>
+              <span className="text-2xl font-bold">
+                {hasActiveSubscription ? formatTomanCurrency(currentSubscription.currentPrice) : '0 ﷼'}
+              </span>
               <p className="text-xs text-muted-foreground">
-                Recent transactions
+                {hasActiveSubscription && currentSubscription.billingPeriod === 'monthly'
+                  ? 'Per month'
+                  : hasActiveSubscription
+                    ? 'One-time'
+                    : 'No charges'}
               </p>
             </div>
           </CardContent>
@@ -212,7 +158,7 @@ export default function DashboardOverviewPage() {
 
       {currentSubscription?.status === 'active' && currentSubscription.nextBillingDate && (
         <Alert>
-          <CreditCard className="h-4 w-4" />
+          <Package className="h-4 w-4" />
           <AlertTitle>Next Billing Date</AlertTitle>
           <AlertDescription>
             Your next billing date is
@@ -225,7 +171,7 @@ export default function DashboardOverviewPage() {
             .
             <Button variant="link" className="h-auto p-0 ml-2" asChild>
               <Link href="/dashboard/billing/methods">
-                Manage Payment Methods
+                Setup Direct Debit
                 {' '}
                 <ArrowRight className="h-3 w-3 ml-1" />
               </Link>
@@ -235,45 +181,45 @@ export default function DashboardOverviewPage() {
       )}
 
       <div className="grid gap-6 md:grid-cols-2">
-        {/* Recent Activity */}
+        {/* Subscription Overview */}
         <Card>
           <CardHeader>
-            <CardTitle>Recent Activity</CardTitle>
-            <CardDescription>Your latest account activity</CardDescription>
+            <CardTitle>Subscription Overview</CardTitle>
+            <CardDescription>Your subscription details and status</CardDescription>
           </CardHeader>
           <CardContent>
-            {paymentsLoading
+            {subscriptionLoading
               ? (
                   <div className="flex items-center justify-center py-6">
                     <LoadingSpinner className="h-6 w-6 mr-2" />
-                    <span>Loading...</span>
+                    <span>Loading subscription...</span>
                   </div>
                 )
-              : recentPayments.length > 0
+              : hasActiveSubscription && currentSubscription
                 ? (
                     <div className="space-y-4">
-                      {recentPayments.map(payment => (
-                        <div key={payment.id} className="flex items-center justify-between">
-                          <div className="flex items-center gap-3">
-                            <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                            <div>
-                              <p className="font-medium text-sm">{payment.product?.name}</p>
-                              <p className="text-xs text-muted-foreground">
-                                {formatPersianDate(payment.createdAt)}
-                              </p>
-                            </div>
-                          </div>
-                          <div className="text-right">
-                            <p className="font-medium text-sm">{formatTomanCurrency(payment.amount)}</p>
-                            <Badge variant={payment.status === 'completed' ? 'default' : 'secondary'} className="text-xs">
-                              {payment.status}
-                            </Badge>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                          <div>
+                            <p className="font-medium text-sm">{currentSubscription.product?.name}</p>
+                            <p className="text-xs text-muted-foreground">
+                              Next billing:
+                              {' '}
+                              {currentSubscription.nextBillingDate ? formatPersianDate(currentSubscription.nextBillingDate) : 'N/A'}
+                            </p>
                           </div>
                         </div>
-                      ))}
+                        <div className="text-right">
+                          <p className="font-medium text-sm">{formatTomanCurrency(currentSubscription.currentPrice)}</p>
+                          <Badge variant={getStatusBadgeVariant(currentSubscription.status)} className="text-xs">
+                            {currentSubscription.status}
+                          </Badge>
+                        </div>
+                      </div>
                       <Button variant="outline" className="w-full mt-4" asChild>
-                        <Link href="/dashboard/billing/payments">
-                          View All Payments
+                        <Link href="/dashboard/billing/subscriptions">
+                          Manage Subscription
                           {' '}
                           <ArrowRight className="h-4 w-4 ml-2" />
                         </Link>
@@ -282,8 +228,11 @@ export default function DashboardOverviewPage() {
                   )
                 : (
                     <div className="text-center py-6">
-                      <CreditCard className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                      <p className="text-muted-foreground">No recent activity</p>
+                      <Package className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                      <p className="text-muted-foreground">No active subscription</p>
+                      <Button asChild className="mt-2" size="sm">
+                        <Link href="/dashboard/billing/plans">Browse Plans</Link>
+                      </Button>
                     </div>
                   )}
           </CardContent>
@@ -293,79 +242,40 @@ export default function DashboardOverviewPage() {
         <Card>
           <CardHeader>
             <CardTitle>Quick Actions</CardTitle>
-            <CardDescription>Common tasks and shortcuts</CardDescription>
+            <CardDescription>Manage your subscription and billing</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="grid gap-3">
-              {!hasActiveSubscription
-                ? (
-                    <>
-                      <Button className="justify-start h-12" asChild>
-                        <Link href="/dashboard/billing/plans">
-                          <Plus className="h-4 w-4 mr-3" />
-                          Choose a Plan
-                        </Link>
-                      </Button>
-                      <Button variant="outline" className="justify-start h-12" asChild>
-                        <Link href="/dashboard/billing">
-                          <CreditCard className="h-4 w-4 mr-3" />
-                          View Billing
-                        </Link>
-                      </Button>
-                    </>
-                  )
-                : (
-                    <>
-                      <Button variant="outline" className="justify-start h-12" asChild>
-                        <Link href="/dashboard/billing/subscriptions">
-                          <Package className="h-4 w-4 mr-3" />
-                          Manage Subscriptions
-                        </Link>
-                      </Button>
-                      <Button variant="outline" className="justify-start h-12" asChild>
-                        <Link href="/dashboard/billing/payments">
-                          <CreditCard className="h-4 w-4 mr-3" />
-                          Payment History
-                        </Link>
-                      </Button>
-                      <Button variant="outline" className="justify-start h-12" asChild>
-                        <Link href="/dashboard/billing/methods">
-                          <User className="h-4 w-4 mr-3" />
-                          Payment Methods
-                        </Link>
-                      </Button>
-                    </>
-                  )}
+            <div className="space-y-3">
+              <Button asChild className="w-full justify-start" variant="outline">
+                <Link href="/dashboard/billing/plans">
+                  <Plus className="h-4 w-4 mr-2" />
+                  {hasActiveSubscription ? 'Change Plan' : 'Choose Plan'}
+                </Link>
+              </Button>
+              <Button asChild className="w-full justify-start" variant="outline">
+                <Link href="/dashboard/billing/methods">
+                  <Package className="h-4 w-4 mr-2" />
+                  Setup Direct Debit
+                </Link>
+              </Button>
+              <Button asChild className="w-full justify-start" variant="outline">
+                <Link href="/dashboard/billing/payments">
+                  <TrendingUp className="h-4 w-4 mr-2" />
+                  View Billing History
+                </Link>
+              </Button>
+              {hasActiveSubscription && (
+                <Button asChild className="w-full justify-start" variant="outline">
+                  <Link href="/dashboard/billing/subscriptions">
+                    <Package className="h-4 w-4 mr-2" />
+                    Manage Subscription
+                  </Link>
+                </Button>
+              )}
             </div>
           </CardContent>
         </Card>
       </div>
-
-      {/* Account Information */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <User className="h-5 w-5" />
-            Account Information
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid gap-4 md:grid-cols-3">
-            <div>
-              <p className="text-sm font-medium text-muted-foreground">Email</p>
-              <p className="text-lg">{userData.email || 'Not provided'}</p>
-            </div>
-            <div>
-              <p className="text-sm font-medium text-muted-foreground">User ID</p>
-              <p className="text-sm font-mono">{userData.userId}</p>
-            </div>
-            <div>
-              <p className="text-sm font-medium text-muted-foreground">Member Since</p>
-              <p className="text-sm">{new Date().toLocaleDateString()}</p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
     </div>
   );
 }

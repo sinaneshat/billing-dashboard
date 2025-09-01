@@ -3,14 +3,19 @@ import * as HttpStatusCodes from 'stoker/http-status-codes';
 
 import { CommonErrorResponses } from '@/api/common';
 
+import {
+  enableDirectDebitRoute,
+  initiateCardAdditionRoute,
+  verifyCardAdditionRoute,
+} from './card-addition';
 import { CreatePaymentMethodRequestSchema, CreatePaymentMethodResponseSchema, DeletePaymentMethodResponseSchema, GetPaymentMethodsResponseSchema, PaymentMethodParamsSchema, SetDefaultPaymentMethodResponseSchema } from './schema';
 
 export const getPaymentMethodsRoute = createRoute({
   method: 'get',
   path: '/payment-methods',
   tags: ['payment-methods'],
-  summary: 'Get user payment methods',
-  description: 'Get all saved payment methods for the authenticated user',
+  summary: 'Get subscription billing methods',
+  description: 'Get all saved billing methods for subscription automation',
   responses: {
     [HttpStatusCodes.OK]: {
       description: 'Payment methods retrieved successfully',
@@ -26,8 +31,8 @@ export const createPaymentMethodRoute = createRoute({
   method: 'post',
   path: '/payment-methods',
   tags: ['payment-methods'],
-  summary: 'Create payment method',
-  description: 'Add a new saved payment method for the user',
+  summary: 'Add subscription billing method',
+  description: 'Add a new billing method for subscription automation',
   request: {
     body: {
       content: {
@@ -51,8 +56,8 @@ export const deletePaymentMethodRoute = createRoute({
   method: 'delete',
   path: '/payment-methods/{id}',
   tags: ['payment-methods'],
-  summary: 'Delete payment method',
-  description: 'Remove a saved payment method',
+  summary: 'Remove subscription billing method',
+  description: 'Remove a billing method from subscription automation',
   request: {
     params: PaymentMethodParamsSchema,
   },
@@ -71,8 +76,8 @@ export const setDefaultPaymentMethodRoute = createRoute({
   method: 'patch',
   path: '/payment-methods/{id}/default',
   tags: ['payment-methods'],
-  summary: 'Set default payment method',
-  description: 'Set a payment method as the default/primary method',
+  summary: 'Set primary subscription billing method',
+  description: 'Set a billing method as the primary method for subscription automation',
   request: {
     params: PaymentMethodParamsSchema,
   },
@@ -86,3 +91,10 @@ export const setDefaultPaymentMethodRoute = createRoute({
     ...CommonErrorResponses.create,
   },
 });
+
+// Re-export the new card addition routes
+export {
+  enableDirectDebitRoute,
+  initiateCardAdditionRoute,
+  verifyCardAdditionRoute,
+};

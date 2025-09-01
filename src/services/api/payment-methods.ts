@@ -73,3 +73,47 @@ export async function setDefaultPaymentMethodService(paymentMethodId: string) {
     param: { id: paymentMethodId },
   }));
 }
+
+// ============================================================================
+//  New Card Addition Services
+// ============================================================================
+
+/**
+ * Initiate card addition flow with ZarinPal
+ * Returns verification URL to redirect user to
+ */
+export async function initiateCardAdditionService(callbackUrl: string, metadata?: Record<string, unknown>) {
+  return parseResponse(apiClient['payment-methods']['card-addition'].$post({
+    json: {
+      callbackUrl,
+      metadata,
+    },
+  }));
+}
+
+/**
+ * Verify card addition after user returns from ZarinPal
+ * Creates payment method record if verification successful
+ */
+export async function verifyCardAdditionService(authority: string, status?: string) {
+  return parseResponse(apiClient['payment-methods']['verify-card'].$post({
+    json: {
+      authority,
+      status,
+    },
+  }));
+}
+
+/**
+ * Enable direct debit for a payment method
+ * Optionally link to a specific subscription
+ */
+export async function enableDirectDebitService(paymentMethodId: string, subscriptionId?: string) {
+  return parseResponse(apiClient['payment-methods'][':id']['enable-direct-debit'].$post({
+    param: { id: paymentMethodId },
+    json: {
+      paymentMethodId,
+      subscriptionId,
+    },
+  }));
+}

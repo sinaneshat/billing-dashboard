@@ -1,0 +1,385 @@
+/**
+ * RTL Global Styles
+ * CSS utilities and base styles for RTL support
+ */
+
+@layer base {
+  /* RTL/LTR Root Variables */
+  :root {
+    --text-direction: ltr;
+    --start-direction: left;
+    --end-direction: right;
+    --rtl-multiplier: 1;
+  }
+
+  [dir='rtl'] {
+    --text-direction: rtl;
+    --start-direction: right;
+    --end-direction: left;
+    --rtl-multiplier: -1;
+  }
+
+  /* Persian Font Configuration */
+  .persian-text {
+    font-family: var(--font-ibm-plex-sans-arabic), system-ui, sans-serif;
+    line-height: 1.8; /* Better line height for Persian */
+    letter-spacing: 0.02em; /* Subtle letter spacing */
+    text-rendering: optimizeLegibility;
+    font-feature-settings:
+      'liga' on,
+      'calt' on;
+    direction: rtl;
+    text-align: right;
+  }
+
+  /* Persian Number Styling */
+  .persian-numbers {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: 'tnum' on;
+    unicode-bidi: embed;
+    direction: rtl;
+  }
+
+  /* Mixed Content Styling */
+  .mixed-content {
+    unicode-bidi: plaintext;
+  }
+
+  .mixed-content .persian-segment {
+    direction: rtl;
+    unicode-bidi: embed;
+  }
+
+  .mixed-content .english-segment {
+    direction: ltr;
+    unicode-bidi: embed;
+  }
+}
+
+@layer utilities {
+  /* Logical Property Utilities */
+  .ms-1 {
+    margin-inline-start: 0.25rem;
+  }
+  .ms-2 {
+    margin-inline-start: 0.5rem;
+  }
+  .ms-3 {
+    margin-inline-start: 0.75rem;
+  }
+  .ms-4 {
+    margin-inline-start: 1rem;
+  }
+  .ms-5 {
+    margin-inline-start: 1.25rem;
+  }
+  .ms-6 {
+    margin-inline-start: 1.5rem;
+  }
+  .ms-8 {
+    margin-inline-start: 2rem;
+  }
+
+  .me-1 {
+    margin-inline-end: 0.25rem;
+  }
+  .me-2 {
+    margin-inline-end: 0.5rem;
+  }
+  .me-3 {
+    margin-inline-end: 0.75rem;
+  }
+  .me-4 {
+    margin-inline-end: 1rem;
+  }
+  .me-5 {
+    margin-inline-end: 1.25rem;
+  }
+  .me-6 {
+    margin-inline-end: 1.5rem;
+  }
+  .me-8 {
+    margin-inline-end: 2rem;
+  }
+
+  .ps-1 {
+    padding-inline-start: 0.25rem;
+  }
+  .ps-2 {
+    padding-inline-start: 0.5rem;
+  }
+  .ps-3 {
+    padding-inline-start: 0.75rem;
+  }
+  .ps-4 {
+    padding-inline-start: 1rem;
+  }
+  .ps-5 {
+    padding-inline-start: 1.25rem;
+  }
+  .ps-6 {
+    padding-inline-start: 1.5rem;
+  }
+  .ps-8 {
+    padding-inline-start: 2rem;
+  }
+
+  .pe-1 {
+    padding-inline-end: 0.25rem;
+  }
+  .pe-2 {
+    padding-inline-end: 0.5rem;
+  }
+  .pe-3 {
+    padding-inline-end: 0.75rem;
+  }
+  .pe-4 {
+    padding-inline-end: 1rem;
+  }
+  .pe-5 {
+    padding-inline-end: 1.25rem;
+  }
+  .pe-6 {
+    padding-inline-end: 1.5rem;
+  }
+  .pe-8 {
+    padding-inline-end: 2rem;
+  }
+
+  /* Text Alignment Utilities */
+  .text-start {
+    text-align: start;
+  }
+  .text-end {
+    text-align: end;
+  }
+
+  /* Border Utilities */
+  .border-s {
+    border-inline-start-width: 1px;
+  }
+  .border-e {
+    border-inline-end-width: 1px;
+  }
+  .border-s-2 {
+    border-inline-start-width: 2px;
+  }
+  .border-e-2 {
+    border-inline-end-width: 2px;
+  }
+
+  /* Position Utilities */
+  .start-0 {
+    inset-inline-start: 0px;
+  }
+  .start-1 {
+    inset-inline-start: 0.25rem;
+  }
+  .start-2 {
+    inset-inline-start: 0.5rem;
+  }
+  .start-4 {
+    inset-inline-start: 1rem;
+  }
+
+  .end-0 {
+    inset-inline-end: 0px;
+  }
+  .end-1 {
+    inset-inline-end: 0.25rem;
+  }
+  .end-2 {
+    inset-inline-end: 0.5rem;
+  }
+  .end-4 {
+    inset-inline-end: 1rem;
+  }
+
+  /* Float Utilities */
+  .float-start {
+    float: inline-start;
+  }
+  .float-end {
+    float: inline-end;
+  }
+
+  /* Transform Utilities for RTL */
+  .transform-rtl {
+    transform: scaleX(var(--rtl-multiplier));
+  }
+
+  /* RTL Container */
+  .rtl-container {
+    direction: rtl;
+  }
+
+  .rtl-container .rtl-flip {
+    transform: scaleX(-1);
+  }
+
+  /* LTR Container */
+  .ltr-container {
+    direction: ltr;
+  }
+
+  /* Form Input Styling for RTL */
+  .rtl-input {
+    direction: rtl;
+    text-align: right;
+    font-family: var(--font-ibm-plex-sans-arabic), system-ui, sans-serif;
+  }
+
+  .ltr-input {
+    direction: ltr;
+    text-align: left;
+  }
+
+  /* Auto-direction for inputs */
+  .auto-direction {
+    unicode-bidi: plaintext;
+  }
+
+  /* Persian Currency Display */
+  .persian-currency {
+    direction: rtl;
+    font-family: var(--font-ibm-plex-sans-arabic), system-ui, sans-serif;
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+  }
+
+  /* Status Badges RTL */
+  .status-badge-rtl {
+    direction: rtl;
+    font-family: var(--font-ibm-plex-sans-arabic), system-ui, sans-serif;
+  }
+
+  /* Navigation RTL */
+  .nav-rtl {
+    direction: rtl;
+  }
+
+  .nav-rtl .nav-item {
+    text-align: right;
+  }
+
+  /* Table RTL Styling */
+  .table-rtl {
+    direction: rtl;
+  }
+
+  .table-rtl th,
+  .table-rtl td {
+    text-align: right;
+  }
+
+  .table-rtl th:first-child,
+  .table-rtl td:first-child {
+    text-align: right;
+  }
+
+  /* Button RTL */
+  .button-rtl {
+    direction: rtl;
+    font-family: var(--font-ibm-plex-sans-arabic), system-ui, sans-serif;
+  }
+
+  /* Card RTL */
+  .card-rtl {
+    direction: rtl;
+  }
+
+  .card-rtl .card-header {
+    text-align: right;
+  }
+
+  .card-rtl .card-content {
+    text-align: right;
+  }
+}
+
+/* Animation Support for RTL */
+@keyframes slideInStart {
+  from {
+    opacity: 0;
+    transform: translateX(calc(-1rem * var(--rtl-multiplier)));
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes slideInEnd {
+  from {
+    opacity: 0;
+    transform: translateX(calc(1rem * var(--rtl-multiplier)));
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.animate-slide-in-start {
+  animation: slideInStart 0.3s ease-out;
+}
+
+.animate-slide-in-end {
+  animation: slideInEnd 0.3s ease-out;
+}
+
+/* Responsive RTL Utilities */
+@media (min-width: 640px) {
+  .sm\:rtl\:text-start {
+    text-align: start;
+  }
+  .sm\:rtl\:text-end {
+    text-align: end;
+  }
+}
+
+@media (min-width: 768px) {
+  .md\:rtl\:text-start {
+    text-align: start;
+  }
+  .md\:rtl\:text-end {
+    text-align: end;
+  }
+}
+
+@media (min-width: 1024px) {
+  .lg\:rtl\:text-start {
+    text-align: start;
+  }
+  .lg\:rtl\:text-end {
+    text-align: end;
+  }
+}
+
+/* Dark Mode RTL Support */
+.dark .persian-text {
+  color: rgb(248 250 252); /* slate-50 */
+}
+
+.dark .persian-currency {
+  color: rgb(248 250 252);
+}
+
+/* Accessibility Improvements */
+@media (prefers-reduced-motion: reduce) {
+  .animate-slide-in-start,
+  .animate-slide-in-end {
+    animation: none;
+  }
+}
+
+/* Print Styles for RTL */
+@media print {
+  .rtl-container {
+    direction: rtl;
+  }
+
+  .persian-text {
+    font-family: 'Arial Unicode MS', Arial, sans-serif;
+  }
+}

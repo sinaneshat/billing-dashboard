@@ -2,12 +2,8 @@
 
 import {
   BarChart3,
-  ChevronDown,
+  ChevronRight,
   CreditCard,
-  Package,
-  Receipt,
-  Settings,
-  ShoppingCart,
 } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
@@ -49,27 +45,22 @@ const navigation = [
       {
         title: 'Overview',
         url: '/dashboard/billing',
-        icon: CreditCard,
       },
       {
         title: 'Subscriptions',
         url: '/dashboard/billing/subscriptions',
-        icon: Package,
       },
       {
         title: 'Plans',
         url: '/dashboard/billing/plans',
-        icon: ShoppingCart,
       },
       {
-        title: 'Payment History',
+        title: 'Billing History',
         url: '/dashboard/billing/payments',
-        icon: Receipt,
       },
       {
-        title: 'Payment Methods',
+        title: 'Direct Debit Setup',
         url: '/dashboard/billing/methods',
-        icon: Settings,
       },
     ],
   },
@@ -92,13 +83,17 @@ export function AppSidebar({ user, ...props }: React.ComponentProps<typeof Sideb
   const hasActiveSubscription = currentSubscription?.status === 'active';
 
   return (
-    <Sidebar variant="sidebar" collapsible="icon" {...props}>
-      <SidebarHeader className="h-16 border-b border-sidebar-border">
+    <Sidebar collapsible="icon" {...props}>
+      <SidebarHeader>
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton size="lg" asChild className="w-full">
-              <Link href="/dashboard" className="flex items-center gap-2">
-                <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
+            <SidebarMenuButton
+              size="lg"
+              asChild
+              className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
+            >
+              <Link href="/dashboard">
+                <div className="bg-sidebar-primary text-sidebar-primary-foreground flex aspect-square size-8 items-center justify-center rounded-lg">
                   <CreditCard className="size-4" />
                 </div>
                 <div className="grid flex-1 text-left text-sm leading-tight">
@@ -111,19 +106,15 @@ export function AppSidebar({ user, ...props }: React.ComponentProps<typeof Sideb
         </SidebarMenu>
       </SidebarHeader>
 
-      <SidebarContent className="flex-1 overflow-auto">
-        <SidebarGroup className="px-0">
-          <SidebarGroupLabel className="px-2 pb-2 text-xs font-medium text-sidebar-foreground/70">
-            Navigation
-          </SidebarGroupLabel>
+      <SidebarContent>
+        <SidebarGroup>
+          <SidebarGroupLabel>Navigation</SidebarGroupLabel>
           <SidebarGroupContent>
-            <SidebarMenu className="gap-1">
+            <SidebarMenu>
               {navigation.map((item) => {
-                // More precise active state detection
                 const isExactMatch = pathname === item.url;
                 const hasActiveSubItem = item.items?.some(subItem => pathname === subItem.url);
-                const isParentActive = hasActiveSubItem || (pathname.startsWith(`${item.url}/`) && pathname !== item.url);
-                const shouldExpand = hasActiveSubItem || isParentActive;
+                const shouldExpand = hasActiveSubItem || (pathname.startsWith(`${item.url}/`) && pathname !== item.url);
                 const showBadge = item.badge === 'subscription' && hasActiveSubscription;
 
                 if (item.items) {
@@ -136,23 +127,19 @@ export function AppSidebar({ user, ...props }: React.ComponentProps<typeof Sideb
                     >
                       <SidebarMenuItem>
                         <CollapsibleTrigger asChild>
-                          <SidebarMenuButton
-                            tooltip={item.title}
-                            isActive={false} // Parent items should not be highlighted
-                            className="w-full px-2 transition-colors hover:bg-sidebar-accent text-sidebar-foreground/90 hover:text-sidebar-foreground"
-                          >
-                            <item.icon className="size-4" />
-                            <span className="flex-1 text-left">{item.title}</span>
+                          <SidebarMenuButton tooltip={item.title}>
+                            <item.icon />
+                            <span>{item.title}</span>
                             {showBadge && (
-                              <Badge variant="secondary" className="ml-2 h-5 px-1.5 text-xs">
+                              <Badge variant="secondary" className="ml-2">
                                 Active
                               </Badge>
                             )}
-                            <ChevronDown className="ml-2 size-4 transition-transform duration-200 group-data-[state=open]/collapsible:rotate-180" />
+                            <ChevronRight className="ml-auto transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
                           </SidebarMenuButton>
                         </CollapsibleTrigger>
-                        <CollapsibleContent className="overflow-hidden data-[state=closed]:animate-collapsible-up data-[state=open]:animate-collapsible-down">
-                          <SidebarMenuSub className="mx-0 px-0">
+                        <CollapsibleContent>
+                          <SidebarMenuSub>
                             {item.items.map((subItem) => {
                               const isSubActive = pathname === subItem.url;
                               return (
@@ -160,15 +147,9 @@ export function AppSidebar({ user, ...props }: React.ComponentProps<typeof Sideb
                                   <SidebarMenuSubButton
                                     asChild
                                     isActive={isSubActive}
-                                    className={`w-full transition-colors ${
-                                      isSubActive
-                                        ? 'bg-sidebar-primary/10 text-sidebar-primary border-r-2 border-sidebar-primary font-medium'
-                                        : 'hover:bg-sidebar-accent text-sidebar-foreground/80 hover:text-sidebar-foreground'
-                                    }`}
                                   >
-                                    <Link href={subItem.url} className="flex items-center gap-2 px-2">
-                                      <subItem.icon className="size-4" />
-                                      <span className="flex-1 text-left">{subItem.title}</span>
+                                    <Link href={subItem.url}>
+                                      <span>{subItem.title}</span>
                                     </Link>
                                   </SidebarMenuSubButton>
                                 </SidebarMenuSubItem>
@@ -187,17 +168,12 @@ export function AppSidebar({ user, ...props }: React.ComponentProps<typeof Sideb
                       asChild
                       tooltip={item.title}
                       isActive={isExactMatch}
-                      className={`w-full px-2 transition-colors ${
-                        isExactMatch
-                          ? 'bg-sidebar-primary/10 text-sidebar-primary border-r-2 border-sidebar-primary font-medium'
-                          : 'hover:bg-sidebar-accent text-sidebar-foreground/80 hover:text-sidebar-foreground'
-                      }`}
                     >
-                      <Link href={item.url} className="flex items-center gap-2">
-                        <item.icon className="size-4" />
-                        <span className="flex-1 text-left">{item.title}</span>
+                      <Link href={item.url}>
+                        <item.icon />
+                        <span>{item.title}</span>
                         {showBadge && (
-                          <Badge variant="secondary" className="ml-2 h-5 px-1.5 text-xs">
+                          <Badge variant="secondary" className="ml-auto">
                             Active
                           </Badge>
                         )}
@@ -211,12 +187,12 @@ export function AppSidebar({ user, ...props }: React.ComponentProps<typeof Sideb
         </SidebarGroup>
       </SidebarContent>
 
-      <SidebarFooter className="mt-auto border-t border-sidebar-border">
+      <SidebarFooter>
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton
               size="lg"
-              className="w-full px-2 data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
+              className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
             >
               <Avatar className="h-8 w-8 rounded-lg">
                 <AvatarImage src={user?.image || undefined} alt={user?.name || 'User'} />
@@ -227,7 +203,7 @@ export function AppSidebar({ user, ...props }: React.ComponentProps<typeof Sideb
                 <span className="truncate text-xs text-sidebar-foreground/70">{user?.email}</span>
               </div>
               {hasActiveSubscription && (
-                <div className="ml-2 size-2 rounded-full bg-green-500" />
+                <div className="ml-auto size-2 rounded-full bg-green-500" />
               )}
             </SidebarMenuButton>
           </SidebarMenuItem>

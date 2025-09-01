@@ -4,6 +4,8 @@ import { Calendar, Check, CreditCard, Plus, Shield, Trash2 } from 'lucide-react'
 import { useState } from 'react';
 import { toast } from 'sonner';
 
+import { CardAdditionDialog } from '@/components/billing/card-addition-dialog';
+import { DirectDebitSetup } from '@/components/billing/direct-debit-setup';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -139,10 +141,17 @@ export function PaymentMethods() {
             Manage your saved payment methods and billing settings
           </p>
         </div>
-        <Button>
-          <Plus className="h-4 w-4 mr-2" />
-          Add Payment Method
-        </Button>
+        <CardAdditionDialog
+          onSuccess={() => {
+            toast.success('Card added successfully!');
+            refetch();
+          }}
+        >
+          <Button>
+            <Plus className="h-4 w-4 mr-2" />
+            Add Card
+          </Button>
+        </CardAdditionDialog>
       </div>
 
       {/* Direct Debit Status */}
@@ -203,12 +212,19 @@ export function PaymentMethods() {
                       <CreditCard className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
                       <h3 className="text-lg font-semibold mb-2">No Payment Methods</h3>
                       <p className="text-muted-foreground mb-4">
-                        You haven't saved any payment methods yet. Add one to get started.
+                        You haven't added any payment methods yet. Add one to get started.
                       </p>
-                      <Button>
-                        <Plus className="h-4 w-4 mr-2" />
-                        Add Your First Payment Method
-                      </Button>
+                      <CardAdditionDialog
+                        onSuccess={() => {
+                          toast.success('Your first payment method was added successfully!');
+                          refetch();
+                        }}
+                      >
+                        <Button>
+                          <Plus className="h-4 w-4 mr-2" />
+                          Add Your First Card
+                        </Button>
+                      </CardAdditionDialog>
                     </div>
                   )
                 : (
@@ -266,6 +282,22 @@ export function PaymentMethods() {
                                     )}
                               </Button>
                             )}
+
+                            <DirectDebitSetup
+                              paymentMethodId={paymentMethod.id}
+                              onSuccess={() => {
+                                toast.success('Automatic payment enabled!');
+                                refetch();
+                              }}
+                            >
+                              <Button
+                                variant="outline"
+                                size="sm"
+                              >
+                                <Calendar className="h-4 w-4 mr-1" />
+                                Enable Auto-Pay
+                              </Button>
+                            </DirectDebitSetup>
 
                             <DeletePaymentMethodDialog
                               paymentMethod={paymentMethod}

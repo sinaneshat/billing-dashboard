@@ -10,7 +10,7 @@ export {
   useDeletePaymentMethodMutation,
   useSetDefaultPaymentMethodMutation,
 } from './payment-methods';
-export { useVerifyPaymentMutation } from './payments';
+// Payment mutations removed - subscription platform only
 export {
   useCancelSubscriptionMutation,
   useCreateSubscriptionMutation,

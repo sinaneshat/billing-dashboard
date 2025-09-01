@@ -10,12 +10,12 @@ import type { QueryClient } from '@tanstack/react-query';
 import {
   checkHealthService,
   getCurrentUserService,
-  getPaymentsService,
   getProductsService,
   getSubscriptionsService,
   getUserAvatarsService,
 } from '@/services/api';
 
+// getPaymentsService removed - subscription platform only
 import { queryKeys } from './query-keys';
 
 /**
@@ -55,13 +55,6 @@ export async function prefetchEssentialUserData(queryClient: QueryClient) {
  */
 export async function prefetchDashboardData(queryClient: QueryClient) {
   const prefetchPromises = [
-    // Recent payment history - likely needed on dashboard
-    queryClient.prefetchQuery({
-      queryKey: queryKeys.payments.history({ limit: '5' }),
-      queryFn: () => getPaymentsService({ query: { limit: '5', sort: 'createdAt:desc' } }),
-      staleTime: 1 * 60 * 1000, // 1 minute - financial data changes frequently
-    }),
-
     // All subscriptions - for subscription management
     queryClient.prefetchQuery({
       queryKey: queryKeys.subscriptions.list(),
@@ -84,13 +77,6 @@ export async function prefetchBillingData(queryClient: QueryClient) {
       queryKey: queryKeys.products.list(),
       queryFn: () => getProductsService(),
       staleTime: 10 * 60 * 1000, // 10 minutes - products are stable
-    }),
-
-    // Payment history - for billing dashboard
-    queryClient.prefetchQuery({
-      queryKey: queryKeys.payments.history(),
-      queryFn: () => getPaymentsService(),
-      staleTime: 1 * 60 * 1000, // 1 minute
     }),
 
     // All subscriptions with details
