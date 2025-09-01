@@ -8,7 +8,7 @@
 import { HTTPException } from 'hono/http-exception';
 import * as HttpStatusCodes from 'stoker/http-status-codes';
 
-import type { Session, User } from '@/lib/auth-types';
+import type { Session, User } from '@/lib/auth/types';
 
 export type R2Metadata = {
   userId?: string;
@@ -60,9 +60,9 @@ export class R2StorageService {
   }
 
   /**
-   * Factory method to create service from environment
+   * Create service with environment validation
    */
-  static fromEnv(env: CloudflareEnv): R2StorageService {
+  static create(env: CloudflareEnv): R2StorageService {
     const bucket = env.UPLOADS_R2_BUCKET;
     if (!bucket) {
       throw new HTTPException(HttpStatusCodes.INTERNAL_SERVER_ERROR, {
@@ -207,17 +207,6 @@ export class R2StorageService {
       return {
         hasAccess: true,
         accessLevel: 'owner',
-      };
-    }
-
-    // Check organization access
-    if (
-      session?.activeOrganizationId
-      && metadata.organizationId === session.activeOrganizationId
-    ) {
-      return {
-        hasAccess: true,
-        accessLevel: 'organization',
       };
     }
 

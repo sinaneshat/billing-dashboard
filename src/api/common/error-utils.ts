@@ -4,8 +4,6 @@
 import { HTTPException } from 'hono/http-exception';
 import * as HttpStatusCodes from 'stoker/http-status-codes';
 
-import type { ApiError } from '@/types/api-types';
-
 // Standard error creators - reduces repetitive throw statements
 export class ApiErrors {
   static unauthorized(message = 'Unauthorized'): HTTPException {
@@ -54,23 +52,26 @@ export function logError(error: unknown, context?: Record<string, unknown>): voi
 }
 
 // Error response formatter
-export function formatErrorResponse(error: unknown): ApiError {
+export function formatErrorResponse(error: unknown): {
+  status: number;
+  message: string;
+} {
   if (error instanceof HTTPException) {
     return {
-      code: error.status.toString(),
+      status: error.status || HttpStatusCodes.INTERNAL_SERVER_ERROR,
       message: error.message,
     };
   }
 
   if (error instanceof Error) {
     return {
-      code: '500',
+      status: HttpStatusCodes.INTERNAL_SERVER_ERROR,
       message: error.message,
     };
   }
 
   return {
-    code: '500',
+    status: HttpStatusCodes.INTERNAL_SERVER_ERROR,
     message: 'Unknown error occurred',
   };
 }

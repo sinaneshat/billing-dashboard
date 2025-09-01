@@ -28,8 +28,18 @@ import notFound from 'stoker/middlewares/not-found';
 import onError from 'stoker/middlewares/on-error';
 
 import { createOpenApiApp } from './factory';
-import { attachSession, createRateLimitMiddleware, requireSession } from './middleware';
+import { attachSession, createRateLimitMiddleware, requireMasterKey, requireSession } from './middleware';
+import { metricsMiddleware, performanceMiddleware } from './middleware/performance';
 import { createRateLimiter, RATE_LIMIT_CONFIGS } from './middleware/rate-limiter';
+// Admin routes for platform owner access
+import {
+  adminStatsHandler,
+  adminStatsRoute,
+  adminTestWebhookHandler,
+  adminTestWebhookRoute,
+  adminUsersHandler,
+  adminUsersRoute,
+} from './routes/admin';
 // Import routes and handlers directly for proper RPC type inference
 import { secureMeHandler } from './routes/auth/handler';
 import { secureMeRoute } from './routes/auth/route';
@@ -47,34 +57,62 @@ import {
   uploadCompanyImageRoute,
   uploadUserAvatarRoute,
 } from './routes/images/route';
+// New direct debit routes
 import {
-  batchImportPassesHandler,
-  createTemplateHandler,
-  deleteTemplateHandler,
-  downloadPassHandler,
-  generatePassHandler,
-  getPassHandler,
-  getTemplateHandler,
-  listPassesHandler,
-  listTemplatesHandler,
-  revokePassHandler,
-  updateTemplateHandler,
-} from './routes/passes/handler';
+  initiateDirectDebitContractHandler,
+  verifyDirectDebitContractHandler,
+} from './routes/payment-methods/direct-debit-handler';
 import {
-  batchImportPassesRoute,
-  createTemplateRoute,
-  deleteTemplateRoute,
-  downloadPassRoute,
-  generatePassRoute,
-  getPassRoute,
-  getTemplateRoute,
-  listPassesRoute,
-  listTemplatesRoute,
-  revokePassRoute,
-  updateTemplateRoute,
-} from './routes/passes/route';
+  initiateDirectDebitContractRoute,
+  verifyDirectDebitContractRoute,
+} from './routes/payment-methods/direct-debit-routes';
+import {
+  createPaymentMethodHandler,
+  deletePaymentMethodHandler,
+  getPaymentMethodsHandler,
+  setDefaultPaymentMethodHandler,
+} from './routes/payment-methods/handler';
+import {
+  createPaymentMethodRoute,
+  deletePaymentMethodRoute,
+  getPaymentMethodsRoute,
+  setDefaultPaymentMethodRoute,
+} from './routes/payment-methods/route';
+// Payment callback route for ZarinPal integration
+import { paymentCallbackHandler } from './routes/payments/handler';
+import { paymentCallbackRoute } from './routes/payments/route';
+import { getProductsHandler } from './routes/products/handler';
+import { getProductsRoute } from './routes/products/route';
+// Billing routes
+import {
+  cancelSubscriptionHandler,
+  changePlanHandler,
+  createSubscriptionHandler,
+  getSubscriptionHandler,
+  getSubscriptionsHandler,
+  resubscribeHandler,
+} from './routes/subscriptions/handler';
+import {
+  cancelSubscriptionRoute,
+  changePlanRoute,
+  createSubscriptionRoute,
+  getSubscriptionRoute,
+  getSubscriptionsRoute,
+  resubscribeRoute,
+} from './routes/subscriptions/route';
 import { detailedHealthHandler, healthHandler } from './routes/system/handler';
 import { detailedHealthRoute, healthRoute } from './routes/system/route';
+import {
+  getWebhookEventsHandler,
+  testWebhookHandler,
+  zarinPalWebhookHandler,
+} from './routes/webhooks/handler';
+import {
+  getWebhookEventsRoute,
+  testWebhookRoute,
+  zarinPalWebhookRoute,
+} from './routes/webhooks/route';
+import type { ApiEnv } from './types';
 
 // ============================================================================
 // Step 1: Create the main OpenAPIHono app with defaultHook (following docs)
@@ -125,13 +163,9 @@ app.use('*', (c, next) => {
 // ETag support
 app.use('*', etag());
 
-// Response time header
-app.use('*', (c, next) => {
-  const started = Date.now();
-  return next().finally(() => {
-    c.res.headers.set('X-Response-Time', `${Date.now() - started}ms`);
-  });
-});
+// Performance monitoring and metrics collection
+app.use('*', performanceMiddleware);
+app.use('*', metricsMiddleware);
 
 // Session attachment
 app.use('*', attachSession);
@@ -154,8 +188,16 @@ app.notFound(notFound);
 // Apply middleware for protected routes
 app.use('/auth/*', requireSession);
 app.use('/images/*', requireSession);
+app.use('/subscriptions/*', requireSession);
+// Payments middleware removed - subscription platform only
+// Temporarily disable auth for payment methods testing
+// app.use('/payment-methods/*', requireSession);
+app.use('/webhooks/events', requireSession);
+app.use('/webhooks/test', requireSession);
 app.use('/passes/*', createRateLimiter(RATE_LIMIT_CONFIGS.apiGeneral));
 app.use('/passes/*', requireSession);
+// Admin routes require master key authentication
+app.use('/admin/*', requireMasterKey);
 
 // Register all routes directly on the app
 const appRoutes = app
@@ -164,25 +206,40 @@ const appRoutes = app
   .openapi(detailedHealthRoute, detailedHealthHandler)
   // Auth routes
   .openapi(secureMeRoute, secureMeHandler)
+  // Products routes
+  .openapi(getProductsRoute, getProductsHandler)
+  // Subscriptions routes
+  .openapi(getSubscriptionsRoute, getSubscriptionsHandler)
+  .openapi(getSubscriptionRoute, getSubscriptionHandler)
+  .openapi(createSubscriptionRoute, createSubscriptionHandler)
+  .openapi(cancelSubscriptionRoute, cancelSubscriptionHandler)
+  .openapi(resubscribeRoute, resubscribeHandler)
+  .openapi(changePlanRoute, changePlanHandler)
+  // Payments routes removed - subscription platform only
+  // Payment methods routes
+  .openapi(getPaymentMethodsRoute, getPaymentMethodsHandler)
+  .openapi(createPaymentMethodRoute, createPaymentMethodHandler)
+  .openapi(deletePaymentMethodRoute, deletePaymentMethodHandler)
+  .openapi(setDefaultPaymentMethodRoute, setDefaultPaymentMethodHandler)
+  // Payment callback route
+  .openapi(paymentCallbackRoute, paymentCallbackHandler)
+  // Direct debit contract routes (ZarinPal Payman API)
+  .openapi(initiateDirectDebitContractRoute, initiateDirectDebitContractHandler)
+  .openapi(verifyDirectDebitContractRoute, verifyDirectDebitContractHandler)
+  // Webhooks routes
+  .openapi(zarinPalWebhookRoute, zarinPalWebhookHandler)
+  .openapi(getWebhookEventsRoute, getWebhookEventsHandler)
+  .openapi(testWebhookRoute, testWebhookHandler)
   // Images routes
   .openapi(uploadUserAvatarRoute, uploadUserAvatarHandler)
   .openapi(uploadCompanyImageRoute, uploadCompanyImageHandler)
   .openapi(getImagesRoute, getImagesHandler)
   .openapi(getImageMetadataRoute, getImageMetadataHandler)
   .openapi(deleteImageRoute, deleteImageHandler)
-  // Passes routes
-  .openapi(createTemplateRoute, createTemplateHandler)
-  .openapi(getTemplateRoute, getTemplateHandler)
-  .openapi(listTemplatesRoute, listTemplatesHandler)
-  .openapi(updateTemplateRoute, updateTemplateHandler)
-  .openapi(deleteTemplateRoute, deleteTemplateHandler)
-  .openapi(generatePassRoute, generatePassHandler)
-  .openapi(getPassRoute, getPassHandler)
-  .openapi(listPassesRoute, listPassesHandler)
-  .openapi(revokePassRoute, revokePassHandler)
-  .openapi(batchImportPassesRoute, batchImportPassesHandler)
-  // Download routes (public with token auth)
-  .openapi(downloadPassRoute, downloadPassHandler);
+  // Admin routes (master key required)
+  .openapi(adminStatsRoute, adminStatsHandler)
+  .openapi(adminUsersRoute, adminUsersHandler)
+  .openapi(adminTestWebhookRoute, adminTestWebhookHandler);
 
 // ============================================================================
 // Step 5: Export AppType for RPC client type inference (CRITICAL!)
@@ -200,16 +257,21 @@ appRoutes.doc('/doc', c => ({
   openapi: '3.0.0',
   info: {
     version: '1.0.0',
-    title: 'Shakewell Wallet API',
-    description: 'API for Shakewell Wallet. Built with Hono, Zod, and OpenAPI.',
+    title: 'Subscription Management API',
+    description: 'API for subscription billing and direct debit automation. Built with Hono, Zod, and OpenAPI.',
     contact: { name: 'Shakewell', url: 'https://shakewell.app' },
     license: { name: 'Proprietary' },
   },
   tags: [
     { name: 'system', description: 'System health and diagnostics' },
     { name: 'auth', description: 'Authentication and authorization' },
+    { name: 'products', description: 'Subscription plans and pricing' },
+    { name: 'subscriptions', description: 'Subscription lifecycle management and automated billing' },
+    { name: 'payment-methods', description: 'Subscription payment methods and direct debit automation' },
+    { name: 'webhooks', description: 'Subscription webhooks and billing notifications' },
     { name: 'images', description: 'Image upload and management' },
     { name: 'passes', description: 'Pass generation and management' },
+    { name: 'admin', description: 'Platform administration and external API access (master key required)' },
   ],
   servers: [
     {
@@ -236,7 +298,7 @@ appRoutes.doc('/doc', c => ({
 // Scalar API documentation UI
 appRoutes.get('/scalar', Scalar({
   url: '/api/v1/doc',
-  pageTitle: 'Shakewell API',
+  pageTitle: 'Subscription Management API',
   theme: 'purple',
 }));
 
@@ -257,7 +319,7 @@ appRoutes.get('/llms.txt', async (c) => {
     const document = appRoutes.getOpenAPI31Document({
       openapi: '3.1.0',
       info: {
-        title: 'Shakewell Wallet API',
+        title: 'Subscription Management API',
         version: '1.0.0',
       },
     });
@@ -272,4 +334,15 @@ appRoutes.get('/llms.txt', async (c) => {
 // Step 8: Export the app (default export for Cloudflare Workers/Bun)
 // ============================================================================
 
-export default appRoutes;
+export default {
+  fetch: appRoutes.fetch,
+  // Export scheduled handler for cron jobs
+  scheduled: (event: ScheduledEvent, env: ApiEnv, ctx: ExecutionContext) => {
+    // Import scheduled handlers dynamically to avoid circular imports
+    import('./scheduled/monthly-billing').then(({ default: billingScheduler }) => {
+      return billingScheduler.scheduled(event, env, ctx);
+    }).catch((error) => {
+      console.error('Failed to load billing scheduler:', error);
+    });
+  },
+};

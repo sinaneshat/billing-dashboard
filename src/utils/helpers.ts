@@ -1,6 +1,6 @@
 import { getCloudflareContext } from '@opennextjs/cloudflare';
 
-export type EnvVars = NodeJS.ProcessEnv & CloudflareEnv;
+export type EnvVars = Omit<NodeJS.ProcessEnv, 'NODE_ENV'> & CloudflareEnv;
 
 // Get environment variables based on runtime context
 // This complex logic is REQUIRED for OpenNext.js + Cloudflare Workers deployment
@@ -10,7 +10,7 @@ export function getEnvironmentVariables(): EnvVars {
 
   // First try globalThis.process.env (set by test setup in Workers)
   if (typeof globalThis !== 'undefined' && globalThis.process && globalThis.process.env) {
-    environment = { ...environment, ...globalThis.process.env };
+    environment = { ...environment, ...globalThis.process.env } as EnvVars;
   }
 
   // Then merge with process.env (works in Node.js and most environments)

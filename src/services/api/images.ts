@@ -18,9 +18,6 @@ import { apiClient } from '@/api/client';
 export type UploadUserAvatarRequest = InferRequestType<typeof apiClient.images.avatar['$post']>;
 export type UploadUserAvatarResponse = InferResponseType<typeof apiClient.images.avatar['$post']>;
 
-export type UploadCompanyImageRequest = InferRequestType<typeof apiClient.images.company[':type']['$post']>;
-export type UploadCompanyImageResponse = InferResponseType<typeof apiClient.images.company[':type']['$post']>;
-
 export type GetImagesRequest = InferRequestType<typeof apiClient.images['$get']>;
 export type GetImagesResponse = InferResponseType<typeof apiClient.images['$get']>;
 
@@ -40,14 +37,6 @@ export type DeleteImageResponse = InferResponseType<typeof apiClient.images[':ke
  */
 export async function uploadUserAvatarService(args: UploadUserAvatarRequest) {
   return parseResponse(apiClient.images.avatar.$post(args));
-}
-
-/**
- * Upload organization image (logo or banner)
- * All types are inferred from the RPC client
- */
-export async function uploadCompanyImageService(args: UploadCompanyImageRequest) {
-  return parseResponse(apiClient.images.company[':type'].$post(args));
 }
 
 /**
@@ -95,52 +84,12 @@ export async function getUserAvatarsService(args?: GetImagesRequest) {
 }
 
 /**
- * Get organization images
- * All types are inferred from the RPC client
- */
-export async function getOrganizationImagesService(args: { organizationId: string }) {
-  const request: GetImagesRequest = {
-    query: {
-      organizationId: args.organizationId,
-    },
-  };
-  return getImagesService(request);
-}
-
-/**
- * Get organization logo specifically
- * All types are inferred from the RPC client
- */
-export async function getOrganizationLogoService(args: { organizationId: string }) {
-  const request: GetImagesRequest = {
-    query: {
-      type: 'logo',
-      organizationId: args.organizationId,
-      limit: 1,
-    },
-  };
-  return getImagesService(request);
-}
-
-/**
  * Replace user avatar (upload new)
  * All types are inferred from the RPC client
  */
 export async function replaceUserAvatarService(args: UploadUserAvatarRequest) {
   return uploadUserAvatarService(args);
 }
-
-/**
- * Replace company logo (upload new)
- * All types are inferred from the RPC client
- */
-export async function replaceCompanyLogoService(args: UploadCompanyImageRequest) {
-  return uploadCompanyImageService(args);
-}
-
-// ============================================================================
-// Additional Helper Functions for Compatibility
-// ============================================================================
 
 /**
  * Validate image file before upload

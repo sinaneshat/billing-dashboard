@@ -25,17 +25,40 @@ export const healthHandler: RouteHandler<typeof healthRoute, ApiEnv> = (c) => {
  * @param c - Hono context
  * @returns Detailed health status with environment and dependencies
  */
-export const detailedHealthHandler: RouteHandler<typeof detailedHealthRoute, ApiEnv> = (c) => {
-  return ok(c, {
-    ok: true,
-    status: 'healthy',
+export const detailedHealthHandler: RouteHandler<typeof detailedHealthRoute, ApiEnv> = async (c) => {
+  // Test database connectivity
+  let dbStatus = 'ok';
+  try {
+    // Try to access the database binding if available
+    if (c.env?.DB) {
+      await c.env.DB.prepare('SELECT 1').first();
+    }
+  } catch (error) {
+    dbStatus = 'error';
+    console.error('Database health check failed:', error);
+  }
+
+  const isHealthy = dbStatus === 'ok';
+
+  const responseData = {
+    ok: isHealthy,
+    status: isHealthy ? 'healthy' : 'degraded',
     timestamp: new Date().toISOString(),
     env: {
       runtime: typeof process !== 'undefined' ? 'node' : 'edge',
       version: typeof process !== 'undefined' ? process.version : 'edge',
     },
     dependencies: {
-      database: 'ok',
+      database: dbStatus,
     },
-  }, undefined, HttpStatusCodes.OK);
+  };
+
+  if (isHealthy) {
+    return ok(c, responseData);
+  } else {
+    return c.json({
+      success: true,
+      data: responseData,
+    }, HttpStatusCodes.SERVICE_UNAVAILABLE);
+  }
 };

@@ -39,16 +39,24 @@ export default async function Layout({ children, modal }: RootLayoutProps) {
   const env = process.env;
 
   return (
-    <RootLayout
-      locale={locale}
-      translations={translations as Record<string, unknown>}
-      modal={modal}
-      env={{
-        NEXT_PUBLIC_WEBAPP_ENV: env.NEXT_PUBLIC_WEBAPP_ENV,
-        NEXT_PUBLIC_MAINTENANCE: env.NEXT_PUBLIC_MAINTENANCE,
-      }}
+    <html
+      lang={locale}
+      dir="ltr"
+      className={`lang-${locale}`}
     >
-      {children}
-    </RootLayout>
+      <body>
+        <RootLayout
+          locale={locale}
+          translations={translations as Record<string, unknown>}
+          modal={modal}
+          env={{
+            NEXT_PUBLIC_WEBAPP_ENV: env.NEXT_PUBLIC_WEBAPP_ENV,
+            NEXT_PUBLIC_MAINTENANCE: env.NEXT_PUBLIC_MAINTENANCE,
+          }}
+        >
+          {children}
+        </RootLayout>
+      </body>
+    </html>
   );
 }

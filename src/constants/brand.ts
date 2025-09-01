@@ -34,7 +34,7 @@ export const BRAND = {
 
   // Typography
   typography: {
-    fontFamily: 'Space Grotesk',
+    fontFamily: 'Noto Sans',
     weights: {
       light: 300,
       regular: 400,

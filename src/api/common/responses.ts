@@ -16,18 +16,29 @@ export function notFound(c: Context, message = 'Not Found') {
 }
 
 type OkStatus = typeof HttpStatusCodes.OK;
-type ErrorStatus =
-  | typeof HttpStatusCodes.BAD_REQUEST
-  | typeof HttpStatusCodes.UNAUTHORIZED
-  | typeof HttpStatusCodes.FORBIDDEN
-  | typeof HttpStatusCodes.NOT_FOUND
-  | typeof HttpStatusCodes.CONFLICT
-  | typeof HttpStatusCodes.UNPROCESSABLE_ENTITY
-  | typeof HttpStatusCodes.TOO_MANY_REQUESTS
-  | typeof HttpStatusCodes.INTERNAL_SERVER_ERROR;
+type ErrorStatus
+  = typeof HttpStatusCodes.BAD_REQUEST
+    | typeof HttpStatusCodes.UNAUTHORIZED
+    | typeof HttpStatusCodes.FORBIDDEN
+    | typeof HttpStatusCodes.NOT_FOUND
+    | typeof HttpStatusCodes.CONFLICT
+    | typeof HttpStatusCodes.UNPROCESSABLE_ENTITY
+    | typeof HttpStatusCodes.TOO_MANY_REQUESTS
+    | typeof HttpStatusCodes.INTERNAL_SERVER_ERROR;
 
 export function ok<T>(c: Context, data: T, meta?: ApiMeta, status: OkStatus = HttpStatusCodes.OK) {
   return c.json({ success: true, data, meta } satisfies ApiResponse<T>, status);
+}
+
+export function created<T>(c: Context, data: T, meta?: ApiMeta) {
+  return c.json({ success: true, data, meta } satisfies ApiResponse<T>, HttpStatusCodes.CREATED);
+}
+
+export function error(c: Context, code: ErrorStatus, message: string, details?: unknown, requestId?: string) {
+  return c.json({
+    success: false,
+    error: { code, message, timestamp: new Date().toISOString(), details, requestId },
+  }, code);
 }
 
 export function fail(c: Context, error: ErrorResponse, meta?: ApiMeta, status: ErrorStatus = HttpStatusCodes.BAD_REQUEST) {

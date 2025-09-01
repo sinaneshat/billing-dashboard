@@ -1,6 +1,5 @@
 import type { R2ListOptions } from '@cloudflare/workers-types';
 import type { RouteHandler } from '@hono/zod-openapi';
-import { eq } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import * as HttpStatusCodes from 'stoker/http-status-codes';
 
@@ -12,8 +11,6 @@ import {
 } from '@/api/common/image-validation';
 import { ok } from '@/api/common/responses';
 import type { ApiEnv } from '@/api/types';
-import { db } from '@/db';
-import { organization } from '@/db/tables/auth';
 
 import type {
   deleteImageRoute,
@@ -125,26 +122,12 @@ export const uploadUserAvatarHandler: RouteHandler<typeof uploadUserAvatarRoute,
 export const uploadCompanyImageHandler: RouteHandler<typeof uploadCompanyImageRoute, ApiEnv> = async (c) => {
   c.header('X-Route', 'images/company');
   const { type } = c.req.param() as { type: string };
-  const session = c.get('session');
   const currentUser = c.get('user');
   const bucket = c.env.UPLOADS_R2_BUCKET;
 
-  if (!currentUser?.id || !session?.activeOrganizationId) {
+  if (!currentUser?.id) {
     throw new HTTPException(HttpStatusCodes.UNAUTHORIZED, {
-      message: 'User not authenticated or no active organization',
-    });
-  }
-
-  // Check user has permission to upload company images (admin or owner)
-  const memberRole = await db
-    .select()
-    .from(organization)
-    .where(eq(organization.id, session.activeOrganizationId))
-    .then(orgs => orgs[0]);
-
-  if (!memberRole) {
-    throw new HTTPException(HttpStatusCodes.FORBIDDEN, {
-      message: 'Not authorized to upload company images',
+      message: 'User not authenticated',
     });
   }
 
@@ -169,21 +152,16 @@ export const uploadCompanyImageHandler: RouteHandler<typeof uploadCompanyImageRo
 
   // Generate key for the new image
   const extension = getExtensionFromMimeType(file.type);
-  const imageKey = generateImageKey(imageType, session.activeOrganizationId, extension);
+  const imageKey = generateImageKey(imageType, currentUser.id, extension);
 
   // Check if organization has an existing image of this type and delete it
   let previousImageDeleted = false;
-  const existingOrg = await db
-    .select()
-    .from(organization)
-    .where(eq(organization.id, session.activeOrganizationId))
-    .then(orgs => orgs[0]);
 
-  if (existingOrg?.logo && type === 'logo') {
+  if (currentUser?.image && type === 'logo') {
     try {
-      const existingKey = existingOrg.logo.includes('/')
-        ? existingOrg.logo.split('/').slice(-3).join('/')
-        : existingOrg.logo;
+      const existingKey = currentUser.image.includes('/')
+        ? currentUser.image.split('/').slice(-3).join('/')
+        : currentUser.image;
       await bucket.delete(existingKey);
       previousImageDeleted = true;
     } catch {
@@ -195,7 +173,6 @@ export const uploadCompanyImageHandler: RouteHandler<typeof uploadCompanyImageRo
   const imageTypeConstant = type === 'logo' ? IMAGE_TYPES.LOGO : IMAGE_TYPES.BANNER;
   const customMetadata: Record<string, string> = {
     userId: currentUser.id,
-    organizationId: session.activeOrganizationId,
     type: imageTypeConstant,
     uploadedAt: new Date().toISOString(),
     originalName: file.name,
@@ -208,25 +185,7 @@ export const uploadCompanyImageHandler: RouteHandler<typeof uploadCompanyImageRo
     customMetadata,
   });
 
-  // Update organization with new image URL using Better Auth's organization.update
   const imageUrl = `${c.req.url.split('/api')[0]}/api/v1/storage/${imageKey}`;
-
-  // Import auth instance to use server-side Better Auth API
-  const { auth } = await import('@/lib/auth');
-
-  if (type === 'logo') {
-    // Use Better Auth's server API to update organization logo
-    await auth.api.updateOrganization({
-      body: {
-        organizationId: session.activeOrganizationId,
-        data: {
-          logo: imageUrl,
-        },
-      },
-      headers: c.req.raw.headers, // Pass through the request headers for session
-    });
-  }
-  // Note: Banner field would need to be added to organization table if needed
 
   return ok(
     c,
@@ -238,9 +197,8 @@ export const uploadCompanyImageHandler: RouteHandler<typeof uploadCompanyImageRo
       uploadedAt: uploadResult?.uploaded?.toISOString() || new Date().toISOString(),
       uploadedBy: currentUser.id,
       type: imageTypeConstant,
-      entityId: session.activeOrganizationId,
-      entityType: 'organization' as const,
-      organizationId: session.activeOrganizationId,
+      entityId: currentUser.id,
+      entityType: 'user' as const,
       previousImageDeleted,
     },
     undefined,
@@ -250,8 +208,7 @@ export const uploadCompanyImageHandler: RouteHandler<typeof uploadCompanyImageRo
 
 export const getImagesHandler: RouteHandler<typeof getImagesRoute, ApiEnv> = async (c) => {
   c.header('X-Route', 'images/list');
-  const { type, organizationId, userId, limit } = c.req.query();
-  const session = c.get('session');
+  const { type, userId, limit } = c.req.query();
   const currentUser = c.get('user');
   const bucket = c.env.UPLOADS_R2_BUCKET;
 
@@ -275,19 +232,13 @@ export const getImagesHandler: RouteHandler<typeof getImagesRoute, ApiEnv> = asy
 
       // Check permissions
       const isOwnAvatar = metadata.type === IMAGE_TYPES.AVATAR && metadata.userId === currentUser?.id;
-      const isOrgImage
-        = (metadata.type === IMAGE_TYPES.LOGO || metadata.type === IMAGE_TYPES.BANNER)
-          && metadata.organizationId === session?.activeOrganizationId;
 
-      if (!isOwnAvatar && !isOrgImage) {
+      if (!isOwnAvatar) {
         return null;
       }
 
       // Apply additional filters
       if (userId && metadata.userId !== userId) {
-        return null;
-      }
-      if (organizationId && metadata.organizationId !== organizationId) {
         return null;
       }
 
@@ -301,8 +252,8 @@ export const getImagesHandler: RouteHandler<typeof getImagesRoute, ApiEnv> = asy
         uploadedAt: obj.uploaded.toISOString(),
         uploadedBy: metadata.userId || 'unknown',
         type: (metadata.type || IMAGE_TYPES.AVATAR) as 'avatar' | 'logo' | 'banner',
-        entityId: metadata.userId || metadata.organizationId || 'unknown',
-        entityType: metadata.organizationId ? ('organization' as const) : ('user' as const),
+        entityId: metadata.userId || 'unknown',
+        entityType: 'user' as const,
       };
     }),
   );
@@ -323,7 +274,6 @@ export const getImagesHandler: RouteHandler<typeof getImagesRoute, ApiEnv> = asy
 export const getImageMetadataHandler: RouteHandler<typeof getImageMetadataRoute, ApiEnv> = async (c) => {
   c.header('X-Route', 'images/metadata');
   const key = c.req.param('key');
-  const session = c.get('session');
   const currentUser = c.get('user');
   const bucket = c.env.UPLOADS_R2_BUCKET;
 
@@ -338,11 +288,8 @@ export const getImageMetadataHandler: RouteHandler<typeof getImageMetadataRoute,
 
   // Check permissions
   const isOwnAvatar = metadata.type === IMAGE_TYPES.AVATAR && metadata.userId === currentUser?.id;
-  const isOrgImage
-    = (metadata.type === IMAGE_TYPES.LOGO || metadata.type === IMAGE_TYPES.BANNER)
-      && metadata.organizationId === session?.activeOrganizationId;
 
-  if (!isOwnAvatar && !isOrgImage) {
+  if (!isOwnAvatar) {
     throw new HTTPException(HttpStatusCodes.FORBIDDEN, {
       message: 'Not authorized to access this image',
     });
@@ -360,8 +307,8 @@ export const getImageMetadataHandler: RouteHandler<typeof getImageMetadataRoute,
       uploadedAt: object.uploaded.toISOString(),
       uploadedBy: metadata.userId || 'unknown',
       type: metadata.type || IMAGE_TYPES.AVATAR,
-      entityId: metadata.userId || metadata.organizationId || 'unknown',
-      entityType: metadata.organizationId ? ('organization' as const) : ('user' as const),
+      entityId: metadata.userId || 'unknown',
+      entityType: 'user' as const,
     },
     undefined,
     HttpStatusCodes.OK,
@@ -371,7 +318,6 @@ export const getImageMetadataHandler: RouteHandler<typeof getImageMetadataRoute,
 export const deleteImageHandler: RouteHandler<typeof deleteImageRoute, ApiEnv> = async (c) => {
   c.header('X-Route', 'images/delete');
   const key = c.req.param('key');
-  const session = c.get('session');
   const currentUser = c.get('user');
   const bucket = c.env.UPLOADS_R2_BUCKET;
 
@@ -387,11 +333,8 @@ export const deleteImageHandler: RouteHandler<typeof deleteImageRoute, ApiEnv> =
 
   // Check permissions
   const isOwnAvatar = metadata.type === IMAGE_TYPES.AVATAR && metadata.userId === currentUser?.id;
-  const canDeleteOrgImage
-    = (metadata.type === IMAGE_TYPES.LOGO || metadata.type === IMAGE_TYPES.BANNER)
-      && metadata.organizationId === session?.activeOrganizationId;
 
-  if (!isOwnAvatar && !canDeleteOrgImage) {
+  if (!isOwnAvatar) {
     throw new HTTPException(HttpStatusCodes.FORBIDDEN, {
       message: 'Not authorized to delete this image',
     });
@@ -408,17 +351,6 @@ export const deleteImageHandler: RouteHandler<typeof deleteImageRoute, ApiEnv> =
     await auth.api.updateUser({
       body: {
         image: undefined,
-      },
-      headers: c.req.raw.headers,
-    });
-  } else if (metadata.type === IMAGE_TYPES.LOGO && metadata.organizationId) {
-    // Clear organization logo via Better Auth
-    await auth.api.updateOrganization({
-      body: {
-        organizationId: metadata.organizationId,
-        data: {
-          logo: undefined,
-        },
       },
       headers: c.req.raw.headers,
     });

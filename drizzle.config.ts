@@ -32,7 +32,7 @@ function getLocalDbPath(): string {
 
 // Remote database configuration
 function getRemoteConfig() {
-  const accountId = process.env.ACCOUNT_ID;
+  const accountId = process.env.CLOUDFLARE_ACCOUNT_ID;
   const token = process.env.D1_TOKEN;
   const databaseId = process.env.NEXT_PUBLIC_WEBAPP_ENV === 'preview'
     ? process.env.PREVIEW_DATABASE_ID

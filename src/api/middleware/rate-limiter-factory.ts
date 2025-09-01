@@ -151,8 +151,8 @@ function organizationKeyGenerator(c: Context<ApiEnv>): string {
   const session = c.get('session');
   const user = c.get('user');
 
-  if (session?.activeOrganizationId) {
-    return `org:${session.activeOrganizationId}`;
+  if (session?.userId) {
+    return `org:${session.userId}`;
   }
 
   return `user:${user?.id || 'anonymous'}`;
@@ -310,12 +310,8 @@ export class RateLimiterFactory {
         return next();
       }
 
-      // Skip if no organization context
-      if (!session?.activeOrganizationId) {
-        return next();
-      }
-
-      const quotaKey = `quota:${session.activeOrganizationId}`;
+      // Using user-based quotas instead of organization quotas for now
+      const quotaKey = `quota:${session?.userId || 'anonymous'}`;
       const currentUsage = rateLimitStore.get(quotaKey)?.count || 0;
 
       if (currentUsage + (fileSize || 0) > quotaBytes) {
