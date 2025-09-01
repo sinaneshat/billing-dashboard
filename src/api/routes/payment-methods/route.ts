@@ -3,11 +3,6 @@ import * as HttpStatusCodes from 'stoker/http-status-codes';
 
 import { CommonErrorResponses } from '@/api/common';
 
-import {
-  enableDirectDebitRoute,
-  initiateCardAdditionRoute,
-  verifyCardAdditionRoute,
-} from './card-addition';
 import { CreatePaymentMethodRequestSchema, CreatePaymentMethodResponseSchema, DeletePaymentMethodResponseSchema, GetPaymentMethodsResponseSchema, PaymentMethodParamsSchema, SetDefaultPaymentMethodResponseSchema } from './schema';
 
 export const getPaymentMethodsRoute = createRoute({
@@ -91,10 +86,3 @@ export const setDefaultPaymentMethodRoute = createRoute({
     ...CommonErrorResponses.create,
   },
 });
-
-// Re-export the new card addition routes
-export {
-  enableDirectDebitRoute,
-  initiateCardAdditionRoute,
-  verifyCardAdditionRoute,
-};

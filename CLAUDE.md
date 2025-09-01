@@ -67,6 +67,7 @@ This project uses SPARC (Specification, Pseudocode, Architecture, Refinement, Co
 - `npm run test` - Run tests
 - `npm run lint` - Linting
 - `npm run typecheck` - Type checking
+- `npm run cf-typegen` - Generate CloudflareEnv types after updating .env/.dev.vars
 
 ## SPARC Workflow Phases
 

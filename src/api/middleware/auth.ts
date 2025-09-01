@@ -3,10 +3,15 @@ import { HTTPException } from 'hono/http-exception';
 
 import type { ApiEnv } from '@/api/types';
 
-export const requireApiKey = createMiddleware<ApiEnv>(async (c, next) => {
-  const apiKey = c.req.header('x-api-key') || c.req.header('authorization');
+export const requireMasterKey = createMiddleware<ApiEnv>(async (c, next) => {
+  const apiKey = c.req.header('x-api-key') || c.req.header('authorization')?.replace('Bearer ', '');
+  const masterKey = c.env?.API_MASTER_KEY;
+
   if (!apiKey) {
-    const res = new Response(JSON.stringify({ code: 401, message: 'Missing API key' }), {
+    const res = new Response(JSON.stringify({
+      code: 401,
+      message: 'Missing API key. Include your API key in the X-API-Key header or Authorization header.',
+    }), {
       status: 401,
       headers: {
         'Content-Type': 'application/json',
@@ -15,9 +20,41 @@ export const requireApiKey = createMiddleware<ApiEnv>(async (c, next) => {
     });
     throw new HTTPException(401, { res });
   }
+
+  if (!masterKey) {
+    console.error('API_MASTER_KEY environment variable not configured');
+    const res = new Response(JSON.stringify({
+      code: 500,
+      message: 'API configuration error',
+    }), {
+      status: 500,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+    throw new HTTPException(500, { res });
+  }
+
+  if (apiKey !== masterKey) {
+    const res = new Response(JSON.stringify({
+      code: 401,
+      message: 'Invalid API key',
+    }), {
+      status: 401,
+      headers: {
+        'Content-Type': 'application/json',
+        'WWW-Authenticate': 'ApiKey',
+      },
+    });
+    throw new HTTPException(401, { res });
+  }
+
   c.set('apiKey', apiKey);
   return next();
 });
+
+// Legacy alias for compatibility
+export const requireApiKey = requireMasterKey;
 
 // Attach session if present; does not enforce authentication
 export const attachSession = createMiddleware<ApiEnv>(async (c, next) => {

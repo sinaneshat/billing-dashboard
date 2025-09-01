@@ -75,45 +75,29 @@ export async function setDefaultPaymentMethodService(paymentMethodId: string) {
 }
 
 // ============================================================================
-//  New Card Addition Services
+//  Direct Debit Contract Services (NEW - ZarinPal Payman API)
 // ============================================================================
 
+// Direct Debit Contract Setup
+export type InitiateDirectDebitContractRequest = InferRequestType<(typeof apiClient)['payment-methods']['direct-debit-setup']['$post']>;
+export type InitiateDirectDebitContractResponse = InferResponseType<(typeof apiClient)['payment-methods']['direct-debit-setup']['$post']>;
+
+// Direct Debit Contract Verification
+export type VerifyDirectDebitContractRequest = InferRequestType<(typeof apiClient)['payment-methods']['verify-direct-debit-contract']['$post']>;
+export type VerifyDirectDebitContractResponse = InferResponseType<(typeof apiClient)['payment-methods']['verify-direct-debit-contract']['$post']>;
+
 /**
- * Initiate card addition flow with ZarinPal
- * Returns verification URL to redirect user to
+ * Initiate Direct Debit Contract Setup (Step 1)
+ * Creates contract with ZarinPal and returns bank selection options
  */
-export async function initiateCardAdditionService(callbackUrl: string, metadata?: Record<string, unknown>) {
-  return parseResponse(apiClient['payment-methods']['card-addition'].$post({
-    json: {
-      callbackUrl,
-      metadata,
-    },
-  }));
+export async function initiateDirectDebitContractService(args: InitiateDirectDebitContractRequest) {
+  return parseResponse(apiClient['payment-methods']['direct-debit-setup'].$post(args));
 }
 
 /**
- * Verify card addition after user returns from ZarinPal
- * Creates payment method record if verification successful
+ * Verify Direct Debit Contract (Step 2)
+ * Called after user signs contract with bank to get signature
  */
-export async function verifyCardAdditionService(authority: string, status?: string) {
-  return parseResponse(apiClient['payment-methods']['verify-card'].$post({
-    json: {
-      authority,
-      status,
-    },
-  }));
-}
-
-/**
- * Enable direct debit for a payment method
- * Optionally link to a specific subscription
- */
-export async function enableDirectDebitService(paymentMethodId: string, subscriptionId?: string) {
-  return parseResponse(apiClient['payment-methods'][':id']['enable-direct-debit'].$post({
-    param: { id: paymentMethodId },
-    json: {
-      paymentMethodId,
-      subscriptionId,
-    },
-  }));
+export async function verifyDirectDebitContractService(args: VerifyDirectDebitContractRequest) {
+  return parseResponse(apiClient['payment-methods']['verify-direct-debit-contract'].$post(args));
 }

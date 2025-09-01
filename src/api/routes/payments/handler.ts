@@ -279,7 +279,7 @@ export const paymentCallbackHandler: RouteHandler<typeof paymentCallbackRoute, A
             startDate,
             nextBillingDate,
             currentPrice: productRecord.price, // Update to current product price
-            zarinpalDirectDebitToken: verification.data?.card_hash, // Store for future direct debit
+            directDebitContractId: verification.data?.card_hash, // Store for future direct debit
             paymentMethodId, // Link to payment method
           })
           .where(eq(subscription.id, subscriptionRecord.id));
@@ -434,7 +434,7 @@ export const verifyPaymentHandler: RouteHandler<typeof verifyPaymentRoute, ApiEn
               status: 'active',
               startDate,
               nextBillingDate,
-              zarinpalDirectDebitToken: verification.data?.card_hash,
+              directDebitContractId: verification.data?.card_hash,
             })
             .where(eq(subscription.id, paymentRecord.subscriptionId));
         }

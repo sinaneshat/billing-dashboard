@@ -1,9 +1,10 @@
 'use client';
 
-import { Package, Star } from 'lucide-react';
+import { BanknoteIcon, Package, Shield, Star } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
 
+import { DirectDebitContractSetup } from '@/components/billing/direct-debit-contract-setup';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -19,10 +20,10 @@ function getPopularPlan(products: Array<{ id: string; name: string }>) {
 }
 
 export function SubscriptionPlans() {
-  // Note: API doesn't support query parameters yet
   const { data: products, isLoading, error } = useProductsQuery();
   const createSubscriptionMutation = useCreateSubscriptionMutation();
   const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
+  const [contractSetupStep, setContractSetupStep] = useState<'select-plan' | 'setup-contract' | 'confirming'>('select-plan');
 
   const productList = products?.success && Array.isArray(products.data)
     ? products.data.filter(product => product.isActive)
@@ -30,31 +31,48 @@ export function SubscriptionPlans() {
 
   const popularPlanId = getPopularPlan(productList);
 
-  const handleSubscribe = async (productId: string) => {
+  const handlePlanSelection = (productId: string) => {
     setSelectedProductId(productId);
+    setContractSetupStep('setup-contract');
+  };
+
+  const handleContractSuccess = async (contractId: string) => {
+    if (!selectedProductId) {
+      toast.error('No plan selected');
+      return;
+    }
+
+    setContractSetupStep('confirming');
 
     try {
-      const callbackUrl = `${window.location.origin}/payment/callback`;
+      // Create subscription with direct debit contract
       const result = await createSubscriptionMutation.mutateAsync({
         json: {
-          productId,
-          paymentMethod: 'zarinpal',
-          callbackUrl,
+          productId: selectedProductId,
+          paymentMethod: 'direct-debit-contract',
+          contractId,
+          enableAutoRenew: true,
         },
       });
 
-      if (result.success && result.data?.paymentUrl) {
-        toast.success('Redirecting to payment...');
-        window.location.href = result.data.paymentUrl;
+      if (result.success) {
+        toast.success('Subscription created with automatic renewal! Welcome aboard!');
+        // Redirect to dashboard instead of payment gateway
+        window.location.href = '/dashboard/billing';
       } else {
-        toast.error('Failed to create subscription');
-        setSelectedProductId(null);
+        toast.error('Failed to create subscription with contract');
+        setContractSetupStep('setup-contract');
       }
     } catch (error) {
-      console.error('Failed to create subscription:', error);
+      console.error('Failed to create subscription with contract:', error);
       toast.error('Failed to create subscription. Please try again.');
-      setSelectedProductId(null);
+      setContractSetupStep('setup-contract');
     }
+  };
+
+  const resetFlow = () => {
+    setSelectedProductId(null);
+    setContractSetupStep('select-plan');
   };
 
   if (isLoading) {
@@ -103,14 +121,26 @@ export function SubscriptionPlans() {
       <div className="text-center space-y-2">
         <h2 className="text-3xl font-bold">Choose Your Plan</h2>
         <p className="text-muted-foreground max-w-2xl mx-auto">
-          Select the perfect plan for your needs. All plans include our core features with varying limits and support levels.
+          Select your plan and setup automatic billing with ZarinPal direct debit. All subscriptions renew automatically with your signed bank contract.
         </p>
+
+        {contractSetupStep !== 'select-plan' && (
+          <div className="max-w-md mx-auto mt-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
+            <div className="flex items-center gap-2 text-blue-900 text-sm font-medium mb-1">
+              <Shield className="h-4 w-4" />
+              Contract-Based Subscription Setup
+            </div>
+            <p className="text-xs text-blue-700">
+              {contractSetupStep === 'setup-contract' && 'Complete direct debit contract setup to activate your subscription'}
+              {contractSetupStep === 'confirming' && 'Finalizing subscription with your signed contract'}
+            </p>
+          </div>
+        )}
       </div>
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 max-w-6xl mx-auto">
         {productList.map((product) => {
           const isPopular = product.id === popularPlanId;
-          const isLoading = selectedProductId === product.id && createSubscriptionMutation.isPending;
 
           return (
             <Card
@@ -144,25 +174,72 @@ export function SubscriptionPlans() {
               </CardHeader>
 
               <CardContent className="space-y-6">
-                <Button
-                  className="w-full"
-                  variant={isPopular ? 'default' : 'outline'}
-                  onClick={() => handleSubscribe(product.id)}
-                  disabled={isLoading || createSubscriptionMutation.isPending}
-                >
-                  {isLoading && <LoadingSpinner className="h-4 w-4 mr-2" />}
-                  {isLoading ? 'Creating Subscription...' : 'Subscribe Now'}
-                </Button>
-
-                {isLoading && (
-                  <p className="text-xs text-muted-foreground text-center">
-                    Redirecting to ZarinPal for secure payment...
-                  </p>
-                )}
-
-                <p className="text-xs text-muted-foreground text-center">
-                  Cancel anytime • No setup fees • Secure payment
-                </p>
+                {contractSetupStep === 'select-plan'
+                  ? (
+                      <>
+                        <Button
+                          className="w-full"
+                          variant={isPopular ? 'default' : 'outline'}
+                          onClick={() => handlePlanSelection(product.id)}
+                          disabled={createSubscriptionMutation.isPending}
+                        >
+                          <Shield className="h-4 w-4 mr-2" />
+                          Setup Direct Debit & Subscribe
+                        </Button>
+                        <p className="text-xs text-muted-foreground text-center">
+                          Automatic renewal • Cancel anytime • Bank-level security
+                        </p>
+                      </>
+                    )
+                  : selectedProductId === product.id
+                    ? (
+                        <div className="space-y-4">
+                          {contractSetupStep === 'setup-contract' && (
+                            <>
+                              <div className="text-center p-4 bg-blue-50 rounded-lg border border-blue-200">
+                                <Shield className="h-8 w-8 text-blue-600 mx-auto mb-2" />
+                                <h4 className="font-medium text-blue-900">
+                                  Selected:
+                                  {product.name}
+                                </h4>
+                                <p className="text-sm text-blue-700">Now setup your direct debit contract</p>
+                              </div>
+                              <DirectDebitContractSetup onSuccess={handleContractSuccess}>
+                                <Button className="w-full" variant="default">
+                                  <BanknoteIcon className="h-4 w-4 mr-2" />
+                                  Setup Contract & Subscribe
+                                </Button>
+                              </DirectDebitContractSetup>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={resetFlow}
+                                className="w-full"
+                              >
+                                ← Choose Different Plan
+                              </Button>
+                            </>
+                          )}
+                          {contractSetupStep === 'confirming' && (
+                            <div className="text-center p-6">
+                              <LoadingSpinner className="h-8 w-8 mx-auto mb-4" />
+                              <h4 className="font-medium mb-2">Creating Your Subscription</h4>
+                              <p className="text-sm text-muted-foreground">
+                                Setting up automatic billing with your signed contract...
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      )
+                    : (
+                        <Button
+                          variant="outline"
+                          className="w-full"
+                          disabled
+                        >
+                          Complete other subscription first
+                        </Button>
+                      )}
               </CardContent>
             </Card>
           );
@@ -186,22 +263,22 @@ export function SubscriptionPlans() {
 
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg">What payment methods do you accept?</CardTitle>
+              <CardTitle className="text-lg">How does billing work?</CardTitle>
             </CardHeader>
             <CardContent>
               <p className="text-sm text-muted-foreground">
-                We accept all major Iranian bank cards through ZarinPal secure payment gateway.
+                All subscriptions use ZarinPal's secure direct debit contracts. You sign a contract with your bank once, then all renewals are automatic - no manual payments needed.
               </p>
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg">Is there a free trial?</CardTitle>
+              <CardTitle className="text-lg">What is a direct debit contract?</CardTitle>
             </CardHeader>
             <CardContent>
               <p className="text-sm text-muted-foreground">
-                Currently, we don't offer a free trial, but you can cancel your subscription anytime.
+                It's a secure agreement between you, your bank, and ZarinPal that allows automatic subscription billing. You sign it once with your bank's authentication, then all renewals happen automatically.
               </p>
             </CardContent>
           </Card>
@@ -212,11 +289,53 @@ export function SubscriptionPlans() {
             </CardHeader>
             <CardContent>
               <p className="text-sm text-muted-foreground">
-                You'll continue to have access to your subscription until the end of your current billing period.
+                Cancelling stops future automatic renewals immediately. You keep access until your current billing period ends. Your direct debit contract remains available for future subscriptions.
               </p>
             </CardContent>
           </Card>
         </div>
+      </div>
+
+      {/* Direct Debit Information */}
+      <div className="max-w-4xl mx-auto pt-6">
+        <Card className="border-blue-200 bg-blue-50/50">
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <Shield className="h-5 w-5 text-blue-600" />
+              <CardTitle className="text-lg text-blue-900">Enable Automatic Renewal</CardTitle>
+            </div>
+            <p className="text-blue-700 text-sm">
+              Setup a ZarinPal direct debit contract for hassle-free automatic subscription renewals
+            </p>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid gap-4 md:grid-cols-2">
+              <div>
+                <h5 className="font-medium text-blue-900 mb-2">Benefits:</h5>
+                <ul className="text-sm text-blue-700 space-y-1">
+                  <li>✓ Never miss a subscription renewal</li>
+                  <li>✓ Secure bank-level authentication</li>
+                  <li>✓ Cancel or modify anytime</li>
+                  <li>✓ No interrupted service</li>
+                </ul>
+              </div>
+              <div>
+                <h5 className="font-medium text-blue-900 mb-2">How it works:</h5>
+                <ul className="text-sm text-blue-700 space-y-1">
+                  <li>1. Create contract with mobile & national ID</li>
+                  <li>2. Sign securely with your bank</li>
+                  <li>3. Subscribe with automatic renewal</li>
+                </ul>
+              </div>
+            </div>
+            <DirectDebitContractSetup onSuccess={() => toast.success('Direct debit contract created!')}>
+              <Button className="w-full sm:w-auto">
+                <BanknoteIcon className="h-4 w-4 mr-2" />
+                Setup Direct Debit Contract
+              </Button>
+            </DirectDebitContractSetup>
+          </CardContent>
+        </Card>
       </div>
     </div>
   );

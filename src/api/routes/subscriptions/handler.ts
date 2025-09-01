@@ -7,7 +7,7 @@ import { created, ok } from '@/api/common/responses';
 import { ZarinPalService } from '@/api/services/zarinpal';
 import type { ApiEnv } from '@/api/types';
 import { db } from '@/db';
-import { payment, product, subscription } from '@/db/tables/billing';
+import { payment, paymentMethod, product, subscription } from '@/db/tables/billing';
 import type { PlanChangeHistoryItem } from '@/db/validation';
 
 import type {
@@ -51,7 +51,8 @@ export const getSubscriptionsHandler: RouteHandler<typeof getSubscriptionsRoute,
       nextBillingDate: row.subscription.nextBillingDate?.toISOString() ?? null,
       currentPrice: row.subscription.currentPrice,
       billingPeriod: row.subscription.billingPeriod,
-      zarinpalDirectDebitToken: row.subscription.zarinpalDirectDebitToken,
+      directDebitContractId: row.subscription.directDebitContractId,
+      directDebitSignature: row.subscription.directDebitSignature,
       createdAt: row.subscription.createdAt.toISOString(),
       updatedAt: row.subscription.updatedAt.toISOString(),
       product: {
@@ -112,7 +113,8 @@ export const getSubscriptionHandler: RouteHandler<typeof getSubscriptionRoute, A
       nextBillingDate: row.subscription.nextBillingDate?.toISOString() ?? null,
       currentPrice: row.subscription.currentPrice,
       billingPeriod: row.subscription.billingPeriod,
-      zarinpalDirectDebitToken: row.subscription.zarinpalDirectDebitToken,
+      directDebitContractId: row.subscription.directDebitContractId,
+      directDebitSignature: row.subscription.directDebitSignature,
       createdAt: row.subscription.createdAt.toISOString(),
       updatedAt: row.subscription.updatedAt.toISOString(),
       product: {
@@ -149,7 +151,7 @@ export const createSubscriptionHandler: RouteHandler<typeof createSubscriptionRo
     });
   }
 
-  const { productId, callbackUrl } = c.req.valid('json');
+  const { productId, paymentMethod: requestedPaymentMethod, contractId, enableAutoRenew, callbackUrl } = c.req.valid('json');
 
   try {
     // Check if product exists and is active
@@ -204,64 +206,123 @@ export const createSubscriptionHandler: RouteHandler<typeof createSubscriptionRo
       billingPeriod: selectedProduct.billingPeriod,
     });
 
-    // Create payment record
-    const paymentId = crypto.randomUUID();
-    await db.insert(payment).values({
-      id: paymentId,
-      userId: user.id,
-      subscriptionId,
-      productId,
-      amount: selectedProduct.price,
-      status: 'pending',
-      paymentMethod: 'zarinpal',
-    });
+    // Handle subscription creation based on payment method
+    if (requestedPaymentMethod === 'direct-debit-contract') {
+      // Direct Debit Contract-based subscription (automatic renewal)
+      if (!contractId) {
+        throw new HTTPException(HttpStatusCodes.BAD_REQUEST, {
+          message: 'Contract ID is required for direct debit contract subscriptions',
+        });
+      }
 
-    // Initialize ZarinPal payment
-    const zarinPal = ZarinPalService.create(c.env);
-    const paymentRequest = await zarinPal.requestPayment({
-      amount: selectedProduct.price,
-      currency: 'IRR',
-      description: `Subscription to ${selectedProduct.name}`,
-      callbackUrl,
-      metadata: {
+      // Verify the contract exists and belongs to the user
+      const contractData = await db
+        .select()
+        .from(paymentMethod)
+        .where(
+          and(
+            eq(paymentMethod.userId, user.id),
+            eq(paymentMethod.zarinpalCardHash, contractId), // Contract stored as cardHash
+            eq(paymentMethod.cardType, 'direct_debit_contract'),
+            eq(paymentMethod.isActive, true),
+          ),
+        )
+        .limit(1);
+
+      if (!contractData.length) {
+        throw new HTTPException(HttpStatusCodes.NOT_FOUND, {
+          message: 'Direct debit contract not found or inactive',
+        });
+      }
+
+      // Update subscription with contract information
+      await db
+        .update(subscription)
+        .set({
+          status: 'active', // Direct debit contracts activate immediately
+          directDebitContractId: contractId,
+          directDebitSignature: contractData[0]!.cardMask, // Signature stored as cardMask
+        })
+        .where(eq(subscription.id, subscriptionId));
+
+      return created(c, {
         subscriptionId,
-        paymentId,
-        userId: user.id,
-      },
-    });
+        paymentMethod: requestedPaymentMethod,
+        contractId,
+        autoRenewalEnabled: enableAutoRenew ?? true,
+      });
+    } else if (requestedPaymentMethod === 'zarinpal-oneoff') {
+      // Legacy one-time payment (deprecated but supported)
+      if (!callbackUrl) {
+        throw new HTTPException(HttpStatusCodes.BAD_REQUEST, {
+          message: 'Callback URL is required for one-time payments',
+        });
+      }
 
-    if (!paymentRequest.data?.authority) {
-      // Update payment status to failed
+      // Create payment record
+      const paymentId = crypto.randomUUID();
+      await db.insert(payment).values({
+        id: paymentId,
+        userId: user.id,
+        subscriptionId,
+        productId,
+        amount: selectedProduct.price,
+        status: 'pending',
+        paymentMethod: 'zarinpal',
+      });
+
+      // Initialize legacy ZarinPal payment
+      const zarinPal = ZarinPalService.create(c.env);
+      const paymentRequest = await zarinPal.requestPayment({
+        amount: selectedProduct.price,
+        currency: 'IRR',
+        description: `One-time subscription to ${selectedProduct.name}`,
+        callbackUrl,
+        metadata: {
+          subscriptionId,
+          paymentId,
+          userId: user.id,
+        },
+      });
+
+      if (!paymentRequest.data?.authority) {
+        await db
+          .update(payment)
+          .set({
+            status: 'failed',
+            failureReason: paymentRequest.data?.message || 'Failed to initialize payment',
+            failedAt: new Date(),
+          })
+          .where(eq(payment.id, paymentId));
+
+        throw new HTTPException(HttpStatusCodes.INTERNAL_SERVER_ERROR, {
+          message: `Payment initialization failed: ${paymentRequest.data?.message}`,
+        });
+      }
+
+      // Update payment record with ZarinPal authority
       await db
         .update(payment)
         .set({
-          status: 'failed',
-          failureReason: paymentRequest.data?.message || 'Failed to initialize payment',
-          failedAt: new Date(),
+          zarinpalAuthority: paymentRequest.data?.authority,
+          metadata: paymentRequest,
         })
         .where(eq(payment.id, paymentId));
 
-      throw new HTTPException(HttpStatusCodes.INTERNAL_SERVER_ERROR, {
-        message: `Payment initialization failed: ${paymentRequest.data?.message}`,
+      const paymentUrl = zarinPal.getPaymentUrl(paymentRequest.data.authority);
+
+      return created(c, {
+        subscriptionId,
+        paymentMethod: requestedPaymentMethod,
+        autoRenewalEnabled: false, // Legacy one-time payments don't support auto-renewal
+        paymentUrl,
+        authority: paymentRequest.data?.authority,
+      });
+    } else {
+      throw new HTTPException(HttpStatusCodes.BAD_REQUEST, {
+        message: `Invalid payment method: ${requestedPaymentMethod}. Use direct-debit-contract for automatic renewal or zarinpal-oneoff for one-time payments`,
       });
     }
-
-    // Update payment record with ZarinPal authority
-    await db
-      .update(payment)
-      .set({
-        zarinpalAuthority: paymentRequest.data?.authority,
-        metadata: paymentRequest,
-      })
-      .where(eq(payment.id, paymentId));
-
-    const paymentUrl = zarinPal.getPaymentUrl(paymentRequest.data.authority);
-
-    return created(c, {
-      subscriptionId,
-      paymentUrl,
-      authority: paymentRequest.data?.authority,
-    });
   } catch (error) {
     if (error instanceof HTTPException) {
       throw error;
@@ -355,6 +416,12 @@ export const resubscribeHandler: RouteHandler<typeof resubscribeRoute, ApiEnv> =
 
   const { id } = c.req.valid('param');
   const { callbackUrl } = c.req.valid('json');
+
+  if (!callbackUrl) {
+    throw new HTTPException(HttpStatusCodes.BAD_REQUEST, {
+      message: 'Callback URL is required for resubscription',
+    });
+  }
 
   try {
     // Get subscription with product data

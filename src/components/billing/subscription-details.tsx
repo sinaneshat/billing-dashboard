@@ -432,7 +432,7 @@ export function SubscriptionDetails({ subscriptionId, onBack }: SubscriptionDeta
               </p>
             </div>
 
-            {subscription.zarinpalDirectDebitToken && (
+            {subscription.directDebitContractId && (
               <div>
                 <p className="text-sm font-medium text-muted-foreground">Payment Method</p>
                 <p className="text-sm">

@@ -28,9 +28,18 @@ import notFound from 'stoker/middlewares/not-found';
 import onError from 'stoker/middlewares/on-error';
 
 import { createOpenApiApp } from './factory';
-import { attachSession, createRateLimitMiddleware, requireSession } from './middleware';
+import { attachSession, createRateLimitMiddleware, requireMasterKey, requireSession } from './middleware';
 import { metricsMiddleware, performanceMiddleware } from './middleware/performance';
 import { createRateLimiter, RATE_LIMIT_CONFIGS } from './middleware/rate-limiter';
+// Admin routes for platform owner access
+import {
+  adminStatsHandler,
+  adminStatsRoute,
+  adminTestWebhookHandler,
+  adminTestWebhookRoute,
+  adminUsersHandler,
+  adminUsersRoute,
+} from './routes/admin';
 // Import routes and handlers directly for proper RPC type inference
 import { secureMeHandler } from './routes/auth/handler';
 import { secureMeRoute } from './routes/auth/route';
@@ -48,17 +57,15 @@ import {
   uploadCompanyImageRoute,
   uploadUserAvatarRoute,
 } from './routes/images/route';
+// New direct debit routes
 import {
-  enableDirectDebitRoute,
-  initiateCardAdditionRoute,
-  verifyCardAdditionRoute,
-} from './routes/payment-methods/card-addition';
-// Payment methods routes
+  initiateDirectDebitContractHandler,
+  verifyDirectDebitContractHandler,
+} from './routes/payment-methods/direct-debit-handler';
 import {
-  enableDirectDebitHandler,
-  initiateCardAdditionHandler,
-  verifyCardAdditionHandler,
-} from './routes/payment-methods/card-addition-handler';
+  initiateDirectDebitContractRoute,
+  verifyDirectDebitContractRoute,
+} from './routes/payment-methods/direct-debit-routes';
 import {
   createPaymentMethodHandler,
   deletePaymentMethodHandler,
@@ -189,6 +196,8 @@ app.use('/webhooks/events', requireSession);
 app.use('/webhooks/test', requireSession);
 app.use('/passes/*', createRateLimiter(RATE_LIMIT_CONFIGS.apiGeneral));
 app.use('/passes/*', requireSession);
+// Admin routes require master key authentication
+app.use('/admin/*', requireMasterKey);
 
 // Register all routes directly on the app
 const appRoutes = app
@@ -214,10 +223,9 @@ const appRoutes = app
   .openapi(setDefaultPaymentMethodRoute, setDefaultPaymentMethodHandler)
   // Payment callback route
   .openapi(paymentCallbackRoute, paymentCallbackHandler)
-  // Card addition routes
-  .openapi(initiateCardAdditionRoute, initiateCardAdditionHandler)
-  .openapi(verifyCardAdditionRoute, verifyCardAdditionHandler)
-  .openapi(enableDirectDebitRoute, enableDirectDebitHandler)
+  // Direct debit contract routes (ZarinPal Payman API)
+  .openapi(initiateDirectDebitContractRoute, initiateDirectDebitContractHandler)
+  .openapi(verifyDirectDebitContractRoute, verifyDirectDebitContractHandler)
   // Webhooks routes
   .openapi(zarinPalWebhookRoute, zarinPalWebhookHandler)
   .openapi(getWebhookEventsRoute, getWebhookEventsHandler)
@@ -227,7 +235,11 @@ const appRoutes = app
   .openapi(uploadCompanyImageRoute, uploadCompanyImageHandler)
   .openapi(getImagesRoute, getImagesHandler)
   .openapi(getImageMetadataRoute, getImageMetadataHandler)
-  .openapi(deleteImageRoute, deleteImageHandler);
+  .openapi(deleteImageRoute, deleteImageHandler)
+  // Admin routes (master key required)
+  .openapi(adminStatsRoute, adminStatsHandler)
+  .openapi(adminUsersRoute, adminUsersHandler)
+  .openapi(adminTestWebhookRoute, adminTestWebhookHandler);
 
 // ============================================================================
 // Step 5: Export AppType for RPC client type inference (CRITICAL!)
@@ -259,6 +271,7 @@ appRoutes.doc('/doc', c => ({
     { name: 'webhooks', description: 'Subscription webhooks and billing notifications' },
     { name: 'images', description: 'Image upload and management' },
     { name: 'passes', description: 'Pass generation and management' },
+    { name: 'admin', description: 'Platform administration and external API access (master key required)' },
   ],
   servers: [
     {

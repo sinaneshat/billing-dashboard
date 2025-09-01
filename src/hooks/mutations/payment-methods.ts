@@ -4,15 +4,16 @@ import { queryKeys } from '@/lib/data/query-keys';
 import type {
   CreatePaymentMethodRequest,
   DeletePaymentMethodRequest,
+  InitiateDirectDebitContractRequest,
   SetDefaultPaymentMethodRequest,
+  VerifyDirectDebitContractRequest,
 } from '@/services/api/payment-methods';
 import {
   createPaymentMethodService,
   deletePaymentMethodService,
-  enableDirectDebitService,
-  initiateCardAdditionService,
+  initiateDirectDebitContractService,
   setDefaultPaymentMethodService,
-  verifyCardAdditionService,
+  verifyDirectDebitContractService,
 } from '@/services/api/payment-methods';
 
 export function useCreatePaymentMethodMutation() {
@@ -144,36 +145,36 @@ export function useSetDefaultPaymentMethodMutation() {
 }
 
 // ============================================================================
-//  New Card Addition Mutation Hooks
+//  Direct Debit Contract Mutation Hooks (NEW - ZarinPal Payman API)
 // ============================================================================
 
 /**
- * Hook to initiate card addition flow
- * Returns verification URL to redirect user to ZarinPal
+ * Hook to initiate direct debit contract setup (Step 1)
+ * Returns available banks and contract signing URL template
  */
-export function useInitiateCardAdditionMutation() {
+export function useInitiateDirectDebitContractMutation() {
   return useMutation({
-    mutationFn: async ({ callbackUrl, metadata }: { callbackUrl: string; metadata?: Record<string, unknown> }) => {
-      const result = await initiateCardAdditionService(callbackUrl, metadata);
+    mutationFn: async (args: InitiateDirectDebitContractRequest) => {
+      const result = await initiateDirectDebitContractService(args);
       return result;
     },
     onError: (error) => {
-      console.error('Failed to initiate card addition:', error);
+      console.error('Failed to initiate direct debit contract:', error);
     },
-    retry: false, // Card addition should not auto-retry - requires user action
+    retry: false, // Contract setup should not auto-retry - requires user action
   });
 }
 
 /**
- * Hook to verify card addition after user returns from ZarinPal
- * Creates payment method record if verification successful
+ * Hook to verify direct debit contract after user returns from bank (Step 2)
+ * Creates payment method with contract signature if verification successful
  */
-export function useVerifyCardAdditionMutation() {
+export function useVerifyDirectDebitContractMutation() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ authority, status }: { authority: string; status?: string }) => {
-      const result = await verifyCardAdditionService(authority, status);
+    mutationFn: async (args: VerifyDirectDebitContractRequest) => {
+      const result = await verifyDirectDebitContractService(args);
       return result;
     },
     onSuccess: (data) => {
@@ -181,54 +182,21 @@ export function useVerifyCardAdditionMutation() {
       queryClient.invalidateQueries({ queryKey: queryKeys.paymentMethods.all });
       queryClient.invalidateQueries({ queryKey: queryKeys.paymentMethods.list() });
 
-      // Optionally add the new payment method to cache if verification was successful
-      if (data.success && data.data?.paymentMethod && data.data?.verified) {
+      // Optionally add the new payment method to cache if contract was verified
+      if (data.success && data.data?.paymentMethodId && data.data?.contractVerified) {
         queryClient.setQueryData(queryKeys.paymentMethods.list(), (old: unknown) => {
           const oldData = old as { success?: boolean; data?: unknown[] };
           if (oldData?.success && Array.isArray(oldData.data)) {
-            return {
-              ...oldData,
-              data: [data.data!.paymentMethod, ...oldData.data],
-            };
+            // Direct debit contract creates a new payment method, invalidate to refetch
+            return old; // Just invalidate, don't optimistically update since we don't have full data
           }
           return old;
         });
       }
     },
     onError: (error) => {
-      console.error('Failed to verify card addition:', error);
+      console.error('Failed to verify direct debit contract:', error);
     },
-    retry: false, // Verification should not auto-retry - it's a one-time callback
-  });
-}
-
-/**
- * Hook to enable direct debit for a payment method
- * Optionally links to a specific subscription
- */
-export function useEnableDirectDebitMutation() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async ({ paymentMethodId, subscriptionId }: { paymentMethodId: string; subscriptionId?: string }) => {
-      const result = await enableDirectDebitService(paymentMethodId, subscriptionId);
-      return result;
-    },
-    onSuccess: (data, variables) => {
-      // Invalidate relevant queries
-      queryClient.invalidateQueries({ queryKey: queryKeys.paymentMethods.all });
-      queryClient.invalidateQueries({ queryKey: queryKeys.paymentMethods.list() });
-
-      // If linked to a subscription, invalidate subscription queries too
-      if (variables.subscriptionId) {
-        queryClient.invalidateQueries({ queryKey: queryKeys.subscriptions.all });
-        queryClient.invalidateQueries({ queryKey: queryKeys.subscriptions.list() });
-        queryClient.invalidateQueries({ queryKey: queryKeys.subscriptions.detail(variables.subscriptionId) });
-      }
-    },
-    onError: (error) => {
-      console.error('Failed to enable direct debit:', error);
-    },
-    retry: 1,
+    retry: false, // Contract verification should not auto-retry - it's a one-time callback
   });
 }

@@ -227,7 +227,7 @@ export const zarinPalWebhookHandler: RouteHandler<typeof zarinPalWebhookRoute, A
                       status: 'active',
                       startDate,
                       nextBillingDate,
-                      zarinpalDirectDebitToken: verification.data?.card_hash || webhookPayload.card_hash,
+                      directDebitContractId: verification.data?.card_hash || webhookPayload.card_hash,
                     })
                     .where(eq(subscription.id, paymentRecord.subscriptionId));
                 }

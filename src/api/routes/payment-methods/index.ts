@@ -1,10 +1,13 @@
 import { createOpenApiApp } from '@/api/factory';
 
 import {
-  enableDirectDebitHandler,
-  initiateCardAdditionHandler,
-  verifyCardAdditionHandler,
-} from './card-addition-handler';
+  initiateDirectDebitContractHandler,
+  verifyDirectDebitContractHandler,
+} from './direct-debit-handler';
+import {
+  initiateDirectDebitContractRoute,
+  verifyDirectDebitContractRoute,
+} from './direct-debit-routes';
 import {
   createPaymentMethodHandler,
   deletePaymentMethodHandler,
@@ -14,11 +17,8 @@ import {
 import {
   createPaymentMethodRoute,
   deletePaymentMethodRoute,
-  enableDirectDebitRoute,
   getPaymentMethodsRoute,
-  initiateCardAdditionRoute,
   setDefaultPaymentMethodRoute,
-  verifyCardAdditionRoute,
 } from './route';
 
 const app = createOpenApiApp();
@@ -35,13 +35,10 @@ app.openapi(deletePaymentMethodRoute, deletePaymentMethodHandler);
 // PATCH /payment-methods/:id/default
 app.openapi(setDefaultPaymentMethodRoute, setDefaultPaymentMethodHandler);
 
-// POST /payment-methods/card-addition - New card addition flow
-app.openapi(initiateCardAdditionRoute, initiateCardAdditionHandler);
+// POST /payment-methods/direct-debit-setup - NEW: ZarinPal Direct Debit Contract Setup
+app.openapi(initiateDirectDebitContractRoute, initiateDirectDebitContractHandler);
 
-// POST /payment-methods/verify-card - Verify card addition
-app.openapi(verifyCardAdditionRoute, verifyCardAdditionHandler);
-
-// POST /payment-methods/:id/enable-direct-debit - Enable direct debit for payment method
-app.openapi(enableDirectDebitRoute, enableDirectDebitHandler);
+// POST /payment-methods/verify-direct-debit-contract - NEW: Verify Direct Debit Contract
+app.openapi(verifyDirectDebitContractRoute, verifyDirectDebitContractHandler);
 
 export default app;

@@ -296,7 +296,7 @@ export function SubscriptionManagement() {
                 </div>
               </div>
 
-              {subscription.zarinpalDirectDebitToken && (
+              {subscription.directDebitContractId && (
                 <Alert>
                   <Calendar className="h-4 w-4" />
                   <AlertDescription>

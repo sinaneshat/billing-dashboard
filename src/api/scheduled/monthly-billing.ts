@@ -91,7 +91,7 @@ async function processSingleSubscription(
   result: BillingResult,
 ) {
   // Check if subscription has direct debit token
-  if (!sub.zarinpalDirectDebitToken) {
+  if (!sub.directDebitContractId) {
     throw new Error('No direct debit token available');
   }
 
@@ -183,7 +183,7 @@ async function processSingleSubscription(
       amount: sub.currentPrice,
       currency: 'IRR' as const,
       description: `Monthly subscription billing - ${new Date().toLocaleDateString('en-US')}`,
-      card_hash: sub.zarinpalDirectDebitToken,
+      card_hash: sub.directDebitContractId,
       metadata: {
         subscriptionId: sub.id,
         paymentId,

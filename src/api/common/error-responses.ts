@@ -3,7 +3,10 @@
  * Uses HttpStatusCodes from stoker for consistency
  */
 
+import type { Context } from 'hono';
 import * as HttpStatusCodes from 'stoker/http-status-codes';
+
+import type { ApiEnv } from '@/api/types';
 
 import { ErrorSchema } from './schemas';
 
@@ -140,8 +143,162 @@ export const CommonErrorResponses = {
     HttpStatusCodes.INTERNAL_SERVER_ERROR,
   ]),
 
+  // Validation operations
+  validation: errorResponses([
+    HttpStatusCodes.BAD_REQUEST,
+    HttpStatusCodes.UNPROCESSABLE_ENTITY,
+    HttpStatusCodes.INTERNAL_SERVER_ERROR,
+  ]),
+
   // Public endpoints (health checks, etc)
   public: errorResponses([
     HttpStatusCodes.INTERNAL_SERVER_ERROR,
   ]),
 } as const;
+
+// =============================================================================
+// Runtime Error Response Utilities
+// =============================================================================
+
+export type ErrorResponseData = {
+  error: string;
+  message: string;
+  details?: unknown;
+  timestamp: string;
+  request_id?: string;
+};
+
+export type PaginationInfo = {
+  limit: number;
+  offset: number;
+  total: number;
+  hasMore: boolean;
+};
+
+/**
+ * Creates a standardized error response
+ */
+export function createErrorResponse(
+  c: Context<ApiEnv>,
+  error: string,
+  message: string,
+  status: 400 | 401 | 403 | 404 | 409 | 422 | 429 | 500 = 400,
+  details?: unknown,
+) {
+  const errorResponse: ErrorResponseData = {
+    error,
+    message,
+    timestamp: new Date().toISOString(),
+  };
+
+  if (details) {
+    errorResponse.details = details;
+  }
+
+  const requestId = c.get('requestId');
+  if (requestId) {
+    errorResponse.request_id = requestId;
+  }
+
+  return c.json(errorResponse, status);
+}
+
+/**
+ * Creates a paginated response with standard pagination metadata
+ */
+export function createPaginatedResponse<T>(
+  c: Context<ApiEnv>,
+  data: T[],
+  query: { limit: number; offset: number },
+  total: number,
+) {
+  const pagination: PaginationInfo = {
+    limit: query.limit,
+    offset: query.offset,
+    total,
+    hasMore: query.offset + query.limit < total,
+  };
+
+  return c.json({
+    data,
+    pagination,
+  });
+}
+
+/**
+ * Creates a success response with optional metadata
+ */
+export function createSuccessResponse<T>(
+  c: Context<ApiEnv>,
+  data: T,
+  message?: string,
+  metadata?: Record<string, unknown>,
+) {
+  const response: Record<string, unknown> = { data };
+
+  if (message) {
+    response.message = message;
+  }
+
+  if (metadata) {
+    response.metadata = metadata;
+  }
+
+  response.timestamp = new Date().toISOString();
+
+  const requestId = c.get('requestId');
+  if (requestId) {
+    response.request_id = requestId;
+  }
+
+  return c.json(response);
+}
+
+// =============================================================================
+// Business Logic Error Responses
+// =============================================================================
+
+export const BusinessErrors = {
+  ApiKeyInvalid: (c: Context<ApiEnv>) =>
+    createErrorResponse(c, 'invalid_api_key', 'The provided API key is invalid or expired', 401),
+
+  ApiKeyInsufficientScope: (c: Context<ApiEnv>, requiredScope: string, availableScopes: string[]) =>
+    createErrorResponse(c, 'insufficient_scope', `This operation requires the '${requiredScope}' scope`, 403, {
+      required_scope: requiredScope,
+      available_scopes: availableScopes,
+    }),
+
+  ApiKeyRateLimited: (c: Context<ApiEnv>, resetTime: number) => {
+    const retryAfter = resetTime - Math.floor(Date.now() / 1000);
+    c.header('Retry-After', String(retryAfter));
+    c.header('X-RateLimit-Remaining', '0');
+    c.header('X-RateLimit-Reset', String(resetTime));
+    return createErrorResponse(c, 'rate_limit_exceeded', 'API rate limit exceeded', 429, {
+      retry_after: retryAfter,
+    });
+  },
+
+  UserNotFound: (c: Context<ApiEnv>) =>
+    createErrorResponse(c, 'user_not_found', 'User not found', 404),
+
+  SubscriptionNotFound: (c: Context<ApiEnv>) =>
+    createErrorResponse(c, 'subscription_not_found', 'Subscription not found', 404),
+
+  PaymentNotFound: (c: Context<ApiEnv>) =>
+    createErrorResponse(c, 'payment_not_found', 'Payment not found', 404),
+
+  PaymentMethodNotFound: (c: Context<ApiEnv>) =>
+    createErrorResponse(c, 'payment_method_not_found', 'Payment method not found', 404),
+
+  WebhookEndpointNotFound: (c: Context<ApiEnv>) =>
+    createErrorResponse(c, 'webhook_endpoint_not_found', 'Webhook endpoint not found', 404),
+
+  SubscriptionNotActive: (c: Context<ApiEnv>) =>
+    createErrorResponse(c, 'subscription_not_active', 'Subscription is not active', 400),
+
+  PaymentFailed: (c: Context<ApiEnv>, reason?: string) =>
+    createErrorResponse(c, 'payment_failed', reason || 'Payment processing failed', 400),
+
+  WebhookDeliveryFailed: (c: Context<ApiEnv>, error: string) =>
+    createErrorResponse(c, 'webhook_delivery_failed', 'Webhook delivery failed', 400, { error }),
+};

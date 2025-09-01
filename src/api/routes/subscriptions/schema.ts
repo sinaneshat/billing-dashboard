@@ -13,7 +13,8 @@ const SubscriptionSchema = z.object({
   nextBillingDate: z.string().datetime().nullable().openapi({ example: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() }),
   currentPrice: z.number().openapi({ example: 99000 }),
   billingPeriod: z.enum(['one_time', 'monthly']).openapi({ example: 'monthly' }),
-  zarinpalDirectDebitToken: z.string().nullable().openapi({ example: 'card_hash_abc123' }),
+  directDebitContractId: z.string().nullable().openapi({ example: 'contract_abc123', description: 'ZarinPal direct debit contract ID for automatic billing' }),
+  directDebitSignature: z.string().nullable().openapi({ example: 'signature_200chars...', description: 'ZarinPal direct debit contract signature (stored securely)' }),
   createdAt: z.string().datetime().openapi({ example: new Date().toISOString() }),
   updatedAt: z.string().datetime().openapi({ example: new Date().toISOString() }),
 });
@@ -28,19 +29,27 @@ const SubscriptionWithProductSchema = SubscriptionSchema.extend({
   }),
 });
 
-// Request schemas
+// Request schemas for Direct Debit Contract-based subscriptions
 export const CreateSubscriptionRequestSchema = z.object({
   productId: z.string().min(1).openapi({
     example: 'prod_123',
     description: 'Product ID to subscribe to',
   }),
-  paymentMethod: z.enum(['zarinpal']).default('zarinpal').openapi({
-    example: 'zarinpal',
-    description: 'Payment method for the subscription',
+  paymentMethod: z.enum(['direct-debit-contract', 'zarinpal-oneoff']).default('direct-debit-contract').openapi({
+    example: 'direct-debit-contract',
+    description: 'Payment method: direct-debit-contract for automatic renewal via signed contracts, zarinpal-oneoff for legacy one-time payments',
   }),
-  callbackUrl: z.string().url().openapi({
+  contractId: z.string().optional().openapi({
+    example: 'contract_abc123',
+    description: 'Direct debit contract ID (required when paymentMethod is direct-debit-contract)',
+  }),
+  enableAutoRenew: z.boolean().default(true).openapi({
+    example: true,
+    description: 'Enable automatic renewal using the signed direct debit contract',
+  }),
+  callbackUrl: z.string().url().optional().openapi({
     example: 'https://app.example.com/payment/callback',
-    description: 'URL to redirect after payment',
+    description: 'URL to redirect after payment (only used for zarinpal-oneoff legacy payments)',
   }),
 }).openapi('CreateSubscriptionRequest');
 
@@ -63,13 +72,23 @@ export const GetSubscriptionResponseSchema = ApiResponseSchema(
 export const CreateSubscriptionResponseSchema = ApiResponseSchema(
   z.object({
     subscriptionId: z.string().openapi({ example: 'sub_123' }),
-    paymentUrl: z.string().url().openapi({
-      example: 'https://www.zarinpal.com/pg/StartPay/A00000000000000000000000000123456789',
-      description: 'ZarinPal payment gateway URL for redirection',
+    paymentMethod: z.string().openapi({ example: 'direct-debit-contract' }),
+    contractId: z.string().optional().openapi({
+      example: 'contract_abc123',
+      description: 'Direct debit contract ID used for this subscription',
     }),
-    authority: z.string().openapi({
+    autoRenewalEnabled: z.boolean().openapi({
+      example: true,
+      description: 'Whether automatic renewal is enabled via direct debit contract',
+    }),
+    // Legacy fields for zarinpal-oneoff compatibility (deprecated)
+    paymentUrl: z.string().url().optional().openapi({
+      example: 'https://www.zarinpal.com/pg/StartPay/A00000000000000000000000000123456789',
+      description: 'ZarinPal payment gateway URL (only for legacy zarinpal-oneoff)',
+    }),
+    authority: z.string().optional().openapi({
       example: 'A00000000000000000000000000123456789',
-      description: 'ZarinPal payment authority token',
+      description: 'ZarinPal payment authority (only for legacy zarinpal-oneoff)',
     }),
   }),
 ).openapi('CreateSubscriptionResponse');

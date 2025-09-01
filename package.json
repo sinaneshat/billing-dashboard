@@ -92,6 +92,8 @@
     "db:reset:local": "chmod +x ./src/db/scripts/reset_and_reseed.sh && ./src/db/scripts/reset_and_reseed.sh local",
     "db:reset:preview": "chmod +x ./src/db/scripts/reset_and_reseed.sh && ./src/db/scripts/reset_and_reseed.sh preview",
     "db:reset:prod": "chmod +x ./src/db/scripts/reset_and_reseed.sh && ./src/db/scripts/reset_and_reseed.sh prod",
+    "db:fresh": "chmod +x ./scripts/reset-db-clean.sh && ./scripts/reset-db-clean.sh",
+    "db:fresh:quick": "pnpm db:drop-all:local && pnpm db:migrate:local && npx tsx scripts/reset-db-fresh.ts",
     "blog:schema": "tsc -p tsconfig.json src/tools/blog-generator/schema.ts",
     "blog:generate": "chmod +x ./src/tools/blog-generator/generate-blog.sh && ./src/tools/blog-generator/generate-blog.sh",
     "blog:generate:ts": "tsx src/tools/blog-generator/run-blog-generator.ts",
