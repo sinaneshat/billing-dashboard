@@ -3,13 +3,11 @@ import type { RouteHandler } from '@hono/zod-openapi';
 import { HTTPException } from 'hono/http-exception';
 import * as HttpStatusCodes from 'stoker/http-status-codes';
 
-import type { ImageType } from '@/api/common/image-validation';
-import {
-  generateImageKey,
-  getExtensionFromMimeType,
-  validateImage,
-} from '@/api/common/image-validation';
+import { extractFile, extractOptionalString } from '@/api/common';
+import type { ImageType } from '@/api/common/file-validation';
+import { FileValidator } from '@/api/common/file-validation';
 import { ok } from '@/api/common/responses';
+import { getStringFromObject } from '@/api/common/type-utils';
 import type { ApiEnv } from '@/api/types';
 
 import type {
@@ -32,18 +30,12 @@ export const uploadUserAvatarHandler: RouteHandler<typeof uploadUserAvatarRoute,
     });
   }
 
-  // Parse multipart form data
+  // Parse multipart form data safely
   const formData = await c.req.formData();
-  const file = formData.get('file') as File;
-
-  if (!file) {
-    throw new HTTPException(HttpStatusCodes.BAD_REQUEST, {
-      message: 'No file provided',
-    });
-  }
+  const file = extractFile(formData, 'file');
 
   // Validate image
-  const validation = await validateImage(file, 'avatar');
+  const validation = await FileValidator.validateWithPreset(file, 'userAvatar');
   if (!validation.isValid) {
     throw new HTTPException(HttpStatusCodes.BAD_REQUEST, {
       message: validation.error,
@@ -51,8 +43,8 @@ export const uploadUserAvatarHandler: RouteHandler<typeof uploadUserAvatarRoute,
   }
 
   // Generate key for the new avatar
-  const extension = getExtensionFromMimeType(file.type);
-  const imageKey = generateImageKey('avatar', currentUser.id, extension);
+  const extension = FileValidator.getExtensionFromMimeType(file.type);
+  const imageKey = FileValidator.generateImageKey('userAvatar', currentUser.id, extension);
 
   // Check if user has an existing avatar and delete it
   let previousAvatarDeleted = false;
@@ -121,7 +113,7 @@ export const uploadUserAvatarHandler: RouteHandler<typeof uploadUserAvatarRoute,
 
 export const uploadCompanyImageHandler: RouteHandler<typeof uploadCompanyImageRoute, ApiEnv> = async (c) => {
   c.header('X-Route', 'images/company');
-  const { type } = c.req.param() as { type: string };
+  const routeType = getStringFromObject(c.req.param(), 'type', 'banner');
   const currentUser = c.get('user');
   const bucket = c.env.UPLOADS_R2_BUCKET;
 
@@ -131,19 +123,14 @@ export const uploadCompanyImageHandler: RouteHandler<typeof uploadCompanyImageRo
     });
   }
 
-  // Parse multipart form data
+  // Parse multipart form data safely
   const formData = await c.req.formData();
-  const file = formData.get('file') as File;
-
-  if (!file) {
-    throw new HTTPException(HttpStatusCodes.BAD_REQUEST, {
-      message: 'No file provided',
-    });
-  }
+  const file = extractFile(formData, 'file');
+  const type = extractOptionalString(formData, 'type') || routeType;
 
   // Validate image
-  const imageType: ImageType = type === 'logo' ? 'logo' : 'banner';
-  const validation = await validateImage(file, imageType);
+  const imageType: ImageType = type === 'logo' ? 'companyLogo' : 'companyBanner';
+  const validation = await FileValidator.validateWithPreset(file, imageType);
   if (!validation.isValid) {
     throw new HTTPException(HttpStatusCodes.BAD_REQUEST, {
       message: validation.error,
@@ -151,8 +138,8 @@ export const uploadCompanyImageHandler: RouteHandler<typeof uploadCompanyImageRo
   }
 
   // Generate key for the new image
-  const extension = getExtensionFromMimeType(file.type);
-  const imageKey = generateImageKey(imageType, currentUser.id, extension);
+  const extension = FileValidator.getExtensionFromMimeType(file.type);
+  const imageKey = FileValidator.generateImageKey(imageType, currentUser.id, extension);
 
   // Check if organization has an existing image of this type and delete it
   let previousImageDeleted = false;

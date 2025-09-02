@@ -1,14 +1,12 @@
-import { SubscriptionPlans } from '@/components/billing/subscription-plans';
-import { PageHeader } from '@/components/dashboard/page-header';
+'use client';
+
+import { SubscriptionPlansScreen } from '@/containers/screens/dashboard/billing';
+import { usePrefetchProducts, usePrefetchSubscriptions } from '@/lib/data/prefetch-utils';
 
 export default function PlansPage() {
-  return (
-    <div className="space-y-6">
-      <PageHeader
-        title="Subscription Plans"
-        description="Choose the perfect plan for your needs"
-      />
-      <SubscriptionPlans />
-    </div>
-  );
+  // Official TanStack Query prefetching - products for plans + current subscriptions
+  usePrefetchProducts();
+  usePrefetchSubscriptions();
+
+  return <SubscriptionPlansScreen />;
 }

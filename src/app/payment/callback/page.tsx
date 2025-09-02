@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { LoadingSpinner } from '@/components/ui/loading-spinner';
 import { processPaymentCallbackService } from '@/services/api';
+import { verifyDirectDebitContractService } from '@/services/api/payment-methods';
 
 type PaymentResult = {
   success: boolean;
@@ -25,10 +26,12 @@ function PaymentCallbackContent() {
   useEffect(() => {
     const handleCallback = async () => {
       try {
-        const authority = searchParams.get('Authority');
-        const status = searchParams.get('Status');
+        // Check if this is a direct debit contract callback or regular payment callback
+        const authority = searchParams.get('Authority'); // Regular payment
+        const paymanAuthority = searchParams.get('payman_authority'); // Direct debit contract
+        const status = searchParams.get('Status') || searchParams.get('status'); // Both formats
 
-        if (!authority || !status) {
+        if (!authority && !paymanAuthority) {
           setResult({
             success: false,
             error: 'Invalid payment parameters',
@@ -36,38 +39,112 @@ function PaymentCallbackContent() {
           return;
         }
 
-        // Process payment callback using proper service pattern
-        const data = await processPaymentCallbackService({
-          Authority: authority,
-          Status: status as 'OK' | 'NOK',
-        });
-
-        // The API returns { success: boolean, paymentId?, subscriptionId?, refId? }
-        // But the inferred type shows different structure, so cast it properly
-        const result = data as unknown as {
-          success: boolean;
-          paymentId?: string;
-          subscriptionId?: string;
-          refId?: string;
-        };
-
-        if (result.success) {
-          setResult({
-            success: true,
-            paymentId: result.paymentId,
-            subscriptionId: result.subscriptionId,
-            refId: result.refId,
-          });
-        } else {
+        if (!status) {
           setResult({
             success: false,
-            paymentId: result.paymentId,
-            subscriptionId: result.subscriptionId,
-            error: 'Payment was not completed successfully',
+            error: 'Missing payment status',
           });
+          return;
         }
-      } catch (error) {
-        console.error('Payment callback error:', error);
+
+        // Handle direct debit contract callback
+        if (paymanAuthority) {
+          // Get stored contract information from localStorage
+          const storedContract = localStorage.getItem('direct-debit-contract');
+          if (!storedContract) {
+            setResult({
+              success: false,
+              error: 'Contract information not found. Please try setting up direct debit again.',
+            });
+            return;
+          }
+
+          let contractInfo;
+          try {
+            contractInfo = JSON.parse(storedContract);
+          } catch {
+            setResult({
+              success: false,
+              error: 'Invalid contract information. Please try setting up direct debit again.',
+            });
+            return;
+          }
+
+          // Verify the contract
+          try {
+            const contractResult = await verifyDirectDebitContractService({
+              json: {
+                paymanAuthority,
+                status: status.toUpperCase() as 'OK' | 'NOK',
+                contractId: contractInfo.contractId,
+              },
+            });
+
+            // Clean up localStorage
+            localStorage.removeItem('direct-debit-contract');
+
+            if (contractResult.success && contractResult.data) {
+              if (contractResult.data.contractVerified) {
+                setResult({
+                  success: true,
+                  paymentId: contractResult.data.paymentMethodId,
+                  refId: contractResult.data.signature?.substring(0, 10), // Show first 10 chars of signature
+                });
+              } else {
+                setResult({
+                  success: false,
+                  error: contractResult.data.error?.message || 'Contract verification failed',
+                });
+              }
+            } else {
+              setResult({
+                success: false,
+                error: 'Failed to verify direct debit contract',
+              });
+            }
+          } catch (contractError) {
+            setResult({
+              success: false,
+              error: contractError instanceof Error ? contractError.message : 'Contract verification failed',
+            });
+          }
+
+          return;
+        }
+
+        // Handle regular payment callback (legacy)
+        if (authority) {
+          const data = await processPaymentCallbackService({
+            Authority: authority,
+            Status: status as 'OK' | 'NOK',
+          });
+
+          // The API returns { success: boolean, paymentId?, subscriptionId?, refId? }
+          // But the inferred type shows different structure, so cast it properly
+          const result = data as unknown as {
+            success: boolean;
+            paymentId?: string;
+            subscriptionId?: string;
+            refId?: string;
+          };
+
+          if (result.success) {
+            setResult({
+              success: true,
+              paymentId: result.paymentId,
+              subscriptionId: result.subscriptionId,
+              refId: result.refId,
+            });
+          } else {
+            setResult({
+              success: false,
+              paymentId: result.paymentId,
+              subscriptionId: result.subscriptionId,
+              error: 'Payment was not completed successfully',
+            });
+          }
+        }
+      } catch {
         setResult({
           success: false,
           error: 'Payment processing error',
@@ -119,8 +196,8 @@ function PaymentCallbackContent() {
           </CardTitle>
           <CardDescription>
             {result?.success
-              ? 'Your payment was successful and your subscription has been activated.'
-              : result?.error || 'Unfortunately your payment was not completed.'}
+              ? 'Your direct debit contract has been successfully set up and your payment method is now active.'
+              : result?.error || 'Unfortunately the setup was not completed.'}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">

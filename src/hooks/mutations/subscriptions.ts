@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 
 import { queryKeys } from '@/lib/data/query-keys';
+import { logError } from '@/lib/utils/safe-logger';
 import type {
   CancelSubscriptionRequest,
   ChangePlanRequest,
@@ -37,7 +38,7 @@ export function useCreateSubscriptionMutation() {
     },
     onError: (error) => {
       // Enhanced error logging for debugging
-      console.error('Failed to create subscription:', error);
+      logError('Failed to create subscription', error);
     },
     // Enhanced retry logic for subscription creation
     retry: (failureCount, error: unknown) => {
@@ -91,7 +92,7 @@ export function useCancelSubscriptionMutation() {
       if (context?.previousSubscription) {
         queryClient.setQueryData(queryKeys.subscriptions.current(), context.previousSubscription);
       }
-      console.error('Failed to cancel subscription:', error);
+      logError('Failed to cancel subscription', error);
     },
     onSuccess: () => {
       // Invalidate queries after successful cancellation
@@ -118,7 +119,7 @@ export function useResubscribeMutation() {
       queryClient.invalidateQueries({ queryKey: queryKeys.payments.all });
     },
     onError: (error) => {
-      console.error('Failed to resubscribe:', error);
+      logError('Failed to resubscribe', error);
     },
     retry: 1,
   });
@@ -153,7 +154,7 @@ export function useChangePlanMutation() {
           context.previousSubscription,
         );
       }
-      console.error('Failed to change subscription plan:', error);
+      logError('Failed to change subscription plan', error);
     },
     onSuccess: (data, variables) => {
       // Invalidate relevant queries

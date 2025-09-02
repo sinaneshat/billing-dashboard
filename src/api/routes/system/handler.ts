@@ -2,6 +2,7 @@ import type { RouteHandler } from '@hono/zod-openapi';
 import * as HttpStatusCodes from 'stoker/http-status-codes';
 
 import { ok } from '@/api/common/responses';
+import { apiLogger } from '@/api/middleware/hono-logger';
 import type { ApiEnv } from '@/api/types';
 
 import type { detailedHealthRoute, healthRoute } from './route';
@@ -35,7 +36,7 @@ export const detailedHealthHandler: RouteHandler<typeof detailedHealthRoute, Api
     }
   } catch (error) {
     dbStatus = 'error';
-    console.error('Database health check failed:', error);
+    apiLogger.error('Database health check failed', { error });
   }
 
   const isHealthy = dbStatus === 'ok';

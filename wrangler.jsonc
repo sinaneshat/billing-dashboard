@@ -113,27 +113,18 @@
       ],
       "vars": {
         "NEXT_PUBLIC_WEBAPP_ENV": "preview",
-        "NEXT_PUBLIC_APP_URL": "https://preview.example.com",
+        "NEXT_PUBLIC_APP_URL": "https://billing-dashboard-preview.workers.dev",
         "NEXT_PUBLIC_MAINTENANCE": "false",
-        "NEXT_PUBLIC_TURNSTILE_SITE_KEY": "site-key",
-        "R2_PUBLIC_URL": "https://uploads-preview.example.com",
+        "NEXT_PUBLIC_TURNSTILE_SITE_KEY": "1x00000000000000000000AA",
+        "R2_PUBLIC_URL": "https://billing-dashboard-preview.workers.dev/uploads",
         "OPEN_NEXT_DEBUG": "false",
         "NEXTJS_ENV": "production",
         "NODE_VERSION": "22.14.0",
         "PNPM_VERSION": "10.10.0",
         "NODE_ENV": "production"
         // Secrets set via wrangler secrets for security
-      },
-      "routes": [
-        {
-          "pattern": "preview.example.com",
-          "custom_domain": true
-        },
-        {
-          "pattern": "www.preview.example.com",
-          "custom_domain": true
-        }
-      ]
+        // Custom domains should be configured after deployment
+      }
     },
     "production": {
       "name": "billing-dashboard-production",
@@ -173,27 +164,18 @@
       ],
       "vars": {
         "NEXT_PUBLIC_WEBAPP_ENV": "prod",
-        "NEXT_PUBLIC_APP_URL": "https://app.example.com",
+        "NEXT_PUBLIC_APP_URL": "https://billing-dashboard-production.workers.dev",
         "NEXT_PUBLIC_MAINTENANCE": "false",
-        "NEXT_PUBLIC_TURNSTILE_SITE_KEY": "site-key",
-        "R2_PUBLIC_URL": "https://uploads.example.com",
+        "NEXT_PUBLIC_TURNSTILE_SITE_KEY": "1x00000000000000000000AA",
+        "R2_PUBLIC_URL": "https://billing-dashboard-production.workers.dev/uploads",
         "OPEN_NEXT_DEBUG": "false",
         "NEXTJS_ENV": "production",
         "NODE_VERSION": "22.14.0",
         "PNPM_VERSION": "10.10.0",
         "NODE_ENV": "production"
         // Secrets set via wrangler secrets for security
-      },
-      "routes": [
-        {
-          "pattern": "app.example.com",
-          "custom_domain": true
-        },
-        {
-          "pattern": "www.app.example.com",
-          "custom_domain": true
-        }
-      ]
+        // Custom domains should be configured after deployment
+      }
     }
   }
 }

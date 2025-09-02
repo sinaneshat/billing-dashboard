@@ -1,2 +1,2 @@
 export { attachSession, requireApiKey, requireMasterKey, requireSession } from './auth';
-export { createRateLimitMiddleware } from './rate-limit';
+export { RateLimiterFactory as createRateLimitMiddleware } from './rate-limiter-factory';

@@ -1,7 +1,7 @@
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
-import { AlertCircle, Calendar, Check, Clock, CreditCard, Package, RefreshCw, User, X } from 'lucide-react';
+import { AlertCircle, Calendar, Check, CheckCircle, Clock, CreditCard, Download, Package, RefreshCw, User, X } from 'lucide-react';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
@@ -14,14 +14,15 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { LoadingSpinner } from '@/components/ui/loading-spinner';
 import { Separator } from '@/components/ui/separator';
+// ✅ Form schema using drizzle-zod - single source of truth
+import { productSelectSchema } from '@/db/validation/billing';
 import { useChangePlanMutation } from '@/hooks/mutations/subscriptions';
 import { useProductsQuery } from '@/hooks/queries/products';
 import { useSubscriptionQuery } from '@/hooks/queries/subscriptions';
 import { formatTomanCurrency } from '@/lib/i18n/currency-utils';
 
-// Form schema for plan change
 const changePlanSchema = z.object({
-  productId: z.string().min(1, 'Please select a plan'),
+  productId: productSelectSchema.shape.id.min(1, 'Please select a plan'),
   effectiveDate: z.enum(['immediate', 'next_billing_cycle']),
 });
 
@@ -96,7 +97,7 @@ function ChangePlanDialog({ subscription, onChangePlan, isLoading }: ChangePlanD
 
   const selectedProductId = form.watch('productId');
 
-  const { data: products } = useProductsQuery({ query: { limit: '50' } });
+  const { data: products } = useProductsQuery();
 
   const availableProducts = products?.success && Array.isArray(products.data)
     ? products.data.filter(product =>
@@ -263,8 +264,7 @@ export function SubscriptionDetails({ subscriptionId, onBack }: SubscriptionDeta
       } else {
         toast.error('Failed to change plan. Please try again.');
       }
-    } catch (error) {
-      console.error('Failed to change plan:', error);
+    } catch {
       toast.error('Failed to change plan. Please try again.');
     }
   };
@@ -478,12 +478,14 @@ export function SubscriptionDetails({ subscriptionId, onBack }: SubscriptionDeta
             )}
 
             {subscription.status === 'canceled' && (
-              <Button>
+              <Button aria-label="Reactivate subscription">
+                <CheckCircle className="h-4 w-4 mr-2" />
                 Reactivate Subscription
               </Button>
             )}
 
-            <Button variant="outline">
+            <Button variant="outline" aria-label="Download receipt">
+              <Download className="h-4 w-4 mr-2" />
               Download Receipt
             </Button>
           </div>

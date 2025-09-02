@@ -5,9 +5,11 @@
 
 import type { RouteHandler } from '@hono/zod-openapi';
 import { desc, like } from 'drizzle-orm';
+import { HTTPException } from 'hono/http-exception';
 import * as HttpStatusCodes from 'stoker/http-status-codes';
 
 import { ok } from '@/api/common/responses';
+import { apiLogger } from '@/api/middleware/hono-logger';
 import type { ApiEnv } from '@/api/types';
 import { db } from '@/db';
 import { payment, subscription, user } from '@/db/schema';
@@ -52,9 +54,11 @@ export const adminStatsHandler: RouteHandler<typeof adminStatsRoute, ApiEnv> = a
     };
 
     return ok(c, stats);
-  } catch (error) {
-    console.error('Admin stats error:', error);
-    return c.json({ code: HttpStatusCodes.INTERNAL_SERVER_ERROR, message: 'Failed to fetch platform statistics' }, HttpStatusCodes.INTERNAL_SERVER_ERROR);
+  } catch (err) {
+    apiLogger.error('Admin stats error', { error: err });
+    throw new HTTPException(HttpStatusCodes.INTERNAL_SERVER_ERROR, {
+      message: 'Internal server error',
+    });
   }
 };
 
@@ -90,9 +94,11 @@ export const adminUsersHandler: RouteHandler<typeof adminUsersRoute, ApiEnv> = a
         pages: Math.ceil(totalUsers / limit),
       },
     });
-  } catch (error) {
-    console.error('Admin users error:', error);
-    return c.json({ code: HttpStatusCodes.INTERNAL_SERVER_ERROR, message: 'Failed to fetch users' }, HttpStatusCodes.INTERNAL_SERVER_ERROR);
+  } catch (err) {
+    apiLogger.error('Admin users error', { error: err });
+    throw new HTTPException(HttpStatusCodes.INTERNAL_SERVER_ERROR, {
+      message: 'Internal server error',
+    });
   }
 };
 
@@ -142,11 +148,10 @@ export const adminTestWebhookHandler: RouteHandler<typeof adminTestWebhookRoute,
         : `Failed to send webhook: ${response.status} ${response.statusText}`,
       webhook_url: webhookUrl,
     });
-  } catch (error) {
-    console.error('Admin test webhook error:', error);
-    return c.json(
-      { code: HttpStatusCodes.INTERNAL_SERVER_ERROR, message: 'Failed to send test webhook' },
-      HttpStatusCodes.INTERNAL_SERVER_ERROR,
-    );
+  } catch (err) {
+    apiLogger.error('Admin test webhook error', { error: err });
+    throw new HTTPException(HttpStatusCodes.INTERNAL_SERVER_ERROR, {
+      message: 'Internal server error',
+    });
   }
 };

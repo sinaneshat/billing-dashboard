@@ -53,7 +53,7 @@ class EmailService {
     text?: string;
   }) {
     if (!this.sesClient) {
-      console.warn('Email service not configured. Skipping email send.');
+      // Email service not configured, skip silently
       return;
     }
 
@@ -85,14 +85,9 @@ class EmailService {
       ReplyToAddresses: [this.replyToEmail],
     });
 
-    try {
-      const response = await this.sesClient.send(command);
-      // Email sent successfully
-      return response;
-    } catch (error) {
-      console.error('Failed to send email:', error);
-      throw error;
-    }
+    const response = await this.sesClient.send(command);
+    // Email sent successfully
+    return response;
   }
 
   async sendWelcomeEmail(to: string, userName: string) {

@@ -1,4 +1,4 @@
-import type { StoragePurpose } from '@/api/middleware/storage-security';
+import type { StoragePurpose } from '@/api/common/storage-keys';
 import type { Session, User } from '@/lib/auth/types';
 
 export type ApiEnv = {

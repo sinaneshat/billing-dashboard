@@ -29,36 +29,31 @@ export const queryKeys = {
     status: ['health', 'status'],
   },
 
-  // Image queries
-  images: {
-    all: ['images'],
-    avatars: (userId?: string) => ['images', 'avatars', userId || 'all'],
-    currentAvatar: () => ['images', 'avatars', 'current'],
-    filtered: (query?: string) => ['images', 'filtered', query],
-  },
+  // Image queries removed - use session.user.image instead of API calls
 
   // Billing queries
   products: {
     all: ['products'],
-    list: (filters?: Record<string, unknown>) => ['products', 'list', filters],
+    list: (filters?: Record<string, unknown>) => ['products', 'list', ...(filters ? [filters] : [])],
   },
 
   subscriptions: {
     all: ['subscriptions'],
-    list: (filters?: Record<string, unknown>) => ['subscriptions', 'list', filters],
+    list: (filters?: Record<string, unknown>) => ['subscriptions', 'list', ...(filters ? [filters] : [])],
     detail: (subscriptionId: string) => ['subscriptions', 'detail', subscriptionId],
     current: () => ['subscriptions', 'current'],
   },
 
   payments: {
     all: ['payments'],
-    history: (filters?: Record<string, unknown>) => ['payments', 'history', filters],
+    list: (filters?: Record<string, unknown>) => ['payments', 'list', ...(filters ? [filters] : [])],
+    history: (filters?: Record<string, unknown>) => ['payments', 'history', ...(filters ? [filters] : [])],
     detail: (paymentId: string) => ['payments', 'detail', paymentId],
   },
 
   paymentMethods: {
     all: ['paymentMethods'],
-    list: (filters?: Record<string, unknown>) => ['paymentMethods', 'list', filters],
+    list: (filters?: Record<string, unknown>) => ['paymentMethods', 'list', ...(filters ? [filters] : [])],
     detail: (paymentMethodId: string) => ['paymentMethods', 'detail', paymentMethodId],
   },
 };
@@ -105,23 +100,7 @@ export const invalidationPatterns = {
     queryKeys.organizations.all,
   ],
 
-  // When images change
-  images: [
-    queryKeys.images.all,
-    queryKeys.auth.session, // User avatar affects session
-    queryKeys.users.current(), // User avatar affects current user
-  ],
-
-  // When user avatar changes
-  userAvatar: [
-    queryKeys.images.avatars(),
-    queryKeys.images.currentAvatar(),
-    queryKeys.auth.all,
-    queryKeys.users.current(),
-  ],
-
-  // When organization images change
-  organizationImages: () => [queryKeys.images.all],
+  // Image invalidation patterns removed - use session.user.image instead
 
   // When products change
   products: [

@@ -27,16 +27,13 @@ function getLocalDbPath(): string {
     const dbFile = files.find(file => file.endsWith('.sqlite'));
     if (dbFile) {
       const fullPath = path.join(LOCAL_DB_PATH, dbFile);
-      console.error(`[DB] Using SQLite database: ${fullPath}`);
       return fullPath;
     }
-  } catch (error) {
-    console.error('[DB] Error reading database directory:', error);
+  } catch {
   }
 
   // Return default path
   const defaultPath = path.join(LOCAL_DB_PATH, 'database.sqlite');
-  console.error(`[DB] Using default SQLite database: ${defaultPath}`);
   return defaultPath;
 }
 

@@ -8,6 +8,11 @@
 import { HTTPException } from 'hono/http-exception';
 import * as HttpStatusCodes from 'stoker/http-status-codes';
 
+import {
+  asReadableStream,
+  convertToR2CustomMetadata,
+  parseR2CustomMetadata,
+} from '@/api/common/type-utils';
 import type { Session, User } from '@/lib/auth/types';
 
 export type R2Metadata = {
@@ -79,7 +84,7 @@ export class R2StorageService {
     key: string,
     data: ArrayBuffer | ReadableStream,
     options: PutObjectOptions = {},
-  ): Promise<R2Object | null> {
+  ) {
     try {
       const httpMetadata: Record<string, string> = {};
 
@@ -96,12 +101,11 @@ export class R2StorageService {
 
       const result = await this.bucket.put(key, data, {
         httpMetadata,
-        customMetadata: options.metadata as Record<string, string>,
+        customMetadata: convertToR2CustomMetadata(options.metadata),
       });
 
       return result;
-    } catch (error) {
-      console.error('R2 put error:', error);
+    } catch {
       throw new HTTPException(HttpStatusCodes.INTERNAL_SERVER_ERROR, {
         message: 'Failed to upload to storage',
       });
@@ -111,11 +115,10 @@ export class R2StorageService {
   /**
    * Get an object from R2
    */
-  async getObject(key: string): Promise<R2ObjectBody | null> {
+  async getObject(key: string) {
     try {
       return await this.bucket.get(key);
-    } catch (error) {
-      console.error('R2 get error:', error);
+    } catch {
       throw new HTTPException(HttpStatusCodes.INTERNAL_SERVER_ERROR, {
         message: 'Failed to retrieve from storage',
       });
@@ -125,11 +128,10 @@ export class R2StorageService {
   /**
    * Get object metadata without downloading the content
    */
-  async headObject(key: string): Promise<R2Object | null> {
+  async headObject(key: string) {
     try {
       return await this.bucket.head(key);
-    } catch (error) {
-      console.error('R2 head error:', error);
+    } catch {
       return null;
     }
   }
@@ -137,11 +139,10 @@ export class R2StorageService {
   /**
    * Delete an object from R2
    */
-  async deleteObject(key: string): Promise<void> {
+  async deleteObject(key: string) {
     try {
       await this.bucket.delete(key);
-    } catch (error) {
-      console.error('R2 delete error:', error);
+    } catch {
       throw new HTTPException(HttpStatusCodes.INTERNAL_SERVER_ERROR, {
         message: 'Failed to delete from storage',
       });
@@ -154,7 +155,7 @@ export class R2StorageService {
   async listObjects(
     options: R2ListOptions = {},
     filterFn?: (obj: R2Object) => boolean,
-  ): Promise<ListObjectsResult> {
+  ) {
     try {
       const listed = await this.bucket.list(options);
 
@@ -163,7 +164,7 @@ export class R2StorageService {
         size: obj.size,
         etag: obj.etag,
         uploaded: obj.uploaded.toISOString(),
-        metadata: obj.customMetadata as R2Metadata,
+        metadata: parseR2CustomMetadata<R2Metadata>(obj.customMetadata),
       }));
 
       // Apply optional filter
@@ -176,8 +177,7 @@ export class R2StorageService {
         truncated: listed.truncated,
         cursor: listed.truncated ? listed.cursor : undefined,
       };
-    } catch (error) {
-      console.error('R2 list error:', error);
+    } catch {
       throw new HTTPException(HttpStatusCodes.INTERNAL_SERVER_ERROR, {
         message: 'Failed to list storage objects',
       });
@@ -243,18 +243,17 @@ export class R2StorageService {
   async generateSignedUrl(
     key: string,
     _expiresIn: number = 3600,
-  ): Promise<string> {
+  ) {
     // This would generate a signed URL for temporary access
     // Implementation depends on R2's signed URL capabilities
     // For now, return regular public URL
-    console.warn('Signed URLs not yet implemented, returning public URL');
     return `/api/v1/storage/${key}`;
   }
 
   /**
    * Copy an object within the bucket
    */
-  async copyObject(sourceKey: string, destinationKey: string): Promise<R2Object | null> {
+  async copyObject(sourceKey: string, destinationKey: string) {
     try {
       const source = await this.getObject(sourceKey);
       if (!source) {
@@ -268,12 +267,11 @@ export class R2StorageService {
       const metadata = sourceHead?.customMetadata;
 
       // Copy the object
-      return await this.putObject(destinationKey, source.body as ReadableStream, {
+      return await this.putObject(destinationKey, asReadableStream(source.body), {
         contentType: source.httpMetadata?.contentType,
-        metadata: metadata as R2Metadata,
+        metadata: parseR2CustomMetadata<R2Metadata>(metadata),
       });
-    } catch (error) {
-      console.error('R2 copy error:', error);
+    } catch {
       throw new HTTPException(HttpStatusCodes.INTERNAL_SERVER_ERROR, {
         message: 'Failed to copy object',
       });
@@ -283,7 +281,7 @@ export class R2StorageService {
   /**
    * Check if an object exists
    */
-  async exists(key: string): Promise<boolean> {
+  async exists(key: string) {
     const head = await this.headObject(key);
     return head !== null;
   }
@@ -291,10 +289,7 @@ export class R2StorageService {
   /**
    * Get storage statistics for a prefix
    */
-  async getStorageStats(prefix: string): Promise<{
-    totalSize: number;
-    objectCount: number;
-  }> {
+  async getStorageStats(prefix: string) {
     let totalSize = 0;
     let objectCount = 0;
     let cursor: string | undefined;

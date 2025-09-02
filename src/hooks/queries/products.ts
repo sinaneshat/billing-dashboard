@@ -1,35 +1,18 @@
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 
 import { queryKeys } from '@/lib/data/query-keys';
-import type { GetProductsRequest } from '@/services/api/products';
 import { getProductsService } from '@/services/api/products';
 
 /**
- * Hook to fetch all available products
- * Following the Shakewell pattern for React Query hooks
+ * Hook to fetch ALL available products (no pagination)
+ * Simple TanStack Query pattern - shows all products always
  */
-export function useProductsQuery(args?: GetProductsRequest) {
+export function useProductsQuery() {
   return useQuery({
-    queryKey: queryKeys.products.list(args),
-    queryFn: () => getProductsService(args),
-    staleTime: 10 * 60 * 1000, // 10 minutes - products are relatively stable
-    gcTime: 15 * 60 * 1000, // 15 minutes
+    queryKey: queryKeys.products.list(),
+    queryFn: () => getProductsService(), // No args = fetch all products
+    staleTime: 10 * 60 * 1000, // 10 minutes - products are stable
     retry: 2,
+    throwOnError: false,
   });
-}
-
-/**
- * Hook to prefetch products data
- * Useful for optimistic loading
- */
-export function usePrefetchProducts() {
-  const queryClient = useQueryClient();
-
-  return (args?: GetProductsRequest) => {
-    queryClient.prefetchQuery({
-      queryKey: queryKeys.products.list(args),
-      queryFn: () => getProductsService(args),
-      staleTime: 10 * 60 * 1000,
-    });
-  };
 }

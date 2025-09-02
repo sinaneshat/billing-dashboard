@@ -2,6 +2,8 @@ import { createMiddleware } from 'hono/factory';
 
 import type { ApiEnv } from '@/api/types';
 
+import { apiLogger } from './hono-logger';
+
 /**
  * Performance monitoring middleware
  * Tracks request duration and logs slow requests
@@ -20,7 +22,12 @@ export const performanceMiddleware = createMiddleware<ApiEnv>(async (c, next) =>
 
   // Log slow requests (> 1 second)
   if (duration > 1000) {
-    console.warn(`Slow request detected: ${c.req.method} ${c.req.url} - ${duration}ms`);
+    apiLogger.warn('Slow request detected', {
+      method: c.req.method,
+      url: c.req.url,
+      duration,
+      component: 'performance',
+    });
   }
 
   // Log performance metrics to console in development
@@ -29,7 +36,13 @@ export const performanceMiddleware = createMiddleware<ApiEnv>(async (c, next) =>
     const path = new URL(c.req.url).pathname;
     const status = c.res.status;
 
-    console.warn(`[${new Date().toISOString()}] ${method} ${path} ${status} - ${duration}ms`);
+    apiLogger.info('Request completed', {
+      method,
+      path,
+      status,
+      duration,
+      component: 'performance',
+    });
   }
 });
 
@@ -57,6 +70,6 @@ export const metricsMiddleware = createMiddleware<ApiEnv>(async (c, next) => {
       userAgent: c.req.header('user-agent') || 'unknown',
     };
     // Example: await sendMetricsToService(metricsData);
-    console.warn('Performance metrics:', metricsData);
+    apiLogger.debug('Performance metrics', { metrics: metricsData, component: 'performance' });
   }
 });

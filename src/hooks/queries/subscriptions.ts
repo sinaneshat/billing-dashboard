@@ -1,76 +1,57 @@
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 
 import { queryKeys } from '@/lib/data/query-keys';
-import type {
-  GetSubscriptionsRequest,
-} from '@/services/api/subscriptions';
 import {
   getSubscriptionService,
   getSubscriptionsService,
 } from '@/services/api/subscriptions';
 
 /**
- * Hook to fetch all user subscriptions
- * Following the Shakewell pattern for React Query hooks
+ * Hook to fetch ALL user subscriptions (no pagination)
+ * Simple TanStack Query pattern - shows all records always
  */
-export function useSubscriptionsQuery(args?: GetSubscriptionsRequest) {
+export function useSubscriptionsQuery() {
   return useQuery({
-    queryKey: queryKeys.subscriptions.list(args),
-    queryFn: () => getSubscriptionsService(args),
-    staleTime: 2 * 60 * 1000, // 2 minutes - subscriptions change fairly frequently
-    gcTime: 10 * 60 * 1000, // 10 minutes
+    queryKey: queryKeys.subscriptions.list(),
+    queryFn: () => getSubscriptionsService(), // No args = fetch all records
+    staleTime: 2 * 60 * 1000, // 2 minutes
     retry: 2,
+    throwOnError: false,
   });
 }
 
 /**
- * Hook to fetch current user's active subscription
- * This is a specialized query for the most common use case
- */
-export function useCurrentSubscriptionQuery() {
-  return useQuery({
-    queryKey: queryKeys.subscriptions.current(),
-    queryFn: () => getSubscriptionsService({ query: { status: 'active', limit: '1' } }),
-    staleTime: 1 * 60 * 1000, // 1 minute - current subscription is critical
-    gcTime: 5 * 60 * 1000, // 5 minutes
-    retry: 3,
-    select: (data) => {
-      // Extract the first subscription if successful
-      if (data.success && data.data && Array.isArray(data.data) && data.data.length > 0) {
-        return data.data[0];
-      }
-      return null;
-    },
-  });
-}
-
-/**
- * Hook to fetch a single subscription by ID
- * Following the Shakewell pattern for React Query hooks
+ * Hook to fetch single subscription by ID
+ * Simple TanStack Query pattern
  */
 export function useSubscriptionQuery(subscriptionId: string) {
   return useQuery({
     queryKey: queryKeys.subscriptions.detail(subscriptionId),
     queryFn: () => getSubscriptionService(subscriptionId),
-    staleTime: 2 * 60 * 1000, // 2 minutes - subscription details change fairly frequently
-    gcTime: 10 * 60 * 1000, // 10 minutes
+    staleTime: 2 * 60 * 1000,
     retry: 2,
-    enabled: !!subscriptionId, // Only run if subscription ID is provided
+    throwOnError: false,
+    enabled: !!subscriptionId,
   });
 }
 
 /**
- * Hook to prefetch subscriptions data
- * Useful for optimistic loading
+ * Simple current subscription query for backward compatibility
+ * Uses SAME query key as subscriptions list to leverage prefetched cache
+ * Just selects the active subscription from the already cached data
  */
-export function usePrefetchSubscriptions() {
-  const queryClient = useQueryClient();
-
-  return (args?: GetSubscriptionsRequest) => {
-    queryClient.prefetchQuery({
-      queryKey: queryKeys.subscriptions.list(args),
-      queryFn: () => getSubscriptionsService(args),
-      staleTime: 2 * 60 * 1000,
-    });
-  };
+export function useCurrentSubscriptionQuery() {
+  return useQuery({
+    queryKey: queryKeys.subscriptions.list(), // ✅ Same key as prefetch and list query
+    queryFn: () => getSubscriptionsService(),
+    staleTime: 2 * 60 * 1000,
+    retry: 2,
+    throwOnError: false,
+    select: (data) => {
+      if (data.success && data.data && Array.isArray(data.data) && data.data.length > 0) {
+        return data.data.find((sub: { status: string }) => sub.status === 'active') || data.data[0];
+      }
+      return null;
+    },
+  });
 }

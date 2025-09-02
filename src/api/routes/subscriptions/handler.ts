@@ -3,12 +3,13 @@ import { and, desc, eq } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import * as HttpStatusCodes from 'stoker/http-status-codes';
 
+import { parsePlanChangeHistory } from '@/api/common';
 import { created, ok } from '@/api/common/responses';
 import { ZarinPalService } from '@/api/services/zarinpal';
 import type { ApiEnv } from '@/api/types';
 import { db } from '@/db';
 import { payment, paymentMethod, product, subscription } from '@/db/tables/billing';
-import type { PlanChangeHistoryItem } from '@/db/validation';
+import { logError } from '@/lib/utils/safe-logger';
 
 import type {
   cancelSubscriptionRoute,
@@ -41,20 +42,9 @@ export const getSubscriptionsHandler: RouteHandler<typeof getSubscriptionsRoute,
       .where(eq(subscription.userId, user.id))
       .orderBy(desc(subscription.createdAt));
 
-    const transformedSubscriptions = subscriptions.map(row => ({
-      id: row.subscription.id,
-      userId: row.subscription.userId,
-      productId: row.subscription.productId,
-      status: row.subscription.status,
-      startDate: row.subscription.startDate.toISOString(),
-      endDate: row.subscription.endDate?.toISOString() ?? null,
-      nextBillingDate: row.subscription.nextBillingDate?.toISOString() ?? null,
-      currentPrice: row.subscription.currentPrice,
-      billingPeriod: row.subscription.billingPeriod,
-      directDebitContractId: row.subscription.directDebitContractId,
-      directDebitSignature: row.subscription.directDebitSignature,
-      createdAt: row.subscription.createdAt.toISOString(),
-      updatedAt: row.subscription.updatedAt.toISOString(),
+    // ✅ Return complete drizzle schema data with product joined
+    const subscriptionsWithProduct = subscriptions.map(row => ({
+      ...row.subscription,
       product: {
         id: row.product.id,
         name: row.product.name,
@@ -63,9 +53,9 @@ export const getSubscriptionsHandler: RouteHandler<typeof getSubscriptionsRoute,
       },
     }));
 
-    return ok(c, transformedSubscriptions);
+    return ok(c, subscriptionsWithProduct);
   } catch (error) {
-    console.error('Failed to fetch subscriptions:', error);
+    logError('Failed to fetch subscriptions', error);
     throw new HTTPException(HttpStatusCodes.INTERNAL_SERVER_ERROR, {
       message: 'Failed to fetch subscriptions',
     });
@@ -102,21 +92,10 @@ export const getSubscriptionHandler: RouteHandler<typeof getSubscriptionRoute, A
       });
     }
 
+    // ✅ Return complete drizzle schema data with product joined
     const row = subscriptionData[0]!;
-    const transformedSubscription = {
-      id: row.subscription.id,
-      userId: row.subscription.userId,
-      productId: row.subscription.productId,
-      status: row.subscription.status,
-      startDate: row.subscription.startDate.toISOString(),
-      endDate: row.subscription.endDate?.toISOString() ?? null,
-      nextBillingDate: row.subscription.nextBillingDate?.toISOString() ?? null,
-      currentPrice: row.subscription.currentPrice,
-      billingPeriod: row.subscription.billingPeriod,
-      directDebitContractId: row.subscription.directDebitContractId,
-      directDebitSignature: row.subscription.directDebitSignature,
-      createdAt: row.subscription.createdAt.toISOString(),
-      updatedAt: row.subscription.updatedAt.toISOString(),
+    const subscriptionWithProduct = {
+      ...row.subscription,
       product: {
         id: row.product.id,
         name: row.product.name,
@@ -125,12 +104,12 @@ export const getSubscriptionHandler: RouteHandler<typeof getSubscriptionRoute, A
       },
     };
 
-    return ok(c, transformedSubscription);
+    return ok(c, subscriptionWithProduct);
   } catch (error) {
     if (error instanceof HTTPException) {
       throw error;
     }
-    console.error('Failed to fetch subscription:', error);
+    logError('Failed to fetch subscription', error);
     throw new HTTPException(HttpStatusCodes.INTERNAL_SERVER_ERROR, {
       message: 'Failed to fetch subscription',
     });
@@ -189,145 +168,196 @@ export const createSubscriptionHandler: RouteHandler<typeof createSubscriptionRo
     }
 
     // Create subscription in pending status
-    const subscriptionId = crypto.randomUUID();
-    const startDate = new Date();
-    const nextBillingDate = selectedProduct.billingPeriod === 'monthly'
-      ? new Date(startDate.getTime() + 30 * 24 * 60 * 60 * 1000)
-      : null;
+    // ✅ CRITICAL FIX: Wrap entire subscription creation flow in transaction for atomicity
+    let subscriptionId: string;
+    let paymentId: string | undefined;
+    let resultPayload: {
+      subscriptionId: string;
+      paymentMethod: typeof requestedPaymentMethod;
+      contractId?: string;
+      autoRenewalEnabled: boolean;
+      paymentId?: string;
+      needsPaymentInitialization?: boolean;
+    } | undefined;
 
-    await db.insert(subscription).values({
-      id: subscriptionId,
-      userId: user.id,
-      productId,
-      status: 'pending',
-      startDate,
-      nextBillingDate,
-      currentPrice: selectedProduct.price,
-      billingPeriod: selectedProduct.billingPeriod,
-    });
+    // Execute database operations in transaction
+    await db.transaction(async (tx) => {
+      subscriptionId = crypto.randomUUID();
+      const startDate = new Date();
+      const nextBillingDate = selectedProduct.billingPeriod === 'monthly'
+        ? new Date(startDate.getTime() + 30 * 24 * 60 * 60 * 1000)
+        : null;
 
-    // Handle subscription creation based on payment method
-    if (requestedPaymentMethod === 'direct-debit-contract') {
-      // Direct Debit Contract-based subscription (automatic renewal)
-      if (!contractId) {
-        throw new HTTPException(HttpStatusCodes.BAD_REQUEST, {
-          message: 'Contract ID is required for direct debit contract subscriptions',
-        });
-      }
-
-      // Verify the contract exists and belongs to the user
-      const contractData = await db
-        .select()
-        .from(paymentMethod)
-        .where(
-          and(
-            eq(paymentMethod.userId, user.id),
-            eq(paymentMethod.zarinpalCardHash, contractId), // Contract stored as cardHash
-            eq(paymentMethod.cardType, 'direct_debit_contract'),
-            eq(paymentMethod.isActive, true),
-          ),
-        )
-        .limit(1);
-
-      if (!contractData.length) {
-        throw new HTTPException(HttpStatusCodes.NOT_FOUND, {
-          message: 'Direct debit contract not found or inactive',
-        });
-      }
-
-      // Update subscription with contract information
-      await db
-        .update(subscription)
-        .set({
-          status: 'active', // Direct debit contracts activate immediately
-          directDebitContractId: contractId,
-          directDebitSignature: contractData[0]!.cardMask, // Signature stored as cardMask
-        })
-        .where(eq(subscription.id, subscriptionId));
-
-      return created(c, {
-        subscriptionId,
-        paymentMethod: requestedPaymentMethod,
-        contractId,
-        autoRenewalEnabled: enableAutoRenew ?? true,
-      });
-    } else if (requestedPaymentMethod === 'zarinpal-oneoff') {
-      // Legacy one-time payment (deprecated but supported)
-      if (!callbackUrl) {
-        throw new HTTPException(HttpStatusCodes.BAD_REQUEST, {
-          message: 'Callback URL is required for one-time payments',
-        });
-      }
-
-      // Create payment record
-      const paymentId = crypto.randomUUID();
-      await db.insert(payment).values({
-        id: paymentId,
+      // Create subscription record
+      await tx.insert(subscription).values({
+        id: subscriptionId,
         userId: user.id,
-        subscriptionId,
         productId,
-        amount: selectedProduct.price,
         status: 'pending',
-        paymentMethod: 'zarinpal',
+        startDate,
+        nextBillingDate,
+        currentPrice: selectedProduct.price,
+        billingPeriod: selectedProduct.billingPeriod,
       });
 
-      // Initialize legacy ZarinPal payment
+      // Handle subscription creation based on payment method
+      if (requestedPaymentMethod === 'direct-debit-contract') {
+        // Direct Debit Contract-based subscription (automatic renewal)
+        if (!contractId) {
+          throw new HTTPException(HttpStatusCodes.BAD_REQUEST, {
+            message: 'Contract ID is required for direct debit contract subscriptions',
+          });
+        }
+
+        // Verify the contract exists and belongs to the user
+        const contractData = await tx
+          .select()
+          .from(paymentMethod)
+          .where(
+            and(
+              eq(paymentMethod.userId, user.id),
+              eq(paymentMethod.id, contractId), // Contract ID is the payment method ID
+              eq(paymentMethod.contractType, 'direct_debit_contract'),
+              eq(paymentMethod.isActive, true),
+            ),
+          )
+          .limit(1);
+
+        if (!contractData.length) {
+          throw new HTTPException(HttpStatusCodes.NOT_FOUND, {
+            message: 'Direct debit contract not found or inactive',
+          });
+        }
+
+        // Update subscription with contract information (all in same transaction)
+        await tx
+          .update(subscription)
+          .set({
+            status: 'active', // Direct debit contracts activate immediately
+            paymentMethodId: contractId, // Link to the contract payment method
+            directDebitContractId: contractData[0]!.contractSignature, // Store actual ZarinPal signature
+            directDebitSignature: contractData[0]!.contractSignature, // ZarinPal contract signature
+          })
+          .where(eq(subscription.id, subscriptionId));
+
+        resultPayload = {
+          subscriptionId,
+          paymentMethod: requestedPaymentMethod,
+          contractId,
+          autoRenewalEnabled: enableAutoRenew ?? true,
+        };
+      } else if (requestedPaymentMethod === 'zarinpal-oneoff') {
+        // Legacy one-time payment (deprecated but supported)
+        if (!callbackUrl) {
+          throw new HTTPException(HttpStatusCodes.BAD_REQUEST, {
+            message: 'Callback URL is required for one-time payments',
+          });
+        }
+
+        // Create payment record (in same transaction as subscription)
+        paymentId = crypto.randomUUID();
+        await tx.insert(payment).values({
+          id: paymentId,
+          userId: user.id,
+          subscriptionId,
+          productId,
+          amount: selectedProduct.price,
+          status: 'pending',
+          paymentMethod: 'zarinpal',
+        });
+
+        resultPayload = {
+          subscriptionId,
+          paymentId,
+          paymentMethod: requestedPaymentMethod,
+          autoRenewalEnabled: false, // Legacy one-time payments don't support auto-renewal
+          needsPaymentInitialization: true,
+        };
+      } else {
+        throw new HTTPException(HttpStatusCodes.BAD_REQUEST, {
+          message: `Invalid payment method: ${requestedPaymentMethod}. Use direct-debit-contract for automatic renewal or zarinpal-oneoff for one-time payments`,
+        });
+      }
+    }); // ✅ Close the transaction block
+
+    // Handle ZarinPal payment initialization outside transaction (external API call)
+    if (resultPayload && 'needsPaymentInitialization' in resultPayload && resultPayload.needsPaymentInitialization) {
       const zarinPal = ZarinPalService.create(c.env);
       const paymentRequest = await zarinPal.requestPayment({
         amount: selectedProduct.price,
         currency: 'IRR',
         description: `One-time subscription to ${selectedProduct.name}`,
-        callbackUrl,
+        callbackUrl: callbackUrl || `${c.env.NEXT_PUBLIC_APP_URL}/payment/callback`,
         metadata: {
-          subscriptionId,
-          paymentId,
+          subscriptionId: resultPayload.subscriptionId,
+          paymentId: resultPayload.paymentId!,
           userId: user.id,
         },
       });
 
-      if (!paymentRequest.data?.authority) {
-        await db
+      // ✅ CRITICAL FIX: Update payment record with ZarinPal response in separate transaction
+      await db.transaction(async (tx) => {
+        // At this point, we know resultPayload exists from the outer condition check
+        if (!resultPayload?.paymentId) {
+          throw new HTTPException(HttpStatusCodes.INTERNAL_SERVER_ERROR, {
+            message: 'Payment ID not found in result payload',
+          });
+        }
+
+        if (!paymentRequest.data?.authority) {
+          await tx
+            .update(payment)
+            .set({
+              status: 'failed',
+              failureReason: paymentRequest.data?.message || 'Failed to initialize payment',
+              failedAt: new Date(),
+            })
+            .where(eq(payment.id, resultPayload.paymentId));
+
+          throw new HTTPException(HttpStatusCodes.INTERNAL_SERVER_ERROR, {
+            message: `Payment initialization failed: ${paymentRequest.data?.message}`,
+          });
+        }
+
+        await tx
           .update(payment)
           .set({
-            status: 'failed',
-            failureReason: paymentRequest.data?.message || 'Failed to initialize payment',
-            failedAt: new Date(),
+            zarinpalAuthority: paymentRequest.data.authority,
+            metadata: paymentRequest,
           })
-          .where(eq(payment.id, paymentId));
+          .where(eq(payment.id, resultPayload.paymentId));
+      });
 
+      if (!paymentRequest.data?.authority) {
         throw new HTTPException(HttpStatusCodes.INTERNAL_SERVER_ERROR, {
-          message: `Payment initialization failed: ${paymentRequest.data?.message}`,
+          message: 'Payment request failed - no authority received',
         });
       }
-
-      // Update payment record with ZarinPal authority
-      await db
-        .update(payment)
-        .set({
-          zarinpalAuthority: paymentRequest.data?.authority,
-          metadata: paymentRequest,
-        })
-        .where(eq(payment.id, paymentId));
 
       const paymentUrl = zarinPal.getPaymentUrl(paymentRequest.data.authority);
 
       return created(c, {
-        subscriptionId,
-        paymentMethod: requestedPaymentMethod,
-        autoRenewalEnabled: false, // Legacy one-time payments don't support auto-renewal
+        subscriptionId: resultPayload.subscriptionId,
+        paymentMethod: resultPayload.paymentMethod,
+        autoRenewalEnabled: resultPayload.autoRenewalEnabled,
         paymentUrl,
-        authority: paymentRequest.data?.authority,
-      });
-    } else {
-      throw new HTTPException(HttpStatusCodes.BAD_REQUEST, {
-        message: `Invalid payment method: ${requestedPaymentMethod}. Use direct-debit-contract for automatic renewal or zarinpal-oneoff for one-time payments`,
+        authority: paymentRequest.data.authority,
       });
     }
+
+    // Return the response after transaction is complete
+    if (!resultPayload) {
+      throw new HTTPException(HttpStatusCodes.INTERNAL_SERVER_ERROR, {
+        message: 'Failed to create subscription - no result payload',
+      });
+    }
+
+    return created(c, resultPayload);
   } catch (error) {
     if (error instanceof HTTPException) {
       throw error;
     }
-    console.error('Failed to create subscription:', error);
+    logError('Failed to create subscription', error);
     throw new HTTPException(HttpStatusCodes.INTERNAL_SERVER_ERROR, {
       message: 'Failed to create subscription',
     });
@@ -393,7 +423,7 @@ export const cancelSubscriptionHandler: RouteHandler<typeof cancelSubscriptionRo
     if (error instanceof HTTPException) {
       throw error;
     }
-    console.error('Failed to cancel subscription:', error);
+    logError('Failed to cancel subscription', error);
     throw new HTTPException(HttpStatusCodes.INTERNAL_SERVER_ERROR, {
       message: 'Failed to cancel subscription',
     });
@@ -515,7 +545,7 @@ export const resubscribeHandler: RouteHandler<typeof resubscribeRoute, ApiEnv> =
     if (error instanceof HTTPException) {
       throw error;
     }
-    console.error('Failed to resubscribe:', error);
+    logError('Failed to resubscribe', error);
     throw new HTTPException(HttpStatusCodes.INTERNAL_SERVER_ERROR, {
       message: 'Failed to resubscribe',
     });
@@ -685,9 +715,7 @@ export const changePlanHandler: RouteHandler<typeof changePlanRoute, ApiEnv> = a
           updatedAt: now,
           metadata: {
             planChangeHistory: [
-              ...(currentSub.metadata && typeof currentSub.metadata === 'object' && 'planChangeHistory' in currentSub.metadata
-                ? currentSub.metadata.planChangeHistory as PlanChangeHistoryItem[]
-                : []),
+              ...parsePlanChangeHistory(currentSub.metadata),
               {
                 fromProductId: currentProduct.id,
                 toProductId: newProduct.id,
@@ -716,7 +744,7 @@ export const changePlanHandler: RouteHandler<typeof changePlanRoute, ApiEnv> = a
     if (error instanceof HTTPException) {
       throw error;
     }
-    console.error('Failed to change plan:', error);
+    logError('Failed to change plan', error);
     throw new HTTPException(HttpStatusCodes.INTERNAL_SERVER_ERROR, {
       message: 'Failed to change plan',
     });

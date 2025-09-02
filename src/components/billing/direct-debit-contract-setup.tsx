@@ -1,6 +1,6 @@
 'use client';
 
-import { BanknoteIcon, Building2, CheckCircle, CreditCard, Shield } from 'lucide-react';
+import { BanknoteIcon, Building2, CheckCircle, CreditCard, RefreshCw, Shield } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
 
@@ -27,7 +27,10 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useInitiateDirectDebitContractMutation } from '@/hooks/mutations/payment-methods';
+import { usePrefetchPaymentMethods } from '@/hooks/queries/payment-methods';
+import { useMutationUIState } from '@/hooks/utils/query-helpers';
 import { formatTomanCurrency } from '@/lib/i18n/currency-utils';
+import { showErrorToast, showSuccessToast } from '@/lib/utils/toast-notifications';
 
 type DirectDebitContractSetupProps = {
   children?: React.ReactNode;
@@ -61,10 +64,14 @@ export function DirectDebitContractSetup({
   const [step, setStep] = useState<'form' | 'bank-selection' | 'redirect'>('form');
 
   const initiateContract = useInitiateDirectDebitContractMutation();
+  const mutationUI = useMutationUIState(initiateContract);
+  const prefetchPaymentMethods = usePrefetchPaymentMethods();
 
   const handleContractSuccess = (contractId: string) => {
     onSuccess?.(contractId);
     setOpen(false);
+    // Prefetch payment methods since we likely added a new one
+    prefetchPaymentMethods();
   };
 
   const handleInitiateContract = async () => {
@@ -73,9 +80,10 @@ export function DirectDebitContractSetup({
       return;
     }
 
-    // Validate Iranian mobile number format
+    // Validate Iranian mobile number format (remove spaces first)
+    const cleanMobile = mobile.replace(/\s/g, '');
     const mobileRegex = /^(?:\+98|0)?9\d{9}$/;
-    if (!mobileRegex.test(mobile.trim())) {
+    if (!mobileRegex.test(cleanMobile)) {
       toast.error('Please enter a valid Iranian mobile number (09xxxxxxxxx)');
       return;
     }
@@ -84,7 +92,7 @@ export function DirectDebitContractSetup({
       const callbackUrl = `${window.location.origin}/payment/callback`;
       const result = await initiateContract.mutateAsync({
         json: {
-          mobile: mobile.trim(),
+          mobile: mobile.replace(/\s/g, ''), // Remove spaces before sending to API
           ssn: ssn.trim() || undefined,
           callbackUrl,
           contractDurationDays: 365, // 1 year
@@ -98,15 +106,18 @@ export function DirectDebitContractSetup({
       if (result.success && result.data) {
         setContractResult(result.data);
         setStep('bank-selection');
-        toast.success('Contract setup initiated! Please select your bank.');
+        showSuccessToast('Contract setup initiated! Please select your bank.');
         // Call success handler with contract ID
         handleContractSuccess(result.data.contractId);
       } else {
-        toast.error('Failed to initiate direct debit contract');
+        showErrorToast('Failed to initiate direct debit contract', {
+          component: 'direct-debit-setup',
+          actionType: 'contract-initiation',
+        });
       }
-    } catch (error) {
-      console.error('Contract initiation error:', error);
-      toast.error('Error starting contract setup process');
+    } catch {
+      // Error handling is now managed by the mutation hook
+      // Component just needs to handle the UI response
     }
   };
 
@@ -264,18 +275,13 @@ export function DirectDebitContractSetup({
               </Button>
               <Button
                 onClick={handleInitiateContract}
-                disabled={initiateContract.isPending}
+                disabled={!mutationUI.canSubmit || !mobile.trim()}
+                loading={mutationUI.showPending}
+                loadingText="Setting up..."
+                startIcon={!mutationUI.showPending ? <CreditCard className="h-4 w-4" /> : undefined}
+                aria-label={mutationUI.showPending ? 'Setting up contract...' : 'Setup direct debit contract'}
               >
-                {initiateContract.isPending
-                  ? (
-                      <>
-                        <LoadingSpinner className="h-4 w-4 mr-2" />
-                        Setting up...
-                      </>
-                    )
-                  : (
-                      'Setup Contract'
-                    )}
+                Setup Contract
               </Button>
             </DialogFooter>
           </div>
@@ -325,12 +331,38 @@ export function DirectDebitContractSetup({
               <Button
                 onClick={handleBankSelection}
                 disabled={!selectedBankCode}
+                startIcon={<BanknoteIcon className="h-4 w-4" />}
+                aria-label="Continue to bank for contract signing"
               >
-                <BanknoteIcon className="h-4 w-4 mr-2" />
                 Continue to Bank
               </Button>
             </DialogFooter>
           </div>
+        )}
+
+        {/* Enhanced error display */}
+        {mutationUI.showError && mutationUI.error && (
+          <Alert variant="destructive">
+            <AlertTitle>Setup Failed</AlertTitle>
+            <AlertDescription>
+              {mutationUI.error.message}
+              {mutationUI.canReset && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="ml-2"
+                  onClick={() => {
+                    initiateContract.reset();
+                    setStep('form');
+                  }}
+                  aria-label="Try setting up contract again"
+                >
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                  Try Again
+                </Button>
+              )}
+            </AlertDescription>
+          </Alert>
         )}
 
         {step === 'redirect' && (

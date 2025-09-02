@@ -4,6 +4,7 @@ import { HTTPException } from 'hono/http-exception';
 import * as HttpStatusCodes from 'stoker/http-status-codes';
 
 import { ok } from '@/api/common/responses';
+import { apiLogger } from '@/api/middleware/hono-logger';
 import { ZarinPalService } from '@/api/services/zarinpal';
 import type { ApiEnv } from '@/api/types';
 import { db } from '@/db';
@@ -67,7 +68,11 @@ async function validateWebhookSecurity(c: { req: { header: (name: string) => str
 
   // Validate User-Agent (should contain ZarinPal identifier)
   if (!userAgent.toLowerCase().includes('zarinpal')) {
-    console.warn(`[WEBHOOK SECURITY] Suspicious user agent: ${userAgent} from IP: ${clientIP}`);
+    apiLogger.warn('Webhook security: Suspicious user agent detected', {
+      userAgent,
+      clientIP,
+      component: 'webhook-security',
+    });
     throw new HTTPException(HttpStatusCodes.FORBIDDEN, {
       message: 'Invalid webhook source',
     });
@@ -81,7 +86,12 @@ async function validateWebhookSecurity(c: { req: { header: (name: string) => str
 
     // Reject webhooks older than 5 minutes or from the future
     if (timeDiff > 300) {
-      console.warn(`[WEBHOOK SECURITY] Timestamp validation failed. Webhook timestamp: ${webhookTimestamp}, Current: ${currentTimestamp}, Diff: ${timeDiff}s`);
+      apiLogger.warn('Webhook security: Timestamp validation failed', {
+        webhookTimestamp,
+        currentTimestamp,
+        timeDiff,
+        component: 'webhook-security',
+      });
       throw new HTTPException(HttpStatusCodes.UNAUTHORIZED, {
         message: 'Webhook timestamp validation failed',
       });
@@ -106,7 +116,10 @@ async function validateWebhookSecurity(c: { req: { header: (name: string) => str
     });
 
     if (!isValidIP) {
-      console.warn(`[WEBHOOK SECURITY] Request from unauthorized IP: ${clientIP}`);
+      apiLogger.warn('Webhook security: Request from unauthorized IP', {
+        clientIP,
+        component: 'webhook-security',
+      });
       throw new HTTPException(HttpStatusCodes.FORBIDDEN, {
         message: 'Webhook request from unauthorized IP',
       });
@@ -121,7 +134,11 @@ async function validateWebhookSecurity(c: { req: { header: (name: string) => str
     });
   }
 
-  console.error(`[WEBHOOK SECURITY] Validated webhook from IP: ${clientIP}, User-Agent: ${userAgent}`);
+  apiLogger.info('Webhook security: Validated webhook request', {
+    clientIP,
+    userAgent,
+    component: 'webhook-security',
+  });
 }
 
 /**
@@ -165,7 +182,7 @@ export const zarinPalWebhookHandler: RouteHandler<typeof zarinPalWebhookRoute, A
   try {
     await db.insert(webhookEvent).values(eventRecord);
   } catch (error) {
-    console.error('Failed to create webhook event record:', error);
+    apiLogger.error('Failed to create webhook event record', { error });
     // Continue processing even if logging fails
   }
 
@@ -248,7 +265,7 @@ export const zarinPalWebhookHandler: RouteHandler<typeof zarinPalWebhookRoute, A
               processed = true;
             }
           } catch (verificationError) {
-            console.error('Payment verification failed:', verificationError);
+            apiLogger.error('Payment verification failed', { error: verificationError });
             // Mark as processed but with error
             processed = true;
           }
@@ -314,7 +331,7 @@ export const zarinPalWebhookHandler: RouteHandler<typeof zarinPalWebhookRoute, A
           })
           .where(eq(webhookEvent.id, eventId));
       } catch (forwardError) {
-        console.error('Failed to forward webhook:', forwardError);
+        apiLogger.error('Failed to forward webhook', { error: forwardError });
 
         await db
           .update(webhookEvent)
@@ -333,7 +350,7 @@ export const zarinPalWebhookHandler: RouteHandler<typeof zarinPalWebhookRoute, A
       forwarded,
     });
   } catch (error) {
-    console.error('Webhook processing failed:', error);
+    apiLogger.error('Webhook processing failed', { error });
 
     // Update webhook event with error
     try {
@@ -344,7 +361,7 @@ export const zarinPalWebhookHandler: RouteHandler<typeof zarinPalWebhookRoute, A
         })
         .where(eq(webhookEvent.id, eventId));
     } catch (logError) {
-      console.error('Failed to log webhook error:', logError);
+      apiLogger.error('Failed to log webhook error', { error: logError });
     }
 
     throw new HTTPException(HttpStatusCodes.INTERNAL_SERVER_ERROR, {
@@ -402,7 +419,7 @@ export const getWebhookEventsHandler: RouteHandler<typeof getWebhookEventsRoute,
 
     return ok(c, transformedEvents);
   } catch (error) {
-    console.error('Failed to fetch webhook events:', error);
+    apiLogger.error('Failed to fetch webhook events', { error });
     throw new HTTPException(HttpStatusCodes.INTERNAL_SERVER_ERROR, {
       message: 'Failed to fetch webhook events',
     });
@@ -464,7 +481,7 @@ export const testWebhookHandler: RouteHandler<typeof testWebhookRoute, ApiEnv> =
       error,
     });
   } catch (error) {
-    console.error('Webhook test failed:', error);
+    apiLogger.error('Webhook test failed', { error });
 
     return ok(c, {
       success: false,

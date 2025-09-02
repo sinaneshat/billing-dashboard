@@ -20,26 +20,53 @@ export const product = sqliteTable('product', {
   index('product_name_idx').on(table.name),
   index('product_billing_period_idx').on(table.billingPeriod),
   index('product_is_active_idx').on(table.isActive),
+  // Composite index for active products by billing period
+  index('product_active_billing_idx').on(table.isActive, table.billingPeriod),
 ]);
 
-// Payment methods table - stores user's saved payment methods
+// Direct debit contracts table - stores ZarinPal Payman contracts only
 export const paymentMethod = sqliteTable('payment_method', {
   id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
   userId: text('user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
-  zarinpalCardHash: text('zarinpal_card_hash').unique().notNull(),
-  cardMask: text('card_mask').notNull(), // e.g., "**** **** **** 1234"
-  cardType: text('card_type'), // e.g., "VISA", "MASTERCARD", "IRAN_KISH"
+
+  // ZarinPal Direct Debit Contract fields (Payman API)
+  contractType: text('contract_type', {
+    enum: ['direct_debit_contract', 'pending_contract'],
+  }).notNull().default('pending_contract'),
+  contractSignature: text('contract_signature').unique(), // ZarinPal contract signature
+  contractStatus: text('contract_status', {
+    enum: ['pending_signature', 'active', 'cancelled_by_user', 'verification_failed', 'expired'],
+  }).notNull().default('pending_signature'),
+  paymanAuthority: text('payman_authority'), // ZarinPal payman authority (temporary during setup)
+
+  // Contract details
+  contractDisplayName: text('contract_display_name').notNull().default('Direct Debit Contract'),
+  contractMobile: text('contract_mobile'), // Mobile number used for contract
+  contractDurationDays: integer('contract_duration_days').default(365),
+  maxDailyAmount: integer('max_daily_amount'),
+  maxDailyCount: integer('max_daily_count'),
+  maxMonthlyCount: integer('max_monthly_count'),
+
+  // Status fields
   isPrimary: integer('is_primary', { mode: 'boolean' }).default(false),
   isActive: integer('is_active', { mode: 'boolean' }).default(true),
   lastUsedAt: integer('last_used_at', { mode: 'timestamp' }),
-  expiresAt: integer('expires_at', { mode: 'timestamp' }),
+  contractExpiresAt: integer('contract_expires_at', { mode: 'timestamp' }),
+  contractVerifiedAt: integer('contract_verified_at', { mode: 'timestamp' }),
+
   metadata: text('metadata', { mode: 'json' }),
   ...timestamps,
 }, table => [
   index('payment_method_user_id_idx').on(table.userId),
-  index('payment_method_zarinpal_card_hash_idx').on(table.zarinpalCardHash),
+  index('payment_method_contract_signature_idx').on(table.contractSignature),
+  index('payment_method_contract_type_idx').on(table.contractType),
+  index('payment_method_contract_status_idx').on(table.contractStatus),
+  index('payment_method_payman_authority_idx').on(table.paymanAuthority),
   index('payment_method_is_primary_idx').on(table.isPrimary),
   index('payment_method_is_active_idx').on(table.isActive),
+  // Composite indexes for better query performance
+  index('payment_method_user_status_idx').on(table.userId, table.contractStatus),
+  index('payment_method_user_active_idx').on(table.userId, table.isActive),
 ]);
 
 // Subscriptions table - tracks user subscriptions to products
@@ -67,7 +94,7 @@ export const subscription = sqliteTable('subscription', {
   }).notNull(),
 
   // Enhanced subscription features
-  paymentMethodId: text('payment_method_id').references(() => paymentMethod.id, { onDelete: 'set null' }),
+  paymentMethodId: text('payment_method_id').references(() => paymentMethod.id, { onDelete: 'restrict' }),
   trialEndDate: integer('trial_end_date', { mode: 'timestamp' }),
   gracePeriodEndDate: integer('grace_period_end_date', { mode: 'timestamp' }),
   cancellationReason: text('cancellation_reason'),
@@ -85,14 +112,20 @@ export const subscription = sqliteTable('subscription', {
   index('subscription_status_idx').on(table.status),
   index('subscription_next_billing_date_idx').on(table.nextBillingDate),
   index('subscription_direct_debit_contract_id_idx').on(table.directDebitContractId),
+  // Composite indexes for common query patterns
+  index('subscription_user_status_idx').on(table.userId, table.status),
+  index('subscription_user_product_idx').on(table.userId, table.productId),
+  index('subscription_status_billing_date_idx').on(table.status, table.nextBillingDate),
+  // Index for billing automation queries
+  index('subscription_billing_automation_idx').on(table.status, table.nextBillingDate, table.paymentMethodId),
 ]);
 
 // Payments table - transaction log for all payment attempts
 export const payment = sqliteTable('payment', {
   id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
   userId: text('user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
-  subscriptionId: text('subscription_id').references(() => subscription.id, { onDelete: 'set null' }),
-  productId: text('product_id').notNull().references(() => product.id, { onDelete: 'cascade' }),
+  subscriptionId: text('subscription_id').references(() => subscription.id, { onDelete: 'restrict' }),
+  productId: text('product_id').notNull().references(() => product.id, { onDelete: 'restrict' }),
 
   // Payment details
   amount: real('amount').notNull(), // Amount in Iranian Rials (IRR)
@@ -130,15 +163,21 @@ export const payment = sqliteTable('payment', {
   index('payment_zarinpal_ref_id_idx').on(table.zarinpalRefId),
   index('payment_paid_at_idx').on(table.paidAt),
   index('payment_next_retry_at_idx').on(table.nextRetryAt),
+  // Composite indexes for common query patterns
+  index('payment_user_status_idx').on(table.userId, table.status),
+  index('payment_subscription_status_idx').on(table.subscriptionId, table.status),
+  index('payment_retry_processing_idx').on(table.status, table.nextRetryAt),
+  // Index for financial reporting queries
+  index('payment_financial_reports_idx').on(table.status, table.paidAt, table.amount),
 ]);
 
 // Billing events table - comprehensive audit trail
 export const billingEvent = sqliteTable('billing_event', {
   id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
   userId: text('user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
-  subscriptionId: text('subscription_id').references(() => subscription.id, { onDelete: 'set null' }),
-  paymentId: text('payment_id').references(() => payment.id, { onDelete: 'set null' }),
-  paymentMethodId: text('payment_method_id').references(() => paymentMethod.id, { onDelete: 'set null' }),
+  subscriptionId: text('subscription_id').references(() => subscription.id, { onDelete: 'cascade' }),
+  paymentId: text('payment_id').references(() => payment.id, { onDelete: 'cascade' }),
+  paymentMethodId: text('payment_method_id').references(() => paymentMethod.id, { onDelete: 'cascade' }),
   eventType: text('event_type').notNull(), // 'payment_success', 'payment_failed', 'subscription_created', etc.
   eventData: text('event_data', { mode: 'json' }).notNull(),
   severity: text('severity', { enum: ['info', 'warning', 'error', 'critical'] }).default('info'),
@@ -157,7 +196,7 @@ export const webhookEvent = sqliteTable('webhook_event', {
   id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
   source: text('source').notNull().default('zarinpal'), // Source of webhook
   eventType: text('event_type').notNull(), // Type of event
-  paymentId: text('payment_id').references(() => payment.id, { onDelete: 'set null' }),
+  paymentId: text('payment_id').references(() => payment.id, { onDelete: 'cascade' }),
 
   // Webhook data
   rawPayload: text('raw_payload', { mode: 'json' }).notNull(), // Full webhook payload

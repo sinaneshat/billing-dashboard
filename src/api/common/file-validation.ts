@@ -22,6 +22,8 @@ export type ValidationResult = {
   error?: string;
 };
 
+export type ImageType = 'userAvatar' | 'companyLogo' | 'companyBanner';
+
 /**
  * Preset configurations for common file types
  */
@@ -285,5 +287,39 @@ export class FileValidator {
     return mimeType === 'application/pdf'
       || mimeType.startsWith('application/')
       || mimeType.startsWith('text/');
+  }
+
+  /**
+   * Generate a unique storage key for an image
+   */
+  static generateImageKey(type: ImageType, entityId: string, extension: string): string {
+    const timestamp = Date.now();
+    const randomSuffix = Math.random().toString(36).substring(2, 8);
+
+    const pathPrefixes = {
+      userAvatar: 'images/avatar',
+      companyLogo: 'images/logo',
+      companyBanner: 'images/banner',
+    } as const;
+
+    return `${pathPrefixes[type]}/${entityId}/${timestamp}-${randomSuffix}.${extension}`;
+  }
+
+  /**
+   * Extract image type from storage key
+   */
+  static extractImageTypeFromKey(key: string): ImageType | null {
+    const pathPrefixes = {
+      userAvatar: 'images/avatar',
+      companyLogo: 'images/logo',
+      companyBanner: 'images/banner',
+    } as const;
+
+    for (const [type, pathPrefix] of Object.entries(pathPrefixes)) {
+      if (key.startsWith(`${pathPrefix}/`)) {
+        return type as ImageType;
+      }
+    }
+    return null;
   }
 }

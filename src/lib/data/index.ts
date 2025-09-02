@@ -14,7 +14,8 @@ export { queryKeys } from './query-keys';
 
 // Server-side prefetching utilities
 export {
-  prefetchConditional,
-  prefetchQueries,
-  prefetchQuery,
+  prefetchAllBillingData,
+  prefetchPaymentMethods,
+  prefetchProducts,
+  prefetchSubscriptions,
 } from './server-prefetch';

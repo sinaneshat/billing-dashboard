@@ -3,11 +3,11 @@ import { createOpenApiApp } from '@/api/factory';
 import {
   initiateDirectDebitContractHandler,
   verifyDirectDebitContractHandler,
-} from './direct-debit-handler';
+} from './direct-debit/handler';
 import {
   initiateDirectDebitContractRoute,
   verifyDirectDebitContractRoute,
-} from './direct-debit-routes';
+} from './direct-debit/route';
 import {
   createPaymentMethodHandler,
   deletePaymentMethodHandler,

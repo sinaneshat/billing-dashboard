@@ -6,6 +6,9 @@
 
 import { and, eq, isNull, lte } from 'drizzle-orm';
 
+import { parseMetadata } from '@/api/common';
+import { getNumberFromMetadata } from '@/api/common/type-utils';
+import { apiLogger } from '@/api/middleware/hono-logger';
 import { ZarinPalService } from '@/api/services/zarinpal';
 import type { ApiEnv } from '@/api/types';
 import { db } from '@/db';
@@ -30,7 +33,7 @@ export async function processMonthlyBilling(env: ApiEnv): Promise<BillingResult>
     errors: [],
   };
 
-  console.warn('Starting monthly billing process...');
+  apiLogger.info('Starting monthly billing process', { component: 'monthly-billing' });
 
   try {
     // Get all active monthly subscriptions that are due for billing
@@ -47,7 +50,10 @@ export async function processMonthlyBilling(env: ApiEnv): Promise<BillingResult>
         ),
       );
 
-    console.warn(`Found ${dueSubscriptions.length} subscriptions due for billing`);
+    apiLogger.info('Found subscriptions due for billing', {
+      count: dueSubscriptions.length,
+      component: 'monthly-billing',
+    });
 
     if (dueSubscriptions.length === 0) {
       return result;
@@ -65,19 +71,28 @@ export async function processMonthlyBilling(env: ApiEnv): Promise<BillingResult>
         result.failed++;
         const errorMessage = `Subscription ${sub.id} failed: ${error instanceof Error ? error.message : 'Unknown error'}`;
         result.errors.push(errorMessage);
-        console.error(errorMessage);
+        apiLogger.error('Billing process error', {
+          error: errorMessage,
+          component: 'monthly-billing',
+        });
 
         // Update subscription with failed billing attempt
         await handleSubscriptionBillingFailure(sub.id, errorMessage);
       }
     }
 
-    console.warn('Monthly billing process completed:', result);
+    apiLogger.info('Monthly billing process completed', {
+      result,
+      component: 'monthly-billing',
+    });
     return result;
   } catch (error) {
     const errorMessage = `Monthly billing process failed: ${error instanceof Error ? error.message : 'Unknown error'}`;
     result.errors.push(errorMessage);
-    console.error(errorMessage);
+    apiLogger.error('Monthly billing process failed', {
+      error: errorMessage,
+      component: 'monthly-billing',
+    });
     return result;
   }
 }
@@ -215,7 +230,10 @@ async function processSingleSubscription(
         .where(eq(subscription.id, sub.id));
 
       result.successful++;
-      console.warn(`✅ Subscription ${sub.id} billed successfully`);
+      apiLogger.info('Subscription billed successfully', {
+        subscriptionId: sub.id,
+        component: 'monthly-billing',
+      });
     } else {
       // Payment failed
       const nextRetryAt = calculateNextRetryTime(retryCount + 1);
@@ -267,8 +285,8 @@ async function handleSubscriptionBillingFailure(subscriptionId: string, errorMes
       return;
 
     const sub = subData[0]!;
-    const metadata = (sub.metadata as Record<string, unknown>) || {};
-    const failureCount = ((metadata.billingFailureCount as number) || 0) + 1;
+    const metadata = parseMetadata(sub.metadata);
+    const failureCount = getNumberFromMetadata(metadata, 'billingFailureCount', 0) + 1;
 
     // Update subscription metadata
     await db
@@ -293,10 +311,13 @@ async function handleSubscriptionBillingFailure(subscriptionId: string, errorMes
         })
         .where(eq(subscription.id, subscriptionId));
 
-      console.warn(`🚫 Subscription ${subscriptionId} suspended due to repeated billing failures`);
+      apiLogger.warn('Subscription suspended due to repeated billing failures', {
+        subscriptionId,
+        component: 'monthly-billing',
+      });
     }
   } catch (error) {
-    console.error('Failed to handle subscription billing failure:', error);
+    apiLogger.error('Failed to handle subscription billing failure', { error });
   }
 }
 
@@ -315,14 +336,17 @@ function calculateNextRetryTime(retryCount: number): Date {
  */
 export default {
   async scheduled(event: ScheduledEvent, env: ApiEnv, ctx: ExecutionContext): Promise<void> {
-    console.warn('🔄 Monthly billing cron job triggered:', event.cron);
+    apiLogger.info('Monthly billing cron job triggered', {
+      cron: event.cron,
+      component: 'cron-scheduler',
+    });
 
     ctx.waitUntil((async () => {
       try {
         const result = await processMonthlyBilling(env);
 
         // Log results for monitoring
-        console.warn('📊 Monthly billing results:', {
+        apiLogger.info('Monthly billing results', {
           timestamp: new Date().toISOString(),
           cron: event.cron,
           ...result,
@@ -342,11 +366,11 @@ export default {
               }),
             });
           } catch (webhookError) {
-            console.error('Failed to send billing report to external webhook:', webhookError);
+            apiLogger.error('Failed to send billing report to external webhook', { error: webhookError });
           }
         }
       } catch (error) {
-        console.error('❌ Monthly billing cron job failed:', error);
+        apiLogger.error('Monthly billing cron job failed', { error });
       }
     })());
   },
