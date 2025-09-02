@@ -1,8 +1,7 @@
 'use client';
 
-import { BanknoteIcon, Building2, CheckCircle, CreditCard, RefreshCw, Shield } from 'lucide-react';
+import { BanknoteIcon, Building2, CheckCircle, CreditCard, Shield } from 'lucide-react';
 import { useState } from 'react';
-import { toast } from 'sonner';
 
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -27,7 +26,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useInitiateDirectDebitContractMutation } from '@/hooks/mutations/payment-methods';
-import { usePrefetchPaymentMethods } from '@/hooks/queries/payment-methods';
+import { prefetchPaymentMethods } from '@/hooks/queries/payment-methods';
 import { useMutationUIState } from '@/hooks/utils/query-helpers';
 import { formatTomanCurrency } from '@/lib/i18n/currency-utils';
 import { showErrorToast, showSuccessToast } from '@/lib/utils/toast-notifications';
@@ -65,18 +64,18 @@ export function DirectDebitContractSetup({
 
   const initiateContract = useInitiateDirectDebitContractMutation();
   const mutationUI = useMutationUIState(initiateContract);
-  const prefetchPaymentMethods = usePrefetchPaymentMethods();
+  const prefetchPaymentMethodsFn = prefetchPaymentMethods();
 
   const handleContractSuccess = (contractId: string) => {
     onSuccess?.(contractId);
     setOpen(false);
     // Prefetch payment methods since we likely added a new one
-    prefetchPaymentMethods();
+    prefetchPaymentMethodsFn();
   };
 
   const handleInitiateContract = async () => {
     if (!mobile.trim()) {
-      toast.error('Mobile number is required');
+      showErrorToast('Mobile number is required');
       return;
     }
 
@@ -84,7 +83,7 @@ export function DirectDebitContractSetup({
     const cleanMobile = mobile.replace(/\s/g, '');
     const mobileRegex = /^(?:\+98|0)?9\d{9}$/;
     if (!mobileRegex.test(cleanMobile)) {
-      toast.error('Please enter a valid Iranian mobile number (09xxxxxxxxx)');
+      showErrorToast('Please enter a valid Iranian mobile number (09xxxxxxxxx)');
       return;
     }
 
@@ -115,21 +114,22 @@ export function DirectDebitContractSetup({
           actionType: 'contract-initiation',
         });
       }
-    } catch {
-      // Error handling is now managed by the mutation hook
-      // Component just needs to handle the UI response
+    } catch (error) {
+      // Error handling is managed by the mutation hook's onError callback
+      // which will show appropriate toast notifications
+      console.error('Direct debit contract setup failed:', error);
     }
   };
 
   const handleBankSelection = () => {
     if (!selectedBankCode || !contractResult) {
-      toast.error('Please select a bank');
+      showErrorToast('Please select a bank');
       return;
     }
 
     const selectedBank = contractResult.banks.find(b => b.bankCode === selectedBankCode);
     if (!selectedBank) {
-      toast.error('Invalid bank selection');
+      showErrorToast('Invalid bank selection');
       return;
     }
 
@@ -141,7 +141,7 @@ export function DirectDebitContractSetup({
     }));
 
     setStep('redirect');
-    toast.success(`Redirecting to ${selectedBank.name} for contract signing...`);
+    showSuccessToast(`Redirecting to ${selectedBank.name} for contract signing...`);
 
     // Redirect to bank contract signing
     const signingUrl = contractResult.contractSigningUrl
@@ -227,7 +227,7 @@ export function DirectDebitContractSetup({
               </div>
 
               <div>
-                <Label htmlFor="ssn">National ID (کد ملی)</Label>
+                <Label htmlFor="ssn">National ID</Label>
                 <Input
                   id="ssn"
                   value={ssn}
@@ -338,31 +338,6 @@ export function DirectDebitContractSetup({
               </Button>
             </DialogFooter>
           </div>
-        )}
-
-        {/* Enhanced error display */}
-        {mutationUI.showError && mutationUI.error && (
-          <Alert variant="destructive">
-            <AlertTitle>Setup Failed</AlertTitle>
-            <AlertDescription>
-              {mutationUI.error.message}
-              {mutationUI.canReset && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="ml-2"
-                  onClick={() => {
-                    initiateContract.reset();
-                    setStep('form');
-                  }}
-                  aria-label="Try setting up contract again"
-                >
-                  <RefreshCw className="h-4 w-4 mr-2" />
-                  Try Again
-                </Button>
-              )}
-            </AlertDescription>
-          </Alert>
         )}
 
         {step === 'redirect' && (

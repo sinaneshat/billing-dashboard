@@ -2,6 +2,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 
 import { queryKeys } from '@/lib/data/query-keys';
 import { logError } from '@/lib/utils/safe-logger';
+import { showErrorToast } from '@/lib/utils/toast-notifications';
 import { isZarinPalError, parseZarinPalError } from '@/lib/utils/zarinpal-errors';
 import type {
   CreatePaymentMethodRequest,
@@ -200,7 +201,38 @@ export function useInitiateDirectDebitContractMutation() {
       return { variables, timestamp: Date.now() };
     },
     onError: (error, _variables, _context) => {
-      // Parse ZarinPal error for structured error information
+      // Parse error message for better user experience
+      let errorMessage = 'Failed to setup direct debit contract. Please try again.';
+
+      if (error instanceof Error) {
+        // Check if it's a ZarinPal specific error
+        if (error.message.includes('Authentication required')) {
+          errorMessage = 'Please sign in again to continue with the setup.';
+        } else if (error.message.includes('Development mode')) {
+          errorMessage = '🚧 Development Mode: ZarinPal is not configured with real credentials. This is expected in development.';
+        } else if (error.message.includes('placeholder ZarinPal credentials')) {
+          errorMessage = '🚧 Development Mode: Payment service requires real credentials for testing. See console for setup instructions.';
+        } else if (error.message.includes('Invalid merchant') || error.message.includes('MERCHANT')) {
+          errorMessage = 'Payment service configuration issue. Please contact support.';
+        } else if (error.message.includes('Invalid mobile') || error.message.includes('MOBILE')) {
+          errorMessage = 'Please check your mobile number format and try again.';
+        } else if (error.message.includes('500') || error.message.includes('Internal Server Error')) {
+          errorMessage = 'Server error occurred. Please try again in a few moments.';
+        } else if (error.message.includes('Network') || error.message.includes('Failed to fetch')) {
+          errorMessage = 'Connection error. Please check your internet and try again.';
+        } else if (error.message.includes('Invalid ZarinPal merchant ID')) {
+          errorMessage = 'Payment service temporarily unavailable. Please try again later.';
+        }
+      }
+
+      // Show toast notification for all errors immediately
+      showErrorToast(errorMessage, {
+        component: 'direct-debit-setup',
+        actionType: 'contract-initiation',
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+
+      // Parse ZarinPal error for structured error information (keep for component access)
       if (isZarinPalError(error)) {
         const parsedError = parseZarinPalError(error);
 
@@ -213,7 +245,6 @@ export function useInitiateDirectDebitContractMutation() {
 
       // Handle authentication errors
       if (error instanceof Error && error.message.includes('Authentication required')) {
-        // Don't show duplicate toast since component handles this
         (error as ErrorWithZarinPalInfo).isAuthError = true;
       }
     },

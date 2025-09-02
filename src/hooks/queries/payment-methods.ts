@@ -20,7 +20,7 @@ export function usePaymentMethodsQuery() {
 /**
  * Simple prefetch function for backward compatibility
  */
-export function usePrefetchPaymentMethods() {
+export function prefetchPaymentMethods() {
   // Placeholder function for backward compatibility
   return () => {};
 }

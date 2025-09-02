@@ -250,10 +250,10 @@ export const layouts = {
 // Asset URLs
 export const assets = {
   logo: `${baseUrl}/static/logo.svg`,
-  logoBlack: `${baseUrl}/static/logo-black.svg`,
-  logoRound: `${baseUrl}/static/images/logos/logo-round.png`,
-  logoRoundWhite: `${baseUrl}/static/images/logos/logo-white.png`,
-  logoRoundBlack: `${baseUrl}/static/images/logos/logo-black.png`,
+  logoBlack: `${baseUrl}/static/logo.svg`,
+  logoRound: `${baseUrl}/static/logo.svg`,
+  logoRoundWhite: `${baseUrl}/static/logo.svg`,
+  logoRoundBlack: `${baseUrl}/static/logo.svg`,
   fallbackAvatar: `${baseUrl}/static/images/avatar-placeholder.png`,
   placeholder: `${baseUrl}/static/images/placeholder/placeholder.svg`,
 };

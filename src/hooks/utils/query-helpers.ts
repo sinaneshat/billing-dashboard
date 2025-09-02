@@ -247,7 +247,7 @@ export function useMutationUIState<TData, TError, TVariables>(
  * Hook for managing multiple related queries
  * Useful for pages that need multiple data sources
  */
-export function useMultipleQueries(queries: UseQueryResult[]) {
+export function multipleQueries(queries: UseQueryResult[]) {
   const isLoading = queries.some(q => q.isLoading);
   const isInitialLoading = queries.some(q => q.isLoading && !q.data);
   const isFetching = queries.some(q => q.isFetching);
@@ -385,7 +385,7 @@ export function createQueryErrorBoundary() {
  * Hook for managing stale-while-revalidate pattern
  * Keeps showing old data while fetching new data in background
  */
-export function useStaleWhileRevalidate<T>(
+export function staleWhileRevalidate<T>(
   query: UseQueryResult<T>,
   options: { showStaleIndicator?: boolean } = {},
 ) {

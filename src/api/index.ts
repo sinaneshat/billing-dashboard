@@ -189,10 +189,11 @@ app.notFound(notFound);
 // Apply middleware for protected routes
 app.use('/auth/*', requireSession);
 app.use('/images/*', requireSession);
+// Subscriptions require authentication
 app.use('/subscriptions/*', requireSession);
 // Payments middleware removed - subscription platform only
-// Temporarily disable auth for payment methods testing
-// app.use('/payment-methods/*', requireSession);
+// Payment methods require authentication
+app.use('/payment-methods/*', requireSession);
 app.use('/webhooks/events', requireSession);
 app.use('/webhooks/test', requireSession);
 app.use('/passes/*', RateLimiterFactory.create('api'));

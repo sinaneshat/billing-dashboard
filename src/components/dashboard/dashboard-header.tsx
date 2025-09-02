@@ -14,7 +14,7 @@ import { Separator } from '@/components/ui/separator';
 import { SidebarTrigger } from '@/components/ui/sidebar';
 
 const breadcrumbMap: Record<string, { title: string; parent?: string }> = {
-  '/dashboard': { title: 'Dashboard' },
+  '/dashboard': { title: 'Overview' },
   '/dashboard/billing': { title: 'Billing', parent: '/dashboard' },
   '/dashboard/billing/subscriptions': { title: 'Subscriptions', parent: '/dashboard/billing' },
   '/dashboard/billing/plans': { title: 'Plans', parent: '/dashboard/billing' },

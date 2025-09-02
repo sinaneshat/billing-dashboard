@@ -8,7 +8,7 @@ import { LoadingSpinner } from '@/components/ui/loading-spinner';
 import { FadeIn, PageTransition } from '@/components/ui/motion';
 import { useSubscriptionsQuery } from '@/hooks/queries/subscriptions';
 
-import { PaymentsTable } from './payments-table';
+import { PaymentHistoryCards } from './payment-history-cards';
 
 export const SubscriptionBillingHistoryCoherent = memo(() => {
   const { data: subscriptionsData, isLoading, error } = useSubscriptionsQuery();
@@ -121,11 +121,11 @@ export const SubscriptionBillingHistoryCoherent = memo(() => {
         </FadeIn>
 
         <FadeIn delay={0.12}>
-          <Card className="border-0 shadow-lg bg-gradient-to-br from-card to-card/50">
-            <CardContent className="p-6">
-              <PaymentsTable payments={payments} />
-            </CardContent>
-          </Card>
+          <PaymentHistoryCards
+            payments={payments}
+            loading={isLoading}
+            className="w-full"
+          />
         </FadeIn>
       </div>
     </PageTransition>

@@ -35,7 +35,7 @@ const coreEnvironmentSchema = z.object({
   NEXT_PUBLIC_API_URL: zodValidation.string.url().optional(),
 
   // Application metadata
-  NEXT_PUBLIC_APP_NAME: zodValidation.string.nonEmpty().default('Deadpixel Billing Dashboard'),
+  NEXT_PUBLIC_APP_NAME: zodValidation.string.nonEmpty().default('Roundtable Billing Dashboard'),
   NEXT_PUBLIC_APP_VERSION: zodValidation.string.nonEmpty().default('1.0.0'),
 
   // API Configuration
@@ -67,17 +67,13 @@ const databaseEnvironmentSchema = z.object({
  * Authentication configuration schema
  */
 const authEnvironmentSchema = z.object({
-  // Authentication secrets
-  AUTH_SECRET: zodValidation.string.nonEmpty('Authentication secret is required')
-    .min(32, 'Authentication secret must be at least 32 characters'),
-
   // Better Auth configuration
   BETTER_AUTH_SECRET: zodValidation.string.nonEmpty().optional(),
   BETTER_AUTH_URL: zodValidation.string.url().optional(),
 
   // Session configuration
   SESSION_MAX_AGE: z.coerce.number().int().positive().default(30 * 24 * 60 * 60), // 30 days
-  SESSION_COOKIE_NAME: zodValidation.string.nonEmpty().default('deadpixel-session'),
+  SESSION_COOKIE_NAME: zodValidation.string.nonEmpty().default('roundtable-session'),
 
   // Security settings
   CSRF_SECRET: zodValidation.string.nonEmpty().optional(),
@@ -90,8 +86,7 @@ const authEnvironmentSchema = z.object({
  */
 const paymentEnvironmentSchema = z.object({
   // ZarinPal configuration
-  ZARINPAL_MERCHANT_ID: zodValidation.string.nonEmpty('ZarinPal merchant ID is required')
-    .length(36, 'ZarinPal merchant ID must be exactly 36 characters'),
+  ZARINPAL_MERCHANT_ID: zodValidation.string.nonEmpty('ZarinPal merchant ID is required'),
   ZARINPAL_SANDBOX: z.boolean().default(false),
   ZARINPAL_API_VERSION: zodValidation.string.nonEmpty().default('v4'),
   ZARINPAL_CALLBACK_URL: zodValidation.string.url().optional(),
@@ -183,8 +178,7 @@ const developmentEnvironmentSchema = z.object({
   // Development features
   ENABLE_QUERY_LOGGING: z.boolean().default(false),
   ENABLE_DEBUG_MODE: z.boolean().default(false),
-  ENABLE_MOCK_PAYMENTS: z.boolean().default(false),
-  ENABLE_TEST_USERS: z.boolean().default(false),
+  // Production ready only - mock functionality disabled
 
   // Development tools
   STORYBOOK_ENABLED: z.boolean().default(false),
@@ -240,7 +234,6 @@ function parseEnvironment() {
     DATABASE_SEED_DATA: process.env.DATABASE_SEED_DATA === 'true',
 
     // Authentication
-    AUTH_SECRET: process.env.AUTH_SECRET,
     BETTER_AUTH_SECRET: process.env.BETTER_AUTH_SECRET,
     BETTER_AUTH_URL: process.env.BETTER_AUTH_URL,
     SESSION_MAX_AGE: process.env.SESSION_MAX_AGE,
@@ -300,8 +293,7 @@ function parseEnvironment() {
     // Development
     ENABLE_QUERY_LOGGING: process.env.ENABLE_QUERY_LOGGING === 'true',
     ENABLE_DEBUG_MODE: process.env.ENABLE_DEBUG_MODE === 'true',
-    ENABLE_MOCK_PAYMENTS: process.env.ENABLE_MOCK_PAYMENTS === 'true',
-    ENABLE_TEST_USERS: process.env.ENABLE_TEST_USERS === 'true',
+    // Production ready only - mock functionality disabled
     STORYBOOK_ENABLED: process.env.STORYBOOK_ENABLED === 'true',
     DEVTOOLS_ENABLED: process.env.DEVTOOLS_ENABLED === 'true',
     FAST_REFRESH: process.env.FAST_REFRESH !== 'false',
@@ -400,7 +392,7 @@ export const FEATURE_FLAGS = {
 
   // Development features
   ENABLE_DEBUG_LOGS: false,
-  ENABLE_MOCK_DATA: false,
+  // All mock functionality removed for production readiness
   ENABLE_PERFORMANCE_MONITORING: false,
 } as const;
 
@@ -470,7 +462,7 @@ export function getEnvironment(): 'development' | 'preview' | 'production' {
 export function validateConfiguration(): void {
   try {
     const cfg = getConfig();
-    console.log(`✅ Configuration validated successfully for ${cfg.NODE_ENV} environment`);
+    console.warn(`✅ Configuration validated successfully for ${cfg.NODE_ENV} environment`);
   } catch (error) {
     console.error('❌ Configuration validation failed:', error);
     process.exit(1);
@@ -499,7 +491,6 @@ export function getDatabaseConfig() {
 export function getAuthConfig() {
   const cfg = getConfig();
   return {
-    secret: cfg.AUTH_SECRET,
     betterAuthSecret: cfg.BETTER_AUTH_SECRET,
     betterAuthUrl: cfg.BETTER_AUTH_URL,
     sessionMaxAge: cfg.SESSION_MAX_AGE,

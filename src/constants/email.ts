@@ -62,9 +62,9 @@ export const PROBLEMATIC_EMAIL_CHARS = ['<', '>', '"', '\\', '|'];
  * Email service configuration
  */
 export const EMAIL_SERVICE_CONFIG = {
-  FROM_ADDRESS: process.env.SES_VERIFIED_EMAIL || 'noreply@example.com',
+  FROM_ADDRESS: process.env.SES_VERIFIED_EMAIL || 'noreply@deadpixel.app',
   FROM_NAME: 'Billing Dashboard',
-  REPLY_TO: process.env.SES_REPLY_TO_EMAIL || 'donotreply@example.com',
+  REPLY_TO: process.env.SES_REPLY_TO_EMAIL || 'donotreply@deadpixel.app',
   AWS_REGION: 'ap-southeast-2',
 } as const;
 

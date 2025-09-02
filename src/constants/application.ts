@@ -13,10 +13,10 @@
 // ============================================================================
 
 export const APPLICATION = {
-  NAME: 'Deadpixel Billing Dashboard',
-  DESCRIPTION: 'Iranian billing dashboard with ZarinPal integration',
+  NAME: 'Roundtable Billing Dashboard',
+  DESCRIPTION: 'Advanced billing solutions for AI collaboration platforms',
   VERSION: '1.0.0',
-  AUTHOR: 'Deadpixel Team',
+  AUTHOR: 'Roundtable Team',
 
   // URLs and endpoints
   BASE_URL: process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000',
@@ -24,9 +24,9 @@ export const APPLICATION = {
   API_VERSION: 'v1',
 
   // Localization
-  LOCALE: 'fa-IR',
+  LOCALE: 'en-US',
   TIMEZONE: 'Asia/Tehran',
-  CURRENCY: 'IRR',
+  CURRENCY: 'USD', // Database stores USD, API converts to Rials
   COUNTRY_CODE: 'IR',
 } as const;
 
@@ -286,9 +286,9 @@ export const CACHE = {
 
 export const EMAIL = {
   // Sender information
-  DEFAULT_FROM_NAME: 'Deadpixel Billing',
-  DEFAULT_FROM_EMAIL: 'noreply@deadpixel.ir',
-  SUPPORT_EMAIL: 'support@deadpixel.ir',
+  DEFAULT_FROM_NAME: 'Roundtable Billing',
+  DEFAULT_FROM_EMAIL: 'noreply@roundtable.now',
+  SUPPORT_EMAIL: 'support@roundtable.now',
 
   // Template types
   TEMPLATES: {
@@ -380,20 +380,10 @@ export const ERRORS = {
 // ============================================================================
 
 export const DEVELOPMENT = {
-  // Mock data
-  MOCK_USER_COUNT: 50,
-  MOCK_SUBSCRIPTION_COUNT: 100,
-  MOCK_PAYMENT_COUNT: 200,
-
-  // Test accounts
-  TEST_EMAIL: 'test@deadpixel.ir',
-  TEST_MOBILE: '+989123456789',
-  TEST_NATIONAL_ID: '1234567890',
-
   // Debugging
   ENABLE_QUERY_LOGGING: process.env.NODE_ENV === 'development',
   ENABLE_DEBUG_HEADERS: process.env.NODE_ENV === 'development',
-  ENABLE_MOCK_PAYMENTS: process.env.ENABLE_MOCK_PAYMENTS === 'true',
+  ENABLE_MOCK_PAYMENTS: false, // Always disabled - production ready only
 } as const;
 
 // ============================================================================
@@ -495,9 +485,9 @@ export function tomanToRials(toman: number): number {
  * Format Iranian currency
  */
 export function formatIranianCurrency(amount: number, unit: 'rial' | 'toman' = 'rial'): string {
-  const formatter = new Intl.NumberFormat('fa-IR');
+  const formatter = new Intl.NumberFormat('en-US');
   const displayAmount = unit === 'toman' ? rialsToToman(amount) : amount;
-  const unitLabel = unit === 'toman' ? 'تومان' : 'ریال';
+  const unitLabel = unit === 'toman' ? 'Toman' : 'Rial';
   return `${formatter.format(displayAmount)} ${unitLabel}`;
 }
 

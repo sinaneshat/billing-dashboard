@@ -6,6 +6,7 @@ import {
   CreditCard,
   LogOut,
 } from 'lucide-react';
+import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
@@ -37,13 +38,14 @@ import {
   SidebarRail,
   useSidebar,
 } from '@/components/ui/sidebar';
+import { BRAND } from '@/constants/brand';
 import { useCurrentSubscriptionQuery } from '@/hooks/queries/subscriptions';
 import { signOut, useSession } from '@/lib/auth/client';
 
 // Navigation structure
 const navigation = [
   {
-    title: 'Dashboard',
+    title: 'Overview',
     url: '/dashboard',
     icon: BarChart3,
   },
@@ -52,11 +54,8 @@ const navigation = [
     url: '/dashboard/billing',
     icon: CreditCard,
     badge: 'subscription',
+    forceExpanded: true, // Keep billing section expanded by default
     items: [
-      {
-        title: 'Overview',
-        url: '/dashboard/billing',
-      },
       {
         title: 'Subscriptions',
         url: '/dashboard/billing/subscriptions',
@@ -105,12 +104,19 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
             >
               <Link href="/dashboard">
-                <div className="bg-sidebar-primary text-sidebar-primary-foreground flex aspect-square size-8 items-center justify-center rounded-lg">
-                  <CreditCard className="size-4" />
+                <div className="flex aspect-square size-8 items-center justify-center">
+                  {/* Roundtable Logo */}
+                  <Image
+                    src="/static/logo.svg"
+                    alt="Roundtable Logo"
+                    width={32}
+                    height={32}
+                    className="h-8 w-8 object-contain"
+                  />
                 </div>
                 <div className="grid flex-1 text-left text-sm leading-tight">
-                  <span className="truncate font-semibold">Billing Dashboard</span>
-                  <span className="truncate text-xs text-sidebar-foreground/70">Manage your subscriptions</span>
+                  <span className="truncate font-semibold">{BRAND.name}</span>
+                  <span className="truncate text-xs text-sidebar-foreground/70">{BRAND.tagline}</span>
                 </div>
               </Link>
             </SidebarMenuButton>
@@ -126,7 +132,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               {navigation.map((item) => {
                 const isExactMatch = pathname === item.url;
                 const hasActiveSubItem = item.items?.some(subItem => pathname === subItem.url);
-                const shouldExpand = hasActiveSubItem || (pathname.startsWith(`${item.url}/`) && pathname !== item.url);
+                const shouldExpand = item.forceExpanded || hasActiveSubItem || (pathname.startsWith(`${item.url}/`) && pathname !== item.url);
                 const showBadge = item.badge === 'subscription' && hasActiveSubscription;
 
                 if (item.items) {
@@ -134,7 +140,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                     <Collapsible
                       key={item.title}
                       asChild
-                      defaultOpen={shouldExpand}
+                      defaultOpen={shouldExpand || item.forceExpanded}
                       className="group/collapsible"
                     >
                       <SidebarMenuItem>

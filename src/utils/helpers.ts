@@ -104,7 +104,7 @@ export function getBaseUrl(): string {
   }
 
   // Default fallback
-  return 'https://example.com';
+  return 'https://deadpixel.app';
 }
 
 // Export env as a getter for dynamic environment variables
