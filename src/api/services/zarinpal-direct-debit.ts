@@ -7,6 +7,8 @@
 import { HTTPException } from 'hono/http-exception';
 import * as HttpStatusCodes from 'stoker/http-status-codes';
 
+import { createZarinPalHTTPException } from '@/api/common/zarinpal-error-utils';
+
 export type ZarinPalConfig = {
   merchantId: string;
   baseUrl?: string;
@@ -124,6 +126,30 @@ export class ZarinPalDirectDebitService {
       });
     }
 
+    // Validate merchant ID format (UUID)
+    const merchantIdRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!merchantIdRegex.test(env.ZARINPAL_MERCHANT_ID)) {
+      throw new HTTPException(HttpStatusCodes.INTERNAL_SERVER_ERROR, {
+        message: 'Invalid ZarinPal merchant ID format. Must be a valid UUID.',
+      });
+    }
+
+    // Warn if using placeholder values
+    const placeholderPatterns = [
+      'YOUR_',
+      'your-merchant-id',
+      'REPLACE_',
+      'PLACEHOLDER',
+      '36e0ea98-43fa-400d-a421-f7593b1c73bc', // Known invalid test ID
+      'xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx',
+    ];
+
+    if (placeholderPatterns.some(pattern => env.ZARINPAL_MERCHANT_ID!.includes(pattern))) {
+      throw new HTTPException(HttpStatusCodes.INTERNAL_SERVER_ERROR, {
+        message: 'Invalid ZarinPal merchant ID. Please replace with your real merchant ID from https://next.zarinpal.com/panel/',
+      });
+    }
+
     return new ZarinPalDirectDebitService({
       merchantId: env.ZARINPAL_MERCHANT_ID,
       isSandbox: env.NODE_ENV === 'development',
@@ -134,15 +160,15 @@ export class ZarinPalDirectDebitService {
     if (this.config.baseUrl) {
       return this.config.baseUrl;
     }
-    return this.config.isSandbox
-      ? 'https://sandbox.zarinpal.com'
-      : 'https://api.zarinpal.com';
+    // ZarinPal Direct Debit (Payman) API only works on production endpoints
+    // No sandbox version available - requires manual activation via ticket
+    return 'https://api.zarinpal.com';
   }
 
   /**
    * Step 1: Request Direct Debit Contract (Payman Request)
    */
-  async requestContract(request: DirectDebitContractRequest): Promise<DirectDebitContractResponse> {
+  async requestContract(request: DirectDebitContractRequest) {
     try {
       const url = `${this.getBaseUrl()}/pg/v4/payman/request.json`;
 
@@ -167,19 +193,25 @@ export class ZarinPalDirectDebitService {
         body: JSON.stringify(payload),
       });
 
+      const responseText = await response.text();
+
       if (!response.ok) {
-        throw new HTTPException(HttpStatusCodes.BAD_GATEWAY, {
-          message: `ZarinPal contract request failed: HTTP ${response.status}`,
-        });
+        createZarinPalHTTPException('contract request', response.status, responseText);
       }
 
-      const result: DirectDebitContractResponse = await response.json();
+      let result: DirectDebitContractResponse;
+      try {
+        result = JSON.parse(responseText);
+      } catch {
+        createZarinPalHTTPException('contract request', response.status, responseText);
+      }
 
       if (result.data && result.data.code !== 100) {
-        const errorMessage = this.getZarinPalErrorMessage(result.data.code);
-        throw new HTTPException(HttpStatusCodes.BAD_REQUEST, {
-          message: `Direct debit contract request failed: ${errorMessage} (Code: ${result.data.code})`,
-        });
+        createZarinPalHTTPException('contract request', response.status, responseText);
+      }
+
+      if (!result.data?.payman_authority) {
+        createZarinPalHTTPException('contract request', response.status, responseText);
       }
 
       return result;
@@ -196,7 +228,7 @@ export class ZarinPalDirectDebitService {
   /**
    * Step 2: Get list of available banks for contract signing
    */
-  async getBankList(): Promise<BankListResponse> {
+  async getBankList() {
     try {
       const url = `${this.getBaseUrl()}/pg/v4/payman/banksList.json`;
 
@@ -209,9 +241,8 @@ export class ZarinPalDirectDebitService {
       });
 
       if (!response.ok) {
-        throw new HTTPException(HttpStatusCodes.BAD_GATEWAY, {
-          message: `ZarinPal bank list request failed: HTTP ${response.status}`,
-        });
+        const responseText = await response.text();
+        createZarinPalHTTPException('bank list', response.status, responseText);
       }
 
       const result: BankListResponse = await response.json();
@@ -237,7 +268,7 @@ export class ZarinPalDirectDebitService {
   /**
    * Step 3: Verify contract and get signature after user returns
    */
-  async verifyContractAndGetSignature(request: SignatureRequest): Promise<SignatureResponse> {
+  async verifyContractAndGetSignature(request: SignatureRequest) {
     try {
       const url = `${this.getBaseUrl()}/pg/v4/payman/verify.json`;
 
@@ -256,19 +287,21 @@ export class ZarinPalDirectDebitService {
         body: JSON.stringify(payload),
       });
 
+      const responseText = await response.text();
+
       if (!response.ok) {
-        throw new HTTPException(HttpStatusCodes.BAD_GATEWAY, {
-          message: `ZarinPal contract verification failed: HTTP ${response.status}`,
-        });
+        createZarinPalHTTPException('contract verification', response.status, responseText);
       }
 
-      const result: SignatureResponse = await response.json();
+      let result: SignatureResponse;
+      try {
+        result = JSON.parse(responseText);
+      } catch {
+        createZarinPalHTTPException('contract verification', response.status, responseText);
+      }
 
       if (result.data && result.data.code !== 100) {
-        const errorMessage = this.getZarinPalErrorMessage(result.data.code);
-        throw new HTTPException(HttpStatusCodes.BAD_REQUEST, {
-          message: `Contract verification failed: ${errorMessage} (Code: ${result.data.code})`,
-        });
+        createZarinPalHTTPException('contract verification', response.status, responseText);
       }
 
       return result;
@@ -286,7 +319,7 @@ export class ZarinPalDirectDebitService {
    * Step 4: Execute direct transaction using signature
    * Note: You still need to create regular payment authority first
    */
-  async executeDirectTransaction(request: DirectTransactionRequest): Promise<DirectTransactionResponse> {
+  async executeDirectTransaction(request: DirectTransactionRequest) {
     try {
       const url = `${this.getBaseUrl()}/pg/v4/payman/checkout.json`;
 
@@ -306,19 +339,21 @@ export class ZarinPalDirectDebitService {
         body: JSON.stringify(payload),
       });
 
+      const responseText = await response.text();
+
       if (!response.ok) {
-        throw new HTTPException(HttpStatusCodes.BAD_GATEWAY, {
-          message: `ZarinPal direct transaction failed: HTTP ${response.status}`,
-        });
+        createZarinPalHTTPException('direct transaction', response.status, responseText);
       }
 
-      const result: DirectTransactionResponse = await response.json();
+      let result: DirectTransactionResponse;
+      try {
+        result = JSON.parse(responseText);
+      } catch {
+        createZarinPalHTTPException('direct transaction', response.status, responseText);
+      }
 
       if (result.data && result.data.code !== 100) {
-        const errorMessage = this.getZarinPalErrorMessage(result.data.code);
-        throw new HTTPException(HttpStatusCodes.PAYMENT_REQUIRED, {
-          message: `Direct transaction failed: ${errorMessage} (Code: ${result.data.code})`,
-        });
+        createZarinPalHTTPException('direct transaction', response.status, responseText);
       }
 
       return result;
@@ -335,7 +370,7 @@ export class ZarinPalDirectDebitService {
   /**
    * Cancel direct debit contract
    */
-  async cancelContract(request: CancelContractRequest): Promise<{ code: number; message: string }> {
+  async cancelContract(request: CancelContractRequest) {
     try {
       const url = `${this.getBaseUrl()}/pg/v4/payman/cancelContract.json`;
 
@@ -354,19 +389,21 @@ export class ZarinPalDirectDebitService {
         body: JSON.stringify(payload),
       });
 
+      const responseText = await response.text();
+
       if (!response.ok) {
-        throw new HTTPException(HttpStatusCodes.BAD_GATEWAY, {
-          message: `ZarinPal contract cancellation failed: HTTP ${response.status}`,
-        });
+        createZarinPalHTTPException('contract cancellation', response.status, responseText);
       }
 
-      const result = await response.json() as { data?: { code: number; message: string } };
+      let result: { data?: { code: number; message: string } };
+      try {
+        result = JSON.parse(responseText);
+      } catch {
+        createZarinPalHTTPException('contract cancellation', response.status, responseText);
+      }
 
       if (result.data && result.data.code !== 100) {
-        const errorMessage = this.getZarinPalErrorMessage(result.data.code);
-        throw new HTTPException(HttpStatusCodes.BAD_REQUEST, {
-          message: `Contract cancellation failed: ${errorMessage} (Code: ${result.data.code})`,
-        });
+        createZarinPalHTTPException('contract cancellation', response.status, responseText);
       }
 
       return {
@@ -381,40 +418,5 @@ export class ZarinPalDirectDebitService {
         message: 'Failed to cancel contract',
       });
     }
-  }
-
-  /**
-   * Get user-friendly error message for ZarinPal error codes
-   */
-  private getZarinPalErrorMessage(code: number): string {
-    const errorMessages: Record<number, string> = {
-      // Common error codes
-      '-9': 'Validation error',
-      '-10': 'Terminal is not valid',
-      '-11': 'Terminal is not active',
-      '-12': 'Too many attempts',
-      '-15': 'Payment has been suspended',
-      '-16': 'Access level is not sufficient',
-      '-30': 'Terminal does not allow to perform the operation',
-      '-31': 'IP is not allowed',
-      '-32': 'Merchant code is not correct',
-      '-33': 'Amount should be above 100 Toman',
-      '-34': 'Amount limit exceeded',
-      '-40': 'Merchant access to method is not allowed',
-      '-41': 'Additional Data related to information validation error',
-      '-42': 'Validation error in payment request',
-      '-54': 'Request archived',
-      // Direct debit specific errors
-      '-50': 'Amount should be above 500 Toman',
-      '-51': 'Amount limit exceeded',
-      '-52': 'Card holder information is not correct',
-      '-53': 'Redirect address is not correct',
-      '-55': 'Request time exceeded',
-      // Success codes
-      '100': 'Operation was successful',
-      '101': 'Operation was successful, previously verified',
-    };
-
-    return errorMessages[code] || `Unknown error (${code})`;
   }
 }

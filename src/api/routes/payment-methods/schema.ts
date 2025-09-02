@@ -1,20 +1,25 @@
 import { z } from '@hono/zod-openapi';
 
 import { ApiResponseSchema } from '@/api/common/schemas';
+import { paymentMethodSelectSchema } from '@/db/validation/billing';
 
-// Payment Method schema matching the database
-const PaymentMethodSchema = z.object({
-  id: z.string().openapi({ example: 'pm_123' }),
-  userId: z.string().openapi({ example: 'user_123' }),
-  zarinpalCardHash: z.string().openapi({ example: 'hash_123' }),
-  cardMask: z.string().openapi({ example: '**** **** **** 1234' }),
-  cardType: z.string().nullable().openapi({ example: 'VISA' }),
-  isPrimary: z.boolean().openapi({ example: true }),
-  isActive: z.boolean().openapi({ example: true }),
-  lastUsedAt: z.string().datetime().nullable().openapi({ example: new Date().toISOString() }),
-  expiresAt: z.string().datetime().nullable().openapi({ example: new Date().toISOString() }),
-  createdAt: z.string().datetime().openapi({ example: new Date().toISOString() }),
-  updatedAt: z.string().datetime().openapi({ example: new Date().toISOString() }),
+// ✅ Single source of truth - use drizzle-zod schema with OpenAPI metadata
+const PaymentMethodSchema = paymentMethodSelectSchema.openapi({
+  example: {
+    id: 'pm_123',
+    userId: 'user_123',
+    contractType: 'direct_debit_contract',
+    contractStatus: 'active',
+    contractSignature: 'sig_abc123',
+    contractDisplayName: 'Direct Debit Contract',
+    contractMobile: '09123456789',
+    isPrimary: true,
+    isActive: true,
+    lastUsedAt: new Date().toISOString(),
+    contractExpiresAt: new Date().toISOString(),
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
 });
 
 // GET /payment-methods response
@@ -78,6 +83,6 @@ export const PaymentMethodParamsSchema = z.object({
   }),
 });
 
-// Export types
+// ✅ Export types - now consistent with database schema
 export type PaymentMethod = z.infer<typeof PaymentMethodSchema>;
 export type PaymentMethodParams = z.infer<typeof PaymentMethodParamsSchema>;

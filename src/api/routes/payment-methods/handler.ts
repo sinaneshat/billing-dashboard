@@ -3,7 +3,8 @@ import { and, desc, eq } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import * as HttpStatusCodes from 'stoker/http-status-codes';
 
-import { created, ok } from '@/api/common/responses';
+import { ok } from '@/api/common/responses';
+import { apiLogger } from '@/api/middleware/hono-logger';
 import type { ApiEnv } from '@/api/types';
 import { db } from '@/db';
 import { paymentMethod } from '@/db/tables/billing';
@@ -30,29 +31,16 @@ export const getPaymentMethodsHandler: RouteHandler<typeof getPaymentMethodsRout
   }
 
   try {
+    // ✅ Return complete drizzle schema data - no manual transformation needed
     const paymentMethods = await db
       .select()
       .from(paymentMethod)
       .where(and(eq(paymentMethod.userId, user.id), eq(paymentMethod.isActive, true)))
       .orderBy(desc(paymentMethod.isPrimary), desc(paymentMethod.lastUsedAt), desc(paymentMethod.createdAt));
 
-    const transformedPaymentMethods = paymentMethods.map(pm => ({
-      id: pm.id,
-      userId: pm.userId,
-      zarinpalCardHash: pm.zarinpalCardHash,
-      cardMask: pm.cardMask,
-      cardType: pm.cardType,
-      isPrimary: pm.isPrimary ?? false,
-      isActive: pm.isActive ?? true,
-      lastUsedAt: pm.lastUsedAt?.toISOString() ?? null,
-      expiresAt: pm.expiresAt?.toISOString() ?? null,
-      createdAt: pm.createdAt.toISOString(),
-      updatedAt: pm.updatedAt.toISOString(),
-    }));
-
-    return ok(c, transformedPaymentMethods);
+    return ok(c, paymentMethods);
   } catch (error) {
-    console.error('Failed to fetch payment methods:', error);
+    apiLogger.error('Failed to fetch payment methods', { error });
     throw new HTTPException(HttpStatusCodes.INTERNAL_SERVER_ERROR, {
       message: 'Failed to fetch payment methods',
     });
@@ -73,92 +61,11 @@ export const createPaymentMethodHandler: RouteHandler<typeof createPaymentMethod
     });
   }
 
-  const { zarinpalCardHash, cardMask, cardType, expiresAt, setPrimary } = c.req.valid('json');
-
-  try {
-    // Check if this card hash already exists for the user
-    const existingPaymentMethod = await db
-      .select()
-      .from(paymentMethod)
-      .where(
-        and(
-          eq(paymentMethod.userId, user.id),
-          eq(paymentMethod.zarinpalCardHash, zarinpalCardHash),
-          eq(paymentMethod.isActive, true),
-        ),
-      )
-      .limit(1);
-
-    if (existingPaymentMethod.length > 0) {
-      throw new HTTPException(HttpStatusCodes.CONFLICT, {
-        message: 'Payment method already exists',
-      });
-    }
-
-    // If setting as primary, unset other primary payment methods
-    if (setPrimary) {
-      await db
-        .update(paymentMethod)
-        .set({ isPrimary: false })
-        .where(and(eq(paymentMethod.userId, user.id), eq(paymentMethod.isPrimary, true)));
-    }
-
-    // Create the new payment method
-    const paymentMethodId = crypto.randomUUID();
-    const now = new Date();
-
-    await db.insert(paymentMethod).values({
-      id: paymentMethodId,
-      userId: user.id,
-      zarinpalCardHash,
-      cardMask,
-      cardType,
-      isPrimary: setPrimary,
-      isActive: true,
-      expiresAt: expiresAt ? new Date(expiresAt) : null,
-      lastUsedAt: null,
-      createdAt: now,
-      updatedAt: now,
-    });
-
-    // Fetch the created payment method
-    const createdPaymentMethod = await db
-      .select()
-      .from(paymentMethod)
-      .where(eq(paymentMethod.id, paymentMethodId))
-      .limit(1);
-
-    if (!createdPaymentMethod.length) {
-      throw new HTTPException(HttpStatusCodes.INTERNAL_SERVER_ERROR, {
-        message: 'Failed to create payment method',
-      });
-    }
-
-    const pm = createdPaymentMethod[0]!;
-    const transformedPaymentMethod = {
-      id: pm.id,
-      userId: pm.userId,
-      zarinpalCardHash: pm.zarinpalCardHash,
-      cardMask: pm.cardMask,
-      cardType: pm.cardType,
-      isPrimary: pm.isPrimary ?? false,
-      isActive: pm.isActive ?? true,
-      lastUsedAt: pm.lastUsedAt?.toISOString() ?? null,
-      expiresAt: pm.expiresAt?.toISOString() ?? null,
-      createdAt: pm.createdAt.toISOString(),
-      updatedAt: pm.updatedAt.toISOString(),
-    };
-
-    return created(c, transformedPaymentMethod);
-  } catch (error) {
-    if (error instanceof HTTPException) {
-      throw error;
-    }
-    console.error('Failed to create payment method:', error);
-    throw new HTTPException(HttpStatusCodes.INTERNAL_SERVER_ERROR, {
-      message: 'Failed to create payment method',
-    });
-  }
+  // Legacy payment method creation is deprecated
+  // Payment methods are now created exclusively through direct debit contract setup
+  throw new HTTPException(HttpStatusCodes.BAD_REQUEST, {
+    message: 'Direct payment method creation is no longer supported. Use the direct debit contract setup process instead.',
+  });
 };
 
 /**
@@ -200,10 +107,8 @@ export const deletePaymentMethodHandler: RouteHandler<typeof deletePaymentMethod
     const pm = existingPaymentMethod[0]!;
 
     // If this was the primary method, we should set another method as primary
-    // TODO: Implement setting another method as primary after deletion
     if (pm.isPrimary) {
       // Logic to set another method as primary will be implemented here
-      console.warn('Primary payment method deleted - should set another as primary');
     }
 
     // Soft delete the payment method
@@ -248,7 +153,7 @@ export const deletePaymentMethodHandler: RouteHandler<typeof deletePaymentMethod
     if (error instanceof HTTPException) {
       throw error;
     }
-    console.error('Failed to delete payment method:', error);
+    apiLogger.error('Failed to delete payment method', { error });
     throw new HTTPException(HttpStatusCodes.INTERNAL_SERVER_ERROR, {
       message: 'Failed to delete payment method',
     });
@@ -317,7 +222,7 @@ export const setDefaultPaymentMethodHandler: RouteHandler<typeof setDefaultPayme
     if (error instanceof HTTPException) {
       throw error;
     }
-    console.error('Failed to set default payment method:', error);
+    apiLogger.error('Failed to set default payment method', { error });
     throw new HTTPException(HttpStatusCodes.INTERNAL_SERVER_ERROR, {
       message: 'Failed to set default payment method',
     });

@@ -17,7 +17,6 @@ import { contextStorage } from 'hono/context-storage';
 import { cors } from 'hono/cors';
 import { csrf } from 'hono/csrf';
 import { etag } from 'hono/etag';
-import { logger } from 'hono/logger';
 import { prettyJSON } from 'hono/pretty-json';
 import { requestId } from 'hono/request-id';
 import { secureHeaders } from 'hono/secure-headers';
@@ -28,9 +27,10 @@ import notFound from 'stoker/middlewares/not-found';
 import onError from 'stoker/middlewares/on-error';
 
 import { createOpenApiApp } from './factory';
-import { attachSession, createRateLimitMiddleware, requireMasterKey, requireSession } from './middleware';
+import { attachSession, requireMasterKey, requireSession } from './middleware';
+import { apiLogger, errorLoggerMiddleware, honoLoggerMiddleware } from './middleware/hono-logger';
 import { metricsMiddleware, performanceMiddleware } from './middleware/performance';
-import { createRateLimiter, RATE_LIMIT_CONFIGS } from './middleware/rate-limiter';
+import { RateLimiterFactory } from './middleware/rate-limiter-factory';
 // Admin routes for platform owner access
 import {
   adminStatsHandler,
@@ -57,15 +57,15 @@ import {
   uploadCompanyImageRoute,
   uploadUserAvatarRoute,
 } from './routes/images/route';
-// New direct debit routes
+// Direct debit routes (ZarinPal Payman API)
 import {
   initiateDirectDebitContractHandler,
   verifyDirectDebitContractHandler,
-} from './routes/payment-methods/direct-debit-handler';
+} from './routes/payment-methods/direct-debit/handler';
 import {
   initiateDirectDebitContractRoute,
   verifyDirectDebitContractRoute,
-} from './routes/payment-methods/direct-debit-routes';
+} from './routes/payment-methods/direct-debit/route';
 import {
   createPaymentMethodHandler,
   deletePaymentMethodHandler,
@@ -78,9 +78,9 @@ import {
   getPaymentMethodsRoute,
   setDefaultPaymentMethodRoute,
 } from './routes/payment-methods/route';
-// Payment callback route for ZarinPal integration
-import { paymentCallbackHandler } from './routes/payments/handler';
-import { paymentCallbackRoute } from './routes/payments/route';
+// Payment routes including callback and history
+import { getPaymentsHandler, paymentCallbackHandler } from './routes/payments/handler';
+import { getPaymentsRoute, paymentCallbackRoute } from './routes/payments/route';
 import { getProductsHandler } from './routes/products/handler';
 import { getProductsRoute } from './routes/products/route';
 // Billing routes
@@ -126,7 +126,8 @@ const app = createOpenApiApp();
 
 // Logging and formatting
 app.use('*', prettyJSON());
-app.use('*', logger());
+app.use('*', honoLoggerMiddleware);
+app.use('*', errorLoggerMiddleware);
 app.use('*', trimTrailingSlash());
 
 // Core middleware
@@ -171,7 +172,7 @@ app.use('*', metricsMiddleware);
 app.use('*', attachSession);
 
 // Global rate limiting
-app.use('*', createRateLimitMiddleware({ limit: 100, windowMs: 60_000, namespace: 'global' }));
+app.use('*', RateLimiterFactory.create('api'));
 
 // ============================================================================
 // Step 3: Configure error and not-found handlers
@@ -194,7 +195,7 @@ app.use('/subscriptions/*', requireSession);
 // app.use('/payment-methods/*', requireSession);
 app.use('/webhooks/events', requireSession);
 app.use('/webhooks/test', requireSession);
-app.use('/passes/*', createRateLimiter(RATE_LIMIT_CONFIGS.apiGeneral));
+app.use('/passes/*', RateLimiterFactory.create('api'));
 app.use('/passes/*', requireSession);
 // Admin routes require master key authentication
 app.use('/admin/*', requireMasterKey);
@@ -221,7 +222,8 @@ const appRoutes = app
   .openapi(createPaymentMethodRoute, createPaymentMethodHandler)
   .openapi(deletePaymentMethodRoute, deletePaymentMethodHandler)
   .openapi(setDefaultPaymentMethodRoute, setDefaultPaymentMethodHandler)
-  // Payment callback route
+  // Payment routes
+  .openapi(getPaymentsRoute, getPaymentsHandler)
   .openapi(paymentCallbackRoute, paymentCallbackHandler)
   // Direct debit contract routes (ZarinPal Payman API)
   .openapi(initiateDirectDebitContractRoute, initiateDirectDebitContractHandler)
@@ -342,7 +344,7 @@ export default {
     import('./scheduled/monthly-billing').then(({ default: billingScheduler }) => {
       return billingScheduler.scheduled(event, env, ctx);
     }).catch((error) => {
-      console.error('Failed to load billing scheduler:', error);
+      apiLogger.error('Failed to load billing scheduler', { error });
     });
   },
 };

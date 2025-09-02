@@ -1,14 +1,12 @@
-import { SubscriptionManagement } from '@/components/billing/subscription-management';
-import { PageHeader } from '@/components/dashboard/page-header';
+'use client';
+
+import { SubscriptionManagementScreen } from '@/containers/screens/dashboard/billing';
+import { usePrefetchPaymentMethods, usePrefetchSubscriptions } from '@/lib/data/prefetch-utils';
 
 export default function SubscriptionsPage() {
-  return (
-    <div className="space-y-6">
-      <PageHeader
-        title="Subscriptions"
-        description="Manage your active and past subscriptions"
-      />
-      <SubscriptionManagement />
-    </div>
-  );
+  // Official TanStack Query prefetching - subscription management focus
+  usePrefetchSubscriptions();
+  usePrefetchPaymentMethods(); // Needed for subscription payment updates
+
+  return <SubscriptionManagementScreen />;
 }

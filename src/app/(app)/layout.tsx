@@ -2,8 +2,13 @@ import { dehydrate, HydrationBoundary } from '@tanstack/react-query';
 import type React from 'react';
 
 import { requireAuth } from '@/app/auth/actions';
-import { prefetchStrategies } from '@/lib/data/prefetch-utils';
 import { getQueryClient } from '@/lib/data/query-client';
+import { queryKeys } from '@/lib/data/query-keys';
+import {
+  getPaymentMethodsService,
+  getProductsService,
+  getSubscriptionsService,
+} from '@/services/api';
 
 export default async function AuthenticatedLayout({
   children,
@@ -16,13 +21,27 @@ export default async function AuthenticatedLayout({
   // Create query client with streaming SSR support
   const queryClient = getQueryClient();
 
-  // Prefetch essential user data for all authenticated pages
-  // This improves perceived performance by preloading critical data
+  // Simple prefetch - dashboard essentials
   try {
-    await prefetchStrategies.essential(queryClient);
-  } catch (error) {
-    // Prefetch errors shouldn't break the page - log and continue
-    console.warn('Failed to prefetch essential data:', error);
+    await Promise.allSettled([
+      queryClient.prefetchQuery({
+        queryKey: queryKeys.subscriptions.list(),
+        queryFn: () => getSubscriptionsService(),
+        staleTime: 2 * 60 * 1000,
+      }),
+      queryClient.prefetchQuery({
+        queryKey: queryKeys.paymentMethods.list(),
+        queryFn: () => getPaymentMethodsService(),
+        staleTime: 5 * 60 * 1000,
+      }),
+      queryClient.prefetchQuery({
+        queryKey: queryKeys.products.list(),
+        queryFn: () => getProductsService(),
+        staleTime: 10 * 60 * 1000,
+      }),
+    ]);
+  } catch {
+    // Prefetch errors shouldn't break the page
   }
 
   return (

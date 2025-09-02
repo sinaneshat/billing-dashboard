@@ -8,7 +8,7 @@ import * as HttpStatusCodes from 'stoker/http-status-codes';
 
 import type { ApiEnv } from '@/api/types';
 
-import { ErrorSchema } from './schemas';
+import { ErrorResponseDataSchema } from './schemas';
 
 /**
  * Common OpenAPI error response definitions
@@ -18,49 +18,55 @@ export const OpenAPIErrorResponses = {
   [HttpStatusCodes.BAD_REQUEST]: {
     description: 'Bad Request - Invalid request data',
     content: {
-      'application/json': { schema: ErrorSchema },
+      'application/json': { schema: ErrorResponseDataSchema },
     },
   },
   [HttpStatusCodes.UNAUTHORIZED]: {
     description: 'Unauthorized - Authentication required',
     content: {
-      'application/json': { schema: ErrorSchema },
+      'application/json': { schema: ErrorResponseDataSchema },
     },
   },
   [HttpStatusCodes.FORBIDDEN]: {
     description: 'Forbidden - Access denied',
     content: {
-      'application/json': { schema: ErrorSchema },
+      'application/json': { schema: ErrorResponseDataSchema },
     },
   },
   [HttpStatusCodes.NOT_FOUND]: {
     description: 'Not Found - Resource not found',
     content: {
-      'application/json': { schema: ErrorSchema },
+      'application/json': { schema: ErrorResponseDataSchema },
     },
   },
   [HttpStatusCodes.CONFLICT]: {
     description: 'Conflict - Resource already exists',
     content: {
-      'application/json': { schema: ErrorSchema },
+      'application/json': { schema: ErrorResponseDataSchema },
     },
   },
   [HttpStatusCodes.UNPROCESSABLE_ENTITY]: {
     description: 'Validation Error - Invalid input data',
     content: {
-      'application/json': { schema: ErrorSchema },
+      'application/json': { schema: ErrorResponseDataSchema },
     },
   },
   [HttpStatusCodes.REQUEST_TOO_LONG]: {
     description: 'Payload Too Large - Request entity too large',
     content: {
-      'application/json': { schema: ErrorSchema },
+      'application/json': { schema: ErrorResponseDataSchema },
     },
   },
   [HttpStatusCodes.INTERNAL_SERVER_ERROR]: {
     description: 'Internal Server Error - Server error occurred',
     content: {
-      'application/json': { schema: ErrorSchema },
+      'application/json': { schema: ErrorResponseDataSchema },
+    },
+  },
+  [HttpStatusCodes.BAD_GATEWAY]: {
+    description: 'Bad Gateway - External service error',
+    content: {
+      'application/json': { schema: ErrorResponseDataSchema },
     },
   },
 } as const;
@@ -182,7 +188,7 @@ export function createErrorResponse(
   c: Context<ApiEnv>,
   error: string,
   message: string,
-  status: 400 | 401 | 403 | 404 | 409 | 422 | 429 | 500 = 400,
+  status: 400 | 401 | 403 | 404 | 409 | 422 | 429 | 500 | 502 = 400,
   details?: unknown,
 ) {
   const errorResponse: ErrorResponseData = {
@@ -209,55 +215,23 @@ export function createErrorResponse(
 export function createPaginatedResponse<T>(
   c: Context<ApiEnv>,
   data: T[],
-  query: { limit: number; offset: number },
-  total: number,
+  pagination: PaginationInfo,
+  meta?: Record<string, unknown>,
 ) {
-  const pagination: PaginationInfo = {
-    limit: query.limit,
-    offset: query.offset,
-    total,
-    hasMore: query.offset + query.limit < total,
-  };
-
   return c.json({
+    success: true,
     data,
-    pagination,
+    meta: {
+      ...meta,
+      pagination,
+      timestamp: new Date().toISOString(),
+    },
   });
 }
 
 /**
- * Creates a success response with optional metadata
+ * Common business logic error responses using createErrorResponse
  */
-export function createSuccessResponse<T>(
-  c: Context<ApiEnv>,
-  data: T,
-  message?: string,
-  metadata?: Record<string, unknown>,
-) {
-  const response: Record<string, unknown> = { data };
-
-  if (message) {
-    response.message = message;
-  }
-
-  if (metadata) {
-    response.metadata = metadata;
-  }
-
-  response.timestamp = new Date().toISOString();
-
-  const requestId = c.get('requestId');
-  if (requestId) {
-    response.request_id = requestId;
-  }
-
-  return c.json(response);
-}
-
-// =============================================================================
-// Business Logic Error Responses
-// =============================================================================
-
 export const BusinessErrors = {
   ApiKeyInvalid: (c: Context<ApiEnv>) =>
     createErrorResponse(c, 'invalid_api_key', 'The provided API key is invalid or expired', 401),
@@ -301,4 +275,54 @@ export const BusinessErrors = {
 
   WebhookDeliveryFailed: (c: Context<ApiEnv>, error: string) =>
     createErrorResponse(c, 'webhook_delivery_failed', 'Webhook delivery failed', 400, { error }),
+
+  // ZarinPal-specific business errors
+  ZarinPalMerchantInvalid: (c: Context<ApiEnv>) =>
+    createErrorResponse(c, 'zarinpal_merchant_invalid', 'Invalid ZarinPal merchant configuration', 400, {
+      zarinpal_code: -74,
+      action_required: 'Contact support to update merchant configuration',
+    }),
+
+  ZarinPalMerchantNoAccess: (c: Context<ApiEnv>) =>
+    createErrorResponse(c, 'zarinpal_merchant_no_access', 'Direct debit service is not activated for this account. Please contact support to enable this feature.', 400, {
+      zarinpal_code: -80,
+      action_required: 'Request direct debit service activation from ZarinPal support',
+    }),
+
+  ZarinPalServiceUnavailable: (c: Context<ApiEnv>) =>
+    createErrorResponse(c, 'zarinpal_service_unavailable', 'ZarinPal payment service is temporarily unavailable', 500),
+
+  ZarinPalContractFailed: (c: Context<ApiEnv>, zarinpalCode: number, zarinpalMessage: string) =>
+    createErrorResponse(c, 'zarinpal_contract_failed', zarinpalMessage, 400, {
+      zarinpal_code: zarinpalCode,
+      provider: 'zarinpal',
+    }),
+
+  ZarinPalTransactionFailed: (c: Context<ApiEnv>, zarinpalCode: number, zarinpalMessage: string) =>
+    createErrorResponse(c, 'zarinpal_transaction_failed', zarinpalMessage, 400, {
+      zarinpal_code: zarinpalCode,
+      provider: 'zarinpal',
+    }),
+
+  // Route-specific error response helpers that match exact route schema types
+
+  // Admin route errors (auth only: 400 | 401 | 403 | 500)
+  AdminAuthError: (c: Context<ApiEnv>, error: string, message: string, status: 400 | 401 | 403 | 500 = 401) =>
+    createErrorResponse(c, error, message, status),
+
+  AdminInvalidCredentials: (c: Context<ApiEnv>) =>
+    createErrorResponse(c, 'invalid_credentials', 'Invalid admin credentials', 401),
+
+  AdminAccessDenied: (c: Context<ApiEnv>) =>
+    createErrorResponse(c, 'access_denied', 'Admin access required', 403),
+
+  AdminServerError: (c: Context<ApiEnv>) =>
+    createErrorResponse(c, 'server_error', 'Internal server error', 500),
+
+  // Direct debit route errors (auth + validation + BAD_GATEWAY)
+  DirectDebitAuthError: (c: Context<ApiEnv>, error: string, message: string, status: 400 | 401 | 403 | 422 | 500 | 502 = 400) =>
+    createErrorResponse(c, error, message, status),
+
+  DirectDebitServiceError: (c: Context<ApiEnv>) =>
+    createErrorResponse(c, 'service_unavailable', 'Direct debit service temporarily unavailable', 502),
 };

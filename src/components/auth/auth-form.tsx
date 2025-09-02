@@ -2,7 +2,7 @@
 
 // Google icon SVG component
 import { zodResolver } from '@hookform/resolvers/zod';
-import { CheckCircle2, Loader2 } from 'lucide-react';
+import { CheckCircle2 } from 'lucide-react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { useState } from 'react';
@@ -216,9 +216,9 @@ export function AuthForm({ isSignUp = false, returnUrl: _returnUrl, invitationId
             <Button
               type="submit"
               className="w-full"
-              disabled={isLoading.value}
+              loading={isLoading.value}
+              loadingText={isSignUp ? 'Creating Account...' : 'Signing In...'}
             >
-              {isLoading.value && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               {isSignUp ? 'Create Account' : 'Sign In'}
             </Button>
           </form>
@@ -233,16 +233,11 @@ export function AuthForm({ isSignUp = false, returnUrl: _returnUrl, invitationId
             type="button"
             variant="outline"
             onClick={handleGoogleAuth}
-            disabled={isGoogleLoading.value}
+            loading={isGoogleLoading.value}
+            loadingText="Connecting to Google..."
+            startIcon={!isGoogleLoading.value ? <GoogleIcon /> : undefined}
             className="w-full"
           >
-            {isGoogleLoading.value
-              ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                )
-              : (
-                  <GoogleIcon />
-                )}
             Continue with Google
           </Button>
         </div>

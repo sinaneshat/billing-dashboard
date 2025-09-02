@@ -1,14 +1,12 @@
-import { SubscriptionBillingHistory } from '@/components/billing/subscription-billing-history';
-import { PageHeader } from '@/components/dashboard/page-header';
+'use client';
+
+import { SubscriptionBillingScreen } from '@/containers/screens/dashboard/billing';
+import { usePrefetchPaymentMethods, usePrefetchSubscriptions } from '@/lib/data/prefetch-utils';
 
 export default function SubscriptionBillingPage() {
-  return (
-    <div className="space-y-6">
-      <PageHeader
-        title="Subscription Billing"
-        description="View your subscription billing history and automated charges"
-      />
-      <SubscriptionBillingHistory />
-    </div>
-  );
+  // Official TanStack Query prefetching - payment history focus
+  usePrefetchSubscriptions();
+  usePrefetchPaymentMethods();
+
+  return <SubscriptionBillingScreen />;
 }

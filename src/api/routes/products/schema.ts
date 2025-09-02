@@ -1,21 +1,26 @@
 import { z } from '@hono/zod-openapi';
 
 import { ApiResponseSchema } from '@/api/common/schemas';
+import { productSelectSchema } from '@/db/validation/billing';
 
-const ProductSchema = z.object({
-  id: z.string().openapi({ example: 'prod_123' }),
-  name: z.string().openapi({ example: 'Premium Plan' }),
-  description: z.string().nullable().openapi({ example: 'Full access to all features' }),
-  price: z.number().openapi({ example: 99000 }),
-  billingPeriod: z.enum(['one_time', 'monthly']).openapi({ example: 'monthly' }),
-  isActive: z.boolean().openapi({ example: true }),
-  createdAt: z.string().datetime().openapi({ example: new Date().toISOString() }),
-  updatedAt: z.string().datetime().openapi({ example: new Date().toISOString() }),
+// ✅ Single source of truth - use drizzle-zod schema with OpenAPI metadata
+const ProductSchema = productSelectSchema.openapi({
+  example: {
+    id: 'prod_123',
+    name: 'Premium Plan',
+    description: 'Full access to all features',
+    price: 99000,
+    billingPeriod: 'monthly',
+    isActive: true,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
 });
 
 const ProductsArraySchema = z.array(ProductSchema);
 
 export const GetProductsResponseSchema = ApiResponseSchema(ProductsArraySchema).openapi('GetProductsResponse');
 
+// ✅ Export types - now consistent with database schema
 export type Product = z.infer<typeof ProductSchema>;
 export type ProductsResponse = z.infer<typeof GetProductsResponseSchema>;

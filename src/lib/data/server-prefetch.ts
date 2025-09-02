@@ -1,116 +1,69 @@
 /**
- * Server-side prefetching utilities for TanStack Query
- * Used ONLY for API data - NOT for Better Auth
- *
- * Better Auth data should be fetched directly using:
- * - auth.api.getSession()
- * - auth.api.listOrganizations()
- * - etc.
+ * Server-side prefetching helpers - Following official TanStack Query patterns
+ * These are simple helpers that match Context7 documentation examples
  */
 
 import type { QueryClient } from '@tanstack/react-query';
 
+import {
+  getPaymentMethodsService,
+  getProductsService,
+  getSubscriptionsService,
+} from '@/services/api';
+
+import { queryKeys } from './query-keys';
+
 /**
- * Prefetch API data on the server
- * Use this in server components to prefetch data that will be needed client-side
- *
- * @example
- * ```tsx
- * // In a server component (page.tsx)
- * import { getQueryClient } from '@/lib/data/query-client';
- * import { prefetchQuery } from '@/lib/data/server-prefetch';
- * import { queryKeys } from '@/lib/data/query-keys';
- * import { dehydrate, HydrationBoundary } from '@tanstack/react-query';
- *
- * export default async function Page() {
- *   const queryClient = getQueryClient();
- *
- *   // Prefetch API data
- *   await prefetchQuery(queryClient, {
- *     queryKey: queryKeys.health.check(),
- *     queryFn: async () => {
- *       const response = await fetch('/api/v1/health');
- *       return response.json();
- *     },
- *   });
- *
- *   return (
- *     <HydrationBoundary state={dehydrate(queryClient)}>
- *       <YourComponent />
- *     </HydrationBoundary>
- *   );
- * }
- * ```
+ * Prefetch subscriptions on server - official TanStack Query pattern
+ * Use in server components before HydrationBoundary
  */
-export async function prefetchQuery<T>(
-  queryClient: QueryClient,
-  options: {
-    queryKey: readonly unknown[];
-    queryFn: () => Promise<T>;
-  },
-): Promise<void> {
-  try {
-    await queryClient.prefetchQuery({
-      queryKey: options.queryKey,
-      queryFn: options.queryFn,
-    });
-  } catch (error) {
-    // Log error in development only
-    if (process.env.NODE_ENV === 'development') {
-      console.error('[prefetchQuery] Failed to prefetch:', options.queryKey, error);
-    }
-    // Don't throw - let the page render even if prefetch fails
-  }
+export async function prefetchSubscriptions(queryClient: QueryClient) {
+  await queryClient.prefetchQuery({
+    queryKey: queryKeys.subscriptions.list(),
+    queryFn: getSubscriptionsService,
+  });
 }
 
 /**
- * Prefetch multiple queries in parallel
- * Useful for prefetching all data needed for a page
+ * Prefetch payment methods on server - official TanStack Query pattern
+ * Use in server components before HydrationBoundary
  */
-export async function prefetchQueries(
-  queryClient: QueryClient,
-  queries: Array<{
-    queryKey: readonly unknown[];
-    queryFn: () => Promise<unknown>;
-  }>,
-): Promise<void> {
-  // Execute all prefetches in parallel
-  const results = await Promise.allSettled(
-    queries.map(query =>
-      queryClient.prefetchQuery({
-        queryKey: query.queryKey,
-        queryFn: query.queryFn,
-      }),
-    ),
-  );
-
-  // Log failures in development
-  if (process.env.NODE_ENV === 'development') {
-    results.forEach((result, index) => {
-      if (result.status === 'rejected') {
-        console.error('[prefetchQueries] Failed to prefetch:', queries[index]?.queryKey, result.reason);
-      }
-    });
-  }
+export async function prefetchPaymentMethods(queryClient: QueryClient) {
+  await queryClient.prefetchQuery({
+    queryKey: queryKeys.paymentMethods.list(),
+    queryFn: getPaymentMethodsService,
+  });
 }
 
 /**
- * Conditionally prefetch based on runtime conditions
- * Useful for user-specific or feature-flagged data
+ * Prefetch products on server - official TanStack Query pattern
+ * Use in server components before HydrationBoundary
  */
-export async function prefetchConditional<T>(
-  queryClient: QueryClient,
-  condition: boolean | (() => boolean | Promise<boolean>),
-  options: {
-    queryKey: readonly unknown[];
-    queryFn: () => Promise<T>;
-  },
-): Promise<void> {
-  const shouldPrefetch = typeof condition === 'function'
-    ? await Promise.resolve(condition())
-    : condition;
+export async function prefetchProducts(queryClient: QueryClient) {
+  await queryClient.prefetchQuery({
+    queryKey: queryKeys.products.list(),
+    queryFn: getProductsService,
+  });
+}
 
-  if (shouldPrefetch) {
-    await prefetchQuery(queryClient, options);
-  }
+/**
+ * Prefetch all billing data - parallel prefetching from Context7 docs
+ * Use for pages that need comprehensive billing data
+ */
+export async function prefetchAllBillingData(queryClient: QueryClient) {
+  // Direct parallel prefetching - no complex abstractions needed
+  await Promise.all([
+    queryClient.prefetchQuery({
+      queryKey: queryKeys.subscriptions.list(),
+      queryFn: getSubscriptionsService,
+    }),
+    queryClient.prefetchQuery({
+      queryKey: queryKeys.paymentMethods.list(),
+      queryFn: getPaymentMethodsService,
+    }),
+    queryClient.prefetchQuery({
+      queryKey: queryKeys.products.list(),
+      queryFn: getProductsService,
+    }),
+  ]);
 }

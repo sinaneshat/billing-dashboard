@@ -1,42 +1,35 @@
 /**
  * Billing and Subscription Types
- * Type definitions for billing-related data structures
+ * Single source of truth - imports from drizzle-zod schemas
+ * ✅ Fixed: No more type mismatches or duplication
  */
 
-export type Product = {
-  id: string;
-  name: string;
-  description: string;
-  price: number;
-  currency?: string;
-  interval?: 'monthly' | 'yearly' | 'one-time';
-  features?: string[];
-};
+// Import for local use in type definitions
+import type { PaymentMethod, Product, Subscription } from '@/db/validation/billing';
 
-export type Subscription = {
-  id: string;
-  productId: string;
-  productName: string;
-  status: 'active' | 'inactive' | 'past_due' | 'canceled' | 'unpaid' | 'paused';
-  amount: number;
-  currency?: string;
-  billingPeriod: 'monthly' | 'yearly' | 'one-time';
-  createdAt: string;
-  updatedAt?: string;
-  nextBillingDate?: string;
-  canceledAt?: string;
-};
+// ✅ Export correct types from drizzle-zod schemas (single source of truth)
+export type {
+  BillingEvent,
+  BillingEventInsert,
+  BillingEventUpdate,
+  Payment,
+  PaymentInsert,
+  PaymentMethod,
+  PaymentMethodInsert,
+  PaymentMethodUpdate,
+  PaymentUpdate,
+  Product,
+  ProductInsert,
+  ProductUpdate,
+  Subscription,
+  SubscriptionInsert,
+  SubscriptionUpdate,
+  WebhookEvent,
+  WebhookEventInsert,
+  WebhookEventUpdate,
+} from '@/db/validation/billing';
 
-export type PaymentMethod = {
-  id: string;
-  type: 'card' | 'bank' | 'wallet';
-  last4?: string;
-  brand?: string;
-  expiryMonth?: number;
-  expiryYear?: number;
-  isDefault: boolean;
-};
-
+/** @deprecated Use Payment from drizzle-zod instead */
 export type Invoice = {
   id: string;
   subscriptionId: string;
@@ -48,6 +41,7 @@ export type Invoice = {
   dueAt?: string;
 };
 
+// Re-export for legacy compatibility
 export type BillingData = {
   subscriptions: Subscription[];
   products: Product[];

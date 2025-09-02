@@ -20,7 +20,7 @@ export {
   getImageMetadataService,
   type GetImagesResponse,
   getImagesService,
-  getUserAvatarsService,
+  // getUserAvatarsService, // Removed - use session.user.image instead
   replaceUserAvatarService,
   revokeImagePreviewService,
   type UploadUserAvatarResponse,
@@ -39,9 +39,15 @@ export {
   type GetPaymentMethodsRequest,
   type GetPaymentMethodsResponse,
   getPaymentMethodsService,
+  type InitiateDirectDebitContractRequest,
+  type InitiateDirectDebitContractResponse,
+  initiateDirectDebitContractService,
   type SetDefaultPaymentMethodRequest,
   type SetDefaultPaymentMethodResponse,
   setDefaultPaymentMethodService,
+  type VerifyDirectDebitContractRequest,
+  type VerifyDirectDebitContractResponse,
+  verifyDirectDebitContractService,
 } from './payment-methods';
 
 // Payments service exports

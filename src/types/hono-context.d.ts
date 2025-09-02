@@ -9,7 +9,7 @@ declare module 'hono' {
     requestId: string | undefined;
     // Storage-related context variables
     storageKey: string;
-    storagePurpose: import('@/api/middleware/storage-security').StoragePurpose | null;
+    storagePurpose: import('@/api/common/storage-keys').StoragePurpose | null;
     storageMethod: string;
     fileContentType: string;
     fileSize: number;

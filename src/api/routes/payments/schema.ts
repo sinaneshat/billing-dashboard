@@ -1,35 +1,49 @@
 import { z } from '@hono/zod-openapi';
 
 import { ApiResponseSchema } from '@/api/common/schemas';
+import { paymentSelectSchema, productSelectSchema, subscriptionSelectSchema } from '@/db/validation/billing';
 
-// Payment schema matching the database
-const PaymentSchema = z.object({
-  id: z.string().openapi({ example: 'pay_123' }),
-  userId: z.string().openapi({ example: 'user_123' }),
-  subscriptionId: z.string().nullable().openapi({ example: 'sub_123' }),
-  productId: z.string().openapi({ example: 'prod_123' }),
-  amount: z.number().openapi({ example: 99000 }),
-  currency: z.string().openapi({ example: 'IRR' }),
-  status: z.enum(['pending', 'completed', 'failed', 'refunded', 'canceled']).openapi({ example: 'completed' }),
-  paymentMethod: z.string().openapi({ example: 'zarinpal' }),
-  zarinpalAuthority: z.string().nullable().openapi({ example: 'A00000000000000000000000000123456789' }),
-  zarinpalRefId: z.string().nullable().openapi({ example: '123456789' }),
-  paidAt: z.string().datetime().nullable().openapi({ example: new Date().toISOString() }),
-  createdAt: z.string().datetime().openapi({ example: new Date().toISOString() }),
-  updatedAt: z.string().datetime().openapi({ example: new Date().toISOString() }),
+// ✅ Single source of truth - use drizzle-zod schemas with OpenAPI metadata
+const PaymentSchema = paymentSelectSchema.openapi({
+  example: {
+    id: 'pay_123',
+    userId: 'user_123',
+    subscriptionId: 'sub_123',
+    productId: 'prod_123',
+    amount: 99000,
+    currency: 'IRR',
+    status: 'completed',
+    paymentMethod: 'zarinpal',
+    zarinpalAuthority: 'A00000000000000000000000000123456789',
+    zarinpalRefId: '123456789',
+    paidAt: new Date().toISOString(),
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
 });
 
-// Payment with related product data
+// Payment with related data - extend from drizzle schemas
 const PaymentWithDetailsSchema = PaymentSchema.extend({
-  product: z.object({
-    id: z.string(),
-    name: z.string(),
-    description: z.string().nullable(),
+  product: productSelectSchema.pick({
+    id: true,
+    name: true,
+    description: true,
+  }).openapi({
+    example: {
+      id: 'prod_123',
+      name: 'Premium Plan',
+      description: 'Full access to all features',
+    },
   }),
-  subscription: z.object({
-    id: z.string(),
-    status: z.string(),
-  }).nullable(),
+  subscription: subscriptionSelectSchema.pick({
+    id: true,
+    status: true,
+  }).nullable().openapi({
+    example: {
+      id: 'sub_123',
+      status: 'active',
+    },
+  }),
 });
 
 // Payment callback request from ZarinPal
@@ -113,7 +127,7 @@ export const PaymentParamsSchema = z.object({
   }),
 });
 
-// Export types
+// ✅ Export types - now consistent with database schema
 export type Payment = z.infer<typeof PaymentSchema>;
 export type PaymentWithDetails = z.infer<typeof PaymentWithDetailsSchema>;
 export type PaymentCallbackRequest = z.infer<typeof PaymentCallbackRequestSchema>;

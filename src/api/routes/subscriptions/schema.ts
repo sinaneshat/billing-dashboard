@@ -1,31 +1,41 @@
 import { z } from '@hono/zod-openapi';
 
 import { ApiResponseSchema } from '@/api/common/schemas';
+import { productSelectSchema, subscriptionSelectSchema } from '@/db/validation/billing';
 
-// Base subscription schema matching the database
-const SubscriptionSchema = z.object({
-  id: z.string().openapi({ example: 'sub_123' }),
-  userId: z.string().openapi({ example: 'user_123' }),
-  productId: z.string().openapi({ example: 'prod_123' }),
-  status: z.enum(['active', 'canceled', 'expired', 'pending']).openapi({ example: 'active' }),
-  startDate: z.string().datetime().openapi({ example: new Date().toISOString() }),
-  endDate: z.string().datetime().nullable().openapi({ example: null }),
-  nextBillingDate: z.string().datetime().nullable().openapi({ example: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() }),
-  currentPrice: z.number().openapi({ example: 99000 }),
-  billingPeriod: z.enum(['one_time', 'monthly']).openapi({ example: 'monthly' }),
-  directDebitContractId: z.string().nullable().openapi({ example: 'contract_abc123', description: 'ZarinPal direct debit contract ID for automatic billing' }),
-  directDebitSignature: z.string().nullable().openapi({ example: 'signature_200chars...', description: 'ZarinPal direct debit contract signature (stored securely)' }),
-  createdAt: z.string().datetime().openapi({ example: new Date().toISOString() }),
-  updatedAt: z.string().datetime().openapi({ example: new Date().toISOString() }),
+// ✅ Single source of truth - use drizzle-zod schemas with OpenAPI metadata
+const SubscriptionSchema = subscriptionSelectSchema.openapi({
+  example: {
+    id: 'sub_123',
+    userId: 'user_123',
+    productId: 'prod_123',
+    status: 'active',
+    startDate: new Date().toISOString(),
+    endDate: null,
+    nextBillingDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+    currentPrice: 99000,
+    billingPeriod: 'monthly',
+    directDebitContractId: 'contract_abc123',
+    directDebitSignature: 'signature_200chars...',
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
 });
 
-// Subscription with related product data
+// Subscription with related product data - extend from drizzle schemas
 const SubscriptionWithProductSchema = SubscriptionSchema.extend({
-  product: z.object({
-    id: z.string(),
-    name: z.string(),
-    description: z.string().nullable(),
-    billingPeriod: z.enum(['one_time', 'monthly']),
+  product: productSelectSchema.pick({
+    id: true,
+    name: true,
+    description: true,
+    billingPeriod: true,
+  }).openapi({
+    example: {
+      id: 'prod_123',
+      name: 'Premium Plan',
+      description: 'Full access to all features',
+      billingPeriod: 'monthly',
+    },
   }),
 });
 
@@ -155,7 +165,7 @@ export const SubscriptionParamsSchema = z.object({
   }),
 });
 
-// Export types for use in handlers and services
+// ✅ Export types - now consistent with database schema
 export type Subscription = z.infer<typeof SubscriptionSchema>;
 export type SubscriptionWithProduct = z.infer<typeof SubscriptionWithProductSchema>;
 export type CreateSubscriptionRequest = z.infer<typeof CreateSubscriptionRequestSchema>;

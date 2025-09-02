@@ -1,39 +1,26 @@
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 
 import { queryKeys } from '@/lib/data/query-keys';
-import type {
-  GetPaymentMethodsRequest,
-} from '@/services/api/payment-methods';
-import {
-  getPaymentMethodsService,
-} from '@/services/api/payment-methods';
+import { getPaymentMethodsService } from '@/services/api/payment-methods';
 
 /**
- * Hook to fetch all user payment methods
- * Following the Shakewell pattern for React Query hooks
+ * Hook to fetch ALL user payment methods (no pagination)
+ * Simple TanStack Query pattern - shows all payment methods always
  */
-export function usePaymentMethodsQuery(args?: GetPaymentMethodsRequest) {
+export function usePaymentMethodsQuery() {
   return useQuery({
-    queryKey: queryKeys.paymentMethods.list(args),
-    queryFn: () => getPaymentMethodsService(args),
+    queryKey: queryKeys.paymentMethods.list(),
+    queryFn: () => getPaymentMethodsService(), // No args = fetch all payment methods
     staleTime: 5 * 60 * 1000, // 5 minutes - payment methods are relatively stable
-    gcTime: 15 * 60 * 1000, // 15 minutes
     retry: 2,
+    throwOnError: false,
   });
 }
 
 /**
- * Hook to prefetch payment methods data
- * Useful for optimistic loading
+ * Simple prefetch function for backward compatibility
  */
 export function usePrefetchPaymentMethods() {
-  const queryClient = useQueryClient();
-
-  return (args?: GetPaymentMethodsRequest) => {
-    queryClient.prefetchQuery({
-      queryKey: queryKeys.paymentMethods.list(args),
-      queryFn: () => getPaymentMethodsService(args),
-      staleTime: 5 * 60 * 1000,
-    });
-  };
+  // Placeholder function for backward compatibility
+  return () => {};
 }

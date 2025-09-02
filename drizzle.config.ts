@@ -30,7 +30,7 @@ function getLocalDbPath(): string {
   return path.join(LOCAL_DB_PATH, 'database.sqlite');
 }
 
-// Remote database configuration
+// Remote database configuration with graceful fallbacks
 function getRemoteConfig() {
   const accountId = process.env.CLOUDFLARE_ACCOUNT_ID;
   const token = process.env.D1_TOKEN;
@@ -38,8 +38,10 @@ function getRemoteConfig() {
     ? process.env.PREVIEW_DATABASE_ID
     : process.env.PROD_DATABASE_ID;
 
+  // Return null if any required vars are missing (will fall back to local)
   if (!accountId || !token || !databaseId) {
-    throw new Error('Missing required environment variables for remote database configuration');
+    console.warn('Remote database configuration incomplete, falling back to local development');
+    return null;
   }
 
   return {
@@ -61,9 +63,21 @@ export default defineConfig({
           url: getLocalDbPath(),
         },
       }
-    : {
-        // Remote D1 configuration
-        driver: 'd1-http',
-        dbCredentials: getRemoteConfig(),
-      }),
+    : (() => {
+        // Remote D1 configuration with fallback
+        const remoteConfig = getRemoteConfig();
+        if (remoteConfig) {
+          return {
+            driver: 'd1-http',
+            dbCredentials: remoteConfig,
+          };
+        } else {
+          // Fallback to local if remote config is unavailable
+          return {
+            dbCredentials: {
+              url: getLocalDbPath(),
+            },
+          };
+        }
+      })()),
 });

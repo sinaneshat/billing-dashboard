@@ -9,7 +9,12 @@ import { and, eq } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import * as HttpStatusCodes from 'stoker/http-status-codes';
 
+import { parseMetadata } from '@/api/common';
 import { ok } from '@/api/common/responses';
+import {
+  isZarinPalAuthError,
+  isZarinPalServiceError,
+} from '@/api/common/zarinpal-error-utils';
 import { ZarinPalDirectDebitService } from '@/api/services/zarinpal-direct-debit';
 import type { ApiEnv } from '@/api/types';
 import { db } from '@/db';
@@ -18,7 +23,7 @@ import { paymentMethod } from '@/db/tables/billing';
 import type {
   initiateDirectDebitContractRoute,
   verifyDirectDebitContractRoute,
-} from './direct-debit-routes';
+} from './route';
 
 // Contract storage - using database for serverless compatibility
 // This stores contract requests temporarily during the signing process
@@ -58,8 +63,6 @@ export const initiateDirectDebitContractHandler: RouteHandler<
   } = c.req.valid('json');
 
   try {
-    console.warn('[DIRECT_DEBIT] Starting contract setup for user:', user.id);
-
     // Validate mobile number format (Iranian format)
     if (!/^(?:\+98|0)?9\d{9}$/.test(mobile)) {
       throw new HTTPException(HttpStatusCodes.BAD_REQUEST, {
@@ -68,7 +71,6 @@ export const initiateDirectDebitContractHandler: RouteHandler<
     }
 
     const zarinpalService = ZarinPalDirectDebitService.create(c.env);
-    console.warn('[DIRECT_DEBIT] ZarinPal service created');
 
     // Calculate contract expiry date
     const expireAt = new Date();
@@ -88,24 +90,22 @@ export const initiateDirectDebitContractHandler: RouteHandler<
 
     if (!contractResult.data?.payman_authority) {
       throw new HTTPException(HttpStatusCodes.BAD_GATEWAY, {
-        message: 'Failed to create direct debit contract with ZarinPal',
+        message: 'Direct debit service temporarily unavailable',
       });
     }
 
     const paymanAuthority = contractResult.data.payman_authority;
-    console.warn('[DIRECT_DEBIT] Got payman authority:', paymanAuthority);
 
     // Step 2: Get available banks
     const bankListResult = await zarinpalService.getBankList();
 
     if (!bankListResult.data?.banks || bankListResult.data.banks.length === 0) {
       throw new HTTPException(HttpStatusCodes.BAD_GATEWAY, {
-        message: 'No banks available for direct debit contract signing',
+        message: 'Direct debit service temporarily unavailable',
       });
     }
 
     const banks = bankListResult.data.banks;
-    console.warn('[DIRECT_DEBIT] Retrieved bank list:', banks.length, 'banks');
 
     // Store contract request in database using payment_method table temporarily
     const contractId = crypto.randomUUID();
@@ -114,30 +114,27 @@ export const initiateDirectDebitContractHandler: RouteHandler<
     await db.insert(paymentMethod).values({
       id: contractId,
       userId: user.id,
-      zarinpalCardHash: paymanAuthority, // Store payman authority temporarily
-      cardMask: 'CONTRACT_PENDING', // Marker for contract in progress
-      cardType: 'direct_debit_contract',
+      contractType: 'pending_contract',
+      contractStatus: 'pending_signature',
+      paymanAuthority, // Store payman authority temporarily
+      contractDisplayName: 'Direct Debit Contract (Pending)',
+      contractMobile: mobile,
+      contractDurationDays,
+      maxDailyAmount: maxAmount,
+      maxDailyCount,
+      maxMonthlyCount,
       isPrimary: false,
       isActive: false, // Will be activated after signature verification
       createdAt: now,
       updatedAt: now,
       metadata: {
         type: 'direct_debit_contract',
-        status: 'pending_signature',
-        mobile,
         ssn,
-        contractDurationDays,
-        maxDailyCount,
-        maxMonthlyCount,
-        maxAmount,
         expireAt: expireAtString,
         callbackUrl,
-        paymanAuthority,
         userMetadata: metadata,
       },
     });
-
-    console.warn('[DIRECT_DEBIT] Contract request stored with ID:', contractId);
 
     // Return contract setup data
     return ok(c, {
@@ -154,13 +151,42 @@ export const initiateDirectDebitContractHandler: RouteHandler<
     });
   } catch (error) {
     if (error instanceof HTTPException) {
+      // Check if this is a structured ZarinPal error
+      const cause = error.cause as {
+        provider?: string;
+        zarinpal_code?: number;
+        zarinpal_message?: string;
+      };
+      if (cause?.provider === 'zarinpal' && cause?.zarinpal_code) {
+        const zarinpalCode = cause.zarinpal_code;
+
+        // Handle specific ZarinPal error cases
+        if (isZarinPalAuthError(zarinpalCode)) {
+          if (zarinpalCode === -74) {
+            throw new HTTPException(HttpStatusCodes.UNAUTHORIZED, {
+              message: 'Invalid merchant configuration',
+            });
+          } else if (zarinpalCode === -80) {
+            throw new HTTPException(HttpStatusCodes.FORBIDDEN, {
+              message: 'Merchant access denied for direct debit',
+            });
+          }
+        }
+
+        if (isZarinPalServiceError(zarinpalCode)) {
+          throw new HTTPException(HttpStatusCodes.BAD_GATEWAY, {
+            message: 'ZarinPal service temporarily unavailable',
+          });
+        }
+
+        // For other ZarinPal errors, use the generic contract failed error
+        throw new HTTPException(HttpStatusCodes.BAD_GATEWAY, {
+          message: cause.zarinpal_message || `Contract setup failed (Code: ${zarinpalCode})`,
+        });
+      }
+
       throw error;
     }
-    console.error('[DIRECT_DEBIT] Contract setup error:', {
-      message: error instanceof Error ? error.message : 'Unknown error',
-      stack: error instanceof Error ? error.stack : undefined,
-      error,
-    });
     throw new HTTPException(HttpStatusCodes.INTERNAL_SERVER_ERROR, {
       message: 'Failed to set up direct debit contract',
     });
@@ -186,8 +212,6 @@ export const verifyDirectDebitContractHandler: RouteHandler<
   const { paymanAuthority, status, contractId } = c.req.valid('json');
 
   try {
-    console.warn('[DIRECT_DEBIT] Verifying contract:', { paymanAuthority, status, contractId });
-
     // Get stored contract request
     const storedContract = await db
       .select()
@@ -196,8 +220,8 @@ export const verifyDirectDebitContractHandler: RouteHandler<
         and(
           eq(paymentMethod.id, contractId),
           eq(paymentMethod.userId, user.id),
-          eq(paymentMethod.zarinpalCardHash, paymanAuthority),
-          eq(paymentMethod.cardType, 'direct_debit_contract'),
+          eq(paymentMethod.paymanAuthority, paymanAuthority),
+          eq(paymentMethod.contractType, 'pending_contract'),
         ),
       )
       .limit(1);
@@ -215,11 +239,11 @@ export const verifyDirectDebitContractHandler: RouteHandler<
       await db
         .update(paymentMethod)
         .set({
+          contractStatus: 'cancelled_by_user',
           isActive: false,
           updatedAt: new Date(),
           metadata: {
-            ...(contract.metadata as Record<string, unknown> || {}),
-            status: 'cancelled_by_user',
+            ...parseMetadata(contract.metadata),
             cancelledAt: new Date().toISOString(),
           },
         })
@@ -245,11 +269,11 @@ export const verifyDirectDebitContractHandler: RouteHandler<
       await db
         .update(paymentMethod)
         .set({
+          contractStatus: 'verification_failed',
           isActive: false,
           updatedAt: new Date(),
           metadata: {
-            ...(contract.metadata as Record<string, unknown> || {}),
-            status: 'verification_failed',
+            ...parseMetadata(contract.metadata),
             error: signatureResult.data?.message || 'Contract verification failed',
             failedAt: new Date().toISOString(),
           },
@@ -266,7 +290,6 @@ export const verifyDirectDebitContractHandler: RouteHandler<
     }
 
     const signature = signatureResult.data.signature;
-    console.warn('[DIRECT_DEBIT] Got signature from ZarinPal');
 
     // Check if this signature already exists for this user
     const existingMethod = await db
@@ -280,7 +303,7 @@ export const verifyDirectDebitContractHandler: RouteHandler<
       );
 
     const existingSignature = existingMethod.find(
-      pm => (pm.metadata as Record<string, unknown>)?.signature === signature,
+      pm => pm.contractSignature === signature,
     );
 
     if (existingSignature) {
@@ -313,24 +336,22 @@ export const verifyDirectDebitContractHandler: RouteHandler<
     await db
       .update(paymentMethod)
       .set({
-        zarinpalCardHash: signature, // Store signature as the identifier
-        cardMask: 'Direct Debit', // Display name
-        cardType: 'direct_debit',
+        contractType: 'direct_debit_contract',
+        contractStatus: 'active',
+        contractSignature: signature, // Store ZarinPal contract signature
+        contractDisplayName: 'Direct Debit Contract',
+        paymanAuthority: null, // Clear temporary authority
         isPrimary: shouldBePrimary,
         isActive: true,
         lastUsedAt: now,
+        contractVerifiedAt: now,
         updatedAt: now,
         metadata: {
-          ...(contract.metadata as Record<string, unknown> || {}),
-          status: 'active',
-          signature,
-          paymanAuthority,
-          contractVerifiedAt: now.toISOString(),
+          ...parseMetadata(contract.metadata),
+          paymanAuthority, // Keep in metadata for reference
         },
       })
       .where(eq(paymentMethod.id, contractId));
-
-    console.warn('[DIRECT_DEBIT] Payment method created/updated:', contractId);
 
     return ok(c, {
       contractVerified: true,
@@ -339,9 +360,42 @@ export const verifyDirectDebitContractHandler: RouteHandler<
     });
   } catch (error) {
     if (error instanceof HTTPException) {
+      // Check if this is a structured ZarinPal error
+      const cause = error.cause as {
+        provider?: string;
+        zarinpal_code?: number;
+        zarinpal_message?: string;
+      };
+      if (cause?.provider === 'zarinpal' && cause?.zarinpal_code) {
+        const zarinpalCode = cause.zarinpal_code;
+
+        // Handle specific ZarinPal error cases
+        if (isZarinPalAuthError(zarinpalCode)) {
+          if (zarinpalCode === -74) {
+            throw new HTTPException(HttpStatusCodes.UNAUTHORIZED, {
+              message: 'Invalid merchant configuration',
+            });
+          } else if (zarinpalCode === -80) {
+            throw new HTTPException(HttpStatusCodes.FORBIDDEN, {
+              message: 'Merchant access denied for direct debit',
+            });
+          }
+        }
+
+        if (isZarinPalServiceError(zarinpalCode)) {
+          throw new HTTPException(HttpStatusCodes.BAD_GATEWAY, {
+            message: 'ZarinPal service temporarily unavailable',
+          });
+        }
+
+        // For transaction-related errors during verification, use transaction failed error
+        throw new HTTPException(HttpStatusCodes.BAD_GATEWAY, {
+          message: cause.zarinpal_message || `Transaction verification failed (Code: ${zarinpalCode})`,
+        });
+      }
+
       throw error;
     }
-    console.error('[DIRECT_DEBIT] Contract verification error:', error);
     throw new HTTPException(HttpStatusCodes.INTERNAL_SERVER_ERROR, {
       message: 'Failed to verify direct debit contract',
     });

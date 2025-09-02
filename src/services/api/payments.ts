@@ -13,6 +13,9 @@ import { apiClient } from '@/api/client';
 //  Inferred Types for Components
 // ============================================================================
 
+// Get Payments (no query parameters)
+export type GetPaymentsResponse = InferResponseType<(typeof apiClient)['payments']['$get']>;
+
 // Payment Callback
 export type PaymentCallbackRequest = InferRequestType<(typeof apiClient)['payments']['callback']['$get']>['query'];
 export type PaymentCallbackResponse = InferResponseType<(typeof apiClient)['payments']['callback']['$get']>;
@@ -20,6 +23,20 @@ export type PaymentCallbackResponse = InferResponseType<(typeof apiClient)['paym
 // ============================================================================
 //  Service Functions
 // ============================================================================
+
+/**
+ * Fetch all payments for the authenticated user
+ */
+export async function getPaymentsService(): Promise<GetPaymentsResponse> {
+  const response = await apiClient.payments.$get();
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => null) as { message?: string } | null;
+    throw new Error(errorData?.message || `Failed to fetch payments (${response.status})`);
+  }
+
+  return response.json();
+}
 
 /**
  * Process payment callback from ZarinPal

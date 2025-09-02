@@ -14,7 +14,7 @@ import {
   InitiateDirectDebitResponseSchema,
   VerifyDirectDebitContractRequestSchema,
   VerifyDirectDebitContractResponseSchema,
-} from './direct-debit-schemas';
+} from './schema';
 
 // ============================================================================
 // DIRECT DEBIT CONTRACT SETUP ROUTES

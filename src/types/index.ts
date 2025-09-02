@@ -2,16 +2,12 @@
  * Type exports for the application
  *
  * Following Better Auth best practices:
- * - Import Better Auth types directly from @/lib/auth-client
- * - Import extended types directly from @/types/auth
+ * - Import Better Auth types directly from @/lib/auth/types
  * - No intermediate re-exports that create unnecessary layers
  */
 
-// Extended auth types that build upon Better Auth types
-export type {
-  AuthEnv,
-  AuthStatus,
-} from './auth';
+// Better Auth types - import directly from @/lib/auth/types
+// export type { Session, User } from '@/lib/auth/types';
 
 // General utility types - explicit named exports for clarity
 export type {

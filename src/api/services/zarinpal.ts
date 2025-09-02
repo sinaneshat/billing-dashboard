@@ -84,8 +84,6 @@ export class ZarinPalService {
     const merchantId = env.ZARINPAL_MERCHANT_ID;
     const accessToken = env.ZARINPAL_ACCESS_TOKEN;
 
-    console.error(`[ZARINPAL] Initializing service for ${env.NODE_ENV} environment`);
-
     return new ZarinPalService({
       merchantId,
       accessToken,
@@ -106,7 +104,7 @@ export class ZarinPalService {
    * Request payment from ZarinPal
    * Production-ready implementation with comprehensive error handling
    */
-  async requestPayment(request: PaymentRequest): Promise<PaymentResponse> {
+  async requestPayment(request: PaymentRequest) {
     try {
       const url = `${this.getBaseUrl()}/pg/v4/payment/request.json`;
 
@@ -178,7 +176,7 @@ export class ZarinPalService {
    * Verify payment with ZarinPal
    * Production-ready implementation with comprehensive error handling
    */
-  async verifyPayment(request: VerifyRequest): Promise<VerifyResponse> {
+  async verifyPayment(request: VerifyRequest) {
     try {
       const url = `${this.getBaseUrl()}/pg/v4/payment/verify.json`;
 
@@ -243,7 +241,7 @@ export class ZarinPalService {
    * Process direct debit payment for recurring subscriptions
    * Production-ready implementation following ZarinPal Direct Payment API
    */
-  async directDebitPayment(request: DirectDebitRequest): Promise<PaymentResponse> {
+  async directDebitPayment(request: DirectDebitRequest) {
     // Validate card hash before processing
     if (!request.card_hash || request.card_hash.length < 10) {
       throw new HTTPException(HttpStatusCodes.BAD_REQUEST, {
