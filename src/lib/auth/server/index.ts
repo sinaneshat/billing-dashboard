@@ -1,7 +1,7 @@
 import { betterAuth } from 'better-auth';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { nextCookies } from 'better-auth/next-js';
-import { jwt, magicLink } from 'better-auth/plugins';
+import { magicLink } from 'better-auth/plugins';
 
 import { db } from '@/db';
 import * as authSchema from '@/db/tables/auth';
@@ -66,7 +66,6 @@ export const auth = betterAuth({
 
   plugins: [
     nextCookies(),
-    jwt(),
     magicLink({
       sendMagicLink: async ({ email, url }) => {
         const { emailService } = await import('@/lib/email/ses-service');

@@ -1,6 +1,6 @@
 'use client';
 
-import { BanknoteIcon, Building2, CheckCircle, CreditCard, RefreshCw, Shield } from 'lucide-react';
+import { BanknoteIcon, Building2, CheckCircle, CreditCard, Shield } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
 
@@ -115,9 +115,10 @@ export function DirectDebitContractSetup({
           actionType: 'contract-initiation',
         });
       }
-    } catch {
-      // Error handling is now managed by the mutation hook
-      // Component just needs to handle the UI response
+    } catch (error) {
+      // Error handling is managed by the mutation hook's onError callback
+      // which will show appropriate toast notifications
+      console.error('Direct debit contract setup failed:', error);
     }
   };
 
@@ -227,7 +228,7 @@ export function DirectDebitContractSetup({
               </div>
 
               <div>
-                <Label htmlFor="ssn">National ID (کد ملی)</Label>
+                <Label htmlFor="ssn">National ID</Label>
                 <Input
                   id="ssn"
                   value={ssn}
@@ -338,31 +339,6 @@ export function DirectDebitContractSetup({
               </Button>
             </DialogFooter>
           </div>
-        )}
-
-        {/* Enhanced error display */}
-        {mutationUI.showError && mutationUI.error && (
-          <Alert variant="destructive">
-            <AlertTitle>Setup Failed</AlertTitle>
-            <AlertDescription>
-              {mutationUI.error.message}
-              {mutationUI.canReset && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="ml-2"
-                  onClick={() => {
-                    initiateContract.reset();
-                    setStep('form');
-                  }}
-                  aria-label="Try setting up contract again"
-                >
-                  <RefreshCw className="h-4 w-4 mr-2" />
-                  Try Again
-                </Button>
-              )}
-            </AlertDescription>
-          </Alert>
         )}
 
         {step === 'redirect' && (

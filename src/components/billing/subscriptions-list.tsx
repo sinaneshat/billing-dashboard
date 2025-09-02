@@ -3,11 +3,11 @@
 import { Calendar, CreditCard, Package } from 'lucide-react';
 import { memo, useMemo } from 'react';
 
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { LoadingSpinner } from '@/components/ui/loading-spinner';
 import { FadeIn, PageTransition, StaggerContainer, StaggerItem } from '@/components/ui/motion';
+import { SubscriptionStatusBadge } from '@/components/ui/status-badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useSubscriptionsQuery } from '@/hooks/queries/subscriptions';
 import { formatTomanCurrency } from '@/lib/i18n/currency-utils';
@@ -152,22 +152,7 @@ export const SubscriptionsList = memo(() => {
                               </div>
                             </TableCell>
                             <TableCell>
-                              <Badge
-                                variant={
-                                  subscription.status === 'active'
-                                    ? 'default'
-                                    : subscription.status === 'canceled'
-                                      ? 'destructive'
-                                      : 'secondary'
-                                }
-                                className={
-                                  subscription.status === 'active'
-                                    ? 'bg-green-100 text-green-800 hover:bg-green-100'
-                                    : undefined
-                                }
-                              >
-                                {subscription.status}
-                              </Badge>
+                              <SubscriptionStatusBadge status={subscription.status} />
                             </TableCell>
                             <TableCell>
                               <div className="font-medium">

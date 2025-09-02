@@ -55,8 +55,8 @@ function DashboardSkeleton() {
               <div>
                 <Skeleton className="h-8 w-32 mb-4" />
                 <div className="space-y-4">
-                  {Array.from({ length: 3 }).map((_, i) => (
-                    <Skeleton key={`skeleton-${i}`} className="h-16 w-full" />
+                  {Array.from({ length: 3 }, (_, i) => i).map(index => (
+                    <Skeleton key={`skeleton-${index}`} className="h-16 w-full" />
                   ))}
                 </div>
               </div>
@@ -219,14 +219,29 @@ export default function DashboardOverviewScreen() {
                           <span className="text-sm text-muted-foreground font-normal ml-2">/month</span>
                         </div>
 
-                        {/* Billing cycle progress */}
-                        <div className="mt-6 space-y-2">
-                          <div className="flex justify-between text-sm text-muted-foreground">
-                            <span>Billing cycle progress</span>
-                            <span>12 days remaining</span>
-                          </div>
-                          <Progress value={65} className="h-2" />
-                        </div>
+                        {/* Billing cycle progress - Dynamic calculation */}
+                        {currentSubscription?.nextBillingDate && (() => {
+                          const now = new Date();
+                          const nextBilling = new Date(currentSubscription.nextBillingDate);
+                          const startOfCycle = new Date(currentSubscription.startDate || now);
+                          const totalCycleDays = Math.ceil((nextBilling.getTime() - startOfCycle.getTime()) / (1000 * 60 * 60 * 24));
+                          const remainingDays = Math.ceil((nextBilling.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+                          const progressPercentage = Math.max(0, Math.min(100, ((totalCycleDays - remainingDays) / totalCycleDays) * 100));
+
+                          return (
+                            <div className="mt-6 space-y-2">
+                              <div className="flex justify-between text-sm text-muted-foreground">
+                                <span>Billing cycle progress</span>
+                                <span>
+                                  {remainingDays > 0
+                                    ? `${remainingDays} ${remainingDays === 1 ? 'day' : 'days'} remaining`
+                                    : 'Due now'}
+                                </span>
+                              </div>
+                              <Progress value={progressPercentage} className="h-2" />
+                            </div>
+                          );
+                        })()}
                       </CardHeader>
 
                       <CardContent className="pt-0">
@@ -252,20 +267,30 @@ export default function DashboardOverviewScreen() {
                           </Button>
                         </div>
 
-                        {/* Usage stats */}
+                        {/* Plan features - More relevant for billing dashboard */}
                         <div className="mt-6 pt-6 border-t border-border/50">
-                          <div className="grid grid-cols-3 gap-4 text-center">
-                            <div className="space-y-1">
-                              <div className="text-2xl font-bold text-primary">2.1K</div>
-                              <div className="text-xs text-muted-foreground">API Calls</div>
+                          <div className="space-y-3">
+                            <div className="flex items-center justify-between text-sm">
+                              <span className="text-muted-foreground">Plan Benefits</span>
+                              <span className="font-medium">Active</span>
                             </div>
-                            <div className="space-y-1">
-                              <div className="text-2xl font-bold text-green-600">99.9%</div>
-                              <div className="text-xs text-muted-foreground">Uptime</div>
-                            </div>
-                            <div className="space-y-1">
-                              <div className="text-2xl font-bold text-blue-600">15GB</div>
-                              <div className="text-xs text-muted-foreground">Storage</div>
+                            <div className="grid grid-cols-2 gap-3 text-sm">
+                              <div className="flex items-center gap-2 text-muted-foreground">
+                                <CheckCircle className="h-3 w-3 text-green-500" />
+                                <span>Unlimited API Access</span>
+                              </div>
+                              <div className="flex items-center gap-2 text-muted-foreground">
+                                <CheckCircle className="h-3 w-3 text-green-500" />
+                                <span>24/7 Support</span>
+                              </div>
+                              <div className="flex items-center gap-2 text-muted-foreground">
+                                <CheckCircle className="h-3 w-3 text-green-500" />
+                                <span>Priority Processing</span>
+                              </div>
+                              <div className="flex items-center gap-2 text-muted-foreground">
+                                <CheckCircle className="h-3 w-3 text-green-500" />
+                                <span>Advanced Analytics</span>
+                              </div>
                             </div>
                           </div>
                         </div>
@@ -423,40 +448,59 @@ export default function DashboardOverviewScreen() {
                     </Card>
                   </FadeIn>
 
-                  {/* Usage Metrics Card */}
+                  {/* Billing Summary Card */}
                   <FadeIn delay={0.25}>
                     <Card className="border-0 shadow-md">
                       <CardHeader className="pb-3">
                         <CardTitle className="text-lg flex items-center gap-2">
                           <TrendingUp className="h-5 w-5 text-green-600" />
-                          This Month
+                          Billing Summary
                         </CardTitle>
                       </CardHeader>
                       <CardContent className="space-y-4">
-                        <div className="space-y-2">
-                          <div className="flex justify-between items-center text-sm">
-                            <span className="text-muted-foreground">API Usage</span>
-                            <span className="font-medium">2,147 / 10,000</span>
-                          </div>
-                          <Progress value={21} className="h-2" />
-                        </div>
-                        <div className="space-y-2">
-                          <div className="flex justify-between items-center text-sm">
-                            <span className="text-muted-foreground">Storage</span>
-                            <span className="font-medium">15.2 / 100 GB</span>
-                          </div>
-                          <Progress value={15} className="h-2" />
-                        </div>
-                        <div className="grid grid-cols-2 gap-4 pt-2 text-center">
-                          <div>
-                            <div className="text-lg font-bold text-green-600">+24%</div>
-                            <div className="text-xs text-muted-foreground">vs last month</div>
-                          </div>
-                          <div>
-                            <div className="text-lg font-bold text-blue-600">99.9%</div>
-                            <div className="text-xs text-muted-foreground">uptime</div>
-                          </div>
-                        </div>
+                        {hasActiveSubscription
+                          ? (
+                              <>
+                                <div className="flex justify-between items-center">
+                                  <span className="text-sm text-muted-foreground">Current Plan</span>
+                                  <span className="text-sm font-medium">{currentSubscription?.product?.name}</span>
+                                </div>
+                                <div className="flex justify-between items-center">
+                                  <span className="text-sm text-muted-foreground">Monthly Cost</span>
+                                  <span className="text-sm font-medium">{formatTomanCurrency(currentSubscription?.currentPrice || 0)}</span>
+                                </div>
+                                <div className="flex justify-between items-center">
+                                  <span className="text-sm text-muted-foreground">Status</span>
+                                  <Badge variant="outline" className="text-xs">
+                                    Active
+                                  </Badge>
+                                </div>
+                                {currentSubscription?.nextBillingDate && (
+                                  <div className="flex justify-between items-center pt-2 border-t border-border/50">
+                                    <span className="text-sm text-muted-foreground">Next Payment</span>
+                                    <div className="text-right">
+                                      <div className="text-sm font-medium">{formatTomanCurrency(currentSubscription.currentPrice)}</div>
+                                      <div className="text-xs text-muted-foreground">
+                                        {new Date(currentSubscription.nextBillingDate).toLocaleDateString('en-US', {
+                                          month: 'short',
+                                          day: 'numeric',
+                                        })}
+                                      </div>
+                                    </div>
+                                  </div>
+                                )}
+                              </>
+                            )
+                          : (
+                              <div className="text-center py-4">
+                                <div className="text-sm text-muted-foreground mb-2">
+                                  No active subscription
+                                </div>
+                                <Button size="sm" asChild>
+                                  <a href="/dashboard/billing/plans">Browse Plans</a>
+                                </Button>
+                              </div>
+                            )}
                       </CardContent>
                     </Card>
                   </FadeIn>

@@ -21,7 +21,7 @@ export type ZarinPalConfig = {
  */
 export type DirectDebitContractRequest = {
   mobile: string;
-  ssn?: string; // Optional - کد ملی
+  ssn?: string; // Optional - Iranian National ID
   expire_at: string; // Contract expiry date "YYYY-MM-DD HH:MM:SS"
   max_daily_count: string; // Maximum daily transactions
   max_monthly_count: string; // Maximum monthly transactions

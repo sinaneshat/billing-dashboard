@@ -1,7 +1,7 @@
 import { Column, Row, Section } from '@react-email/components';
 import type { CSSProperties, ReactNode } from 'react';
 
-import { spacing } from '@/emails/design-tokens';
+import { assets, spacing } from '@/emails/design-tokens';
 
 type EmailBrandHeaderProps = {
   children?: ReactNode;
@@ -41,7 +41,7 @@ export function EmailBrandHeader({
     ...style,
   };
 
-  const logoSrc = 'https://example.com/static/logo.svg';
+  const logoSrc = assets.logo;
 
   return (
     <Section style={baseStyle}>

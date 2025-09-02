@@ -1,4 +1,3 @@
-import { Img } from '@react-email/components';
 import React from 'react';
 
 type LogoProps = {
@@ -6,14 +5,18 @@ type LogoProps = {
   height?: number;
 };
 
-export function Logo({ width = 120, height = 40 }: LogoProps) {
+export function Logo({ width = 160, height = 40 }: LogoProps) {
   return (
-    <Img
-      src="https://example.com/logo.png"
-      width={width}
-      height={height}
-      alt="Logo"
-      style={{ display: 'block' }}
-    />
+    <div style={{ display: 'block' }}>
+      <img
+        src="/static/logo.svg"
+        alt="Roundtable"
+        style={{
+          width,
+          height,
+          display: 'block',
+        }}
+      />
+    </div>
   );
 }

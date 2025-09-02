@@ -1,40 +1,43 @@
 export const BRAND = {
-  name: 'Auth',
-  fullName: 'Authentication Boilerplate',
-  tagline: 'Secure Authentication',
-  description: 'A modern authentication boilerplate with secure user management.',
-  venture: 'Your Company',
+  name: 'Roundtable',
+  fullName: 'Roundtable Billing Dashboard',
+  tagline: 'Multiple AI Models Brainstorm Together',
+  description: 'Advanced billing solutions for AI collaboration platforms. Where multiple minds meet.',
+  venture: 'Roundtable',
 
   // URLs
-  website: 'https://example.com',
-  parentWebsite: 'https://example.com',
-  support: 'support@example.com',
+  website: 'https://roundtable.now/',
+  parentWebsite: 'https://roundtable.now/',
+  support: 'hello@roundtable.now',
 
-  // Colors (matching the design system)
+  // Colors (Professional AI/tech brand colors)
   colors: {
-    primary: '#22D3EE', // Cyan blue (matches email primary)
-    secondary: '#14B8A6', // Teal
-    dark: '#1F2937', // Deep gray
-    light: '#F9FAFB', // Off-white
+    primary: '#2563eb', // Modern blue
+    secondary: '#64748b', // Slate gray
+    dark: '#0f172a', // Dark slate
+    light: '#f8fafc', // Light slate
+    accent: '#3b82f6', // Bright blue
+    background: '#ffffff', // White background
+    foreground: '#1e293b', // Dark text
   },
 
   // Logo paths
   logos: {
-    light: '/static/images/logos/logo.svg',
-    dark: '/static/images/logos/logo.svg',
-    iconLight: '/static/images/logos/logo.svg',
-    iconDark: '/static/images/logos/logo.svg',
-    round: '/static/images/logos/logo.svg',
-    roundWhite: '/static/images/logos/logo.svg',
-    roundBlack: '/static/images/logos/logo.svg',
-    animation: '/static/images/logos/logo.svg',
-    main: '/static/images/logos/logo.svg',
-    mainBlack: '/static/images/logos/logo.svg',
+    light: '/static/logo.svg',
+    dark: '/static/logo.svg',
+    iconLight: '/static/logo.svg',
+    iconDark: '/static/logo.svg',
+    round: '/static/logo.svg',
+    roundWhite: '/static/logo.svg',
+    roundBlack: '/static/logo.svg',
+    animation: '/static/logo.svg',
+    main: '/static/logo.svg',
+    mainBlack: '/static/logo.svg',
   },
 
-  // Typography
+  // Typography (Modern tech fonts)
   typography: {
-    fontFamily: 'Noto Sans',
+    fontFamily: 'Inter, system-ui, sans-serif',
     weights: {
       light: 300,
       regular: 400,
@@ -46,16 +49,16 @@ export const BRAND = {
 
   // Social links
   social: {
-    twitter: 'https://twitter.com/example',
-    linkedin: 'https://linkedin.com/company/example',
-    github: 'https://github.com/example',
+    twitter: 'https://twitter.com/roundtablenow',
+    linkedin: 'https://linkedin.com/company/roundtable',
+    github: 'https://github.com/roundtable',
   },
 
   // Legal
   legal: {
     terms: '/terms',
     privacy: '/privacy',
-    copyright: `© ${new Date().getFullYear()} Your Company. All rights reserved.`,
+    copyright: `© ${new Date().getFullYear()} Roundtable. All rights reserved.`,
   },
 };
 
@@ -65,13 +68,13 @@ export type Brand = typeof BRAND;
 // API-specific brand constants
 export const API_BRAND = {
   // API-specific branding
-  apiName: `${BRAND.name} API`,
-  apiDescription: `${BRAND.description} - Developer API`,
+  apiName: `${BRAND.name} Billing API`,
+  apiDescription: `${BRAND.description} - Billing & Payment API`,
   apiVersion: '1.0.0',
 
   // Support information
   supportEmail: BRAND.support,
-  docsUrl: `${BRAND.website}/docs`,
+  docsUrl: `${BRAND.website}docs`,
 
   // Rate limiting display names
   rateLimitInfo: {
@@ -84,6 +87,13 @@ export const API_BRAND = {
     company: BRAND.name,
     support: BRAND.support,
     website: BRAND.website,
+  },
+
+  // Roundtable specific messaging
+  messaging: {
+    rateLimitMessage: 'Processing capacity exceeded. Multiple models need time to think.',
+    unauthorizedMessage: 'Access denied. Please join the roundtable with proper credentials.',
+    serverErrorMessage: 'System processing error. The AI collaboration network is experiencing issues.',
   },
 };
 

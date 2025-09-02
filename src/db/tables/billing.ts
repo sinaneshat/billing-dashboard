@@ -9,7 +9,7 @@ export const product = sqliteTable('product', {
   id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
   name: text('name').notNull(),
   description: text('description'),
-  price: real('price').notNull(), // Price in Iranian Rials (IRR)
+  price: real('price').notNull(), // Price in USD - API converts to Rials for ZarinPal
   billingPeriod: text('billing_period', {
     enum: ['one_time', 'monthly'],
   }).notNull().default('one_time'),

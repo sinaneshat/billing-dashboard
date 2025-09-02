@@ -37,6 +37,7 @@ import {
   SidebarRail,
   useSidebar,
 } from '@/components/ui/sidebar';
+import { BRAND } from '@/constants/brand';
 import { useCurrentSubscriptionQuery } from '@/hooks/queries/subscriptions';
 import { signOut, useSession } from '@/lib/auth/client';
 
@@ -105,12 +106,17 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
             >
               <Link href="/dashboard">
-                <div className="bg-sidebar-primary text-sidebar-primary-foreground flex aspect-square size-8 items-center justify-center rounded-lg">
-                  <CreditCard className="size-4" />
+                <div className="flex aspect-square size-8 items-center justify-center">
+                  {/* Roundtable Logo */}
+                  <img
+                    src="/static/logo.svg"
+                    alt="Roundtable Logo"
+                    className="h-8 w-8 object-contain"
+                  />
                 </div>
                 <div className="grid flex-1 text-left text-sm leading-tight">
-                  <span className="truncate font-semibold">Billing Dashboard</span>
-                  <span className="truncate text-xs text-sidebar-foreground/70">Manage your subscriptions</span>
+                  <span className="truncate font-semibold">{BRAND.name}</span>
+                  <span className="truncate text-xs text-sidebar-foreground/70">{BRAND.tagline}</span>
                 </div>
               </Link>
             </SidebarMenuButton>

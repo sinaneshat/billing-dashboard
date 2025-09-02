@@ -65,13 +65,6 @@ export const verification = sqliteTable('verification', {
   index('verification_identifier_idx').on(table.identifier),
 ]);
 
-export const jwks = sqliteTable('jwks', {
-  id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
-  publicKey: text('public_key').notNull(),
-  privateKey: text('private_key').notNull(),
-  ...timestamps,
-});
-
 // Simplified Relations
 export const userRelations = relations(user, ({ many }) => ({
   accounts: many(account),
