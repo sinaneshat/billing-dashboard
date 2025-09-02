@@ -462,7 +462,7 @@ export function getEnvironment(): 'development' | 'preview' | 'production' {
 export function validateConfiguration(): void {
   try {
     const cfg = getConfig();
-    console.log(`✅ Configuration validated successfully for ${cfg.NODE_ENV} environment`);
+    console.warn(`✅ Configuration validated successfully for ${cfg.NODE_ENV} environment`);
   } catch (error) {
     console.error('❌ Configuration validation failed:', error);
     process.exit(1);

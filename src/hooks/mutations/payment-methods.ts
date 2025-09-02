@@ -2,6 +2,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 
 import { queryKeys } from '@/lib/data/query-keys';
 import { logError } from '@/lib/utils/safe-logger';
+import { showErrorToast } from '@/lib/utils/toast-notifications';
 import { isZarinPalError, parseZarinPalError } from '@/lib/utils/zarinpal-errors';
 import type {
   CreatePaymentMethodRequest,
@@ -207,6 +208,10 @@ export function useInitiateDirectDebitContractMutation() {
         // Check if it's a ZarinPal specific error
         if (error.message.includes('Authentication required')) {
           errorMessage = 'Please sign in again to continue with the setup.';
+        } else if (error.message.includes('Development mode')) {
+          errorMessage = '🚧 Development Mode: ZarinPal is not configured with real credentials. This is expected in development.';
+        } else if (error.message.includes('placeholder ZarinPal credentials')) {
+          errorMessage = '🚧 Development Mode: Payment service requires real credentials for testing. See console for setup instructions.';
         } else if (error.message.includes('Invalid merchant') || error.message.includes('MERCHANT')) {
           errorMessage = 'Payment service configuration issue. Please contact support.';
         } else if (error.message.includes('Invalid mobile') || error.message.includes('MOBILE')) {
@@ -220,13 +225,11 @@ export function useInitiateDirectDebitContractMutation() {
         }
       }
 
-      // Show toast notification for all errors
-      import('@/lib/utils/toast-notifications').then(({ showErrorToast }) => {
-        showErrorToast(errorMessage, {
-          component: 'direct-debit-setup',
-          actionType: 'contract-initiation',
-          error: error instanceof Error ? error.message : 'Unknown error',
-        });
+      // Show toast notification for all errors immediately
+      showErrorToast(errorMessage, {
+        component: 'direct-debit-setup',
+        actionType: 'contract-initiation',
+        error: error instanceof Error ? error.message : 'Unknown error',
       });
 
       // Parse ZarinPal error for structured error information (keep for component access)

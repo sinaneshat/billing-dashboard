@@ -1,16 +1,33 @@
 'use client';
 
-import { SubscriptionsList } from '@/components/billing/subscriptions-list';
-import { PageHeader } from '@/components/dashboard/page-header';
+import { SubscriptionCards } from '@/components/billing/subscription-cards';
+import { DashboardPageHeader } from '@/components/ui/dashboard-header';
+import { DashboardPage, DashboardSection } from '@/components/ui/dashboard-states';
+import { useSubscriptionsQuery } from '@/hooks/queries/subscriptions';
+import { useQueryUIState } from '@/hooks/utils/query-helpers';
 
 export default function SubscriptionManagementScreen() {
+  const subscriptionsQuery = useSubscriptionsQuery();
+  const queryUI = useQueryUIState(subscriptionsQuery);
+
+  const subscriptions = subscriptionsQuery.data?.success && Array.isArray(subscriptionsQuery.data.data)
+    ? subscriptionsQuery.data.data
+    : [];
+
   return (
-    <div className="space-y-6">
-      <PageHeader
+    <DashboardPage>
+      <DashboardPageHeader
         title="Subscriptions"
         description="Manage your active and past subscriptions"
       />
-      <SubscriptionsList />
-    </div>
+
+      <DashboardSection delay={0.1}>
+        <SubscriptionCards
+          subscriptions={subscriptions}
+          loading={queryUI.isLoading}
+          className="w-full"
+        />
+      </DashboardSection>
+    </DashboardPage>
   );
 }

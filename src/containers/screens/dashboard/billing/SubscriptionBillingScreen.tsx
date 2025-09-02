@@ -1,16 +1,19 @@
 'use client';
 
 import { SubscriptionBillingHistoryCoherent } from '@/components/billing/subscription-billing-history-coherent';
-import { PageHeader } from '@/components/dashboard/page-header';
+import { DashboardPageHeader } from '@/components/ui/dashboard-header';
+import { DashboardPage, DashboardSection } from '@/components/ui/dashboard-states';
 
 export default function SubscriptionBillingScreen() {
   return (
-    <div className="space-y-6">
-      <PageHeader
+    <DashboardPage>
+      <DashboardPageHeader
         title="Subscription Billing"
         description="View your subscription billing history and automated charges"
       />
-      <SubscriptionBillingHistoryCoherent />
-    </div>
+      <DashboardSection delay={0.1}>
+        <SubscriptionBillingHistoryCoherent />
+      </DashboardSection>
+    </DashboardPage>
   );
 }

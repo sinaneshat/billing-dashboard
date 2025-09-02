@@ -68,7 +68,7 @@ class CurrencyConverter {
       this.cachedRate = rate;
       this.lastFetch = now;
 
-      console.log(`✅ USD to IRR rate updated: ${rate} (Primary API)`);
+      console.warn(`✅ USD to IRR rate updated: ${rate} (Primary API)`);
       return rate;
     } catch (primaryError) {
       console.warn('Primary exchange rate API failed, trying fallback:', primaryError);
@@ -89,7 +89,7 @@ class CurrencyConverter {
           if (fallbackRate && fallbackRate > 0) {
             this.cachedRate = fallbackRate;
             this.lastFetch = now;
-            console.log(`✅ USD to IRR rate updated: ${fallbackRate} (Fallback API)`);
+            console.warn(`✅ USD to IRR rate updated: ${fallbackRate} (Fallback API)`);
             return fallbackRate;
           }
         }

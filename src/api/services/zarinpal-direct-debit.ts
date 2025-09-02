@@ -13,6 +13,7 @@ export type ZarinPalConfig = {
   merchantId: string;
   baseUrl?: string;
   isSandbox?: boolean;
+  isPlaceholder?: boolean; // Indicates using dev placeholder ID
 };
 
 /**
@@ -134,25 +135,34 @@ export class ZarinPalDirectDebitService {
       });
     }
 
-    // Warn if using placeholder values
+    // Warn if using obvious placeholder values but allow development UUIDs
     const placeholderPatterns = [
       'YOUR_',
       'your-merchant-id',
       'REPLACE_',
       'PLACEHOLDER',
-      '36e0ea98-43fa-400d-a421-f7593b1c73bc', // Known invalid test ID
       'xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx',
     ];
 
-    if (placeholderPatterns.some(pattern => env.ZARINPAL_MERCHANT_ID!.includes(pattern))) {
-      throw new HTTPException(HttpStatusCodes.INTERNAL_SERVER_ERROR, {
-        message: 'Invalid ZarinPal merchant ID. Please replace with your real merchant ID from https://next.zarinpal.com/panel/',
-      });
+    const isPlaceholder = placeholderPatterns.some(pattern => env.ZARINPAL_MERCHANT_ID!.includes(pattern));
+
+    if (isPlaceholder) {
+      // In development, allow placeholder but warn
+      if (env.NODE_ENV === 'development') {
+        console.warn('⚠️  Using placeholder ZarinPal merchant ID. API calls will fail but won\'t crash the application.');
+        console.warn('📝 To test real payments, get credentials from https://next.zarinpal.com/panel/');
+      } else {
+        // In production, still throw error
+        throw new HTTPException(HttpStatusCodes.INTERNAL_SERVER_ERROR, {
+          message: 'Invalid ZarinPal merchant ID. Please replace with your real merchant ID from https://next.zarinpal.com/panel/',
+        });
+      }
     }
 
     return new ZarinPalDirectDebitService({
       merchantId: env.ZARINPAL_MERCHANT_ID,
       isSandbox: env.NODE_ENV === 'development',
+      isPlaceholder,
     });
   }
 
@@ -169,6 +179,13 @@ export class ZarinPalDirectDebitService {
    * Step 1: Request Direct Debit Contract (Payman Request)
    */
   async requestContract(request: DirectDebitContractRequest) {
+    // Return mock data in development with placeholder ID
+    if (this.config.isPlaceholder) {
+      throw new HTTPException(HttpStatusCodes.BAD_REQUEST, {
+        message: 'Development mode: Using placeholder ZarinPal credentials. Please configure real merchant ID for actual payments.',
+      });
+    }
+
     try {
       const url = `${this.getBaseUrl()}/pg/v4/payman/request.json`;
 
@@ -229,6 +246,13 @@ export class ZarinPalDirectDebitService {
    * Step 2: Get list of available banks for contract signing
    */
   async getBankList() {
+    // Return mock data in development with placeholder ID
+    if (this.config.isPlaceholder) {
+      throw new HTTPException(HttpStatusCodes.BAD_REQUEST, {
+        message: 'Development mode: Using placeholder ZarinPal credentials. Please configure real merchant ID for actual payments.',
+      });
+    }
+
     try {
       const url = `${this.getBaseUrl()}/pg/v4/payman/banksList.json`;
 
@@ -269,6 +293,13 @@ export class ZarinPalDirectDebitService {
    * Step 3: Verify contract and get signature after user returns
    */
   async verifyContractAndGetSignature(request: SignatureRequest) {
+    // Return mock data in development with placeholder ID
+    if (this.config.isPlaceholder) {
+      throw new HTTPException(HttpStatusCodes.BAD_REQUEST, {
+        message: 'Development mode: Using placeholder ZarinPal credentials. Please configure real merchant ID for actual payments.',
+      });
+    }
+
     try {
       const url = `${this.getBaseUrl()}/pg/v4/payman/verify.json`;
 

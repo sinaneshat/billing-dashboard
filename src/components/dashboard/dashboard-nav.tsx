@@ -6,6 +6,7 @@ import {
   CreditCard,
   LogOut,
 } from 'lucide-react';
+import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
@@ -44,7 +45,7 @@ import { signOut, useSession } from '@/lib/auth/client';
 // Navigation structure
 const navigation = [
   {
-    title: 'Dashboard',
+    title: 'Overview',
     url: '/dashboard',
     icon: BarChart3,
   },
@@ -53,11 +54,8 @@ const navigation = [
     url: '/dashboard/billing',
     icon: CreditCard,
     badge: 'subscription',
+    forceExpanded: true, // Keep billing section expanded by default
     items: [
-      {
-        title: 'Overview',
-        url: '/dashboard/billing',
-      },
       {
         title: 'Subscriptions',
         url: '/dashboard/billing/subscriptions',
@@ -108,9 +106,11 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               <Link href="/dashboard">
                 <div className="flex aspect-square size-8 items-center justify-center">
                   {/* Roundtable Logo */}
-                  <img
+                  <Image
                     src="/static/logo.svg"
                     alt="Roundtable Logo"
+                    width={32}
+                    height={32}
                     className="h-8 w-8 object-contain"
                   />
                 </div>
@@ -132,7 +132,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               {navigation.map((item) => {
                 const isExactMatch = pathname === item.url;
                 const hasActiveSubItem = item.items?.some(subItem => pathname === subItem.url);
-                const shouldExpand = hasActiveSubItem || (pathname.startsWith(`${item.url}/`) && pathname !== item.url);
+                const shouldExpand = item.forceExpanded || hasActiveSubItem || (pathname.startsWith(`${item.url}/`) && pathname !== item.url);
                 const showBadge = item.badge === 'subscription' && hasActiveSubscription;
 
                 if (item.items) {
@@ -140,7 +140,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                     <Collapsible
                       key={item.title}
                       asChild
-                      defaultOpen={shouldExpand}
+                      defaultOpen={shouldExpand || item.forceExpanded}
                       className="group/collapsible"
                     >
                       <SidebarMenuItem>

@@ -152,8 +152,8 @@ function CompactProductCard({
             What's included:
           </div>
           <div className="space-y-1.5">
-            {displayFeatures.slice(0, 4).map((feature, index) => (
-              <div key={index} className="flex items-start gap-1.5">
+            {displayFeatures.slice(0, 4).map(feature => (
+              <div key={feature} className="flex items-start gap-1.5">
                 <Check className="h-3 w-3 text-green-500 mt-0.5 flex-shrink-0" />
                 <span className="text-xs text-foreground">
                   {feature}

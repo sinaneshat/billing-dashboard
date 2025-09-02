@@ -2,7 +2,6 @@
 
 import { BanknoteIcon, Building2, CheckCircle, CreditCard, Shield } from 'lucide-react';
 import { useState } from 'react';
-import { toast } from 'sonner';
 
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -27,7 +26,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useInitiateDirectDebitContractMutation } from '@/hooks/mutations/payment-methods';
-import { usePrefetchPaymentMethods } from '@/hooks/queries/payment-methods';
+import { prefetchPaymentMethods } from '@/hooks/queries/payment-methods';
 import { useMutationUIState } from '@/hooks/utils/query-helpers';
 import { formatTomanCurrency } from '@/lib/i18n/currency-utils';
 import { showErrorToast, showSuccessToast } from '@/lib/utils/toast-notifications';
@@ -65,18 +64,18 @@ export function DirectDebitContractSetup({
 
   const initiateContract = useInitiateDirectDebitContractMutation();
   const mutationUI = useMutationUIState(initiateContract);
-  const prefetchPaymentMethods = usePrefetchPaymentMethods();
+  const prefetchPaymentMethodsFn = prefetchPaymentMethods();
 
   const handleContractSuccess = (contractId: string) => {
     onSuccess?.(contractId);
     setOpen(false);
     // Prefetch payment methods since we likely added a new one
-    prefetchPaymentMethods();
+    prefetchPaymentMethodsFn();
   };
 
   const handleInitiateContract = async () => {
     if (!mobile.trim()) {
-      toast.error('Mobile number is required');
+      showErrorToast('Mobile number is required');
       return;
     }
 
@@ -84,7 +83,7 @@ export function DirectDebitContractSetup({
     const cleanMobile = mobile.replace(/\s/g, '');
     const mobileRegex = /^(?:\+98|0)?9\d{9}$/;
     if (!mobileRegex.test(cleanMobile)) {
-      toast.error('Please enter a valid Iranian mobile number (09xxxxxxxxx)');
+      showErrorToast('Please enter a valid Iranian mobile number (09xxxxxxxxx)');
       return;
     }
 
@@ -124,13 +123,13 @@ export function DirectDebitContractSetup({
 
   const handleBankSelection = () => {
     if (!selectedBankCode || !contractResult) {
-      toast.error('Please select a bank');
+      showErrorToast('Please select a bank');
       return;
     }
 
     const selectedBank = contractResult.banks.find(b => b.bankCode === selectedBankCode);
     if (!selectedBank) {
-      toast.error('Invalid bank selection');
+      showErrorToast('Invalid bank selection');
       return;
     }
 
@@ -142,7 +141,7 @@ export function DirectDebitContractSetup({
     }));
 
     setStep('redirect');
-    toast.success(`Redirecting to ${selectedBank.name} for contract signing...`);
+    showSuccessToast(`Redirecting to ${selectedBank.name} for contract signing...`);
 
     // Redirect to bank contract signing
     const signingUrl = contractResult.contractSigningUrl

@@ -1,9 +1,12 @@
 'use client';
 
 import { ProductionSubscriptionPlans } from '@/components/billing/subscription-plans-production';
+import { DashboardPage } from '@/components/ui/dashboard-states';
 
 export default function SubscriptionPlansScreen() {
   return (
-    <ProductionSubscriptionPlans className="space-y-6" />
+    <DashboardPage>
+      <ProductionSubscriptionPlans />
+    </DashboardPage>
   );
 }

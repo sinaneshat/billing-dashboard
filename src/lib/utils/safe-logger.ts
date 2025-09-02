@@ -378,7 +378,7 @@ function log(level: LogLevel, message: string, data?: unknown, context?: LogCont
   switch (level) {
     case LogLevel.DEBUG:
     case LogLevel.INFO:
-      console.log(formattedEntry);
+      console.warn(formattedEntry);
       break;
     case LogLevel.WARN:
       console.warn(formattedEntry);

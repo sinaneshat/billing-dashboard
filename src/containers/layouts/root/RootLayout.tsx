@@ -51,12 +51,12 @@ export function RootLayout({
                       <div>Maintenance</div>
                     )}
                 {modal}
-                <Toaster />
               </NextIntlClientProvider>
             </NuqsAdapter>
           </>
         </QueryClientProvider>
       </ThemeProvider>
+      <Toaster />
     </div>
   );
 }

@@ -380,16 +380,6 @@ export const ERRORS = {
 // ============================================================================
 
 export const DEVELOPMENT = {
-  // Mock data
-  MOCK_USER_COUNT: 50,
-  MOCK_SUBSCRIPTION_COUNT: 100,
-  MOCK_PAYMENT_COUNT: 200,
-
-  // Test accounts
-  TEST_EMAIL: 'test@roundtable.now',
-  TEST_MOBILE: '+1234567890',
-  TEST_NATIONAL_ID: '1234567890',
-
   // Debugging
   ENABLE_QUERY_LOGGING: process.env.NODE_ENV === 'development',
   ENABLE_DEBUG_HEADERS: process.env.NODE_ENV === 'development',
