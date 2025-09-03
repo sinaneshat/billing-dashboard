@@ -9,6 +9,7 @@ import {
   getProductsService,
   getSubscriptionsService,
 } from '@/services/api';
+import { getPaymentsService } from '@/services/api/payments';
 
 export default async function AuthenticatedLayout({
   children,
@@ -21,27 +22,28 @@ export default async function AuthenticatedLayout({
   // Create query client with streaming SSR support
   const queryClient = getQueryClient();
 
-  // Simple prefetch - dashboard essentials
+  // Context7 official prefetch pattern - EXACT match with examples
   try {
-    await Promise.allSettled([
+    await Promise.all([
       queryClient.prefetchQuery({
-        queryKey: queryKeys.subscriptions.list(),
-        queryFn: () => getSubscriptionsService(),
-        staleTime: 2 * 60 * 1000,
+        queryKey: queryKeys.subscriptions.list, // CRITICAL FIX: Static array like official examples
+        queryFn: getSubscriptionsService,
       }),
       queryClient.prefetchQuery({
-        queryKey: queryKeys.paymentMethods.list(),
-        queryFn: () => getPaymentMethodsService(),
-        staleTime: 5 * 60 * 1000,
+        queryKey: queryKeys.paymentMethods.list, // CRITICAL FIX: Static array like official examples
+        queryFn: getPaymentMethodsService,
       }),
       queryClient.prefetchQuery({
-        queryKey: queryKeys.products.list(),
-        queryFn: () => getProductsService(),
-        staleTime: 10 * 60 * 1000,
+        queryKey: queryKeys.payments.list, // CRITICAL FIX: Static array like official examples
+        queryFn: getPaymentsService,
+      }),
+      queryClient.prefetchQuery({
+        queryKey: queryKeys.products.list, // CRITICAL FIX: Static array like official examples
+        queryFn: getProductsService,
       }),
     ]);
   } catch {
-    // Prefetch errors shouldn't break the page
+    // Prefetch errors shouldn't break the page - fail silently
   }
 
   return (

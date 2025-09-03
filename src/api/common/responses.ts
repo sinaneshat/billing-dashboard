@@ -4,19 +4,19 @@ import * as HttpStatusCodes from 'stoker/http-status-codes';
 import type { ApiMeta, ApiResponse, ErrorResponse } from '@/api/common/schemas';
 
 export function validationError(c: Context) {
-  return c.json({ code: 422, message: 'Validation Error' } satisfies ErrorResponse, 422);
+  return c.json({ code: HttpStatusCodes.UNPROCESSABLE_ENTITY, message: 'Validation Error' } satisfies ErrorResponse, HttpStatusCodes.UNPROCESSABLE_ENTITY);
 }
 
 export function badRequest(c: Context, message = 'Bad Request') {
-  return c.json({ code: 400, message } satisfies ErrorResponse, 400);
+  return c.json({ code: HttpStatusCodes.BAD_REQUEST, message } satisfies ErrorResponse, HttpStatusCodes.BAD_REQUEST);
 }
 
 export function notFound(c: Context, message = 'Not Found') {
-  return c.json({ code: 404, message } satisfies ErrorResponse, 404);
+  return c.json({ code: HttpStatusCodes.NOT_FOUND, message } satisfies ErrorResponse, HttpStatusCodes.NOT_FOUND);
 }
 
 type OkStatus = typeof HttpStatusCodes.OK;
-type ErrorStatus
+export type ErrorStatus
   = typeof HttpStatusCodes.BAD_REQUEST
     | typeof HttpStatusCodes.UNAUTHORIZED
     | typeof HttpStatusCodes.FORBIDDEN

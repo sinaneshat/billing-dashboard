@@ -18,6 +18,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
+import { DashboardEmpty } from '@/components/ui/dashboard-states';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -29,7 +30,8 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { PaymentStatusBadge } from '@/components/ui/status-badge';
 import { formatTomanCurrency } from '@/lib/i18n/currency-utils';
 
-type Payment = {
+// Enhanced payment type with better field handling
+type PaymentHistoryItem = {
   id: string;
   productName: string;
   amount: number;
@@ -38,10 +40,12 @@ type Payment = {
   paidAt: string | null;
   createdAt: string;
   hasReceipt: boolean;
+  failureReason?: string | null;
+  zarinpalRefId?: string | null;
 };
 
 type PaymentHistoryCardsProps = {
-  payments: Payment[];
+  payments: PaymentHistoryItem[];
   loading?: boolean;
   emptyStateTitle?: string;
   emptyStateDescription?: string;
@@ -91,7 +95,7 @@ export const PaymentHistoryCards = memo(({
   className,
 }: PaymentHistoryCardsProps) => {
   // Render individual payment card
-  const renderPaymentCard = (payment: Payment, index: number) => (
+  const renderPaymentCard = (payment: PaymentHistoryItem, index: number) => (
     <StaggerItem key={payment.id} delay={index * 0.05}>
       <Card className="w-full hover:shadow-md transition-shadow" data-slot="payment-card">
         <CardHeader>
@@ -105,7 +109,16 @@ export const PaymentHistoryCards = memo(({
                   {payment.productName}
                 </CardTitle>
                 <CardDescription>
-                  Subscription payment
+                  {payment.paymentMethod === 'direct-debit-contract'
+                    ? 'Automatic renewal'
+                    : 'One-time payment'}
+                  {payment.status === 'failed' && payment.failureReason && (
+                    <span className="block text-xs text-destructive mt-1">
+                      Failed:
+                      {' '}
+                      {payment.failureReason}
+                    </span>
+                  )}
                 </CardDescription>
               </div>
             </div>
@@ -123,16 +136,23 @@ export const PaymentHistoryCards = memo(({
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
                   <DropdownMenuItem>View Details</DropdownMenuItem>
-                  {payment.hasReceipt && (
+                  {payment.hasReceipt && (payment.status === 'completed' || payment.status === 'paid') && (
                     <DropdownMenuItem>
                       <Download className="h-4 w-4 mr-2" />
                       Download Receipt
                     </DropdownMenuItem>
                   )}
-                  <DropdownMenuItem>
-                    <Receipt className="h-4 w-4 mr-2" />
-                    Generate Invoice
-                  </DropdownMenuItem>
+                  {(payment.status === 'completed' || payment.status === 'paid') && (
+                    <DropdownMenuItem>
+                      <Receipt className="h-4 w-4 mr-2" />
+                      Generate Invoice
+                    </DropdownMenuItem>
+                  )}
+                  {payment.status === 'failed' && (
+                    <DropdownMenuItem className="text-destructive">
+                      Retry Payment
+                    </DropdownMenuItem>
+                  )}
                 </DropdownMenuContent>
               </DropdownMenu>
             </CardAction>
@@ -160,9 +180,17 @@ export const PaymentHistoryCards = memo(({
                   })}
                 </span>
               </div>
-              <span>
-                {payment.paymentMethod === 'direct-debit-contract' ? 'Direct Debit' : 'ZarinPal'}
-              </span>
+              <div className="flex items-center gap-2">
+                <span className="text-xs px-2 py-1 rounded-full bg-muted">
+                  {payment.paymentMethod === 'direct-debit-contract' ? 'Auto Debit' : 'ZarinPal'}
+                </span>
+                {payment.zarinpalRefId && (
+                  <span className="text-xs text-muted-foreground" title={`Ref: ${payment.zarinpalRefId}`}>
+                    #
+                    {payment.zarinpalRefId.slice(-6)}
+                  </span>
+                )}
+              </div>
             </div>
           </div>
         </CardContent>
@@ -191,15 +219,11 @@ export const PaymentHistoryCards = memo(({
   if (payments.length === 0) {
     return (
       <FadeIn className={className}>
-        <div className="text-center py-12">
-          <div className="mx-auto w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
-            <Receipt className="h-6 w-6 text-gray-400" />
-          </div>
-          <h3 className="text-lg font-semibold mb-2">{emptyStateTitle}</h3>
-          <p className="text-muted-foreground max-w-md mx-auto">
-            {emptyStateDescription}
-          </p>
-        </div>
+        <DashboardEmpty
+          title={emptyStateTitle}
+          description={emptyStateDescription}
+          icon={<Receipt className="h-8 w-8 text-muted-foreground" />}
+        />
       </FadeIn>
     );
   }

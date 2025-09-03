@@ -66,7 +66,7 @@ export function createZarinPalHTTPException(
     // Map ZarinPal error codes to appropriate HTTP status codes
     const mappedStatus = mapZarinPalErrorToHttpStatus(zarinPalCode);
 
-    throw new HTTPException(mappedStatus as 400 | 401 | 403 | 404 | 409 | 422 | 429 | 500, {
+    throw new HTTPException(mappedStatus as typeof HttpStatusCodes.BAD_REQUEST | typeof HttpStatusCodes.UNAUTHORIZED | typeof HttpStatusCodes.FORBIDDEN | typeof HttpStatusCodes.NOT_FOUND | typeof HttpStatusCodes.CONFLICT | typeof HttpStatusCodes.UNPROCESSABLE_ENTITY | typeof HttpStatusCodes.TOO_MANY_REQUESTS | typeof HttpStatusCodes.INTERNAL_SERVER_ERROR, {
       message: `ZarinPal ${operation} failed`,
       cause: {
         provider: 'zarinpal',

@@ -39,11 +39,15 @@ export type SetDefaultPaymentMethodResponse = InferResponseType<(typeof apiClien
 // ============================================================================
 
 /**
- * Get all user payment methods
+ * Get all user payment methods - Context7 consistent pattern
  * All types are inferred from the RPC client
+ * CRITICAL FIX: Consistent argument handling for SSR/hydration
  */
 export async function getPaymentMethodsService(args?: GetPaymentMethodsRequest) {
-  return parseResponse(apiClient['payment-methods'].$get(args));
+  // Fix: Only pass args if defined to ensure consistent behavior between server/client
+  return args
+    ? parseResponse(apiClient['payment-methods'].$get(args))
+    : parseResponse(apiClient['payment-methods'].$get());
 }
 
 /**

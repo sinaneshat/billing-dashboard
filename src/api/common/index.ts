@@ -43,7 +43,6 @@ export {
 } from './metadata-utils';
 // Response utilities
 export { created, error, fail, ok } from './responses';
-export * from './schema-builders';
 // Schema utilities (avoid conflicts by being specific)
 export {
   type ApiMeta,

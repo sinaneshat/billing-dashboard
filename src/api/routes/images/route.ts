@@ -1,4 +1,5 @@
 import { createRoute } from '@hono/zod-openapi';
+import * as HttpStatusCodes from 'stoker/http-status-codes';
 
 import {
   DeleteImageResponseSchema,
@@ -15,14 +16,14 @@ export const uploadUserAvatarRoute = createRoute({
   path: '/images/avatar',
   tags: ['images'],
   responses: {
-    200: {
+    [HttpStatusCodes.OK]: {
       description: 'Upload user avatar image',
       content: { 'application/json': { schema: UploadUserAvatarResponseSchema } },
     },
-    400: {
+    [HttpStatusCodes.BAD_REQUEST]: {
       description: 'Invalid image format or size',
     },
-    413: {
+    [HttpStatusCodes.REQUEST_TOO_LONG]: {
       description: 'Image too large',
     },
   },
@@ -36,17 +37,17 @@ export const uploadCompanyImageRoute = createRoute({
     params: ImageKeyParamsSchema,
   },
   responses: {
-    200: {
+    [HttpStatusCodes.OK]: {
       description: 'Upload company image (logo or banner)',
       content: { 'application/json': { schema: UploadCompanyImageResponseSchema } },
     },
-    400: {
+    [HttpStatusCodes.BAD_REQUEST]: {
       description: 'Invalid image format, size, or type',
     },
-    403: {
+    [HttpStatusCodes.FORBIDDEN]: {
       description: 'Not authorized to upload company images',
     },
-    413: {
+    [HttpStatusCodes.REQUEST_TOO_LONG]: {
       description: 'Image too large',
     },
   },
@@ -60,7 +61,7 @@ export const getImagesRoute = createRoute({
     query: GetImagesQuerySchema,
   },
   responses: {
-    200: {
+    [HttpStatusCodes.OK]: {
       description: 'List user and organization images',
       content: { 'application/json': { schema: GetImagesResponseSchema } },
     },
@@ -75,11 +76,11 @@ export const getImageMetadataRoute = createRoute({
     params: ImageKeyParamsSchema,
   },
   responses: {
-    200: {
+    [HttpStatusCodes.OK]: {
       description: 'Get image metadata',
       content: { 'application/json': { schema: GetImageMetadataResponseSchema } },
     },
-    404: {
+    [HttpStatusCodes.NOT_FOUND]: {
       description: 'Image not found',
     },
   },
@@ -93,14 +94,14 @@ export const deleteImageRoute = createRoute({
     params: ImageKeyParamsSchema,
   },
   responses: {
-    200: {
+    [HttpStatusCodes.OK]: {
       description: 'Delete image',
       content: { 'application/json': { schema: DeleteImageResponseSchema } },
     },
-    403: {
+    [HttpStatusCodes.FORBIDDEN]: {
       description: 'Not authorized to delete this image',
     },
-    404: {
+    [HttpStatusCodes.NOT_FOUND]: {
       description: 'Image not found',
     },
   },

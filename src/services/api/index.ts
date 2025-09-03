@@ -52,6 +52,8 @@ export {
 
 // Payments service exports
 export {
+  type GetPaymentsResponse,
+  getPaymentsService,
   type PaymentCallbackRequest,
   type PaymentCallbackResponse,
   processPaymentCallbackService,

@@ -1,4 +1,5 @@
 #!/usr/bin/env tsx
+/* eslint-disable no-console */
 /**
  * Production Database Setup with Inline Seeding
  * Creates production-ready products directly without external seed files
@@ -142,7 +143,7 @@ async function seedProductionDatabase() {
     console.log('🧹 Clearing existing products...');
 
     // Clear existing products
-    await sqlite.exec('DELETE FROM product;');
+    sqlite.exec('DELETE FROM product;');
     console.log('✅ Products table cleared');
 
     console.log('');

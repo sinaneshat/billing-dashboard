@@ -1,70 +1,81 @@
 /**
  * Admin API Handlers - Platform Owner Access
- * Leverages existing database queries and webhook infrastructure
+ * Using factory pattern for consistent authentication, error handling, and repository access
  */
 
 import type { RouteHandler } from '@hono/zod-openapi';
 import { desc, like } from 'drizzle-orm';
-import { HTTPException } from 'hono/http-exception';
-import * as HttpStatusCodes from 'stoker/http-status-codes';
+import type { z } from 'zod';
 
 import { ok } from '@/api/common/responses';
-import { apiLogger } from '@/api/middleware/hono-logger';
+import { createHandler } from '@/api/patterns/route-handler-factory';
+import { billingRepositories } from '@/api/repositories/billing-repositories';
 import type { ApiEnv } from '@/api/types';
 import { db } from '@/db';
-import { payment, subscription, user } from '@/db/schema';
+import { user } from '@/db/schema';
 
 import type {
   adminStatsRoute,
   adminTestWebhookRoute,
   adminUsersRoute,
 } from './route';
+import {
+  AdminUsersQuerySchema,
+  AdminWebhookTestRequestSchema,
+} from './schema';
 
 // =============================================================================
 // Admin Handlers using existing patterns
 // =============================================================================
 
-export const adminStatsHandler: RouteHandler<typeof adminStatsRoute, ApiEnv> = async (c) => {
-  try {
-    // Use existing database queries - no need to duplicate logic
-    const [users, subscriptions, payments] = await Promise.all([
+export const adminStatsHandler: RouteHandler<typeof adminStatsRoute, ApiEnv> = createHandler(
+  {
+    auth: 'session',
+    operationName: 'getAdminStats',
+  },
+  async (c) => {
+    // Use repository pattern for data access
+    const [users, subscriptionsResult, paymentsResult] = await Promise.all([
       db.select().from(user),
-      db.select().from(subscription),
-      db.select().from(payment),
+      billingRepositories.subscriptions.findMany(),
+      billingRepositories.payments.findMany(),
     ]);
+
+    const subscriptions = subscriptionsResult.items;
+    const payments = paymentsResult.items;
 
     const stats = {
       users: {
         total: users.length,
-        verified: users.filter(u => u.emailVerified).length,
+        verified: users.filter((u: typeof users[0]) => u.emailVerified).length,
       },
       subscriptions: {
         total: subscriptions.length,
-        active: subscriptions.filter(s => s.status === 'active').length,
-        canceled: subscriptions.filter(s => s.status === 'canceled').length,
+        active: subscriptions.filter((s: typeof subscriptions[0]) => s.status === 'active').length,
+        canceled: subscriptions.filter((s: typeof subscriptions[0]) => s.status === 'canceled').length,
       },
       payments: {
         total: payments.length,
-        successful: payments.filter(p => p.status === 'completed').length,
+        successful: payments.filter((p: typeof payments[0]) => p.status === 'completed').length,
         totalAmount: payments
-          .filter(p => p.status === 'completed')
-          .reduce((sum, p) => sum + p.amount, 0),
+          .filter((p: typeof payments[0]) => p.status === 'completed')
+          .reduce((sum: number, p: typeof payments[0]) => sum + p.amount, 0),
         currency: 'IRR' as const,
       },
     };
 
     return ok(c, stats);
-  } catch (err) {
-    apiLogger.error('Admin stats error', { error: err });
-    throw new HTTPException(HttpStatusCodes.INTERNAL_SERVER_ERROR, {
-      message: 'Internal server error',
-    });
-  }
-};
+  },
+);
 
-export const adminUsersHandler: RouteHandler<typeof adminUsersRoute, ApiEnv> = async (c) => {
-  try {
-    const { page, limit, search } = c.req.valid('query');
+export const adminUsersHandler: RouteHandler<typeof adminUsersRoute, ApiEnv> = createHandler(
+  {
+    auth: 'session',
+    validateQuery: AdminUsersQuerySchema,
+    operationName: 'getAdminUsers',
+  },
+  async (c) => {
+    const { page, limit, search } = c.validated.query as z.infer<typeof AdminUsersQuerySchema>;
     const offset = (page - 1) * limit;
 
     // Simplified query approach to avoid TypeScript complex type issues
@@ -94,17 +105,17 @@ export const adminUsersHandler: RouteHandler<typeof adminUsersRoute, ApiEnv> = a
         pages: Math.ceil(totalUsers / limit),
       },
     });
-  } catch (err) {
-    apiLogger.error('Admin users error', { error: err });
-    throw new HTTPException(HttpStatusCodes.INTERNAL_SERVER_ERROR, {
-      message: 'Internal server error',
-    });
-  }
-};
+  },
+);
 
-export const adminTestWebhookHandler: RouteHandler<typeof adminTestWebhookRoute, ApiEnv> = async (c) => {
-  try {
-    const { event_type, test_data } = c.req.valid('json');
+export const adminTestWebhookHandler: RouteHandler<typeof adminTestWebhookRoute, ApiEnv> = createHandler(
+  {
+    auth: 'session',
+    validateBody: AdminWebhookTestRequestSchema,
+    operationName: 'adminTestWebhook',
+  },
+  async (c) => {
+    const { event_type, test_data } = c.validated.body as z.infer<typeof AdminWebhookTestRequestSchema>;
     const webhookUrl = c.env?.EXTERNAL_WEBHOOK_URL;
 
     if (!webhookUrl) {
@@ -148,10 +159,5 @@ export const adminTestWebhookHandler: RouteHandler<typeof adminTestWebhookRoute,
         : `Failed to send webhook: ${response.status} ${response.statusText}`,
       webhook_url: webhookUrl,
     });
-  } catch (err) {
-    apiLogger.error('Admin test webhook error', { error: err });
-    throw new HTTPException(HttpStatusCodes.INTERNAL_SERVER_ERROR, {
-      message: 'Internal server error',
-    });
-  }
-};
+  },
+);

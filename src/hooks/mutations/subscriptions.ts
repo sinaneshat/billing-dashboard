@@ -26,8 +26,8 @@ export function useCreateSubscriptionMutation() {
     onSuccess: (data) => {
       // Invalidate relevant queries
       queryClient.invalidateQueries({ queryKey: queryKeys.subscriptions.all });
-      queryClient.invalidateQueries({ queryKey: queryKeys.subscriptions.list() });
-      queryClient.invalidateQueries({ queryKey: queryKeys.subscriptions.current() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.subscriptions.list });
+      queryClient.invalidateQueries({ queryKey: queryKeys.subscriptions.current });
       queryClient.invalidateQueries({ queryKey: queryKeys.payments.all });
 
       // Optionally update specific subscription in cache if we have the data
@@ -64,13 +64,13 @@ export function useCancelSubscriptionMutation() {
     },
     onMutate: async (_args) => {
       // Cancel any outgoing refetches for current subscription
-      await queryClient.cancelQueries({ queryKey: queryKeys.subscriptions.current() });
+      await queryClient.cancelQueries({ queryKey: queryKeys.subscriptions.current });
 
       // Snapshot the previous value for rollback
-      const previousSubscription = queryClient.getQueryData(queryKeys.subscriptions.current());
+      const previousSubscription = queryClient.getQueryData(queryKeys.subscriptions.current);
 
       // Optimistically update current subscription status
-      queryClient.setQueryData(queryKeys.subscriptions.current(), (old: unknown) => {
+      queryClient.setQueryData(queryKeys.subscriptions.current, (old: unknown) => {
         const subscription = old as { success?: boolean; data?: Record<string, unknown> };
         if (subscription?.success && subscription.data) {
           return {
@@ -90,15 +90,15 @@ export function useCancelSubscriptionMutation() {
     onError: (error, _variables, context) => {
       // Rollback optimistic update on error
       if (context?.previousSubscription) {
-        queryClient.setQueryData(queryKeys.subscriptions.current(), context.previousSubscription);
+        queryClient.setQueryData(queryKeys.subscriptions.current, context.previousSubscription);
       }
       logError('Failed to cancel subscription', error);
     },
     onSuccess: () => {
       // Invalidate queries after successful cancellation
       queryClient.invalidateQueries({ queryKey: queryKeys.subscriptions.all });
-      queryClient.invalidateQueries({ queryKey: queryKeys.subscriptions.list() });
-      queryClient.invalidateQueries({ queryKey: queryKeys.subscriptions.current() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.subscriptions.list });
+      queryClient.invalidateQueries({ queryKey: queryKeys.subscriptions.current });
     },
     retry: 1,
   });
@@ -114,8 +114,8 @@ export function useResubscribeMutation() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.subscriptions.all });
-      queryClient.invalidateQueries({ queryKey: queryKeys.subscriptions.list() });
-      queryClient.invalidateQueries({ queryKey: queryKeys.subscriptions.current() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.subscriptions.list });
+      queryClient.invalidateQueries({ queryKey: queryKeys.subscriptions.current });
       queryClient.invalidateQueries({ queryKey: queryKeys.payments.all });
     },
     onError: (error) => {
@@ -159,8 +159,8 @@ export function useChangePlanMutation() {
     onSuccess: (data, variables) => {
       // Invalidate relevant queries
       queryClient.invalidateQueries({ queryKey: queryKeys.subscriptions.all });
-      queryClient.invalidateQueries({ queryKey: queryKeys.subscriptions.list() });
-      queryClient.invalidateQueries({ queryKey: queryKeys.subscriptions.current() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.subscriptions.list });
+      queryClient.invalidateQueries({ queryKey: queryKeys.subscriptions.current });
       queryClient.invalidateQueries({
         queryKey: queryKeys.subscriptions.detail(variables.param.id),
       });

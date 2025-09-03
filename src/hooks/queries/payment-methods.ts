@@ -5,22 +5,14 @@ import { getPaymentMethodsService } from '@/services/api/payment-methods';
 
 /**
  * Hook to fetch ALL user payment methods (no pagination)
- * Simple TanStack Query pattern - shows all payment methods always
+ * Context7 official pattern - EXACT match with server prefetch
  */
 export function usePaymentMethodsQuery() {
   return useQuery({
-    queryKey: queryKeys.paymentMethods.list(),
-    queryFn: () => getPaymentMethodsService(), // No args = fetch all payment methods
-    staleTime: 5 * 60 * 1000, // 5 minutes - payment methods are relatively stable
+    queryKey: queryKeys.paymentMethods.list, // CRITICAL FIX: Static array like official examples
+    queryFn: getPaymentMethodsService,
+    staleTime: 60 * 1000, // CRITICAL FIX: Match Context7 examples (60 seconds)
     retry: 2,
     throwOnError: false,
   });
-}
-
-/**
- * Simple prefetch function for backward compatibility
- */
-export function prefetchPaymentMethods() {
-  // Placeholder function for backward compatibility
-  return () => {};
 }

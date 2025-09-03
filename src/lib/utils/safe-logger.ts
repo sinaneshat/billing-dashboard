@@ -13,6 +13,8 @@
  * - Environment-specific log levels
  */
 
+import { z } from 'zod';
+
 import { getConfigValue, isDevelopment } from '@/lib/config';
 
 // ============================================================================
@@ -113,20 +115,15 @@ const REDACTED_FIELDS = new Set([
 // LOG LEVELS
 // ============================================================================
 
-export enum LogLevel {
-  DEBUG = 0,
-  INFO = 1,
-  WARN = 2,
-  ERROR = 3,
-  CRITICAL = 4,
-}
+// ✅ Zod enum for log levels - reusable across logging modules
+export const logLevelSchema = z.enum(['DEBUG', 'INFO', 'WARN', 'ERROR']);
+export type LogLevel = z.infer<typeof logLevelSchema>;
 
 const LOG_LEVEL_NAMES: Record<LogLevel, string> = {
-  [LogLevel.DEBUG]: 'DEBUG',
-  [LogLevel.INFO]: 'INFO',
-  [LogLevel.WARN]: 'WARN',
-  [LogLevel.ERROR]: 'ERROR',
-  [LogLevel.CRITICAL]: 'CRITICAL',
+  DEBUG: 'DEBUG',
+  INFO: 'INFO',
+  WARN: 'WARN',
+  ERROR: 'ERROR',
 };
 
 // ============================================================================
@@ -337,14 +334,14 @@ function getCurrentLogLevel(): LogLevel {
   try {
     const configLevel = getConfigValue('LOG_LEVEL');
     switch (configLevel) {
-      case 'debug': return LogLevel.DEBUG;
-      case 'info': return LogLevel.INFO;
-      case 'warn': return LogLevel.WARN;
-      case 'error': return LogLevel.ERROR;
-      default: return LogLevel.INFO;
+      case 'debug': return 'DEBUG';
+      case 'info': return 'INFO';
+      case 'warn': return 'WARN';
+      case 'error': return 'ERROR';
+      default: return 'INFO';
     }
   } catch {
-    return LogLevel.INFO;
+    return 'INFO';
   }
 }
 
@@ -376,15 +373,14 @@ function log(level: LogLevel, message: string, data?: unknown, context?: LogCont
 
   // Output based on log level
   switch (level) {
-    case LogLevel.DEBUG:
-    case LogLevel.INFO:
+    case 'DEBUG':
+    case 'INFO':
       console.warn(formattedEntry);
       break;
-    case LogLevel.WARN:
+    case 'WARN':
       console.warn(formattedEntry);
       break;
-    case LogLevel.ERROR:
-    case LogLevel.CRITICAL:
+    case 'ERROR':
       console.error(formattedEntry);
       break;
   }
@@ -398,21 +394,21 @@ function log(level: LogLevel, message: string, data?: unknown, context?: LogCont
  * Log debug information (development only)
  */
 export function logDebug(message: string, data?: unknown, context?: LogContext): void {
-  log(LogLevel.DEBUG, message, data, context);
+  log('DEBUG', message, data, context);
 }
 
 /**
  * Log informational messages
  */
 export function logInfo(message: string, data?: unknown, context?: LogContext): void {
-  log(LogLevel.INFO, message, data, context);
+  log('INFO', message, data, context);
 }
 
 /**
  * Log warnings
  */
 export function logWarn(message: string, data?: unknown, context?: LogContext): void {
-  log(LogLevel.WARN, message, data, context);
+  log('WARN', message, data, context);
 }
 
 /**
@@ -427,7 +423,7 @@ export function logError(message: string, error?: unknown, context?: LogContext)
       }
     : error;
 
-  log(LogLevel.ERROR, message, errorData, context);
+  log('ERROR', message, errorData, context);
 }
 
 /**
@@ -442,7 +438,7 @@ export function logCritical(message: string, error?: unknown, context?: LogConte
       }
     : error;
 
-  log(LogLevel.CRITICAL, message, errorData, context);
+  log('ERROR', message, errorData, context);
 }
 
 // ============================================================================

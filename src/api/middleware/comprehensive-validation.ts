@@ -22,6 +22,10 @@ import { z } from 'zod';
 
 import { ValidationError } from '@/api/common/error-handling';
 import { safeValidate, zodValidation } from '@/api/common/zod-validation-utils';
+import type { SecurityValidation } from '@/api/types/http';
+import {
+  QueryParametersSchema,
+} from '@/api/types/http';
 
 import { apiLogger } from './hono-logger';
 // Constants
@@ -37,9 +41,13 @@ const FILE_UPLOAD = {
   IMAGE_TYPES: ['image/jpeg', 'image/png', 'image/webp'],
   DOCUMENT_TYPES: ['application/pdf', 'text/plain'],
 } as const;
-// Safe logging using proper Hono logger
-const logWarn = (msg: string, error?: unknown, context?: unknown) => apiLogger.warn(msg, { error, context });
-const logError = (msg: string, error?: unknown, context?: unknown) => apiLogger.error(msg, { error, context });
+// Type-safe logging with specific context types
+function logWarn(msg: string, error?: Error, context?: { pattern?: string; field?: string; value?: string }) {
+  return apiLogger.warn(msg, { error, context });
+}
+function logError(msg: string, error?: Error, context?: { operation?: string; field?: string; details?: string }) {
+  return apiLogger.error(msg, { error, context });
+}
 
 // ============================================================================
 // SECURITY VALIDATION PATTERNS
@@ -140,23 +148,73 @@ const fileUploadValidationSchema = z.object({
 // ============================================================================
 
 /**
- * Check for dangerous security patterns in a string
+ * Advanced security validation using discriminated unions (Context7 Pattern)
+ * Replaces loose boolean return with specific security classification
  */
-function containsDangerousPatterns(value: string): { found: boolean; pattern?: string } {
-  const allPatterns = [
-    ...SECURITY_PATTERNS.SQL_INJECTION,
-    ...SECURITY_PATTERNS.XSS,
-    ...SECURITY_PATTERNS.PATH_TRAVERSAL,
-    ...SECURITY_PATTERNS.COMMAND_INJECTION,
-  ];
+function validateSecurityPatterns(value: string): SecurityValidation {
+  const allPatterns = {
+    sql_injection: SECURITY_PATTERNS.SQL_INJECTION,
+    xss: SECURITY_PATTERNS.XSS,
+    path_traversal: SECURITY_PATTERNS.PATH_TRAVERSAL,
+    command_injection: SECURITY_PATTERNS.COMMAND_INJECTION,
+  } as const;
 
-  for (const pattern of allPatterns) {
-    if (pattern.test(value)) {
-      return { found: true, pattern: pattern.source };
+  const foundPatterns: Array<'sql_injection' | 'xss' | 'path_traversal' | 'command_injection'> = [];
+
+  for (const [patternType, patterns] of Object.entries(allPatterns)) {
+    for (const pattern of patterns) {
+      if (pattern.test(value)) {
+        foundPatterns.push(patternType as keyof typeof allPatterns);
+        break; // Only record each pattern type once
+      }
     }
   }
 
-  return { found: false };
+  if (foundPatterns.length > 0) {
+    return {
+      level: 'dangerous',
+      content: value,
+      patterns: foundPatterns,
+      blocked: true,
+      reason: `Detected security patterns: ${foundPatterns.join(', ')}`,
+    };
+  }
+
+  // Check for suspicious but not dangerous patterns
+  const suspiciousPatterns: Array<'suspicious_chars' | 'long_input' | 'special_encoding'> = [];
+
+  if (value.length > 1000) {
+    suspiciousPatterns.push('long_input');
+  }
+
+  // Check for control characters (0x00-0x1F, 0x7F-0x9F)
+  const hasControlChars = value.split('').some((char) => {
+    const code = char.charCodeAt(0);
+    return (code >= 0 && code <= 31) || (code >= 127 && code <= 159);
+  });
+  if (hasControlChars) {
+    suspiciousPatterns.push('suspicious_chars');
+  }
+
+  if (/%[0-9a-f]{2}/i.test(value)) {
+    suspiciousPatterns.push('special_encoding');
+  }
+
+  if (suspiciousPatterns.length > 0) {
+    return {
+      level: 'warning',
+      content: value,
+      sanitized: sanitizeString(value),
+      patterns: suspiciousPatterns,
+      message: `Warning: ${suspiciousPatterns.join(', ')} detected`,
+    };
+  }
+
+  return {
+    level: 'safe',
+    content: value,
+    sanitized: value,
+  };
 }
 
 /**
@@ -174,50 +232,74 @@ function sanitizeString(value: string, maxLength = 1000): string {
 }
 
 /**
- * Validate and sanitize headers
+ * Advanced header validation using discriminated unions (Context7 Pattern)
+ * Maximum type safety replacing generic Record<string, string>
  */
-function validateHeaders(headers: Record<string, string>): Record<string, string> {
+function validateTypedHeaders(rawHeaders: Record<string, string | undefined>): {
+  security: SecurityValidation[];
+  sanitized: Record<string, string>;
+} {
+  const securityResults: SecurityValidation[] = [];
   const sanitizedHeaders: Record<string, string> = {};
 
-  // Check for required headers
+  // Validate required security headers
   for (const requiredHeader of REQUIRED_SECURITY_HEADERS) {
-    if (!headers[requiredHeader] && !headers[requiredHeader.toLowerCase()]) {
+    const headerValue = rawHeaders[requiredHeader] || rawHeaders[requiredHeader.toLowerCase()];
+
+    if (!headerValue) {
       throw new ValidationError({
         message: 'Missing required header',
-        validationErrors: [{ field: requiredHeader, message: `${requiredHeader} header is required` }],
+        validationErrors: [{
+          field: requiredHeader,
+          message: `${requiredHeader} header is required for security compliance`,
+        }],
       });
     }
   }
 
-  // Sanitize specific headers
-  for (const [key, value] of Object.entries(headers)) {
+  // Process each header with type-safe validation
+  for (const [key, value] of Object.entries(rawHeaders)) {
+    if (!value)
+      continue;
+
     const lowerKey = key.toLowerCase();
 
-    // Skip if header is too long
+    // Validate header length constraints
     if (key.length > 100 || value.length > 2000) {
-      logWarn('Header too long, skipping', undefined, { header: key, length: value.length });
-      continue;
-    }
-
-    // Check for dangerous patterns in header values
-    const dangerCheck = containsDangerousPatterns(value);
-    if (dangerCheck.found) {
-      logWarn('Dangerous pattern in header', undefined, {
-        header: key,
-        pattern: dangerCheck.pattern,
+      logWarn('Header exceeds length limits', undefined, {
+        field: key,
+        value: `${value.length} chars`,
       });
       continue;
     }
 
-    // Sanitize certain headers
+    // Perform security validation
+    const securityResult = validateSecurityPatterns(value);
+    securityResults.push(securityResult);
+
+    // Block dangerous headers
+    if (securityResult.level === 'dangerous') {
+      logError('Dangerous header blocked', undefined, {
+        field: key,
+        details: securityResult.reason,
+      });
+      continue;
+    }
+
+    // Sanitize headers that need it
     if (SANITIZABLE_HEADERS.includes(lowerKey as never)) {
-      sanitizedHeaders[key] = sanitizeString(value, 500);
+      sanitizedHeaders[key] = securityResult.level === 'safe'
+        ? securityResult.content
+        : securityResult.sanitized;
     } else {
       sanitizedHeaders[key] = value;
     }
   }
 
-  return sanitizedHeaders;
+  return {
+    security: securityResults,
+    sanitized: sanitizedHeaders,
+  };
 }
 
 /**
@@ -247,46 +329,128 @@ function validateRequestSize(contentLength: number | undefined, maxSize: number)
 }
 
 /**
- * Validate and sanitize query parameters
+ * Advanced query parameter validation using discriminated unions (Context7 Pattern)
+ * Maximum type safety replacing generic Record<string, string>
  */
-function validateQueryParameters(query: Record<string, string>): Record<string, string> {
+function validateTypedQueryParameters(rawQuery: Record<string, string | undefined>): {
+  security: SecurityValidation[];
+  categorized: z.infer<typeof QueryParametersSchema> | null;
+  sanitized: Record<string, string>;
+} {
+  const securityResults: SecurityValidation[] = [];
   const sanitizedQuery: Record<string, string> = {};
+  let categorizedQuery: z.infer<typeof QueryParametersSchema> | null = null;
 
-  for (const [key, value] of Object.entries(query)) {
-    // Skip if key or value is too long
-    if (key.length > 100 || value.length > 1000) {
-      continue;
+  // First, try to categorize the query parameters
+  try {
+    // Attempt to parse as pagination
+    const paginationResult = QueryParametersSchema.safeParse({
+      category: 'pagination',
+      ...rawQuery,
+    });
+    if (paginationResult.success) {
+      categorizedQuery = paginationResult.data;
     }
 
-    // Check for dangerous patterns
-    const keyDangerCheck = containsDangerousPatterns(key);
-    const valueDangerCheck = containsDangerousPatterns(value);
+    // If not pagination, try search
+    if (!categorizedQuery) {
+      const searchResult = QueryParametersSchema.safeParse({
+        category: 'search',
+        ...rawQuery,
+      });
+      if (searchResult.success) {
+        categorizedQuery = searchResult.data;
+      }
+    }
 
-    if (keyDangerCheck.found || valueDangerCheck.found) {
-      logWarn('Dangerous pattern in query parameter', undefined, {
-        key,
-        keyPattern: keyDangerCheck.pattern,
-        valuePattern: valueDangerCheck.pattern,
+    // If not search, try filter
+    if (!categorizedQuery) {
+      const filterResult = QueryParametersSchema.safeParse({
+        category: 'filter',
+        ...rawQuery,
+      });
+      if (filterResult.success) {
+        categorizedQuery = filterResult.data;
+      }
+    }
+
+    // If not filter, try sort
+    if (!categorizedQuery) {
+      const sortResult = QueryParametersSchema.safeParse({
+        category: 'sort',
+        ...rawQuery,
+      });
+      if (sortResult.success) {
+        categorizedQuery = sortResult.data;
+      }
+    }
+  } catch {
+    // Categorization failed, continue with manual validation
+  }
+
+  // Validate each parameter for security
+  for (const [key, value] of Object.entries(rawQuery)) {
+    if (!value)
+      continue;
+
+    // Validate length constraints
+    if (key.length > 100 || value.length > 1000) {
+      logWarn('Query parameter exceeds length limits', undefined, {
+        field: key,
+        value: `${value.length} chars`,
       });
       continue;
     }
 
-    // Sanitize key and value
-    const sanitizedKey = sanitizeString(key, 100);
-    const sanitizedValue = sanitizeString(value, 1000);
+    // Security validation for key and value
+    const keyValidation = validateSecurityPatterns(key);
+    const valueValidation = validateSecurityPatterns(value);
+
+    securityResults.push(keyValidation, valueValidation);
+
+    // Block dangerous parameters
+    if (keyValidation.level === 'dangerous' || valueValidation.level === 'dangerous') {
+      logError('Dangerous query parameter blocked', undefined, {
+        field: key,
+        details: `Key: ${keyValidation.level}, Value: ${valueValidation.level}`,
+      });
+      continue;
+    }
+
+    // Sanitize and add to result
+    const sanitizedKey = keyValidation.level === 'safe'
+      ? keyValidation.content
+      : keyValidation.sanitized;
+    const sanitizedValue = valueValidation.level === 'safe'
+      ? valueValidation.content
+      : valueValidation.sanitized;
 
     if (sanitizedKey && sanitizedValue) {
       sanitizedQuery[sanitizedKey] = sanitizedValue;
     }
   }
 
-  return sanitizedQuery;
+  return {
+    security: securityResults,
+    categorized: categorizedQuery,
+    sanitized: sanitizedQuery,
+  };
 }
 
 /**
- * Recursively validate and sanitize object values
+ * Advanced recursive object validation using discriminated unions (Context7 Pattern)
+ * Maximum type safety replacing generic unknown return type
  */
-function validateObjectRecursively(obj: unknown, depth = 0, maxDepth = 10): unknown {
+type ValidatedValue =
+  | { type: 'null'; value: null }
+  | { type: 'undefined'; value: undefined }
+  | { type: 'string'; value: string; security: SecurityValidation }
+  | { type: 'number'; value: number }
+  | { type: 'boolean'; value: boolean }
+  | { type: 'array'; value: ValidatedValue[]; length: number }
+  | { type: 'object'; value: Record<string, ValidatedValue>; properties: number; security: SecurityValidation[] };
+
+function validateObjectRecursively(obj: unknown, depth = 0, maxDepth = 10): ValidatedValue {
   if (depth > maxDepth) {
     throw new ValidationError({
       message: 'Object nesting too deep',
@@ -294,23 +458,45 @@ function validateObjectRecursively(obj: unknown, depth = 0, maxDepth = 10): unkn
     });
   }
 
-  if (obj === null || obj === undefined) {
-    return obj;
+  if (obj === null) {
+    return { type: 'null', value: null };
+  }
+
+  if (obj === undefined) {
+    return { type: 'undefined', value: undefined };
   }
 
   if (typeof obj === 'string') {
-    const dangerCheck = containsDangerousPatterns(obj);
-    if (dangerCheck.found) {
+    const security = validateSecurityPatterns(obj);
+
+    if (security.level === 'dangerous') {
       throw new ValidationError({
         message: 'Dangerous pattern detected',
-        validationErrors: [{ field: 'body', message: `Potentially malicious content detected: ${dangerCheck.pattern}` }],
+        validationErrors: [{ field: 'body', message: `Security threat detected: ${security.reason}` }],
       });
     }
-    return sanitizeString(obj, 10000);
+
+    const sanitizedValue = security.level === 'safe' ? security.content : security.sanitized;
+    return {
+      type: 'string',
+      value: sanitizedValue.slice(0, 10000), // Length limit
+      security,
+    };
   }
 
-  if (typeof obj === 'number' || typeof obj === 'boolean') {
-    return obj;
+  if (typeof obj === 'number') {
+    // Validate number constraints
+    if (!Number.isFinite(obj) || Math.abs(obj) > Number.MAX_SAFE_INTEGER) {
+      throw new ValidationError({
+        message: 'Invalid number value',
+        validationErrors: [{ field: 'body', message: 'Number must be finite and within safe integer range' }],
+      });
+    }
+    return { type: 'number', value: obj };
+  }
+
+  if (typeof obj === 'boolean') {
+    return { type: 'boolean', value: obj };
   }
 
   if (Array.isArray(obj)) {
@@ -320,7 +506,13 @@ function validateObjectRecursively(obj: unknown, depth = 0, maxDepth = 10): unkn
         validationErrors: [{ field: 'body', message: 'Array exceeds maximum size of 1000 items' }],
       });
     }
-    return obj.map(item => validateObjectRecursively(item, depth + 1, maxDepth));
+
+    const validatedItems = obj.map(item => validateObjectRecursively(item, depth + 1, maxDepth));
+    return {
+      type: 'array',
+      value: validatedItems,
+      length: validatedItems.length,
+    };
   }
 
   if (typeof obj === 'object') {
@@ -332,28 +524,53 @@ function validateObjectRecursively(obj: unknown, depth = 0, maxDepth = 10): unkn
       });
     }
 
-    const sanitizedObj: Record<string, unknown> = {};
+    const sanitizedObj: Record<string, ValidatedValue> = {};
+    const securityResults: SecurityValidation[] = [];
+
     for (const key of keys) {
-      // Validate key
-      const keyDangerCheck = containsDangerousPatterns(key);
-      if (keyDangerCheck.found) {
-        logWarn('Dangerous pattern in object key', undefined, {
-          key,
-          pattern: keyDangerCheck.pattern,
+      // Validate key security
+      const keyValidation = validateSecurityPatterns(key);
+      securityResults.push(keyValidation);
+
+      if (keyValidation.level === 'dangerous') {
+        logError('Dangerous pattern in object key', undefined, {
+          field: key,
+          details: keyValidation.reason,
         });
         continue;
       }
 
-      const sanitizedKey = sanitizeString(key, 100);
+      const sanitizedKey = keyValidation.level === 'safe'
+        ? keyValidation.content.slice(0, 100)
+        : keyValidation.sanitized.slice(0, 100);
+
       if (sanitizedKey) {
-        sanitizedObj[sanitizedKey] = validateObjectRecursively((obj as Record<string, unknown>)[key], depth + 1, maxDepth);
+        const value = (obj as Record<string, unknown>)[key];
+        sanitizedObj[sanitizedKey] = validateObjectRecursively(value, depth + 1, maxDepth);
       }
     }
 
-    return sanitizedObj;
+    return {
+      type: 'object',
+      value: sanitizedObj,
+      properties: Object.keys(sanitizedObj).length,
+      security: securityResults,
+    };
   }
 
-  return obj;
+  // Unknown type - return as string representation for safety
+  const stringValue = String(obj).slice(0, 1000);
+  const security = validateSecurityPatterns(stringValue);
+
+  const sanitizedValue = security.level === 'safe'
+    ? security.content
+    : security.level === 'warning' ? security.sanitized : security.content;
+
+  return {
+    type: 'string',
+    value: sanitizedValue,
+    security,
+  };
 }
 
 // ============================================================================
@@ -388,7 +605,7 @@ export function basicRequestValidation() {
 
       await next();
     } catch (error) {
-      logError('Basic request validation failed', error);
+      logError('Basic request validation failed', error instanceof Error ? error : undefined);
       throw error;
     }
   };
@@ -401,14 +618,14 @@ export function headerValidation() {
   return async (c: Context, next: Next) => {
     try {
       const headers = Object.fromEntries(c.req.raw.headers.entries());
-      const sanitizedHeaders = validateHeaders(headers);
+      const { sanitized: sanitizedHeaders } = validateTypedHeaders(headers);
 
       // Store sanitized headers for use in handlers
       c.set('sanitizedHeaders', sanitizedHeaders);
 
       await next();
     } catch (error) {
-      logError('Header validation failed', error);
+      logError('Header validation failed', error instanceof Error ? error : undefined);
       throw error;
     }
   };
@@ -424,14 +641,14 @@ export function queryValidation() {
       const query = Object.fromEntries(url.searchParams.entries());
 
       // Validate and sanitize query parameters
-      const sanitizedQuery = validateQueryParameters(query);
+      const { sanitized: sanitizedQuery } = validateTypedQueryParameters(query);
 
       // Store sanitized query for use in handlers
       c.set('sanitizedQuery', sanitizedQuery);
 
       await next();
     } catch (error) {
-      logError('Query parameter validation failed', error);
+      logError('Query parameter validation failed', error instanceof Error ? error : undefined);
       throw error;
     }
   };
@@ -520,7 +737,7 @@ export function bodyValidation(options: {
 
       await next();
     } catch (error) {
-      logError('Body validation failed', error);
+      logError('Body validation failed', error instanceof Error ? error : undefined);
       throw error;
     }
   };
@@ -582,7 +799,7 @@ export function fileUploadValidation() {
 
       await next();
     } catch (error) {
-      logError('File upload validation failed', error);
+      logError('File upload validation failed', error instanceof Error ? error : undefined);
       throw error;
     }
   };
@@ -639,7 +856,7 @@ export function comprehensiveValidation(options: {
 
       await next();
     } catch (error) {
-      logError('Comprehensive validation failed', error);
+      logError('Comprehensive validation failed', error instanceof Error ? error : undefined);
       throw error;
     }
   };
@@ -761,5 +978,4 @@ export default {
   getSanitizedRequestData,
   validateField,
   sanitizeString,
-  containsDangerousPatterns,
 };

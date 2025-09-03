@@ -73,11 +73,15 @@ export type ChangePlanResponse = {
 // ============================================================================
 
 /**
- * Get all user subscriptions
+ * Get all user subscriptions - Context7 consistent pattern
  * All types are inferred from the RPC client
+ * CRITICAL FIX: Consistent argument handling for SSR/hydration
  */
 export async function getSubscriptionsService(args?: GetSubscriptionsRequest) {
-  return parseResponse(apiClient.subscriptions.$get(args));
+  // Fix: Only pass args if defined to ensure consistent behavior between server/client
+  return args
+    ? parseResponse(apiClient.subscriptions.$get(args))
+    : parseResponse(apiClient.subscriptions.$get());
 }
 
 /**

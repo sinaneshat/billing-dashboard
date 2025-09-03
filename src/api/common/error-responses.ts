@@ -188,7 +188,7 @@ export function createErrorResponse(
   c: Context<ApiEnv>,
   error: string,
   message: string,
-  status: 400 | 401 | 403 | 404 | 409 | 422 | 429 | 500 | 502 = 400,
+  status: typeof HttpStatusCodes.BAD_REQUEST | typeof HttpStatusCodes.UNAUTHORIZED | typeof HttpStatusCodes.FORBIDDEN | typeof HttpStatusCodes.NOT_FOUND | typeof HttpStatusCodes.CONFLICT | typeof HttpStatusCodes.UNPROCESSABLE_ENTITY | typeof HttpStatusCodes.TOO_MANY_REQUESTS | typeof HttpStatusCodes.INTERNAL_SERVER_ERROR | typeof HttpStatusCodes.BAD_GATEWAY = HttpStatusCodes.BAD_REQUEST,
   details?: unknown,
 ) {
   const errorResponse: ErrorResponseData = {
@@ -234,10 +234,10 @@ export function createPaginatedResponse<T>(
  */
 export const BusinessErrors = {
   ApiKeyInvalid: (c: Context<ApiEnv>) =>
-    createErrorResponse(c, 'invalid_api_key', 'The provided API key is invalid or expired', 401),
+    createErrorResponse(c, 'invalid_api_key', 'The provided API key is invalid or expired', HttpStatusCodes.UNAUTHORIZED),
 
   ApiKeyInsufficientScope: (c: Context<ApiEnv>, requiredScope: string, availableScopes: string[]) =>
-    createErrorResponse(c, 'insufficient_scope', `This operation requires the '${requiredScope}' scope`, 403, {
+    createErrorResponse(c, 'insufficient_scope', `This operation requires the '${requiredScope}' scope`, HttpStatusCodes.FORBIDDEN, {
       required_scope: requiredScope,
       available_scopes: availableScopes,
     }),
@@ -247,59 +247,59 @@ export const BusinessErrors = {
     c.header('Retry-After', String(retryAfter));
     c.header('X-RateLimit-Remaining', '0');
     c.header('X-RateLimit-Reset', String(resetTime));
-    return createErrorResponse(c, 'rate_limit_exceeded', 'API rate limit exceeded', 429, {
+    return createErrorResponse(c, 'rate_limit_exceeded', 'API rate limit exceeded', HttpStatusCodes.TOO_MANY_REQUESTS, {
       retry_after: retryAfter,
     });
   },
 
   UserNotFound: (c: Context<ApiEnv>) =>
-    createErrorResponse(c, 'user_not_found', 'User not found', 404),
+    createErrorResponse(c, 'user_not_found', 'User not found', HttpStatusCodes.NOT_FOUND),
 
   SubscriptionNotFound: (c: Context<ApiEnv>) =>
-    createErrorResponse(c, 'subscription_not_found', 'Subscription not found', 404),
+    createErrorResponse(c, 'subscription_not_found', 'Subscription not found', HttpStatusCodes.NOT_FOUND),
 
   PaymentNotFound: (c: Context<ApiEnv>) =>
-    createErrorResponse(c, 'payment_not_found', 'Payment not found', 404),
+    createErrorResponse(c, 'payment_not_found', 'Payment not found', HttpStatusCodes.NOT_FOUND),
 
   PaymentMethodNotFound: (c: Context<ApiEnv>) =>
-    createErrorResponse(c, 'payment_method_not_found', 'Payment method not found', 404),
+    createErrorResponse(c, 'payment_method_not_found', 'Payment method not found', HttpStatusCodes.NOT_FOUND),
 
   WebhookEndpointNotFound: (c: Context<ApiEnv>) =>
-    createErrorResponse(c, 'webhook_endpoint_not_found', 'Webhook endpoint not found', 404),
+    createErrorResponse(c, 'webhook_endpoint_not_found', 'Webhook endpoint not found', HttpStatusCodes.NOT_FOUND),
 
   SubscriptionNotActive: (c: Context<ApiEnv>) =>
-    createErrorResponse(c, 'subscription_not_active', 'Subscription is not active', 400),
+    createErrorResponse(c, 'subscription_not_active', 'Subscription is not active', HttpStatusCodes.BAD_REQUEST),
 
   PaymentFailed: (c: Context<ApiEnv>, reason?: string) =>
-    createErrorResponse(c, 'payment_failed', reason || 'Payment processing failed', 400),
+    createErrorResponse(c, 'payment_failed', reason || 'Payment processing failed', HttpStatusCodes.BAD_REQUEST),
 
   WebhookDeliveryFailed: (c: Context<ApiEnv>, error: string) =>
-    createErrorResponse(c, 'webhook_delivery_failed', 'Webhook delivery failed', 400, { error }),
+    createErrorResponse(c, 'webhook_delivery_failed', 'Webhook delivery failed', HttpStatusCodes.BAD_REQUEST, { error }),
 
   // ZarinPal-specific business errors
   ZarinPalMerchantInvalid: (c: Context<ApiEnv>) =>
-    createErrorResponse(c, 'zarinpal_merchant_invalid', 'Invalid ZarinPal merchant configuration', 400, {
+    createErrorResponse(c, 'zarinpal_merchant_invalid', 'Invalid ZarinPal merchant configuration', HttpStatusCodes.BAD_REQUEST, {
       zarinpal_code: -74,
       action_required: 'Contact support to update merchant configuration',
     }),
 
   ZarinPalMerchantNoAccess: (c: Context<ApiEnv>) =>
-    createErrorResponse(c, 'zarinpal_merchant_no_access', 'Direct debit service is not activated for this account. Please contact support to enable this feature.', 400, {
+    createErrorResponse(c, 'zarinpal_merchant_no_access', 'Direct debit service is not activated for this account. Please contact support to enable this feature.', HttpStatusCodes.BAD_REQUEST, {
       zarinpal_code: -80,
       action_required: 'Request direct debit service activation from ZarinPal support',
     }),
 
   ZarinPalServiceUnavailable: (c: Context<ApiEnv>) =>
-    createErrorResponse(c, 'zarinpal_service_unavailable', 'ZarinPal payment service is temporarily unavailable', 500),
+    createErrorResponse(c, 'zarinpal_service_unavailable', 'ZarinPal payment service is temporarily unavailable', HttpStatusCodes.INTERNAL_SERVER_ERROR),
 
   ZarinPalContractFailed: (c: Context<ApiEnv>, zarinpalCode: number, zarinpalMessage: string) =>
-    createErrorResponse(c, 'zarinpal_contract_failed', zarinpalMessage, 400, {
+    createErrorResponse(c, 'zarinpal_contract_failed', zarinpalMessage, HttpStatusCodes.BAD_REQUEST, {
       zarinpal_code: zarinpalCode,
       provider: 'zarinpal',
     }),
 
   ZarinPalTransactionFailed: (c: Context<ApiEnv>, zarinpalCode: number, zarinpalMessage: string) =>
-    createErrorResponse(c, 'zarinpal_transaction_failed', zarinpalMessage, 400, {
+    createErrorResponse(c, 'zarinpal_transaction_failed', zarinpalMessage, HttpStatusCodes.BAD_REQUEST, {
       zarinpal_code: zarinpalCode,
       provider: 'zarinpal',
     }),
@@ -307,22 +307,22 @@ export const BusinessErrors = {
   // Route-specific error response helpers that match exact route schema types
 
   // Admin route errors (auth only: 400 | 401 | 403 | 500)
-  AdminAuthError: (c: Context<ApiEnv>, error: string, message: string, status: 400 | 401 | 403 | 500 = 401) =>
+  AdminAuthError: (c: Context<ApiEnv>, error: string, message: string, status: typeof HttpStatusCodes.BAD_REQUEST | typeof HttpStatusCodes.UNAUTHORIZED | typeof HttpStatusCodes.FORBIDDEN | typeof HttpStatusCodes.INTERNAL_SERVER_ERROR = HttpStatusCodes.UNAUTHORIZED) =>
     createErrorResponse(c, error, message, status),
 
   AdminInvalidCredentials: (c: Context<ApiEnv>) =>
-    createErrorResponse(c, 'invalid_credentials', 'Invalid admin credentials', 401),
+    createErrorResponse(c, 'invalid_credentials', 'Invalid admin credentials', HttpStatusCodes.UNAUTHORIZED),
 
   AdminAccessDenied: (c: Context<ApiEnv>) =>
-    createErrorResponse(c, 'access_denied', 'Admin access required', 403),
+    createErrorResponse(c, 'access_denied', 'Admin access required', HttpStatusCodes.FORBIDDEN),
 
   AdminServerError: (c: Context<ApiEnv>) =>
-    createErrorResponse(c, 'server_error', 'Internal server error', 500),
+    createErrorResponse(c, 'server_error', 'Internal server error', HttpStatusCodes.INTERNAL_SERVER_ERROR),
 
   // Direct debit route errors (auth + validation + BAD_GATEWAY)
-  DirectDebitAuthError: (c: Context<ApiEnv>, error: string, message: string, status: 400 | 401 | 403 | 422 | 500 | 502 = 400) =>
+  DirectDebitAuthError: (c: Context<ApiEnv>, error: string, message: string, status: typeof HttpStatusCodes.BAD_REQUEST | typeof HttpStatusCodes.UNAUTHORIZED | typeof HttpStatusCodes.FORBIDDEN | typeof HttpStatusCodes.UNPROCESSABLE_ENTITY | typeof HttpStatusCodes.INTERNAL_SERVER_ERROR | typeof HttpStatusCodes.BAD_GATEWAY = HttpStatusCodes.BAD_REQUEST) =>
     createErrorResponse(c, error, message, status),
 
   DirectDebitServiceError: (c: Context<ApiEnv>) =>
-    createErrorResponse(c, 'service_unavailable', 'Direct debit service temporarily unavailable', 502),
+    createErrorResponse(c, 'service_unavailable', 'Direct debit service temporarily unavailable', HttpStatusCodes.BAD_GATEWAY),
 };

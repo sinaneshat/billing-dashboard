@@ -8,13 +8,13 @@ import {
 
 /**
  * Hook to fetch ALL user subscriptions (no pagination)
- * Simple TanStack Query pattern - shows all records always
+ * Context7 official pattern - EXACT match with server prefetch
  */
 export function useSubscriptionsQuery() {
   return useQuery({
-    queryKey: queryKeys.subscriptions.list(),
-    queryFn: () => getSubscriptionsService(), // No args = fetch all records
-    staleTime: 2 * 60 * 1000, // 2 minutes
+    queryKey: queryKeys.subscriptions.list, // CRITICAL FIX: Static array like official examples
+    queryFn: getSubscriptionsService,
+    staleTime: 60 * 1000, // CRITICAL FIX: Match Context7 examples (60 seconds)
     retry: 2,
     throwOnError: false,
   });
@@ -22,13 +22,13 @@ export function useSubscriptionsQuery() {
 
 /**
  * Hook to fetch single subscription by ID
- * Simple TanStack Query pattern
+ * Context7 official pattern
  */
 export function useSubscriptionQuery(subscriptionId: string) {
   return useQuery({
     queryKey: queryKeys.subscriptions.detail(subscriptionId),
     queryFn: () => getSubscriptionService(subscriptionId),
-    staleTime: 2 * 60 * 1000,
+    staleTime: 60 * 1000, // CRITICAL FIX: Match Context7 examples (60 seconds)
     retry: 2,
     throwOnError: false,
     enabled: !!subscriptionId,
@@ -36,15 +36,15 @@ export function useSubscriptionQuery(subscriptionId: string) {
 }
 
 /**
- * Simple current subscription query for backward compatibility
+ * Current subscription query - Context7 official pattern
  * Uses SAME query key as subscriptions list to leverage prefetched cache
  * Just selects the active subscription from the already cached data
  */
 export function useCurrentSubscriptionQuery() {
   return useQuery({
-    queryKey: queryKeys.subscriptions.list(), // ✅ Same key as prefetch and list query
-    queryFn: () => getSubscriptionsService(),
-    staleTime: 2 * 60 * 1000,
+    queryKey: queryKeys.subscriptions.list, // ✅ CRITICAL FIX: Static array - same key as prefetch
+    queryFn: getSubscriptionsService, // CRITICAL FIX: No arrow wrapper - match server
+    staleTime: 60 * 1000, // CRITICAL FIX: Match Context7 examples (60 seconds)
     retry: 2,
     throwOnError: false,
     select: (data) => {

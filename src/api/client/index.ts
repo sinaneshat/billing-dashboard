@@ -11,14 +11,24 @@ import { hc } from 'hono/client';
 import type { AppType } from '@/api';
 
 /**
- * Base API URL - automatically uses the correct URL for development/production
+ * Base API URL - Context7 consistent pattern for SSR/hydration
+ * CRITICAL FIX: Ensures consistent base URL between server and client
  */
 function getBaseUrl() {
-  // Server-side: use configured API URL or localhost
-  if (typeof window === 'undefined') {
-    return process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api/v1';
+  // Both server and client should use the same base URL for query consistency
+  const baseUrl = process.env.NEXT_PUBLIC_API_URL;
+
+  if (baseUrl) {
+    return baseUrl;
   }
-  // Client-side: ensure absolute URL so $url() works
+
+  // Fallback logic
+  if (typeof window === 'undefined') {
+    // Server-side: use localhost for development
+    return 'http://localhost:3000/api/v1';
+  }
+
+  // Client-side: use same origin
   return `${window.location.origin}/api/v1`;
 }
 

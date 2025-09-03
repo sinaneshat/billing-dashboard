@@ -39,7 +39,7 @@ export function useCreatePaymentMethodMutation() {
       await queryClient.cancelQueries({ queryKey: queryKeys.paymentMethods.all });
 
       // Snapshot the previous value
-      const previousPaymentMethods = queryClient.getQueryData(queryKeys.paymentMethods.list());
+      const previousPaymentMethods = queryClient.getQueryData(queryKeys.paymentMethods.list);
 
       // Return a context object with the snapshotted value
       return { previousPaymentMethods, variables };
@@ -47,11 +47,11 @@ export function useCreatePaymentMethodMutation() {
     onSuccess: (data, _variables, _context) => {
       // Invalidate relevant queries for fresh data
       queryClient.invalidateQueries({ queryKey: queryKeys.paymentMethods.all });
-      queryClient.invalidateQueries({ queryKey: queryKeys.paymentMethods.list() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.paymentMethods.list });
 
       // Update specific payment method in cache if we have the data
       if (data.success && data.data) {
-        queryClient.setQueryData(queryKeys.paymentMethods.list(), (old: unknown) => {
+        queryClient.setQueryData(queryKeys.paymentMethods.list, (old: unknown) => {
           const oldData = old as { success?: boolean; data?: unknown[] };
           if (oldData?.success && Array.isArray(oldData.data)) {
             return {
@@ -67,7 +67,7 @@ export function useCreatePaymentMethodMutation() {
       logError('Failed to create payment method', error);
       // If we had a previous value, revert to it on error
       if (context?.previousPaymentMethods) {
-        queryClient.setQueryData(queryKeys.paymentMethods.list(), context.previousPaymentMethods);
+        queryClient.setQueryData(queryKeys.paymentMethods.list, context.previousPaymentMethods);
       }
     },
     onSettled: () => {
@@ -102,10 +102,10 @@ export function useDeletePaymentMethodMutation() {
       await queryClient.cancelQueries({ queryKey: queryKeys.paymentMethods.all });
 
       // Snapshot the previous value for rollback
-      const previousPaymentMethods = queryClient.getQueryData(queryKeys.paymentMethods.list());
+      const previousPaymentMethods = queryClient.getQueryData(queryKeys.paymentMethods.list);
 
       // Optimistically update payment methods list
-      queryClient.setQueryData(queryKeys.paymentMethods.list(), (old: unknown) => {
+      queryClient.setQueryData(queryKeys.paymentMethods.list, (old: unknown) => {
         const oldData = old as { success?: boolean; data?: Array<{ id: string }> };
         if (oldData?.success && Array.isArray(oldData.data)) {
           return {
@@ -122,13 +122,13 @@ export function useDeletePaymentMethodMutation() {
       logError('Failed to delete payment method', error);
       // Rollback optimistic update on error
       if (context?.previousPaymentMethods) {
-        queryClient.setQueryData(queryKeys.paymentMethods.list(), context.previousPaymentMethods);
+        queryClient.setQueryData(queryKeys.paymentMethods.list, context.previousPaymentMethods);
       }
     },
     onSuccess: () => {
       // Invalidate queries after successful deletion
       queryClient.invalidateQueries({ queryKey: queryKeys.paymentMethods.all });
-      queryClient.invalidateQueries({ queryKey: queryKeys.paymentMethods.list() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.paymentMethods.list });
     },
     retry: 1,
   });
@@ -147,10 +147,10 @@ export function useSetDefaultPaymentMethodMutation() {
       await queryClient.cancelQueries({ queryKey: queryKeys.paymentMethods.all });
 
       // Snapshot the previous value for rollback
-      const previousPaymentMethods = queryClient.getQueryData(queryKeys.paymentMethods.list());
+      const previousPaymentMethods = queryClient.getQueryData(queryKeys.paymentMethods.list);
 
       // Optimistically update payment methods list
-      queryClient.setQueryData(queryKeys.paymentMethods.list(), (old: unknown) => {
+      queryClient.setQueryData(queryKeys.paymentMethods.list, (old: unknown) => {
         const oldData = old as { success?: boolean; data?: Array<{ id: string; isPrimary: boolean }> };
         if (oldData?.success && Array.isArray(oldData.data)) {
           return {
@@ -170,13 +170,13 @@ export function useSetDefaultPaymentMethodMutation() {
       logError('Failed to set default payment method', error);
       // Rollback optimistic update on error
       if (context?.previousPaymentMethods) {
-        queryClient.setQueryData(queryKeys.paymentMethods.list(), context.previousPaymentMethods);
+        queryClient.setQueryData(queryKeys.paymentMethods.list, context.previousPaymentMethods);
       }
     },
     onSuccess: () => {
       // Invalidate queries after successful update
       queryClient.invalidateQueries({ queryKey: queryKeys.paymentMethods.all });
-      queryClient.invalidateQueries({ queryKey: queryKeys.paymentMethods.list() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.paymentMethods.list });
     },
     retry: 1,
   });
@@ -271,11 +271,11 @@ export function useVerifyDirectDebitContractMutation() {
     onSuccess: (data) => {
       // Invalidate payment methods queries to refetch latest data
       queryClient.invalidateQueries({ queryKey: queryKeys.paymentMethods.all });
-      queryClient.invalidateQueries({ queryKey: queryKeys.paymentMethods.list() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.paymentMethods.list });
 
       // Optionally add the new payment method to cache if contract was verified
       if (data.success && data.data?.paymentMethodId && data.data?.contractVerified) {
-        queryClient.setQueryData(queryKeys.paymentMethods.list(), (old: unknown) => {
+        queryClient.setQueryData(queryKeys.paymentMethods.list, (old: unknown) => {
           const oldData = old as { success?: boolean; data?: unknown[] };
           if (oldData?.success && Array.isArray(oldData.data)) {
             // Direct debit contract creates a new payment method, invalidate to refetch

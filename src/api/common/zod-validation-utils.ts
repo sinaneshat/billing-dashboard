@@ -14,6 +14,7 @@
  */
 
 import { z } from 'zod';
+// Brand types will be imported when we fully migrate existing validation
 
 // ============================================================================
 // CORE VALIDATION PRIMITIVES
@@ -248,7 +249,9 @@ export function createConditionalValidator<T, K extends string>(
 }
 
 /**
- * Create a sanitized string validator that removes dangerous characters
+ * DEPRECATED: Use native Zod refinements and transforms
+ * Create a sanitized string validator using native Zod features
+ * @deprecated Use z.string().trim().transform().refine() chain for better performance
  */
 export function sanitizedString(maxLength = 1000) {
   return z.string()
@@ -265,7 +268,28 @@ export function sanitizedString(maxLength = 1000) {
         // Normalize whitespace
         .replace(/\s+/g, ' ')
         .trim(),
-    );
+    )
+    .refine(str => str.length > 0, 'Sanitized string cannot be empty');
+}
+
+/**
+ * Modern sanitized string validator using advanced Zod refinements (Context7 Pattern)
+ * Maximum type safety with comprehensive security validation
+ */
+export function advancedSanitizedString(maxLength = 1000) {
+  return z.string()
+    .trim()
+    .max(maxLength)
+    .refine(str => !/<script/i.test(str), 'Script tags not allowed')
+    .refine(str => !/javascript:/i.test(str), 'JavaScript URLs not allowed')
+    .refine(str => !/on\w+\s*=/i.test(str), 'Event handlers not allowed')
+    .transform(str => str
+      .replace(/<[^>]*>/g, '') // Remove HTML tags
+      .replace(/[<>&"']/g, '') // Remove dangerous chars
+      .replace(/\s+/g, ' ') // Normalize whitespace
+      .trim(),
+    )
+    .refine(str => str.length > 0, 'Content required after sanitization');
 }
 
 /**
@@ -307,11 +331,61 @@ export function fileUploadValidator(allowedTypes: string[], maxSizeBytes: number
 // ============================================================================
 
 /**
- * Generic metadata validator for flexible JSON objects
+ * Discriminated union metadata validator (Context7 Pattern)
+ * Maximum type safety replacing Record<string, unknown>
  */
-export const metadataValidator = z.record(z.string(), z.unknown())
-  .optional()
-  .default({});
+export const metadataValidator = z.discriminatedUnion('type', [
+  z.object({
+    type: z.literal('billing'),
+    subscriptionId: z.string().uuid(),
+    planId: z.string().uuid(),
+    billingPeriod: z.enum(['monthly', 'yearly', 'one_time']),
+    amount: z.number().positive(),
+    currency: z.enum(['IRR', 'USD']).default('IRR'),
+  }),
+  z.object({
+    type: z.literal('payment'),
+    paymentMethodId: z.string().uuid(),
+    gateway: z.enum(['zarinpal', 'stripe', 'paypal']),
+    transactionId: z.string().min(1),
+    amount: z.number().positive(),
+    currency: z.enum(['IRR', 'USD']).default('IRR'),
+  }),
+  z.object({
+    type: z.literal('user'),
+    userId: z.string().uuid(),
+    role: z.enum(['user', 'admin', 'moderator']).default('user'),
+    preferences: z.object({
+      language: z.enum(['fa', 'en']).default('fa'),
+      theme: z.enum(['light', 'dark', 'auto']).default('light'),
+      notifications: z.boolean().default(true),
+    }),
+  }),
+  z.object({
+    type: z.literal('audit'),
+    action: z.enum(['create', 'update', 'delete', 'view']),
+    resource: z.string().min(1),
+    timestamp: z.string().datetime(),
+    userId: z.string().uuid().optional(),
+    changes: z.array(z.object({
+      field: z.string(),
+      oldValue: z.string().nullable(),
+      newValue: z.string().nullable(),
+    })).optional(),
+  }),
+  z.object({
+    type: z.literal('system'),
+    component: z.string().min(1),
+    version: z.string().regex(/^\d+\.\d+\.\d+$/),
+    environment: z.enum(['development', 'staging', 'production']),
+    region: z.string().min(1),
+    deployment: z.object({
+      id: z.string().uuid(),
+      timestamp: z.string().datetime(),
+      commit: z.string().min(7).max(40),
+    }).optional(),
+  }),
+]).optional().default({ type: 'system', component: 'api', version: '1.0.0', environment: 'development', region: 'ir-central' });
 
 /**
  * Environment configuration validator
@@ -390,12 +464,15 @@ export function formatZodError(error: z.ZodError): Array<{ field: string; messag
 }
 
 /**
+ * DEPRECATED: Use native schema.safeParse() instead
  * Safe validation with detailed error information
+ * @deprecated Use schema.safeParse() directly for better performance and native Zod features
  */
 export function safeValidate<T>(
   schema: z.ZodSchema<T>,
   data: unknown,
 ): { success: true; data: T } | { success: false; errors: Array<{ field: string; message: string }> } {
+  // Use native Zod safeParse for better performance
   const result = schema.safeParse(data);
 
   if (result.success) {

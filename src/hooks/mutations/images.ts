@@ -27,7 +27,7 @@ export function useUploadAvatarMutation() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.auth.all });
-      queryClient.invalidateQueries({ queryKey: queryKeys.users.current() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.users.current });
     },
   });
 }
@@ -39,7 +39,7 @@ export function useReplaceAvatarMutation() {
     mutationFn: (args: UploadUserAvatarRequest) => replaceUserAvatarService(args),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.auth.all });
-      queryClient.invalidateQueries({ queryKey: queryKeys.users.current() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.users.current });
     },
   });
 }
@@ -65,7 +65,7 @@ export function useUploadMultipleAvatarsMutation() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.auth.all });
-      queryClient.invalidateQueries({ queryKey: queryKeys.users.current() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.users.current });
     },
   });
 }

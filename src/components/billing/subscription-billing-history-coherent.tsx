@@ -108,18 +108,7 @@ export const SubscriptionBillingHistoryCoherent = memo(() => {
 
   return (
     <PageTransition>
-      <div className="mx-auto max-w-6xl space-y-8">
-        <FadeIn delay={0.05}>
-          <div className="text-center space-y-4 py-8">
-            <h1 className="text-4xl font-bold tracking-tight bg-gradient-to-r from-foreground to-foreground/80 bg-clip-text">
-              Billing History
-            </h1>
-            <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-              View your payment history and download receipts
-            </p>
-          </div>
-        </FadeIn>
-
+      <>
         <FadeIn delay={0.12}>
           <PaymentHistoryCards
             payments={payments}
@@ -127,7 +116,7 @@ export const SubscriptionBillingHistoryCoherent = memo(() => {
             className="w-full"
           />
         </FadeIn>
-      </div>
+      </>
     </PageTransition>
   );
 });

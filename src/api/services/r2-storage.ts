@@ -1,5 +1,6 @@
 /**
  * R2 Storage Service - Centralized service for all R2 bucket operations
+ * Extends BaseService for consistent error handling and logging patterns
  * Provides consistent interface, error handling, and access control
  */
 
@@ -13,6 +14,8 @@ import {
   convertToR2CustomMetadata,
   parseR2CustomMetadata,
 } from '@/api/common/type-utils';
+import type { ServiceConfig } from '@/api/patterns/service-factory';
+import { BaseService } from '@/api/patterns/service-factory';
 import type { Session, User } from '@/lib/auth/types';
 
 export type R2Metadata = {
@@ -54,38 +57,63 @@ export type AccessCheckResult = {
   reason?: string;
 };
 
+export type R2StorageConfig = ServiceConfig & {
+  bucket: R2Bucket;
+};
+
 /**
  * Centralized R2 Storage Service
+ * Extends BaseService for consistent error handling and monitoring
  */
-export class R2StorageService {
-  constructor(private bucket: R2Bucket) {
-    if (!bucket) {
+export class R2StorageService extends BaseService<R2StorageConfig> {
+  private bucket: R2Bucket;
+
+  constructor(config: R2StorageConfig) {
+    super(config);
+    this.bucket = config.bucket;
+
+    if (!this.bucket) {
       throw new Error('R2 bucket not initialized');
     }
   }
 
   /**
-   * Create service with environment validation
+   * Get service configuration from environment with validation
    */
-  static create(env: CloudflareEnv): R2StorageService {
+  static getConfig(env: CloudflareEnv): R2StorageConfig {
     const bucket = env.UPLOADS_R2_BUCKET;
     if (!bucket) {
       throw new HTTPException(HttpStatusCodes.INTERNAL_SERVER_ERROR, {
         message: 'R2 bucket not bound to environment',
       });
     }
-    return new R2StorageService(bucket);
+
+    return {
+      serviceName: 'R2-Storage',
+      timeout: 60000, // Longer timeout for file operations
+      retries: 2,
+      circuitBreaker: {
+        failureThreshold: 10, // Higher threshold for storage operations
+        resetTimeout: 30000,
+      },
+      bucket,
+    };
   }
 
   /**
    * Upload an object to R2
+   * Using BaseService error handling patterns
    */
   async putObject(
     key: string,
     data: ArrayBuffer | ReadableStream,
     options: PutObjectOptions = {},
   ) {
+    const logger = this.createOperationLogger('putObject');
+
     try {
+      logger.debug('Uploading object to R2', { key, contentType: options.contentType });
+
       const httpMetadata: Record<string, string> = {};
 
       if (options.contentType) {
@@ -104,24 +132,36 @@ export class R2StorageService {
         customMetadata: convertToR2CustomMetadata(options.metadata),
       });
 
+      logger.info('Object uploaded successfully', { key, etag: result?.etag });
       return result;
-    } catch {
-      throw new HTTPException(HttpStatusCodes.INTERNAL_SERVER_ERROR, {
-        message: 'Failed to upload to storage',
-      });
+    } catch (error) {
+      logger.error('Failed to upload object', error as Error, { key });
+      throw this.handleError(error, 'put object', { key, options });
     }
   }
 
   /**
    * Get an object from R2
+   * Using BaseService error handling patterns
    */
   async getObject(key: string) {
+    const logger = this.createOperationLogger('getObject');
+
     try {
-      return await this.bucket.get(key);
-    } catch {
-      throw new HTTPException(HttpStatusCodes.INTERNAL_SERVER_ERROR, {
-        message: 'Failed to retrieve from storage',
-      });
+      logger.debug('Retrieving object from R2', { key });
+
+      const result = await this.bucket.get(key);
+
+      if (result) {
+        logger.info('Object retrieved successfully', { key, size: result.size });
+      } else {
+        logger.debug('Object not found', { key });
+      }
+
+      return result;
+    } catch (error) {
+      logger.error('Failed to retrieve object', error as Error, { key });
+      throw this.handleError(error, 'get object', { key });
     }
   }
 
@@ -138,25 +178,36 @@ export class R2StorageService {
 
   /**
    * Delete an object from R2
+   * Using BaseService error handling patterns
    */
   async deleteObject(key: string) {
+    const logger = this.createOperationLogger('deleteObject');
+
     try {
+      logger.debug('Deleting object from R2', { key });
+
       await this.bucket.delete(key);
-    } catch {
-      throw new HTTPException(HttpStatusCodes.INTERNAL_SERVER_ERROR, {
-        message: 'Failed to delete from storage',
-      });
+
+      logger.info('Object deleted successfully', { key });
+    } catch (error) {
+      logger.error('Failed to delete object', error as Error, { key });
+      throw this.handleError(error, 'delete object', { key });
     }
   }
 
   /**
    * List objects with optional filtering
+   * Using BaseService error handling patterns
    */
   async listObjects(
     options: R2ListOptions = {},
     filterFn?: (obj: R2Object) => boolean,
-  ) {
+  ): Promise<ListObjectsResult> {
+    const logger = this.createOperationLogger('listObjects');
+
     try {
+      logger.debug('Listing objects from R2', { prefix: options.prefix, limit: options.limit });
+
       const listed = await this.bucket.list(options);
 
       let objects = listed.objects.map(obj => ({
@@ -172,15 +223,16 @@ export class R2StorageService {
         objects = objects.filter((obj, index) => listed.objects[index] ? filterFn(listed.objects[index]) : false);
       }
 
+      logger.info('Objects listed successfully', { count: objects.length, truncated: listed.truncated });
+
       return {
         objects,
         truncated: listed.truncated,
         cursor: listed.truncated ? listed.cursor : undefined,
       };
-    } catch {
-      throw new HTTPException(HttpStatusCodes.INTERNAL_SERVER_ERROR, {
-        message: 'Failed to list storage objects',
-      });
+    } catch (error) {
+      logger.error('Failed to list objects', error as Error, { options });
+      throw this.handleError(error, 'list objects', { options });
     }
   }
 
@@ -252,9 +304,14 @@ export class R2StorageService {
 
   /**
    * Copy an object within the bucket
+   * Using BaseService error handling patterns
    */
   async copyObject(sourceKey: string, destinationKey: string) {
+    const logger = this.createOperationLogger('copyObject');
+
     try {
+      logger.debug('Copying object in R2', { sourceKey, destinationKey });
+
       const source = await this.getObject(sourceKey);
       if (!source) {
         throw new HTTPException(HttpStatusCodes.NOT_FOUND, {
@@ -267,14 +324,16 @@ export class R2StorageService {
       const metadata = sourceHead?.customMetadata;
 
       // Copy the object
-      return await this.putObject(destinationKey, asReadableStream(source.body), {
+      const result = await this.putObject(destinationKey, asReadableStream(source.body), {
         contentType: source.httpMetadata?.contentType,
         metadata: parseR2CustomMetadata<R2Metadata>(metadata),
       });
-    } catch {
-      throw new HTTPException(HttpStatusCodes.INTERNAL_SERVER_ERROR, {
-        message: 'Failed to copy object',
-      });
+
+      logger.info('Object copied successfully', { sourceKey, destinationKey });
+      return result;
+    } catch (error) {
+      logger.error('Failed to copy object', error as Error, { sourceKey, destinationKey });
+      throw this.handleError(error, 'copy object', { sourceKey, destinationKey });
     }
   }
 

@@ -26,7 +26,6 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useInitiateDirectDebitContractMutation } from '@/hooks/mutations/payment-methods';
-import { prefetchPaymentMethods } from '@/hooks/queries/payment-methods';
 import { useMutationUIState } from '@/hooks/utils/query-helpers';
 import { formatTomanCurrency } from '@/lib/i18n/currency-utils';
 import { showErrorToast, showSuccessToast } from '@/lib/utils/toast-notifications';
@@ -64,13 +63,12 @@ export function DirectDebitContractSetup({
 
   const initiateContract = useInitiateDirectDebitContractMutation();
   const mutationUI = useMutationUIState(initiateContract);
-  const prefetchPaymentMethodsFn = prefetchPaymentMethods();
 
   const handleContractSuccess = (contractId: string) => {
     onSuccess?.(contractId);
     setOpen(false);
-    // Prefetch payment methods since we likely added a new one
-    prefetchPaymentMethodsFn();
+    // Note: The mutation automatically invalidates payment methods cache
+    // No manual prefetching needed - TanStack Query handles this properly
   };
 
   const handleInitiateContract = async () => {

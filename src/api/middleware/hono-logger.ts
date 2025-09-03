@@ -7,25 +7,17 @@
 import type { Context } from 'hono';
 import { logger } from 'hono/logger';
 
+import type { LogContext, TypedLogger } from '@/api/types/logger';
+import type { LogLevel } from '@/lib/utils/safe-logger';
+
 // Environment detection for Cloudflare Workers
 const isDevelopment = typeof process !== 'undefined' && process.env?.NODE_ENV === 'development';
-// Environment detection for Cloudflare Workers (available for future use)
-
-/**
- * Log levels for structured logging
- */
-export enum LogLevel {
-  DEBUG = 0,
-  INFO = 1,
-  WARN = 2,
-  ERROR = 3,
-}
 
 /**
  * Custom structured logger for Hono API
  * Follows official Hono documentation patterns
  */
-export class HonoLogger {
+export class HonoLogger implements TypedLogger {
   private static instance: HonoLogger;
 
   private constructor() {}
@@ -40,11 +32,11 @@ export class HonoLogger {
   /**
    * Safe logging that works in both development and Cloudflare Workers
    */
-  private log(level: LogLevel, message: string, context?: Record<string, unknown>): void {
+  private log(level: LogLevel, message: string, context?: LogContext): void {
     const timestamp = new Date().toISOString();
     const logEntry = {
       timestamp,
-      level: LogLevel[level],
+      level,
       message,
       ...(context && { context }),
     };
@@ -55,37 +47,44 @@ export class HonoLogger {
 
     // Use appropriate console method based on level
     switch (level) {
-      case LogLevel.DEBUG:
+      case 'DEBUG':
         if (isDevelopment) {
-          console.log(`[DEBUG] ${formattedMessage}`);
+          console.warn(`[DEBUG] ${formattedMessage}`);
         }
         break;
-      case LogLevel.INFO:
-        console.log(`[INFO] ${formattedMessage}`);
+      case 'INFO':
+        console.warn(`[INFO] ${formattedMessage}`);
         break;
-      case LogLevel.WARN:
+      case 'WARN':
         console.warn(`[WARN] ${formattedMessage}`);
         break;
-      case LogLevel.ERROR:
+      case 'ERROR':
         console.error(`[ERROR] ${formattedMessage}`);
         break;
     }
   }
 
-  debug(message: string, context?: Record<string, unknown>): void {
-    this.log(LogLevel.DEBUG, message, context);
+  debug(message: string, context?: LogContext): void {
+    this.log('DEBUG', message, context);
   }
 
-  info(message: string, context?: Record<string, unknown>): void {
-    this.log(LogLevel.INFO, message, context);
+  info(message: string, context?: LogContext): void {
+    this.log('INFO', message, context);
   }
 
-  warn(message: string, context?: Record<string, unknown>): void {
-    this.log(LogLevel.WARN, message, context);
+  warn(message: string, context?: LogContext): void {
+    this.log('WARN', message, context);
   }
 
-  error(message: string, context?: Record<string, unknown>): void {
-    this.log(LogLevel.ERROR, message, context);
+  error(message: string, contextOrError?: Error | LogContext, context?: LogContext): void {
+    let finalContext: LogContext | undefined;
+
+    if (contextOrError instanceof Error) {
+      finalContext = { ...context, error: { name: contextOrError.name, message: contextOrError.message } };
+    } else {
+      finalContext = contextOrError;
+    }
+    this.log('ERROR', message, finalContext);
   }
 
   /**
@@ -107,7 +106,7 @@ export class HonoLogger {
   /**
    * Log API success with request context
    */
-  apiSuccess(c: Context, message: string, data?: Record<string, unknown>): void {
+  apiSuccess(c: Context, message: string, data?: LogContext): void {
     const successContext = {
       method: c.req.method,
       path: c.req.path,
@@ -145,7 +144,7 @@ function customPrintFunc(message: string, ...rest: string[]) {
         type: 'api_request',
       });
 
-  console.log(formattedLog);
+  console.warn(formattedLog);
 }
 
 /**

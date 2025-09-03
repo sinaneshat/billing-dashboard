@@ -3,6 +3,7 @@
 import * as React from 'react'
 import { CheckCircle, Clock, AlertCircle, X, Shield, User } from 'lucide-react'
 import { cva } from 'class-variance-authority'
+import { z } from 'zod'
 
 import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/tailwind-utils'
@@ -130,23 +131,26 @@ const statusLabels = {
   },
 } as const
 
-export interface StatusBadgeProps 
-  extends Omit<React.HTMLAttributes<HTMLSpanElement>, 'variant'> {
+const statusBadgePropsSchema = z.object({
   /** Status value to display - accepts any string for backend flexibility */
-  status: string
+  status: z.string(),
   /** Context type for semantic labeling */
-  type?: keyof typeof statusLabels
+  type: z.enum(['subscription', 'payment', 'contract', 'default']).optional(),
   /** Size variant */
-  size?: 'sm' | 'md' | 'lg'
+  size: z.enum(['sm', 'md', 'lg']).optional(),
   /** Show status icon */
-  showIcon?: boolean
+  showIcon: z.boolean().optional(),
   /** Icon size override */
-  iconSize?: 'sm' | 'md' | 'lg'
+  iconSize: z.enum(['sm', 'md', 'lg']).optional(),
+  /** Pulse animation for pending states */
+  pulse: z.boolean().optional(),
+});
+
+export type StatusBadgeProps = z.infer<typeof statusBadgePropsSchema> & 
+  Omit<React.HTMLAttributes<HTMLSpanElement>, 'variant' | keyof z.infer<typeof statusBadgePropsSchema>> & {
   /** Custom icon component */
   icon?: React.ComponentType<{ className?: string }>
-  /** Pulse animation for pending states */
-  pulse?: boolean
-}
+};
 
 /**
  * Enhanced StatusBadge component following Shadcn/UI v4 patterns

@@ -16,9 +16,12 @@
 
 import type { Context } from 'hono';
 import { HTTPException } from 'hono/http-exception';
+// Using Stoker's HttpStatusCodes for maximum reusability
+import * as HttpStatusCodes from 'stoker/http-status-codes';
 import { z } from 'zod';
 
 import { apiLogger } from '@/api/middleware/hono-logger';
+import type { ErrorContext } from '@/api/types/errors';
 
 import { formatZodError, zodValidation } from './zod-validation-utils';
 
@@ -80,27 +83,6 @@ export const ERROR_CODES = {
 export type ErrorCode = typeof ERROR_CODES[keyof typeof ERROR_CODES];
 
 /**
- * HTTP status codes mapping to error types
- */
-export const HTTP_STATUS_CODES = {
-  OK: 200,
-  CREATED: 201,
-  NO_CONTENT: 204,
-  BAD_REQUEST: 400,
-  UNAUTHORIZED: 401,
-  FORBIDDEN: 403,
-  NOT_FOUND: 404,
-  METHOD_NOT_ALLOWED: 405,
-  CONFLICT: 409,
-  UNPROCESSABLE_ENTITY: 422,
-  TOO_MANY_REQUESTS: 429,
-  INTERNAL_SERVER_ERROR: 500,
-  BAD_GATEWAY: 502,
-  SERVICE_UNAVAILABLE: 503,
-  GATEWAY_TIMEOUT: 504,
-} as const;
-
-/**
  * Error severity levels for logging and monitoring
  */
 export const ERROR_SEVERITY = {
@@ -124,7 +106,7 @@ class AppError extends Error {
   public readonly statusCode: number;
   public readonly severity: ErrorSeverity;
   public readonly details?: unknown;
-  public readonly context?: Record<string, unknown>;
+  public readonly context?: ErrorContext | Record<string, unknown>;
   public readonly timestamp: Date;
   public readonly correlationId?: string;
 
@@ -142,7 +124,7 @@ class AppError extends Error {
     statusCode: number;
     severity?: ErrorSeverity;
     details?: unknown;
-    context?: Record<string, unknown>;
+    context?: ErrorContext | Record<string, unknown>;
     correlationId?: string;
   }) {
     super(message);
@@ -182,11 +164,11 @@ class AppError extends Error {
   /**
    * Remove sensitive data from context for logging
    */
-  private sanitizeContext(): Record<string, unknown> | undefined {
+  private sanitizeContext(): ErrorContext | undefined {
     if (!this.context)
       return undefined;
 
-    const sanitized = { ...this.context };
+    const sanitized = { ...this.context } as Record<string, unknown>;
     const sensitiveKeys = ['password', 'token', 'secret', 'key', 'authorization'];
 
     Object.keys(sanitized).forEach((key) => {
@@ -195,7 +177,7 @@ class AppError extends Error {
       }
     });
 
-    return sanitized;
+    return sanitized as ErrorContext;
   }
 }
 
@@ -213,13 +195,13 @@ class ValidationError extends AppError {
   }: {
     message?: string;
     validationErrors: Array<{ field: string; message: string }>;
-    context?: Record<string, unknown>;
+    context?: ErrorContext | Record<string, unknown>;
     correlationId?: string;
   }) {
     super({
       message,
       code: ERROR_CODES.VALIDATION_ERROR,
-      statusCode: HTTP_STATUS_CODES.UNPROCESSABLE_ENTITY,
+      statusCode: HttpStatusCodes.UNPROCESSABLE_ENTITY,
       severity: ERROR_SEVERITY.LOW,
       details: { validationErrors },
       context,
@@ -231,7 +213,7 @@ class ValidationError extends AppError {
 
   static fromZodError(
     error: z.ZodError,
-    context?: Record<string, unknown>,
+    context?: ErrorContext | Record<string, unknown>,
     correlationId?: string,
   ): ValidationError {
     return new ValidationError({
@@ -258,13 +240,13 @@ class BusinessLogicError extends AppError {
     code: ErrorCode;
     severity?: ErrorSeverity;
     details?: unknown;
-    context?: Record<string, unknown>;
+    context?: ErrorContext | Record<string, unknown>;
     correlationId?: string;
   }) {
     super({
       message,
       code,
-      statusCode: HTTP_STATUS_CODES.BAD_REQUEST,
+      statusCode: HttpStatusCodes.BAD_REQUEST,
       severity,
       details,
       context,
@@ -292,13 +274,13 @@ class ExternalServiceError extends AppError {
     serviceName: string;
     code?: ErrorCode;
     originalError?: Error;
-    context?: Record<string, unknown>;
+    context?: ErrorContext | Record<string, unknown>;
     correlationId?: string;
   }) {
     super({
       message,
       code,
-      statusCode: HTTP_STATUS_CODES.BAD_GATEWAY,
+      statusCode: HttpStatusCodes.BAD_GATEWAY,
       severity: ERROR_SEVERITY.HIGH,
       details: {
         serviceName,
@@ -324,31 +306,31 @@ export const createError = {
   /**
    * Authentication errors
    */
-  unauthenticated: (message = 'Authentication required', context?: Record<string, unknown>, correlationId?: string) =>
+  unauthenticated: (message = 'Authentication required', context?: ErrorContext | Record<string, unknown>, correlationId?: string) =>
     new AppError({
       message,
       code: ERROR_CODES.UNAUTHENTICATED,
-      statusCode: HTTP_STATUS_CODES.UNAUTHORIZED,
+      statusCode: HttpStatusCodes.UNAUTHORIZED,
       severity: ERROR_SEVERITY.MEDIUM,
       context,
       correlationId,
     }),
 
-  unauthorized: (message = 'Insufficient permissions', context?: Record<string, unknown>, correlationId?: string) =>
+  unauthorized: (message = 'Insufficient permissions', context?: ErrorContext | Record<string, unknown>, correlationId?: string) =>
     new AppError({
       message,
       code: ERROR_CODES.UNAUTHORIZED,
-      statusCode: HTTP_STATUS_CODES.FORBIDDEN,
+      statusCode: HttpStatusCodes.FORBIDDEN,
       severity: ERROR_SEVERITY.MEDIUM,
       context,
       correlationId,
     }),
 
-  tokenExpired: (message = 'Authentication token has expired', context?: Record<string, unknown>, correlationId?: string) =>
+  tokenExpired: (message = 'Authentication token has expired', context?: ErrorContext | Record<string, unknown>, correlationId?: string) =>
     new AppError({
       message,
       code: ERROR_CODES.TOKEN_EXPIRED,
-      statusCode: HTTP_STATUS_CODES.UNAUTHORIZED,
+      statusCode: HttpStatusCodes.UNAUTHORIZED,
       severity: ERROR_SEVERITY.LOW,
       context,
       correlationId,
@@ -357,31 +339,31 @@ export const createError = {
   /**
    * Resource errors
    */
-  notFound: (resource = 'Resource', context?: Record<string, unknown>, correlationId?: string) =>
+  notFound: (resource = 'Resource', context?: ErrorContext | Record<string, unknown>, correlationId?: string) =>
     new AppError({
       message: `${resource} not found`,
       code: ERROR_CODES.RESOURCE_NOT_FOUND,
-      statusCode: HTTP_STATUS_CODES.NOT_FOUND,
+      statusCode: HttpStatusCodes.NOT_FOUND,
       severity: ERROR_SEVERITY.LOW,
       context,
       correlationId,
     }),
 
-  alreadyExists: (resource = 'Resource', context?: Record<string, unknown>, correlationId?: string) =>
+  alreadyExists: (resource = 'Resource', context?: ErrorContext | Record<string, unknown>, correlationId?: string) =>
     new AppError({
       message: `${resource} already exists`,
       code: ERROR_CODES.RESOURCE_ALREADY_EXISTS,
-      statusCode: HTTP_STATUS_CODES.CONFLICT,
+      statusCode: HttpStatusCodes.CONFLICT,
       severity: ERROR_SEVERITY.LOW,
       context,
       correlationId,
     }),
 
-  conflict: (message = 'Resource conflict', context?: Record<string, unknown>, correlationId?: string) =>
+  conflict: (message = 'Resource conflict', context?: ErrorContext | Record<string, unknown>, correlationId?: string) =>
     new AppError({
       message,
       code: ERROR_CODES.RESOURCE_CONFLICT,
-      statusCode: HTTP_STATUS_CODES.CONFLICT,
+      statusCode: HttpStatusCodes.CONFLICT,
       severity: ERROR_SEVERITY.MEDIUM,
       context,
       correlationId,
@@ -390,7 +372,7 @@ export const createError = {
   /**
    * Payment errors
    */
-  paymentFailed: (message = 'Payment processing failed', context?: Record<string, unknown>, correlationId?: string) =>
+  paymentFailed: (message = 'Payment processing failed', context?: ErrorContext | Record<string, unknown>, correlationId?: string) =>
     new BusinessLogicError({
       message,
       code: ERROR_CODES.PAYMENT_FAILED,
@@ -399,7 +381,7 @@ export const createError = {
       correlationId,
     }),
 
-  insufficientFunds: (message = 'Insufficient funds for transaction', context?: Record<string, unknown>, correlationId?: string) =>
+  insufficientFunds: (message = 'Insufficient funds for transaction', context?: ErrorContext | Record<string, unknown>, correlationId?: string) =>
     new BusinessLogicError({
       message,
       code: ERROR_CODES.INSUFFICIENT_FUNDS,
@@ -408,7 +390,7 @@ export const createError = {
       correlationId,
     }),
 
-  paymentMethodInvalid: (message = 'Payment method is invalid or inactive', context?: Record<string, unknown>, correlationId?: string) =>
+  paymentMethodInvalid: (message = 'Payment method is invalid or inactive', context?: ErrorContext | Record<string, unknown>, correlationId?: string) =>
     new BusinessLogicError({
       message,
       code: ERROR_CODES.PAYMENT_METHOD_INVALID,
@@ -420,31 +402,31 @@ export const createError = {
   /**
    * System errors
    */
-  internal: (message = 'Internal server error', context?: Record<string, unknown>, correlationId?: string) =>
+  internal: (message = 'Internal server error', context?: ErrorContext | Record<string, unknown>, correlationId?: string) =>
     new AppError({
       message,
       code: ERROR_CODES.INTERNAL_SERVER_ERROR,
-      statusCode: HTTP_STATUS_CODES.INTERNAL_SERVER_ERROR,
+      statusCode: HttpStatusCodes.INTERNAL_SERVER_ERROR,
       severity: ERROR_SEVERITY.CRITICAL,
       context,
       correlationId,
     }),
 
-  database: (message = 'Database operation failed', context?: Record<string, unknown>, correlationId?: string) =>
+  database: (message = 'Database operation failed', context?: ErrorContext | Record<string, unknown>, correlationId?: string) =>
     new AppError({
       message,
       code: ERROR_CODES.DATABASE_ERROR,
-      statusCode: HTTP_STATUS_CODES.INTERNAL_SERVER_ERROR,
+      statusCode: HttpStatusCodes.INTERNAL_SERVER_ERROR,
       severity: ERROR_SEVERITY.CRITICAL,
       context,
       correlationId,
     }),
 
-  rateLimit: (message = 'Too many requests', context?: Record<string, unknown>, correlationId?: string) =>
+  rateLimit: (message = 'Too many requests', context?: ErrorContext | Record<string, unknown>, correlationId?: string) =>
     new AppError({
       message,
       code: ERROR_CODES.RATE_LIMIT_EXCEEDED,
-      statusCode: HTTP_STATUS_CODES.TOO_MANY_REQUESTS,
+      statusCode: HttpStatusCodes.TOO_MANY_REQUESTS,
       severity: ERROR_SEVERITY.MEDIUM,
       context,
       correlationId,
@@ -453,7 +435,7 @@ export const createError = {
   /**
    * External service errors
    */
-  zarinpal: (message = 'ZarinPal service error', originalError?: Error, context?: Record<string, unknown>, correlationId?: string) =>
+  zarinpal: (message = 'ZarinPal service error', originalError?: Error, context?: ErrorContext | Record<string, unknown>, correlationId?: string) =>
     new ExternalServiceError({
       message,
       serviceName: 'ZarinPal',
@@ -463,7 +445,7 @@ export const createError = {
       correlationId,
     }),
 
-  emailService: (message = 'Email service error', originalError?: Error, context?: Record<string, unknown>, correlationId?: string) =>
+  emailService: (message = 'Email service error', originalError?: Error, context?: ErrorContext | Record<string, unknown>, correlationId?: string) =>
     new ExternalServiceError({
       message,
       serviceName: 'Email',
@@ -495,11 +477,12 @@ export function generateCorrelationId(): string {
 /**
  * Extract request context for error logging
  */
-export function extractRequestContext(c: Context): Record<string, unknown> {
+export function extractRequestContext(c: Context): ErrorContext | Record<string, unknown> {
   const user = c.get('user');
   const requestId = c.get('requestId');
 
   return {
+    type: 'internal' as const,
     method: c.req.method,
     path: c.req.path,
     userAgent: c.req.header('user-agent'),
@@ -507,13 +490,13 @@ export function extractRequestContext(c: Context): Record<string, unknown> {
     userId: user?.id,
     requestId,
     timestamp: new Date().toISOString(),
-  };
+  } as ErrorContext;
 }
 
 /**
  * Convert any error to AppError
  */
-export function normalizeError(error: unknown, context?: Record<string, unknown>, correlationId?: string): AppError {
+export function normalizeError(error: unknown, context?: ErrorContext | Record<string, unknown>, correlationId?: string): AppError {
   if (error instanceof AppError) {
     return error;
   }
@@ -536,13 +519,12 @@ export function normalizeError(error: unknown, context?: Record<string, unknown>
     return new AppError({
       message: error.message,
       code: ERROR_CODES.INTERNAL_SERVER_ERROR,
-      statusCode: HTTP_STATUS_CODES.INTERNAL_SERVER_ERROR,
+      statusCode: HttpStatusCodes.INTERNAL_SERVER_ERROR,
       severity: ERROR_SEVERITY.CRITICAL,
       context: {
         ...context,
-        originalErrorName: error.name,
-        stack: error.stack,
-      },
+        type: 'internal' as const,
+      } as ErrorContext,
       correlationId,
     });
   }
@@ -550,12 +532,12 @@ export function normalizeError(error: unknown, context?: Record<string, unknown>
   return new AppError({
     message: 'Unknown error occurred',
     code: ERROR_CODES.INTERNAL_SERVER_ERROR,
-    statusCode: HTTP_STATUS_CODES.INTERNAL_SERVER_ERROR,
+    statusCode: HttpStatusCodes.INTERNAL_SERVER_ERROR,
     severity: ERROR_SEVERITY.CRITICAL,
     context: {
       ...context,
-      originalError: String(error),
-    },
+      type: 'internal' as const,
+    } as ErrorContext,
     correlationId,
   });
 }
@@ -563,7 +545,7 @@ export function normalizeError(error: unknown, context?: Record<string, unknown>
 /**
  * Safe error logging without sensitive data
  */
-export function logError(error: AppError, additionalContext?: Record<string, unknown>): void {
+export function logError(error: AppError, additionalContext?: ErrorContext | Record<string, unknown>): void {
   const logData = {
     ...error.toJSON(),
     ...additionalContext,
@@ -666,7 +648,7 @@ export function errorHandlingMiddleware() {
     try {
       await next();
       // If no error occurred and no response was set, return an empty response
-      return new Response(null, { status: 200 });
+      return new Response(null, { status: HttpStatusCodes.OK });
     } catch (error) {
       return handleError(c, error);
     }
@@ -693,7 +675,6 @@ export {
   AppError,
   BusinessLogicError,
   ExternalServiceError,
-  HTTP_STATUS_CODES as HttpStatusCodes,
   ValidationError,
 };
 
@@ -702,7 +683,7 @@ export {
 export default {
   ERROR_CODES,
   ERROR_SEVERITY,
-  HTTP_STATUS_CODES,
+  HttpStatusCodes,
   createError,
   normalizeError,
   handleError,

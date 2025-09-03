@@ -1,18 +1,33 @@
 /**
  * Type exports for the application
  *
- * Following Better Auth best practices:
- * - Import Better Auth types directly from @/lib/auth/types
- * - No intermediate re-exports that create unnecessary layers
+ * ✅ MIGRATION TO ZOD COMPLETE:
+ *
+ * **For Database Types**, import directly from validation schemas:
+ * ```typescript
+ * import type {
+ *   Payment, Product, Subscription, PaymentMethod,
+ *   // Insert/Update variants
+ *   PaymentInsert, ProductUpdate, etc.
+ * } from '@/db/validation/billing';
+ *
+ * import type { User } from '@/db/validation/auth';
+ * ```
+ *
+ * **For API Types**, use OpenAPI-enhanced schemas:
+ * ```typescript
+ * import type { Payment } from '@/api/routes/payments/schema';
+ * ```
+ *
+ * **For Auth Types**, import directly:
+ * ```typescript
+ * import type { Session, User } from '@/lib/auth/types';
+ * ```
  */
 
-// Better Auth types - import directly from @/lib/auth/types
-// export type { Session, User } from '@/lib/auth/types';
-
-// General utility types - explicit named exports for clarity
+// General utility types and schemas - UI component-specific with maximum reusability
 export type {
   AIHistoryStatus,
-  ApiDefaultError,
   CustomFetchConfig,
   FormOption,
   FormOptions,
@@ -22,4 +37,12 @@ export type {
   ServiceConfig,
   TextInputProps,
   WithOptionsProps,
+} from './general';
+export {
+  aiHistoryStatusSchema,
+  formOptionSchema,
+  formOptionsSchema,
+  initialDefaultValuesSchema,
+  textInputVariantSchema,
+  withOptionsVariantSchema,
 } from './general';
