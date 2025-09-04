@@ -67,7 +67,7 @@ export default function CustomerBillingOverviewScreen() {
           subscription={subscription}
           recentPayments={recentPayments}
           paymentMethods={paymentMethods}
-          loading={isLoading}
+          isLoading={isLoading}
           className="w-full"
         />
       </DashboardSection>

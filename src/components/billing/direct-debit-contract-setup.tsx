@@ -27,8 +27,7 @@ import {
 } from '@/components/ui/select';
 import { useInitiateDirectDebitContractMutation } from '@/hooks/mutations/payment-methods';
 import { useMutationUIState } from '@/hooks/utils/query-helpers';
-import { formatTomanCurrency } from '@/lib/i18n/currency-utils';
-import { showErrorToast, showSuccessToast } from '@/lib/utils/toast-notifications';
+import { formatTomanCurrency, showErrorToast, showSuccessToast } from '@/lib';
 
 type DirectDebitContractSetupProps = {
   children?: React.ReactNode;
@@ -182,7 +181,7 @@ export function DirectDebitContractSetup({
       <DialogTrigger asChild>
         {children || (
           <Button className={className}>
-            <CreditCard className="h-4 w-4 mr-2" />
+            <CreditCard className="h-4 w-4 me-2" />
             Setup Direct Debit
           </Button>
         )}

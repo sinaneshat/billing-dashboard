@@ -2,7 +2,7 @@
 import { Check, ChevronsUpDown, Loader2 } from 'lucide-react';
 import { useFormContext } from 'react-hook-form';
 
-import { cn } from '@/lib/utils/tailwind';
+import { cn } from '@/lib';
 import type { FormOptions, GeneralFormProps } from '@/types/general';
 
 import { Button } from '../ui/button';

@@ -1,7 +1,7 @@
 // components/TextInput.tsx
 import { useFormContext } from 'react-hook-form';
 
-import { cn } from '@/lib/utils/tailwind';
+import { cn } from '@/lib';
 import type { GeneralFormProps } from '@/types/general';
 
 import {

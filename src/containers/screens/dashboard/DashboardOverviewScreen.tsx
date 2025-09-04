@@ -1,5 +1,6 @@
 'use client';
 
+import { useTranslations } from 'next-intl';
 import { useMemo } from 'react';
 
 import { CustomerBillingOverview } from '@/components/billing/customer-billing-overview';
@@ -13,6 +14,7 @@ import { useQueryUIState } from '@/hooks/utils/query-helpers';
 import { useSession } from '@/lib/auth/client';
 
 export default function DashboardOverviewScreen() {
+  const t = useTranslations();
   // Get session from Better Auth client (uses cached server data)
   const { data: session } = useSession();
 
@@ -43,7 +45,7 @@ export default function DashboardOverviewScreen() {
       : [];
     return paymentsData.map(paymentRecord => ({
       id: paymentRecord.id,
-      productName: paymentRecord.product?.name || 'Unknown Product',
+      productName: paymentRecord.product?.name || t('product.unknown'),
       amount: paymentRecord.amount,
       status: paymentRecord.status,
       paidAt: paymentRecord.paidAt,
@@ -51,7 +53,7 @@ export default function DashboardOverviewScreen() {
       paymentMethod: paymentRecord.paymentMethod,
       hasReceipt: paymentRecord.status === 'completed',
     })).slice(0, 5); // Show recent 5 payments
-  }, [paymentsQuery.data]);
+  }, [paymentsQuery.data, t]);
 
   const isLoading = subscriptionUI.isLoading || paymentMethodsUI.isLoading || paymentsUI.isLoading;
   const user = session?.user;
@@ -59,8 +61,8 @@ export default function DashboardOverviewScreen() {
   return (
     <DashboardPage>
       <DashboardPageHeader
-        title={`Welcome back, ${user?.name || user?.email?.split('@')[0] || 'User'}!`}
-        description="Manage your billing and subscriptions from your comprehensive dashboard overview"
+        title={`${t('dashboard.welcome')}, ${user?.name || user?.email?.split('@')[0] || t('user.defaultName')}!`}
+        description={t('dashboard.description')}
       />
 
       {/* Official shadcn/ui dashboard-01 block layout pattern */}
@@ -70,7 +72,7 @@ export default function DashboardOverviewScreen() {
             subscription={subscription}
             recentPayments={recentPayments}
             paymentMethods={paymentMethods}
-            loading={isLoading}
+            isLoading={isLoading}
           />
         </DashboardSection>
       </DashboardContainer>

@@ -34,7 +34,7 @@ type PaymentMethod = {
 
 type PaymentMethodsTableProps = {
   paymentMethods: PaymentMethod[];
-  loading?: boolean;
+  isLoading?: boolean;
   onSelectionChange?: (selectedIds: string[]) => void;
   onTabChange?: (tab: string) => void;
   onFilterChange?: (key: string, value: string) => void;
@@ -46,7 +46,7 @@ const defaultSelectedItems: Record<string, boolean> = {};
 
 export const PaymentMethodsTable = memo(({
   paymentMethods,
-  loading = false,
+  isLoading = false,
   onSelectionChange,
   onTabChange,
   onFilterChange,
@@ -140,7 +140,7 @@ export const PaymentMethodsTable = memo(({
             )}
             <DropdownMenuItem>Manage Permissions</DropdownMenuItem>
             <DropdownMenuItem variant="destructive">
-              <Trash2 className="h-4 w-4 mr-2" />
+              <Trash2 className="h-4 w-4 me-2" />
               Remove Method
             </DropdownMenuItem>
           </DropdownMenuContent>
@@ -155,7 +155,7 @@ export const PaymentMethodsTable = memo(({
   const dataTableProps: DataTableProps<PaymentMethod> = {
     columns,
     'data': paymentMethods,
-    loading,
+    'loading': isLoading,
     'enableSelection': true,
     'rowSelection': selectedItems,
     'onRowSelectionChange': handleSelectionChange,
@@ -218,7 +218,7 @@ export const PaymentMethodsTable = memo(({
     'emptyStateDescription': 'You haven\'t added any payment methods yet. Add one to get started.',
     'emptyStateAction': (
       <Button>
-        <PlusIcon className="h-4 w-4 mr-2" />
+        <PlusIcon className="h-4 w-4 me-2" />
         Add Payment Method
       </Button>
     ),
@@ -239,7 +239,7 @@ export const PaymentMethodsTable = memo(({
           </p>
         </div>
         <Button>
-          <PlusIcon className="h-4 w-4 mr-2" />
+          <PlusIcon className="h-4 w-4 me-2" />
           Add Method
         </Button>
       </FadeIn>

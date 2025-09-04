@@ -1,19 +1,21 @@
 'use client';
 
 import { BanknoteIcon, CheckCircle, Clock, CreditCard, Plus, Shield, Star, Trash2 } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 
 import { DirectDebitContractSetup } from '@/components/billing/direct-debit-contract-setup';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { DashboardCard, DashboardDataCard } from '@/components/ui/dashboard-card';
+import { ContentCard, DashboardCard, DashboardDataCard } from '@/components/ui/dashboard-cards';
 import { DashboardPageHeader } from '@/components/ui/dashboard-header';
-import { DashboardEmpty, DashboardError, DashboardLoading, DashboardPage, DashboardSection } from '@/components/ui/dashboard-states';
+import { DashboardPage, DashboardSection, EmptyState, ErrorState, LoadingState } from '@/components/ui/dashboard-states';
 import { useDeletePaymentMethodMutation, useSetDefaultPaymentMethodMutation } from '@/hooks/mutations/payment-methods';
 import { usePaymentMethodsQuery } from '@/hooks/queries/payment-methods';
 import { staleWhileRevalidate, useOptimisticMutationWithFeedback, useQueryUIState } from '@/hooks/utils/query-helpers';
-import { showErrorToast, showSuccessToast } from '@/lib/utils/toast-notifications';
+import { showErrorToast, showSuccessToast } from '@/lib';
 
 export default function PaymentMethodsScreen() {
+  const t = useTranslations();
   const paymentMethodsQuery = usePaymentMethodsQuery();
   const deletePaymentMethodMutation = useDeletePaymentMethodMutation();
   const setDefaultPaymentMethodMutation = useSetDefaultPaymentMethodMutation();
@@ -23,9 +25,9 @@ export default function PaymentMethodsScreen() {
   const paymentMethodsStaleState = staleWhileRevalidate(paymentMethodsQuery);
 
   const deleteWithFeedback = useOptimisticMutationWithFeedback(deletePaymentMethodMutation, {
-    successMessage: 'Payment method removed successfully',
-    errorMessage: 'Failed to remove payment method',
-    loadingMessage: 'Removing payment method...',
+    successMessage: t('paymentMethods.successMessages.paymentMethodRemoved'),
+    errorMessage: t('paymentMethods.errorMessages.failedToRemove'),
+    loadingMessage: t('paymentMethods.loadingMessages.removingPaymentMethod'),
     showToast: (type, message) => {
       if (type === 'success')
         showSuccessToast(message);
@@ -36,9 +38,9 @@ export default function PaymentMethodsScreen() {
   });
 
   const setDefaultWithFeedback = useOptimisticMutationWithFeedback(setDefaultPaymentMethodMutation, {
-    successMessage: 'Default payment method updated',
-    errorMessage: 'Failed to update default payment method',
-    loadingMessage: 'Updating default payment method...',
+    successMessage: t('paymentMethods.successMessages.defaultPaymentMethodUpdated'),
+    errorMessage: t('paymentMethods.errorMessages.failedToUpdateDefault'),
+    loadingMessage: t('paymentMethods.loadingMessages.updatingDefault'),
     showToast: (type, message) => {
       if (type === 'success')
         showSuccessToast(message);
@@ -63,9 +65,9 @@ export default function PaymentMethodsScreen() {
   // Show loading state on initial load
   if (paymentMethodsUIState.showSkeleton) {
     return (
-      <DashboardLoading
-        title="Loading Payment Methods"
-        message="Fetching your direct debit contracts..."
+      <LoadingState
+        title={t('states.loading.payment_methods')}
+        message={t('states.loading.please_wait')}
       />
     );
   }
@@ -73,9 +75,9 @@ export default function PaymentMethodsScreen() {
   // Show error state
   if (paymentMethodsUIState.showError) {
     return (
-      <DashboardError
-        title="Unable to Load Payment Methods"
-        message="There was a problem loading your payment methods. Please check your connection and try again."
+      <ErrorState
+        title={t('states.error.default')}
+        description={t('states.error.networkDescription')}
         onRetry={() => paymentMethodsQuery.refetch()}
         icon={<CreditCard className="h-8 w-8 text-destructive" />}
       />
@@ -85,21 +87,21 @@ export default function PaymentMethodsScreen() {
   return (
     <DashboardPage>
       <DashboardPageHeader
-        title="Direct Debit Contracts"
-        description="Manage your ZarinPal direct debit contracts for automatic subscription billing"
+        title={t('paymentMethods.title')}
+        description={t('paymentMethods.subtitle')}
       />
 
       <DashboardSection delay={0.1}>
-        <DashboardCard
-          title="Secure Direct Debit Contracts"
-          description="Direct debit contracts are securely processed through ZarinPal's Payman system. Contract signatures are encrypted and stored securely by ZarinPal, enabling automatic billing without storing your banking details."
-          icon={<Shield className="h-5 w-5 text-primary" />}
-          shadow="sm"
-        >
-          <div className="text-sm text-muted-foreground">
-            Your banking details are never stored on our servers. All transactions are processed securely through ZarinPal's encrypted system.
-          </div>
-        </DashboardCard>
+        <ContentCard
+          title={t('directDebit.title')}
+          description={t('directDebit.subtitle')}
+          icon={<Shield className="h-4 w-4" />}
+          primaryContent={(
+            <div className="text-sm text-muted-foreground">
+              {t('directDebit.contractSetup')}
+            </div>
+          )}
+        />
       </DashboardSection>
 
       <DashboardSection delay={0.15}>
@@ -107,17 +109,17 @@ export default function PaymentMethodsScreen() {
         {paymentMethodList.length > 0
           ? (
               <DashboardCard
-                title="Your Direct Debit Contracts"
-                description={`${paymentMethodList.length} active contract${paymentMethodList.length !== 1 ? 's' : ''}`}
+                title={t('paymentMethods.title')}
+                description={`${paymentMethodList.length} ${paymentMethodList.length === 1 ? t('paymentMethods.activeContract') : t('paymentMethods.activeContracts')}`}
                 icon={<BanknoteIcon className="h-5 w-5 text-primary" />}
                 headerAction={(
                   <DirectDebitContractSetup
                     onSuccess={(_contractId) => {
-                      showSuccessToast('Direct debit contract created successfully!');
+                      showSuccessToast(t('paymentMethods.successMessages.directDebitContractCreated'));
                     }}
                   >
                     <Button size="sm" startIcon={<Plus className="h-4 w-4" />}>
-                      Add Contract
+                      {t('paymentMethods.addContract')}
                     </Button>
                   </DirectDebitContractSetup>
                 )}
@@ -126,24 +128,24 @@ export default function PaymentMethodsScreen() {
                   {paymentMethodList.map(method => (
                     <DashboardDataCard
                       key={method.id}
-                      title={method.contractDisplayName || 'Direct Debit Contract'}
+                      title={method.contractDisplayName || t('paymentMethods.directDebitContract')}
                       subtitle={method.contractMobile || undefined}
                       status={(
                         <>
                           <Badge variant={method.contractStatus === 'active' ? 'success' : 'secondary'} className="gap-1">
                             {method.contractStatus === 'active' ? <CheckCircle className="h-3 w-3" /> : <Clock className="h-3 w-3" />}
-                            {method.contractStatus === 'active' ? 'Active' : 'Pending'}
+                            {method.contractStatus === 'active' ? t('status.active') : t('status.pending')}
                           </Badge>
                           {method.isPrimary && (
                             <Badge variant="default" className="gap-1">
                               <Star className="h-3 w-3" />
-                              Primary
+                              {t('paymentMethods.primary')}
                             </Badge>
                           )}
                         </>
                       )}
                       icon={<CreditCard className="h-6 w-6 text-primary" />}
-                      primaryInfo={<span className="text-sm text-muted-foreground">ZarinPal Direct Debit</span>}
+                      primaryInfo={<span className="text-sm text-muted-foreground">{t('paymentMethods.zarinpalDirectDebit')}</span>}
                       actions={(
                         <div className="flex items-center gap-2">
                           {!method.isPrimary && (
@@ -152,10 +154,10 @@ export default function PaymentMethodsScreen() {
                               size="sm"
                               onClick={() => handleSetDefault(method.id)}
                               loading={setDefaultWithFeedback.isPending && setDefaultWithFeedback.variables?.param.id === method.id}
-                              loadingText="Setting..."
+                              loadingText={t('paymentMethods.loadingMessages.setting')}
                               startIcon={<Star className="h-3 w-3" />}
                             >
-                              Set Primary
+                              {t('paymentMethods.setPrimary')}
                             </Button>
                           )}
                           <Button
@@ -165,7 +167,7 @@ export default function PaymentMethodsScreen() {
                             loading={deleteWithFeedback.isPending && deleteWithFeedback.variables?.param.id === method.id}
                             startIcon={<Trash2 className="h-4 w-4" />}
                             className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                            aria-label="Delete payment method"
+                            aria-label={t('actions.delete')}
                           />
                         </div>
                       )}
@@ -175,18 +177,18 @@ export default function PaymentMethodsScreen() {
               </DashboardCard>
             )
           : (
-              <DashboardEmpty
-                title="No Payment Methods Yet"
-                description="Setup a secure direct debit contract with ZarinPal to enable seamless automatic billing. Your bank details stay secure with ZarinPal's encrypted system."
+              <EmptyState
+                title={t('paymentMethods.empty')}
+                description={t('paymentMethods.emptyDescription')}
                 icon={<CreditCard className="h-8 w-8 text-muted-foreground" />}
                 action={(
                   <DirectDebitContractSetup
                     onSuccess={(_contractId) => {
-                      showSuccessToast('Direct debit contract created successfully!');
+                      showSuccessToast(t('paymentMethods.successMessages.directDebitContractCreated'));
                     }}
                   >
                     <Button size="lg" startIcon={<Plus className="h-5 w-5" />}>
-                      Create First Contract
+                      {t('paymentMethods.createFirstContract')}
                     </Button>
                   </DirectDebitContractSetup>
                 )}
@@ -196,8 +198,8 @@ export default function PaymentMethodsScreen() {
 
       <DashboardSection delay={0.2}>
         <DashboardCard
-          title="How ZarinPal Direct Debit Works"
-          description="Simple, secure, and automatic billing through Iran's most trusted payment gateway"
+          title={t('directDebit.contractSetup')}
+          description={t('directDebit.subtitle')}
           shadow="sm"
         >
           <div className="space-y-8">
@@ -205,20 +207,20 @@ export default function PaymentMethodsScreen() {
               {[
                 {
                   icon: Shield,
-                  title: '1. Create Contract',
-                  description: 'Setup a secure direct debit contract with your mobile number and national ID',
+                  title: t('directDebit.setupSteps.step1.title'),
+                  description: t('directDebit.setupSteps.step1.description'),
                   color: 'blue',
                 },
                 {
                   icon: BanknoteIcon,
-                  title: '2. Sign with Bank',
-                  description: 'Select your bank and sign the contract directly on your bank\'s secure website',
+                  title: t('directDebit.setupSteps.step2.title'),
+                  description: t('directDebit.setupSteps.step2.description'),
                   color: 'green',
                 },
                 {
                   icon: CheckCircle,
-                  title: '3. Auto-billing Active',
-                  description: 'Your subscriptions will automatically renew using the secure signed contract',
+                  title: t('directDebit.setupSteps.step3.title'),
+                  description: t('directDebit.setupSteps.step3.description'),
                   color: 'purple',
                 },
               ].map(step => (
@@ -241,14 +243,14 @@ export default function PaymentMethodsScreen() {
                 <div className="w-8 h-8 bg-primary/10 rounded-lg flex items-center justify-center">
                   <Shield className="h-4 w-4 text-primary" />
                 </div>
-                <h5 className="font-semibold text-lg">Contract Terms & Limits</h5>
+                <h5 className="font-semibold text-lg">{t('directDebit.contractTermsTitle')}</h5>
               </div>
               <div className="grid gap-3 text-sm md:grid-cols-2">
                 {[
-                  { label: 'Contract Duration', value: '1 Year (auto-renewable)' },
-                  { label: 'Daily Transaction Limit', value: '10 transactions' },
-                  { label: 'Monthly Transaction Limit', value: '100 transactions' },
-                  { label: 'Maximum Amount per Transaction', value: '500,000 Toman' },
+                  { label: t('directDebit.contractTerms.contractDuration'), value: t('directDebit.contractTerms.contractDurationValue') },
+                  { label: t('directDebit.contractTerms.dailyTransactionLimit'), value: t('directDebit.contractTerms.dailyTransactionLimitValue') },
+                  { label: t('directDebit.contractTerms.monthlyTransactionLimit'), value: t('directDebit.contractTerms.monthlyTransactionLimitValue') },
+                  { label: t('directDebit.contractTerms.maxAmountPerTransaction'), value: t('directDebit.contractTerms.maxAmountPerTransactionValue') },
                 ].map(term => (
                   <div key={term.label} className="flex items-center justify-between p-3 bg-background/50 rounded-lg border border-border/30">
                     <span className="text-muted-foreground">

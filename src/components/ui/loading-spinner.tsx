@@ -1,6 +1,6 @@
 import { Loader2 } from 'lucide-react';
 
-import { cn } from '@/lib/utils/tailwind';
+import { cn } from '@/lib';
 
 interface LoadingSpinnerProps {
   className?: string;

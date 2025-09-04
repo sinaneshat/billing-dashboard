@@ -1,8 +1,8 @@
 import { dehydrate, HydrationBoundary } from '@tanstack/react-query';
 
 import { PaymentMethodsScreen } from '@/containers/screens/dashboard/billing';
+import { getQueryClient } from '@/lib/data/query-client';
 import { queryKeys } from '@/lib/data/query-keys';
-import getQueryClient from '@/lib/query/get-query-client';
 import {
   getPaymentMethodsService,
   getSubscriptionsService,

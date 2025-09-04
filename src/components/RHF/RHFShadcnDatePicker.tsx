@@ -4,7 +4,7 @@ import { CalendarIcon } from 'lucide-react';
 import { useMemo } from 'react';
 import { Controller, useFormContext } from 'react-hook-form';
 
-import { cn } from '@/lib/utils/tailwind';
+import { cn } from '@/lib';
 import type { GeneralFormProps } from '@/types/general';
 
 import { Button } from '../ui/button';

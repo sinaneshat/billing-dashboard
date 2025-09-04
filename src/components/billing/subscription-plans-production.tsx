@@ -1,25 +1,26 @@
 'use client';
 
+import { useTranslations } from 'next-intl';
 import { useState } from 'react';
 
 import { DirectDebitContractSetup } from '@/components/billing/direct-debit-contract-setup';
 import { CompactProductionPricing } from '@/components/pricing/compact-production-pricing';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { DashboardEmptyState, DashboardErrorState } from '@/components/ui/dashboard-empty-states';
 import { DashboardPageHeader } from '@/components/ui/dashboard-header';
-import { DashboardSection } from '@/components/ui/dashboard-states';
+import { DashboardSection, EmptyState, ErrorState } from '@/components/ui/dashboard-states';
 import { DashboardSuccess } from '@/components/ui/dashboard-success';
 import { LoadingSpinner } from '@/components/ui/loading-spinner';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useCreateSubscriptionMutation } from '@/hooks/mutations/subscriptions';
 import { useProductsQuery } from '@/hooks/queries/products';
-import { formatTomanCurrency } from '@/lib/utils/currency';
+import { formatTomanCurrency } from '@/lib';
 
 import { toast } from '../ui/use-toast';
 
 export function ProductionSubscriptionPlans() {
-  const { data: products, isLoading, error } = useProductsQuery();
+  const t = useTranslations();
+  const { data: products, isLoading, error, refetch } = useProductsQuery();
   const createSubscriptionMutation = useCreateSubscriptionMutation();
   const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState('plans');
@@ -43,13 +44,13 @@ export function ProductionSubscriptionPlans() {
       });
 
       if (result.success) {
-        toast({ title: 'Your free subscription has been activated successfully!' });
+        toast({ title: t('subscription.activationSuccess') });
         window.location.href = '/dashboard/billing';
       } else {
-        toast({ title: 'Failed to activate free subscription' });
+        toast({ title: t('subscription.activationFailed') });
       }
     } catch (error) {
-      toast({ title: 'Failed to activate subscription' });
+      toast({ title: t('subscription.activationError') });
       console.error('Free subscription error:', error);
     }
   };
@@ -109,7 +110,7 @@ export function ProductionSubscriptionPlans() {
           description="Choose the perfect plan for your needs"
         />
         <DashboardSection delay={0.1}>
-          <DashboardErrorState
+          <ErrorState
             title="Failed to load plans"
             description="There was an error loading subscription plans. Please try again."
             onRetry={() => window.location.reload()}
@@ -129,7 +130,7 @@ export function ProductionSubscriptionPlans() {
         <DashboardSection delay={0.1}>
           <div className="text-center py-12">
             <div className="flex items-center justify-center">
-              <LoadingSpinner className="h-8 w-8 mr-2" />
+              <LoadingSpinner className="h-8 w-8 me-2" />
               <span className="text-xl">Loading subscription plans...</span>
             </div>
           </div>
@@ -146,11 +147,11 @@ export function ProductionSubscriptionPlans() {
           description="Choose the perfect plan for your needs"
         />
         <DashboardSection delay={0.1}>
-          <DashboardEmptyState
+          <EmptyState
             variant="plans"
             action={(
-              <Button variant="outline" onClick={() => window.location.reload()}>
-                Refresh Page
+              <Button variant="outline" onClick={() => refetch()}>
+                {t('actions.refresh')}
               </Button>
             )}
           />
@@ -207,7 +208,7 @@ export function ProductionSubscriptionPlans() {
                     <div className="space-y-4">
                       <div className="flex justify-between items-center">
                         <span className="font-medium">{selectedProduct.name}</span>
-                        <div className="text-left">
+                        <div className="text-start">
                           <div className="font-bold text-lg">
                             {formatTomanCurrency(selectedProduct.price)}
                           </div>

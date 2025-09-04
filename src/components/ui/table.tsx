@@ -2,7 +2,7 @@
 
 import * as React from "react"
 
-import { cn } from "@/lib/tailwind-utils"
+import { cn } from "@/lib"
 
 function Table({ className, ...props }: React.ComponentProps<"table">) {
   return (

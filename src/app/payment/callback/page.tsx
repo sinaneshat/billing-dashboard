@@ -2,6 +2,7 @@
 
 import { CheckCircle, XCircle } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { Suspense, useEffect, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
@@ -19,6 +20,7 @@ type PaymentResult = {
 };
 
 function PaymentCallbackContent() {
+  const t = useTranslations();
   const searchParams = useSearchParams();
   const [result, setResult] = useState<PaymentResult | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -34,7 +36,7 @@ function PaymentCallbackContent() {
         if (!authority && !paymanAuthority) {
           setResult({
             success: false,
-            error: 'Invalid payment parameters',
+            error: t('payment.callback.invalidPaymentParameters'),
           });
           return;
         }
@@ -42,7 +44,7 @@ function PaymentCallbackContent() {
         if (!status) {
           setResult({
             success: false,
-            error: 'Missing payment status',
+            error: t('payment.callback.missingPaymentStatus'),
           });
           return;
         }
@@ -54,7 +56,7 @@ function PaymentCallbackContent() {
           if (!storedContract) {
             setResult({
               success: false,
-              error: 'Contract information not found. Please try setting up direct debit again.',
+              error: t('payment.callback.contractInfoNotFound'),
             });
             return;
           }
@@ -65,7 +67,7 @@ function PaymentCallbackContent() {
           } catch {
             setResult({
               success: false,
-              error: 'Invalid contract information. Please try setting up direct debit again.',
+              error: t('payment.callback.invalidContractInfo'),
             });
             return;
           }
@@ -93,19 +95,19 @@ function PaymentCallbackContent() {
               } else {
                 setResult({
                   success: false,
-                  error: contractResult.data.error?.message || 'Contract verification failed',
+                  error: contractResult.data.error?.message || t('payment.callback.contractVerificationFailed'),
                 });
               }
             } else {
               setResult({
                 success: false,
-                error: 'Failed to verify direct debit contract',
+                error: t('payment.callback.failedToVerifyContract'),
               });
             }
           } catch (contractError) {
             setResult({
               success: false,
-              error: contractError instanceof Error ? contractError.message : 'Contract verification failed',
+              error: contractError instanceof Error ? contractError.message : t('payment.callback.contractVerificationFailed'),
             });
           }
 
@@ -140,14 +142,14 @@ function PaymentCallbackContent() {
               success: false,
               paymentId: result.paymentId,
               subscriptionId: result.subscriptionId,
-              error: 'Payment was not completed successfully',
+              error: t('payment.callback.paymentNotCompleted'),
             });
           }
         }
       } catch {
         setResult({
           success: false,
-          error: 'Payment processing error',
+          error: t('payment.callback.paymentProcessingError'),
         });
       } finally {
         setIsLoading(false);
@@ -155,7 +157,7 @@ function PaymentCallbackContent() {
     };
 
     handleCallback();
-  }, [searchParams]);
+  }, [searchParams, t]);
 
   const handleGoToDashboard = () => {
     window.location.href = result?.success ? '/dashboard/billing' : '/dashboard';
@@ -171,7 +173,7 @@ function PaymentCallbackContent() {
         <Card>
           <CardContent className="flex items-center justify-center py-12">
             <LoadingSpinner className="h-8 w-8" />
-            <span className="mr-3 text-lg">Processing payment...</span>
+            <span className="me-3 text-lg">{t('payment.callback.processingPayment')}</span>
           </CardContent>
         </Card>
       </div>
@@ -192,18 +194,18 @@ function PaymentCallbackContent() {
                 )}
           </div>
           <CardTitle className="text-2xl">
-            {result?.success ? 'Payment Successful' : 'Payment Failed'}
+            {result?.success ? t('payment.callback.paymentSuccessful') : t('payment.callback.paymentFailed')}
           </CardTitle>
           <CardDescription>
             {result?.success
-              ? 'Your direct debit contract has been successfully set up and your payment method is now active.'
-              : result?.error || 'Unfortunately the setup was not completed.'}
+              ? t('payment.callback.directDebitSuccess')
+              : result?.error || t('payment.callback.setupNotCompleted')}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           {result?.success && result.refId && (
             <div className="text-center">
-              <p className="text-sm text-muted-foreground">Reference ID:</p>
+              <p className="text-sm text-muted-foreground">{t('payment.callback.referenceId')}</p>
               <code className="text-sm bg-muted px-3 py-1 rounded">
                 {result.refId}
               </code>
@@ -214,13 +216,13 @@ function PaymentCallbackContent() {
             {result?.success
               ? (
                   <Button onClick={handleGoToDashboard} size="lg" className="w-full">
-                    View Billing Dashboard
+                    {t('payment.callback.viewBillingDashboard')}
                   </Button>
                 )
               : (
                   <>
                     <Button onClick={handleRetry} size="lg" className="w-full">
-                      Choose Another Plan
+                      {t('payment.callback.chooseAnotherPlan')}
                     </Button>
                     <Button
                       onClick={handleGoToDashboard}
@@ -228,7 +230,7 @@ function PaymentCallbackContent() {
                       size="lg"
                       className="w-full"
                     >
-                      Return to Dashboard
+                      {t('payment.callback.returnToDashboard')}
                     </Button>
                   </>
                 )}
@@ -239,19 +241,23 @@ function PaymentCallbackContent() {
   );
 }
 
+function PaymentCallbackFallback() {
+  const t = useTranslations();
+  return (
+    <div className="container mx-auto max-w-md py-8">
+      <Card>
+        <CardContent className="flex items-center justify-center py-12">
+          <LoadingSpinner className="h-8 w-8" />
+          <span className="me-3 text-lg">{t('payment.callback.loading')}</span>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
 export default function PaymentCallbackPage() {
   return (
-    <Suspense fallback={(
-      <div className="container mx-auto max-w-md py-8">
-        <Card>
-          <CardContent className="flex items-center justify-center py-12">
-            <LoadingSpinner className="h-8 w-8" />
-            <span className="mr-3 text-lg">Loading...</span>
-          </CardContent>
-        </Card>
-      </div>
-    )}
-    >
+    <Suspense fallback={<PaymentCallbackFallback />}>
       <PaymentCallbackContent />
     </Suspense>
   );

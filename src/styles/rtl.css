@@ -1,0 +1,55 @@
+/* RTL-specific styles */
+/* Add any additional RTL-specific CSS here that Tailwind doesn't cover */
+
+/* Ensure icons in RTL context are properly oriented */
+[dir='rtl'] .rtl-flip {
+  transform: scaleX(-1);
+}
+
+/* Fix animations for RTL */
+[dir='rtl'] .slide-in-from-left {
+  animation-name: slide-in-from-right;
+}
+
+[dir='rtl'] .slide-in-from-right {
+  animation-name: slide-in-from-left;
+}
+
+/* Chevron and arrow adjustments for RTL */
+[dir='rtl'] .chevron-right {
+  transform: rotate(180deg);
+}
+
+[dir='rtl'] .arrow-right {
+  transform: rotate(180deg);
+}
+
+/* Ensure proper text alignment in forms */
+[dir='rtl'] input[type='text'],
+[dir='rtl'] input[type='email'],
+[dir='rtl'] input[type='password'],
+[dir='rtl'] textarea {
+  text-align: start;
+}
+
+/* Fix dropdown positioning in RTL */
+[dir='rtl'] .dropdown-content {
+  left: auto;
+  right: 0;
+}
+
+/* Navigation menu adjustments */
+[dir='rtl'] .navigation-menu-item {
+  direction: rtl;
+}
+
+/* Ensure proper sidebar positioning */
+[dir='rtl'] .sidebar-left {
+  left: auto;
+  right: 0;
+}
+
+[dir='rtl'] .sidebar-right {
+  right: auto;
+  left: 0;
+}

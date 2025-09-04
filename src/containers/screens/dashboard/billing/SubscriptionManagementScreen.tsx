@@ -24,7 +24,7 @@ export default function SubscriptionManagementScreen() {
       <DashboardSection delay={0.1}>
         <SubscriptionCards
           subscriptions={subscriptions}
-          loading={queryUI.isLoading}
+          isLoading={queryUI.isLoading}
           className="w-full"
         />
       </DashboardSection>

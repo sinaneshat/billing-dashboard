@@ -1,6 +1,7 @@
 'use client';
 
 import { RefreshCw } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { useEffect } from 'react';
 
 import { Button } from '@/components/ui/button';
@@ -12,6 +13,8 @@ type ErrorScreenProps = {
 };
 
 export default function ErrorScreen({ error, reset }: ErrorScreenProps) {
+  const t = useTranslations();
+
   useEffect(() => {
     // Error logging handled by error boundary
   }, [error]);
@@ -21,9 +24,9 @@ export default function ErrorScreen({ error, reset }: ErrorScreenProps) {
       <div className="w-full max-w-lg px-4">
         <Card className="relative rounded-xl border bg-card/50 shadow-lg backdrop-blur-xl">
           <CardHeader>
-            <h1 className="text-2xl font-semibold">Something went wrong</h1>
+            <h1 className="text-2xl font-semibold">{t('states.error.default')}</h1>
             <p className="text-sm text-muted-foreground">
-              An unexpected error occurred. Please try again.
+              {t('states.error.unexpectedError')}
             </p>
           </CardHeader>
           <CardContent className="flex justify-center">
@@ -32,8 +35,8 @@ export default function ErrorScreen({ error, reset }: ErrorScreenProps) {
               variant="outline"
               className="flex items-center"
             >
-              <RefreshCw className="mr-2 size-4" />
-              Try again
+              <RefreshCw className="me-2 size-4" />
+              {t('states.error.tryAgain')}
             </Button>
           </CardContent>
         </Card>

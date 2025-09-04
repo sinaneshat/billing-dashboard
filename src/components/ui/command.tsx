@@ -6,7 +6,7 @@ import { Search } from 'lucide-react';
 import * as React from 'react';
 
 import { Dialog, DialogContent } from '@/components/ui/dialog';
-import { cn } from '@/lib/utils/tailwind';
+import { cn } from '@/lib';
 
 function Command({ ref, className, ...props }: React.ComponentPropsWithoutRef<typeof CommandPrimitive> & { ref?: React.RefObject<React.ElementRef<typeof CommandPrimitive> | null> }) {
   return (

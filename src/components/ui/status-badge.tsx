@@ -6,7 +6,7 @@ import { cva } from 'class-variance-authority'
 import { z } from 'zod'
 
 import { Badge } from '@/components/ui/badge'
-import { cn } from '@/lib/tailwind-utils'
+import { cn } from '@/lib'
 
 /**
  * Enhanced Status Badge System following Shadcn/UI v4 patterns

@@ -1,13 +1,13 @@
 'use client';
 
 import { Check } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import * as React from 'react';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { cn } from '@/lib/utils';
-import { formatTomanCurrency } from '@/lib/utils/currency';
+import { cn, formatTomanCurrency } from '@/lib';
 
 type Product = {
   id: string;
@@ -35,6 +35,7 @@ function CompactProductCard({
   onSelect,
   className,
 }: ProductCardProps) {
+  const t = useTranslations();
   const metadata = product.metadata as {
     pricing?: {
       usdPrice: number;
@@ -60,11 +61,11 @@ function CompactProductCard({
   const displayFeatures = features.length > 0
     ? features
     : [
-        isFree ? 'Basic features' : 'All features included',
-        isFree ? 'Community support' : 'Priority support',
-        isFree ? 'Limited usage' : 'Advanced analytics',
-        'API access',
-        'Regular updates',
+        isFree ? t('plans.basicFeatures') : t('plans.allFeaturesIncluded'),
+        isFree ? t('plans.communitySupport') : t('plans.prioritySupport'),
+        isFree ? t('plans.limitedUsage') : t('plans.advancedAnalyticsFeature'),
+        t('plans.apiAccess'),
+        t('plans.regularUpdates'),
       ];
 
   return (
@@ -79,7 +80,7 @@ function CompactProductCard({
       {isPopular && (
         <div className="absolute -top-3 left-1/2 -translate-x-1/2 z-10">
           <Badge variant="default" className="bg-primary text-primary-foreground px-3 py-1">
-            {metadata?.badgeText || 'Most Popular'}
+            {metadata?.badgeText || t('plans.mostPopular')}
           </Badge>
         </div>
       )}
@@ -90,7 +91,7 @@ function CompactProductCard({
             {product.name}
           </CardTitle>
           <p className="text-xs text-muted-foreground text-center line-clamp-2">
-            {product.description || `Perfect ${product.name.toLowerCase()} solution for your needs`}
+            {product.description || t('plans.perfectSolution', { name: product.name.toLowerCase() })}
           </p>
         </div>
 
@@ -99,8 +100,8 @@ function CompactProductCard({
           {isFree
             ? (
                 <div>
-                  <div className="text-xl font-bold">Free</div>
-                  <div className="text-xs text-muted-foreground">Forever</div>
+                  <div className="text-xl font-bold">{t('plans.free')}</div>
+                  <div className="text-xs text-muted-foreground">{t('time.forever')}</div>
                 </div>
               )
             : pricing?.tomanPrice
@@ -110,13 +111,17 @@ function CompactProductCard({
                       <span className="text-xl font-bold">
                         {pricing.tomanPrice.toLocaleString('en-US')}
                       </span>
-                      <span className="text-xs text-muted-foreground">Toman</span>
+                      <span className="text-xs text-muted-foreground">{t('currency.toman')}</span>
                     </div>
                     <div className="text-xs text-muted-foreground">
-                      per month ($
+                      {t('time.perMonth')}
+                      {' '}
+                      (
+                      {t('currency.dollar')}
                       {pricing.usdPrice || 0}
                       {' '}
-                      USD)
+                      {t('currency.usd')}
+                      )
                     </div>
                   </div>
                 )
@@ -127,7 +132,7 @@ function CompactProductCard({
                         {formatTomanCurrency(product.price)}
                       </span>
                     </div>
-                    <div className="text-xs text-muted-foreground">per month</div>
+                    <div className="text-xs text-muted-foreground">{t('time.perMonth')}</div>
                   </div>
                 )}
         </div>
@@ -143,13 +148,13 @@ function CompactProductCard({
           )}
           variant={isPopular ? 'default' : 'outline'}
         >
-          {isFree ? 'Get Started Free' : 'Choose Plan'}
+          {isFree ? t('plans.getStartedFree') : t('plans.choosePlan')}
         </Button>
 
         {/* Features List - Compact */}
         <div className="space-y-2">
           <div className="text-xs font-medium text-muted-foreground border-b border-border pb-1">
-            What's included:
+            {t('plans.whatsIncluded')}
           </div>
           <div className="space-y-1.5">
             {displayFeatures.slice(0, 4).map(feature => (
@@ -162,10 +167,7 @@ function CompactProductCard({
             ))}
             {displayFeatures.length > 4 && (
               <div className="text-xs text-muted-foreground">
-                +
-                {displayFeatures.length - 4}
-                {' '}
-                more features
+                {t('plans.moreFeatures', { count: displayFeatures.length - 4 })}
               </div>
             )}
           </div>
@@ -174,7 +176,7 @@ function CompactProductCard({
         {/* Usage Metrics - Ultra Compact */}
         {(metadata?.messagesPerMonth || metadata?.aiModelsLimit || metadata?.conversationsPerMonth) && (
           <div className="space-y-1.5 pt-2 border-t border-border">
-            <div className="text-xs font-medium text-muted-foreground">Limits:</div>
+            <div className="text-xs font-medium text-muted-foreground">{t('plans.limits')}</div>
             <div className="grid grid-cols-1 gap-1 text-xs text-muted-foreground">
               {metadata?.messagesPerMonth && (
                 <div className="flex items-center gap-1">
@@ -191,7 +193,7 @@ function CompactProductCard({
                   <span>
                     {metadata.aiModelsLimit}
                     {' '}
-                    models
+                    {t('plans.modelsText')}
                   </span>
                 </div>
               )}
@@ -217,6 +219,7 @@ export function CompactProductionPricing({
   onPlanSelect,
   className,
 }: CompactProductionPricingProps) {
+  const t = useTranslations();
   // Sort products: free first, then by price, with popular plans getting priority
   const sortedProducts = React.useMemo(() => {
     return [...products].sort((a, b) => {
@@ -245,10 +248,10 @@ export function CompactProductionPricing({
       {/* Header */}
       <div className="text-center space-y-3 mb-8">
         <h3 className="text-3xl font-bold text-foreground">
-          Choose your plan
+          {t('plans.chooseYourPlan')}
         </h3>
         <p className="text-base text-muted-foreground max-w-2xl mx-auto">
-          All prices calculated with live exchange rates. Start free and upgrade as you grow.
+          {t('plans.pricingDescription')}
         </p>
       </div>
 

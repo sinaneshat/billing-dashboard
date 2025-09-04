@@ -9,6 +9,7 @@ import {
 import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useLocale, useTranslations } from 'next-intl';
 
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
@@ -21,6 +22,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { SettingsPanel } from '@/components/ui/settings-panel';
 import {
   Sidebar,
   SidebarContent,
@@ -41,46 +43,60 @@ import {
 import { BRAND } from '@/constants/brand';
 import { useCurrentSubscriptionQuery } from '@/hooks/queries/subscriptions';
 import { signOut, useSession } from '@/lib/auth/client';
+import { getRTLUtils } from '@/lib/rtl';
 
-// Navigation structure
-const navigation = [
-  {
-    title: 'Overview',
-    url: '/dashboard',
-    icon: BarChart3,
-  },
-  {
-    title: 'Billing',
-    url: '/dashboard/billing',
-    icon: CreditCard,
-    badge: 'subscription',
-    forceExpanded: true, // Keep billing section expanded by default
-    items: [
-      {
-        title: 'Subscriptions',
-        url: '/dashboard/billing/subscriptions',
-      },
-      {
-        title: 'Plans',
-        url: '/dashboard/billing/plans',
-      },
-      {
-        title: 'Billing History',
-        url: '/dashboard/billing/payments',
-      },
-      {
-        title: 'Direct Debit Setup',
-        url: '/dashboard/billing/methods',
-      },
-    ],
-  },
-];
+// Navigation structure function to enable translations
+function getNavigation(t: ReturnType<typeof useTranslations>) {
+  return [
+    {
+      titleKey: 'navigation.overview',
+      title: t('navigation.overview'),
+      url: '/dashboard',
+      icon: BarChart3,
+    },
+    {
+      titleKey: 'navigation.billing',
+      title: t('navigation.billing'),
+      url: '/dashboard/billing',
+      icon: CreditCard,
+      badge: 'subscription',
+      forceExpanded: true, // Keep billing section expanded by default
+      items: [
+        {
+          titleKey: 'navigation.subscriptions',
+          title: t('navigation.subscriptions'),
+          url: '/dashboard/billing/subscriptions',
+        },
+        {
+          titleKey: 'navigation.plans',
+          title: t('navigation.plans'),
+          url: '/dashboard/billing/plans',
+        },
+        {
+          titleKey: 'navigation.billingHistory',
+          title: t('navigation.billingHistory'),
+          url: '/dashboard/billing/payments',
+        },
+        {
+          titleKey: 'navigation.paymentMethods',
+          title: t('navigation.paymentMethods'),
+          url: '/dashboard/billing/methods',
+        },
+      ],
+    },
+  ];
+}
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const pathname = usePathname();
   const { data: session } = useSession();
   const { data: currentSubscription } = useCurrentSubscriptionQuery();
   const { isMobile } = useSidebar();
+  const t = useTranslations();
+  const locale = useLocale();
+  const { isRTL, createClass } = getRTLUtils(locale);
+
+  const navigation = getNavigation(t);
 
   const user = session?.user;
   const userInitials = user?.name
@@ -114,7 +130,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                     className="h-8 w-8 object-contain"
                   />
                 </div>
-                <div className="grid flex-1 text-left text-sm leading-tight">
+                <div className="grid flex-1 text-start text-sm leading-tight">
                   <span className="truncate font-semibold">{BRAND.name}</span>
                   <span className="truncate text-xs text-sidebar-foreground/70">{BRAND.tagline}</span>
                 </div>
@@ -126,7 +142,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
       <SidebarContent>
         <SidebarGroup>
-          <SidebarGroupLabel>Navigation</SidebarGroupLabel>
+          <SidebarGroupLabel>{t('navigation.navigation')}</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               {navigation.map((item) => {
@@ -149,11 +165,11 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                             <item.icon />
                             <span>{item.title}</span>
                             {showBadge && (
-                              <Badge variant="secondary" className="ml-2">
-                                Active
+                              <Badge variant="secondary" className={createClass('ms-2')}>
+                                {t('status.active')}
                               </Badge>
                             )}
-                            <ChevronRight className="ml-auto transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
+                            <ChevronRight className={createClass('ms-auto transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90')} style={{ transform: isRTL ? 'rotate(180deg)' : 'none' }} />
                           </SidebarMenuButton>
                         </CollapsibleTrigger>
                         <CollapsibleContent>
@@ -191,8 +207,8 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                         <item.icon />
                         <span>{item.title}</span>
                         {showBadge && (
-                          <Badge variant="secondary" className="ml-auto">
-                            Active
+                          <Badge variant="secondary" className={createClass('ms-auto')}>
+                            {t('status.active')}
                           </Badge>
                         )}
                       </Link>
@@ -207,6 +223,12 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
       <SidebarFooter>
         <SidebarMenu>
+          {/* Unified Settings Panel */}
+          <SidebarMenuItem>
+            <SettingsPanel variant="sidebar" />
+          </SidebarMenuItem>
+
+          {/* User Profile Dropdown */}
           <SidebarMenuItem>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -215,15 +237,15 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                   className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
                 >
                   <Avatar className="h-8 w-8 rounded-lg">
-                    <AvatarImage src={user?.image || undefined} alt={user?.name || 'User'} />
+                    <AvatarImage src={user?.image || undefined} alt={user?.name || t('user.defaultName')} />
                     <AvatarFallback className="rounded-lg">{userInitials}</AvatarFallback>
                   </Avatar>
-                  <div className="grid flex-1 text-left text-sm leading-tight">
-                    <span className="truncate font-semibold">{user?.name || 'User'}</span>
+                  <div className="grid flex-1 text-start text-sm leading-tight">
+                    <span className="truncate font-semibold">{user?.name || t('user.defaultName')}</span>
                     <span className="truncate text-xs text-sidebar-foreground/70">{user?.email}</span>
                   </div>
                   {hasActiveSubscription && (
-                    <div className="ml-auto size-2 rounded-full bg-green-500" />
+                    <div className="ms-auto size-2 rounded-full bg-green-500" />
                   )}
                 </SidebarMenuButton>
               </DropdownMenuTrigger>
@@ -234,13 +256,13 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                 sideOffset={4}
               >
                 <DropdownMenuLabel className="p-0 font-normal">
-                  <div className="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
+                  <div className="flex items-center gap-2 px-1 py-1.5 text-start text-sm">
                     <Avatar className="h-8 w-8 rounded-lg">
-                      <AvatarImage src={user?.image || undefined} alt={user?.name || 'User'} />
+                      <AvatarImage src={user?.image || undefined} alt={user?.name || t('user.defaultName')} />
                       <AvatarFallback className="rounded-lg">{userInitials}</AvatarFallback>
                     </Avatar>
-                    <div className="grid flex-1 text-left text-sm leading-tight">
-                      <span className="truncate font-semibold">{user?.name || 'User'}</span>
+                    <div className="grid flex-1 text-start text-sm leading-tight">
+                      <span className="truncate font-semibold">{user?.name || t('user.defaultName')}</span>
                       <span className="truncate text-xs text-sidebar-foreground/70">{user?.email}</span>
                     </div>
                   </div>
@@ -250,8 +272,8 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                   onClick={handleSignOut}
                   className="text-red-600 focus:text-red-600"
                 >
-                  <LogOut className="mr-2 h-4 w-4" />
-                  Sign out
+                  <LogOut className="me-2 h-4 w-4" />
+                  {t('navigation.signOut')}
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
