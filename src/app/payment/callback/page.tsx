@@ -187,10 +187,10 @@ function PaymentCallbackContent() {
           <div className="mx-auto mb-4">
             {result?.success
               ? (
-                  <CheckCircle className="h-16 w-16 text-green-500" />
+                  <CheckCircle className="h-16 w-16 text-emerald-600 dark:text-emerald-400" />
                 )
               : (
-                  <XCircle className="h-16 w-16 text-red-500" />
+                  <XCircle className="h-16 w-16 text-destructive" />
                 )}
           </div>
           <CardTitle className="text-2xl">

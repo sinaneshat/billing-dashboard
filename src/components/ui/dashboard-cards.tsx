@@ -2,7 +2,6 @@
 
 import { type ReactNode } from 'react';
 import { TrendingDown, TrendingUp } from 'lucide-react';
-import { useLocale } from 'next-intl';
 
 import {
   Card,
@@ -14,7 +13,6 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
-import { getRTLUtils } from '@/lib/rtl';
 
 // =============================================================================
 // UNIFIED DASHBOARD CARD SYSTEM
@@ -48,8 +46,6 @@ export function DashboardCard({
   variant = 'default',
   shadow,
 }: DashboardCardProps) {
-  const locale = useLocale();
-  const { createClass } = getRTLUtils(locale);
   const finalAction = action || headerAction;
   return (
     <Card className={cn(
@@ -67,7 +63,7 @@ export function DashboardCard({
                   {icon}
                 </div>
               )}
-              <div className={createClass('flex-1 space-y-1')}>
+              <div className="flex-1 space-y-1">
                 {title && <CardTitle>{title}</CardTitle>}
                 {description && <CardDescription>{description}</CardDescription>}
               </div>

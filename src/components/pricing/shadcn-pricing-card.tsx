@@ -68,14 +68,14 @@ export function ShadcnPricingCard({
     <Card
       className={cn(
         'relative overflow-hidden transition-all duration-300 hover:shadow-lg',
-        isPopular && 'border-2 border-purple-500 shadow-lg scale-105',
+        isPopular && 'border-2 border-purple-500 dark:border-purple-400 shadow-lg scale-105',
         className,
       )}
     >
       {/* Popular badge */}
       {isPopular && (
-        <div className="absolute -top-3 left-1/2 -translate-x-1/2 z-10">
-          <Badge className="bg-gradient-to-r from-purple-600 to-pink-600 text-white px-3 py-1">
+        <div className="absolute -top-3 start-1/2 -translate-x-1/2 z-10">
+          <Badge className="bg-gradient-to-r from-purple-600 to-pink-600 dark:from-purple-500 dark:to-pink-500 text-white px-3 py-1">
             {t('plans.mostPopular')}
           </Badge>
         </div>
@@ -128,7 +128,7 @@ export function ShadcnPricingCard({
           className={cn(
             'w-full',
             isPopular
-              ? 'bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white'
+              ? 'bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 dark:from-purple-500 dark:to-pink-500 dark:hover:from-purple-600 dark:hover:to-pink-600 text-white'
               : '',
           )}
           variant={isPopular ? 'default' : 'outline'}
@@ -143,7 +143,7 @@ export function ShadcnPricingCard({
             <ul className="space-y-2">
               {featureList.map(feature => (
                 <li key={feature.text} className="flex items-start gap-2">
-                  <Check className="h-4 w-4 text-green-500 mt-0.5 flex-shrink-0" />
+                  <Check className="h-4 w-4 text-emerald-600 dark:text-emerald-400 mt-0.5 flex-shrink-0" />
                   <span className="text-sm text-muted-foreground">
                     {feature.text}
                   </span>

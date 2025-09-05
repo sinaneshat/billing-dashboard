@@ -33,7 +33,7 @@ import {
 import { FadeIn } from '@/components/ui/motion';
 import { Skeleton } from '@/components/ui/skeleton';
 import { PaymentStatusBadge, SubscriptionStatusBadge } from '@/components/ui/status-badge';
-import { formatTomanCurrency } from '@/lib';
+import { cn, formatTomanCurrency } from '@/lib';
 
 // Types for customer billing overview
 type CustomerSubscription = {
@@ -202,36 +202,36 @@ function BillingSummaryCards({ subscription, recentPayments, paymentMethods: _pa
 
   const summaryCards = [
     {
-      title: 'Current Plan',
-      value: subscription?.product?.name || 'No Plan',
+      title: t('billing.currentPlan'),
+      value: subscription?.product?.name || t('billing.noPlan'),
       subtitle: undefined,
       icon: Package,
-      color: subscription?.status === 'active' ? 'text-blue-600' : 'text-gray-500',
-      bgColor: subscription?.status === 'active' ? 'bg-blue-50 dark:bg-blue-900/30' : 'bg-gray-50 dark:bg-gray-900/30',
+      color: subscription?.status === 'active' ? 'text-primary' : 'text-muted-foreground',
+      bgColor: subscription?.status === 'active' ? 'bg-primary/10' : 'bg-muted',
     },
     {
-      title: 'Monthly Cost',
+      title: t('billing.monthlyCost'),
       value: subscription?.currentPrice ? formatTomanCurrency(subscription.currentPrice) : '—',
       subtitle: undefined,
       icon: Wallet,
-      color: 'text-green-600',
-      bgColor: 'bg-green-50 dark:bg-green-900/30',
+      color: 'text-emerald-600 dark:text-emerald-400',
+      bgColor: 'bg-emerald-50 dark:bg-emerald-950/20',
     },
     {
       title: t('billing.nextBilling'),
-      value: nextBilling || 'Not scheduled',
+      value: nextBilling || t('billing.notScheduled'),
       subtitle: undefined,
       icon: Calendar,
-      color: nextBilling === 'Overdue' ? 'text-red-600' : nextBilling === 'Tomorrow' ? 'text-orange-600' : 'text-purple-600',
-      bgColor: nextBilling === 'Overdue' ? 'bg-red-50 dark:bg-red-900/30' : nextBilling === 'Tomorrow' ? 'bg-orange-50 dark:bg-orange-900/30' : 'bg-purple-50 dark:bg-purple-900/30',
+      color: nextBilling === 'Overdue' ? 'text-destructive' : nextBilling === 'Tomorrow' ? 'text-orange-600 dark:text-orange-400' : 'text-purple-600 dark:text-purple-400',
+      bgColor: nextBilling === 'Overdue' ? 'bg-destructive/10' : nextBilling === 'Tomorrow' ? 'bg-orange-50 dark:bg-orange-950/20' : 'bg-purple-50 dark:bg-purple-950/20',
     },
     {
       title: t('billing.paymentSuccess'),
       value: `${paymentSuccessRate}%`,
       subtitle: `${recentPayments.length} transactions`,
       icon: CreditCard,
-      color: paymentSuccessRate >= 95 ? 'text-green-600' : paymentSuccessRate >= 80 ? 'text-orange-600' : 'text-red-600',
-      bgColor: paymentSuccessRate >= 95 ? 'bg-green-50 dark:bg-green-900/30' : paymentSuccessRate >= 80 ? 'bg-orange-50 dark:bg-orange-900/30' : 'bg-red-50 dark:bg-red-900/30',
+      color: paymentSuccessRate >= 95 ? 'text-emerald-600 dark:text-emerald-400' : paymentSuccessRate >= 80 ? 'text-orange-600 dark:text-orange-400' : 'text-destructive',
+      bgColor: paymentSuccessRate >= 95 ? 'bg-emerald-50 dark:bg-emerald-950/20' : paymentSuccessRate >= 80 ? 'bg-orange-50 dark:bg-orange-950/20' : 'bg-destructive/10',
     },
   ];
 
@@ -269,14 +269,14 @@ function CurrentSubscriptionOverview({ subscription, locale, t }: { subscription
       <Card className="h-full flex flex-col">
         <CardContent className="p-8 text-center flex-1 flex items-center justify-center">
           <div>
-            <div className="mx-auto w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
-              <Package className="h-6 w-6 text-gray-400" />
+            <div className="mx-auto w-16 h-16 bg-muted rounded-full flex items-center justify-center mb-4">
+              <Package className="h-6 w-6 text-muted-foreground" />
             </div>
             <h3 className="text-lg font-semibold mb-2">{t('subscription.noActive')}</h3>
             <p className="text-muted-foreground mb-4">
-              You don't have an active subscription. Browse our plans to get started.
+              {t('billing.noActiveSubscription')}
             </p>
-            <Button>View Plans</Button>
+            <Button>{t('billing.viewPlans')}</Button>
           </div>
         </CardContent>
       </Card>
@@ -309,7 +309,7 @@ function CurrentSubscriptionOverview({ subscription, locale, t }: { subscription
           </div>
           <Button variant="outline" size="sm">
             <Settings className="h-4 w-4 me-2" />
-            Manage
+            {t('actions.manage')}
           </Button>
         </div>
       </CardHeader>
@@ -323,14 +323,14 @@ function CurrentSubscriptionOverview({ subscription, locale, t }: { subscription
             </div>
             {isActive && (
               <div className="text-end">
-                <p className="text-sm text-muted-foreground">Next billing</p>
+                <p className="text-sm text-muted-foreground">{t('billing.nextBilling')}</p>
                 <p className="font-medium">{nextBillingDate || 'TBD'}</p>
               </div>
             )}
           </div>
 
           <div>
-            <p className="text-sm text-muted-foreground mb-1">Started</p>
+            <p className="text-sm text-muted-foreground mb-1">{t('billing.started')}</p>
             <p className="font-medium">
               {new Date(subscription.startDate).toLocaleDateString(locale, {
                 month: 'short',
@@ -346,18 +346,18 @@ function CurrentSubscriptionOverview({ subscription, locale, t }: { subscription
 }
 
 // Recent payment history
-function RecentPaymentHistory({ payments, locale }: { payments: CustomerPayment[]; locale: string }) {
+function RecentPaymentHistory({ payments, locale, t }: { payments: CustomerPayment[]; locale: string; t: (key: string) => string }) {
   if (payments.length === 0) {
     return (
       <Card className="h-full flex flex-col">
         <CardHeader>
-          <CardTitle>Payment History</CardTitle>
-          <CardDescription>Your recent billing transactions</CardDescription>
+          <CardTitle>{t('billing.paymentHistory')}</CardTitle>
+          <CardDescription>{t('billing.recentTransactions')}</CardDescription>
         </CardHeader>
         <CardContent className="flex-1 flex items-center justify-center">
           <div className="text-center py-8">
-            <div className="mx-auto w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
-              <FileText className="h-6 w-6 text-gray-400" />
+            <div className="mx-auto w-16 h-16 bg-muted rounded-full flex items-center justify-center mb-4">
+              <FileText className="h-6 w-6 text-muted-foreground" />
             </div>
             <p className="text-muted-foreground">No payment history found</p>
           </div>
@@ -371,11 +371,11 @@ function RecentPaymentHistory({ payments, locale }: { payments: CustomerPayment[
       <CardHeader>
         <div className="flex items-center justify-between">
           <div>
-            <CardTitle>Payment History</CardTitle>
-            <CardDescription>Your recent billing transactions</CardDescription>
+            <CardTitle>{t('billing.paymentHistory')}</CardTitle>
+            <CardDescription>{t('billing.recentTransactions')}</CardDescription>
           </div>
           <Button variant="outline" size="sm">
-            View All
+            {t('actions.viewAll')}
           </Button>
         </div>
       </CardHeader>
@@ -384,8 +384,8 @@ function RecentPaymentHistory({ payments, locale }: { payments: CustomerPayment[
           {payments.slice(0, 5).map(payment => (
             <div key={payment.id} className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50 transition-colors">
               <div className="flex items-center gap-3 flex-1">
-                <div className="p-2 bg-blue-50 rounded-lg dark:bg-blue-900/30 shrink-0">
-                  <Package className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                <div className="p-2 bg-primary/10 rounded-lg shrink-0">
+                  <Package className="h-4 w-4 text-primary" />
                 </div>
                 <div className="flex-1">
                   <p className="font-medium text-sm truncate">{payment.productName}</p>
@@ -397,7 +397,7 @@ function RecentPaymentHistory({ payments, locale }: { payments: CustomerPayment[
                   </p>
                 </div>
               </div>
-              <div className="text-end shrink-0 ms-3 space-y-1">
+              <div className="text-end shrink-0 space-y-1 ms-3">
                 <p className="font-semibold text-sm">{formatTomanCurrency(payment.amount)}</p>
                 <PaymentStatusBadge status={payment.status} size="sm" />
               </div>
@@ -410,7 +410,7 @@ function RecentPaymentHistory({ payments, locale }: { payments: CustomerPayment[
 }
 
 // Payment methods summary
-function PaymentMethodsSummary({ paymentMethods }: { paymentMethods: CustomerPaymentMethod[] }) {
+function PaymentMethodsSummary({ paymentMethods, t }: { paymentMethods: CustomerPaymentMethod[]; t: (key: string) => string }) {
   const primaryMethod = paymentMethods.find(method => method.isPrimary);
   const activeMethodsCount = paymentMethods.filter(method => method.isActive).length;
 
@@ -419,12 +419,12 @@ function PaymentMethodsSummary({ paymentMethods }: { paymentMethods: CustomerPay
       <CardHeader>
         <div className="flex items-center justify-between">
           <div>
-            <CardTitle>Payment Methods</CardTitle>
-            <CardDescription>Manage your billing information</CardDescription>
+            <CardTitle>{t('billing.paymentMethods')}</CardTitle>
+            <CardDescription>{t('billing.manageBillingInfo')}</CardDescription>
           </div>
           <Button variant="outline" size="sm">
             <CreditCard className="h-4 w-4 me-2" />
-            Manage
+            {t('actions.manage')}
           </Button>
         </div>
       </CardHeader>
@@ -433,11 +433,11 @@ function PaymentMethodsSummary({ paymentMethods }: { paymentMethods: CustomerPay
           ? (
               <div className="text-center py-8 flex-1 flex items-center justify-center">
                 <div>
-                  <div className="mx-auto w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
-                    <CreditCard className="h-6 w-6 text-gray-400" />
+                  <div className="mx-auto w-16 h-16 bg-muted rounded-full flex items-center justify-center mb-4">
+                    <CreditCard className="h-6 w-6 text-muted-foreground" />
                   </div>
-                  <p className="text-muted-foreground mb-4">No payment methods added</p>
-                  <Button size="sm">Add Payment Method</Button>
+                  <p className="text-muted-foreground mb-4">{t('billing.noPaymentMethods')}</p>
+                  <Button size="sm">{t('actions.addPaymentMethod')}</Button>
                 </div>
               </div>
             )
@@ -446,15 +446,15 @@ function PaymentMethodsSummary({ paymentMethods }: { paymentMethods: CustomerPay
                 {primaryMethod && (
                   <div className="flex items-center justify-between p-3 bg-primary/5 border rounded-lg">
                     <div className="flex items-center gap-3 flex-1">
-                      <div className="p-2 bg-blue-50 rounded-lg dark:bg-blue-900/30 shrink-0">
-                        <Shield className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                      <div className="p-2 bg-primary/10 rounded-lg shrink-0">
+                        <Shield className="h-4 w-4 text-primary" />
                       </div>
                       <div className="flex-1">
                         <p className="font-medium text-sm truncate">{primaryMethod.contractDisplayName}</p>
-                        <p className="text-xs text-muted-foreground">Primary • Direct Debit</p>
+                        <p className="text-xs text-muted-foreground">{t('billing.primaryDirectDebit')}</p>
                       </div>
                     </div>
-                    <div className="text-xs text-primary shrink-0 ms-3">Default</div>
+                    <div className="text-xs text-primary shrink-0 ms-3">{t('billing.default')}</div>
                   </div>
                 )}
 
@@ -462,10 +462,9 @@ function PaymentMethodsSummary({ paymentMethods }: { paymentMethods: CustomerPay
                   <span className="text-xs">
                     {activeMethodsCount}
                     {' '}
-                    active method
-                    {activeMethodsCount !== 1 ? 's' : ''}
+                    {activeMethodsCount === 1 ? t('billing.activeMethod') : t('billing.activeMethods')}
                   </span>
-                  <Button variant="ghost" size="sm" className="text-xs h-8">View All</Button>
+                  <Button variant="ghost" size="sm" className="text-xs h-8">{t('actions.viewAll')}</Button>
                 </div>
               </div>
             )}
@@ -512,29 +511,29 @@ function UpcomingBillsSection({ subscription, t }: { subscription: CustomerSubsc
 function QuickActions({ subscription, t }: { subscription: CustomerSubscription | null; t: (key: string) => string }) {
   const actions = [
     {
-      label: 'Change Plan',
-      description: 'Upgrade or downgrade your subscription',
+      label: t('actions.changePlan'),
+      description: t('billing.changePlanDescription'),
       icon: Package,
       variant: 'default' as const,
       disabled: !subscription,
     },
     {
       label: t('actions.updatePayment'),
-      description: 'Manage your payment methods',
+      description: t('billing.updatePaymentDescription'),
       icon: CreditCard,
       variant: 'outline' as const,
       disabled: false,
     },
     {
       label: t('actions.downloadInvoice'),
-      description: 'Get your latest billing statements',
+      description: t('billing.downloadInvoiceDescription'),
       icon: Download,
       variant: 'outline' as const,
       disabled: false,
     },
     {
       label: t('actions.billingSettings'),
-      description: 'Configure your billing preferences',
+      description: t('billing.billingSettingsDescription'),
       icon: Settings,
       variant: 'outline' as const,
       disabled: false,
@@ -544,8 +543,8 @@ function QuickActions({ subscription, t }: { subscription: CustomerSubscription 
   return (
     <Card className="h-full flex flex-col">
       <CardHeader>
-        <CardTitle>Quick Actions</CardTitle>
-        <CardDescription>Common billing tasks</CardDescription>
+        <CardTitle>{t('billing.quickActions')}</CardTitle>
+        <CardDescription>{t('billing.commonBillingTasks')}</CardDescription>
       </CardHeader>
       <CardContent className="space-y-2 flex-1">
         {actions.map(action => (
@@ -596,8 +595,8 @@ export const CustomerBillingOverview = memo(({
   }
 
   return (
-    <FadeIn className={className}>
-      <DashboardSection spacing="default">
+    <FadeIn className={cn('w-full', className)}>
+      <DashboardSection spacing="default" className="w-full">
         {/* Billing Summary Cards - Using consistent spacing */}
         <BillingSummaryCards
           subscription={subscription}
@@ -610,16 +609,16 @@ export const CustomerBillingOverview = memo(({
         {/* Main Content Grid - Subscription Overview & Quick Actions */}
         <DashboardContentGrid
           layout="main-sidebar"
-          className="lg:grid-cols-[2fr_1fr]"
+          className="lg:grid-cols-[2fr_1fr] w-full"
         >
           <CurrentSubscriptionOverview subscription={subscription} locale={locale} t={t} />
           <QuickActions subscription={subscription} t={t} />
         </DashboardContentGrid>
 
         {/* Payment History, Methods, and Upcoming Bills */}
-        <DashboardThreeColumnGrid>
-          <RecentPaymentHistory payments={recentPayments} locale={locale} />
-          <PaymentMethodsSummary paymentMethods={paymentMethods} />
+        <DashboardThreeColumnGrid className="w-full">
+          <RecentPaymentHistory payments={recentPayments} locale={locale} t={t} />
+          <PaymentMethodsSummary paymentMethods={paymentMethods} t={t} />
           <UpcomingBillsSection subscription={subscription} t={t} />
         </DashboardThreeColumnGrid>
       </DashboardSection>

@@ -67,7 +67,7 @@ export function LoadingState({
       <FadeIn delay={0.05} className={className}>
         <div className="text-center py-12">
           <div className="flex items-center justify-center mb-4">
-            <LoadingSpinner className="h-8 w-8 mr-2" />
+            <LoadingSpinner className="h-8 w-8 me-2" />
             <span className="text-xl font-medium">{defaultTitle}</span>
           </div>
           <p className="text-muted-foreground">{defaultMessage}</p>
@@ -143,14 +143,14 @@ export function ErrorState({
       title: t('status.warning'),
       description: t('states.error.description'),
       alertVariant: 'default' as const,
-      iconColor: 'text-yellow-600'
+      iconColor: 'text-yellow-600 dark:text-yellow-400'
     },
     info: {
       icon: Info,
       title: t('status.info'),
       description: t('states.error.description'),
       alertVariant: 'default' as const,
-      iconColor: 'text-blue-600'
+      iconColor: 'text-primary'
     }
   };
 
@@ -174,7 +174,7 @@ export function ErrorState({
               {onRetry && (
                 <Button
                   variant="link"
-                  className="h-auto p-0 ml-1 text-inherit underline"
+                  className="h-auto p-0 ms-1 text-inherit underline"
                   onClick={onRetry}
                 >
                   {defaultRetryLabel}
@@ -200,7 +200,7 @@ export function ErrorState({
           {onRetry && (
             <Button
               variant="link"
-              className="h-auto p-0 ml-2 text-inherit underline"
+              className="h-auto p-0 ms-2 text-inherit underline"
               onClick={onRetry}
             >
               {defaultRetryLabel}
@@ -420,15 +420,15 @@ export function SuccessState({
 }: SuccessStateProps) {
   if (variant === 'card') {
     return (
-      <Card className={cn("border-green-200 bg-green-50/50 dark:border-green-800 dark:bg-green-900/10", className)}>
+      <Card className={cn("border-emerald-200 bg-emerald-50/50 dark:border-emerald-800 dark:bg-emerald-900/10", className)}>
         <CardContent className="text-center py-8 space-y-4">
-          <div className="w-16 h-16 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center mx-auto">
-            <CheckCircle className="h-8 w-8 text-green-600" />
+          <div className="w-16 h-16 bg-emerald-50 dark:bg-emerald-950/20 rounded-full flex items-center justify-center mx-auto">
+            <CheckCircle className="h-8 w-8 text-emerald-600 dark:text-emerald-400" />
           </div>
           <div className="space-y-2">
-            <h3 className="text-lg font-semibold text-green-800 dark:text-green-400">{title}</h3>
+            <h3 className="text-lg font-semibold text-emerald-800 dark:text-emerald-400">{title}</h3>
             {description && (
-              <p className="text-green-700 dark:text-green-300">{description}</p>
+              <p className="text-emerald-700 dark:text-emerald-300">{description}</p>
             )}
           </div>
           {action && <div className="pt-2">{action}</div>}
@@ -438,11 +438,11 @@ export function SuccessState({
   }
 
   return (
-    <Alert className={cn("border-green-200 bg-green-50/50 dark:border-green-800 dark:bg-green-900/10", className)}>
-      <CheckCircle className="h-4 w-4 text-green-600" />
-      <AlertTitle className="text-green-800 dark:text-green-400">{title}</AlertTitle>
+    <Alert className={cn("border-emerald-200 bg-emerald-50/50 dark:border-emerald-800 dark:bg-emerald-900/10", className)}>
+      <CheckCircle className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+      <AlertTitle className="text-emerald-800 dark:text-emerald-400">{title}</AlertTitle>
       {description && (
-        <AlertDescription className="text-green-700 dark:text-green-300">
+        <AlertDescription className="text-emerald-700 dark:text-emerald-300">
           {description}
         </AlertDescription>
       )}

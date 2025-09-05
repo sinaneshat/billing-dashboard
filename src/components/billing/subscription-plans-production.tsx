@@ -89,14 +89,14 @@ export function ProductionSubscriptionPlans() {
       });
 
       if (result.success) {
-        toast({ title: 'Your subscription has been created successfully!' });
+        toast({ title: t('subscription.createSuccess') });
         window.location.href = '/dashboard/billing';
       } else {
-        toast({ title: 'Failed to create subscription' });
+        toast({ title: t('subscription.createFailed') });
         setActiveTab('payment');
       }
     } catch (error) {
-      toast({ title: 'Failed to create subscription' });
+      toast({ title: t('subscription.createFailed') });
       console.error('Paid subscription error:', error);
     }
   };
@@ -106,13 +106,13 @@ export function ProductionSubscriptionPlans() {
     return (
       <>
         <DashboardPageHeader
-          title="Subscription Plans"
-          description="Choose the perfect plan for your needs"
+          title={t('plans.subscriptionPlans')}
+          description={t('plans.choosePerfectPlan')}
         />
         <DashboardSection delay={0.1}>
           <ErrorState
-            title="Failed to load plans"
-            description="There was an error loading subscription plans. Please try again."
+            title={t('plans.failedToLoad')}
+            description={t('plans.errorDescription')}
             onRetry={() => window.location.reload()}
           />
         </DashboardSection>
@@ -124,14 +124,14 @@ export function ProductionSubscriptionPlans() {
     return (
       <>
         <DashboardPageHeader
-          title="Subscription Plans"
-          description="Choose the perfect plan for your needs"
+          title={t('plans.subscriptionPlans')}
+          description={t('plans.choosePerfectPlan')}
         />
         <DashboardSection delay={0.1}>
           <div className="text-center py-12">
             <div className="flex items-center justify-center">
               <LoadingSpinner className="h-8 w-8 me-2" />
-              <span className="text-xl">Loading subscription plans...</span>
+              <span className="text-xl">{t('plans.loadingMessage')}</span>
             </div>
           </div>
         </DashboardSection>
@@ -143,8 +143,8 @@ export function ProductionSubscriptionPlans() {
     return (
       <>
         <DashboardPageHeader
-          title="Subscription Plans"
-          description="Choose the perfect plan for your needs"
+          title={t('plans.subscriptionPlans')}
+          description={t('plans.choosePerfectPlan')}
         />
         <DashboardSection delay={0.1}>
           <EmptyState
@@ -163,8 +163,8 @@ export function ProductionSubscriptionPlans() {
   return (
     <>
       <DashboardPageHeader
-        title="Subscription Plans"
-        description="Choose the perfect plan for your needs"
+        title={t('plans.subscriptionPlans')}
+        description={t('plans.choosePerfectPlan')}
       />
 
       <DashboardSection delay={0.1}>
@@ -172,13 +172,13 @@ export function ProductionSubscriptionPlans() {
           <div className="flex justify-center">
             <TabsList className="grid w-full max-w-md grid-cols-3">
               <TabsTrigger value="plans" className="flex items-center gap-2">
-                Plans
+                {t('plans.plans')}
               </TabsTrigger>
               <TabsTrigger value="payment" disabled={!selectedProductId} className="flex items-center gap-2">
-                Payment
+                {t('plans.payment')}
               </TabsTrigger>
               <TabsTrigger value="confirmation" disabled={!contractId} className="flex items-center gap-2">
-                Confirm
+                {t('plans.confirm')}
               </TabsTrigger>
             </TabsList>
           </div>
@@ -186,7 +186,7 @@ export function ProductionSubscriptionPlans() {
           <TabsContent value="plans" className="space-y-6">
             <div className="text-center mb-8">
               <p className="text-muted-foreground">
-                All prices calculated with live exchange rates
+                {t('plans.liveRatesNote')}
               </p>
             </div>
 
@@ -202,7 +202,7 @@ export function ProductionSubscriptionPlans() {
               <div className="space-y-6">
                 <Card>
                   <CardHeader>
-                    <CardTitle>Confirm Selected Plan</CardTitle>
+                    <CardTitle>{t('plans.confirmSelectedPlan')}</CardTitle>
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-4">
@@ -213,7 +213,7 @@ export function ProductionSubscriptionPlans() {
                             {formatTomanCurrency(selectedProduct.price)}
                           </div>
                           <div className="text-sm text-muted-foreground">
-                            per month
+                            {t('plans.perMonth')}
                           </div>
                         </div>
                       </div>
@@ -233,9 +233,9 @@ export function ProductionSubscriptionPlans() {
 
           <TabsContent value="confirmation" className="space-y-6">
             <DashboardSuccess
-              title="Congratulations!"
-              description="Your subscription has been activated successfully."
-              actionText="Go to Dashboard"
+              title={t('plans.congratulations')}
+              description={t('plans.subscriptionActivated')}
+              actionText={t('plans.goToDashboard')}
               actionHref="/dashboard"
             />
           </TabsContent>

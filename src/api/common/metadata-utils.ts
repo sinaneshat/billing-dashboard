@@ -3,24 +3,70 @@
  * Learned from shakewell patterns but improved with stricter type safety
  */
 
+import { z } from 'zod';
+
 import type { PlanChangeHistoryItem } from '@/db/validation';
+
+/**
+ * Discriminated union for metadata types (Context7 Pattern)
+ * Maximum type safety replacing Record<string, unknown>
+ */
+export const MetadataSchema = z.discriminatedUnion('type', [
+  z.object({
+    type: z.literal('subscription'),
+    planChangeHistory: z.array(z.object({
+      fromProductId: z.string(),
+      toProductId: z.string(),
+      fromPrice: z.number(),
+      toPrice: z.number(),
+      changedAt: z.string().datetime(),
+      effectiveDate: z.string().datetime(),
+    })).optional(),
+    autoRenewal: z.boolean().optional(),
+    trialEnd: z.string().datetime().optional(),
+  }),
+  z.object({
+    type: z.literal('payment'),
+    paymentMethod: z.enum(['card', 'bank_transfer', 'wallet']).optional(),
+    processingFee: z.number().nonnegative().optional(),
+    gatewayMetadata: z.record(z.string(), z.string()).optional(),
+  }),
+  z.object({
+    type: z.literal('product'),
+    features: z.array(z.string()).optional(),
+    category: z.string().optional(),
+    tags: z.array(z.string()).optional(),
+  }),
+  z.object({
+    type: z.literal('user'),
+    preferences: z.record(z.string(), z.union([z.string(), z.number(), z.boolean()])).optional(),
+    lastActivity: z.string().datetime().optional(),
+  }),
+  z.object({
+    type: z.literal('generic'),
+    data: z.record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null()])),
+  }),
+]);
+
+export type TypedMetadata = z.infer<typeof MetadataSchema>;
 
 /**
  * Type guard to check if value is a valid metadata object
  */
-export function isValidMetadata(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === 'object' && !Array.isArray(value);
+export function isValidMetadata(value: unknown): value is TypedMetadata {
+  return MetadataSchema.safeParse(value).success;
 }
 
 /**
- * Safely parse metadata with fallback and type inference
+ * Safely parse metadata with fallback and type validation
  * Better than casting - provides runtime safety
  */
-export function parseMetadata<T extends Record<string, unknown> = Record<string, unknown>>(
+export function parseMetadata<T extends TypedMetadata = TypedMetadata>(
   metadata: unknown,
-  fallback: T = {} as T,
+  fallback: T = { type: 'generic', data: {} } as T,
 ): T {
-  return isValidMetadata(metadata) ? metadata as T : fallback;
+  const result = MetadataSchema.safeParse(metadata);
+  return result.success ? result.data as T : fallback;
 }
 
 /**
@@ -49,25 +95,28 @@ export function parsePlanChangeHistory(metadata: unknown): PlanChangeHistoryItem
 }
 
 /**
- * Merge metadata objects safely
+ * Merge metadata objects safely using Zod validation
  * Better than spreading with casting
  */
-export function mergeMetadata<T extends Record<string, unknown>>(
+export function mergeMetadata<T extends TypedMetadata>(
   existing: unknown,
-  updates: T,
+  updates: Partial<T>,
 ): T {
-  const existingMeta = parseMetadata(existing);
-  return { ...existingMeta, ...updates } as T;
+  const existingMeta = parseMetadata<T>(existing);
+  const merged = { ...existingMeta, ...updates };
+  const validation = MetadataSchema.safeParse(merged);
+  return validation.success ? validation.data as T : existingMeta;
 }
 
 /**
- * Update specific metadata field safely
+ * Update specific metadata field safely with validation
  */
-export function updateMetadataField<T extends Record<string, unknown>>(
+export function updateMetadataField<T extends TypedMetadata>(
   metadata: unknown,
-  field: keyof T,
-  value: T[keyof T],
+  updates: Partial<T>,
 ): T {
-  const parsed = parseMetadata(metadata) as T;
-  return { ...parsed, [field]: value };
+  const parsed = parseMetadata<T>(metadata);
+  const updated = { ...parsed, ...updates };
+  const validation = MetadataSchema.safeParse(updated);
+  return validation.success ? validation.data as T : parsed;
 }

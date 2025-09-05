@@ -78,7 +78,7 @@ function CompactProductCard({
     >
       {/* Most Popular Badge */}
       {isPopular && (
-        <div className="absolute -top-3 left-1/2 -translate-x-1/2 z-10">
+        <div className="absolute -top-3 start-1/2 -translate-x-1/2 z-10">
           <Badge variant="default" className="bg-primary text-primary-foreground px-3 py-1">
             {metadata?.badgeText || t('plans.mostPopular')}
           </Badge>

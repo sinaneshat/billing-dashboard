@@ -1,5 +1,7 @@
 'use client';
 
+import { useTranslations } from 'next-intl';
+
 import { SubscriptionCards } from '@/components/billing/subscription-cards';
 import { DashboardPageHeader } from '@/components/ui/dashboard-header';
 import { DashboardPage, DashboardSection } from '@/components/ui/dashboard-states';
@@ -7,6 +9,7 @@ import { useSubscriptionsQuery } from '@/hooks/queries/subscriptions';
 import { useQueryUIState } from '@/hooks/utils/query-helpers';
 
 export default function SubscriptionManagementScreen() {
+  const t = useTranslations();
   const subscriptionsQuery = useSubscriptionsQuery();
   const queryUI = useQueryUIState(subscriptionsQuery);
 
@@ -17,8 +20,8 @@ export default function SubscriptionManagementScreen() {
   return (
     <DashboardPage>
       <DashboardPageHeader
-        title="Subscriptions"
-        description="Manage your active and past subscriptions"
+        title={t('billing.subscriptionsTitle')}
+        description={t('billing.subscriptionsDescription')}
       />
 
       <DashboardSection delay={0.1}>

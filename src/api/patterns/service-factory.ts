@@ -163,7 +163,11 @@ export abstract class BaseService<TConfig extends ServiceConfig> {
         operationName,
       });
 
-      throw this.handleError(error, operationName, { url: fullUrl });
+      throw this.handleError(error, operationName, {
+        errorType: 'external_service' as const,
+        serviceName: this.config.serviceName,
+        endpoint: fullUrl,
+      });
     }
   }
 
@@ -299,7 +303,7 @@ export abstract class BaseService<TConfig extends ServiceConfig> {
   protected handleError(
     error: unknown,
     operationName: string,
-    context?: Record<string, unknown>,
+    context?: import('@/api/core').ErrorContext,
   ): ExternalServiceError {
     if (error instanceof HTTPException) {
       throw error;

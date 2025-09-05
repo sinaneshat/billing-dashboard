@@ -9,7 +9,7 @@ import {
 import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useLocale, useTranslations } from 'next-intl';
+import { useTranslations } from 'next-intl';
 
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
@@ -43,7 +43,6 @@ import {
 import { BRAND } from '@/constants/brand';
 import { useCurrentSubscriptionQuery } from '@/hooks/queries/subscriptions';
 import { signOut, useSession } from '@/lib/auth/client';
-import { getRTLUtils } from '@/lib/rtl';
 
 // Navigation structure function to enable translations
 function getNavigation(t: ReturnType<typeof useTranslations>) {
@@ -93,8 +92,6 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const { data: currentSubscription } = useCurrentSubscriptionQuery();
   const { isMobile } = useSidebar();
   const t = useTranslations();
-  const locale = useLocale();
-  const { isRTL, createClass } = getRTLUtils(locale);
 
   const navigation = getNavigation(t);
 
@@ -110,7 +107,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   };
 
   return (
-    <Sidebar collapsible="icon" {...props}>
+    <Sidebar collapsible="icon" side="start" {...props}>
       <SidebarHeader>
         <SidebarMenu>
           <SidebarMenuItem>
@@ -165,11 +162,11 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                             <item.icon />
                             <span>{item.title}</span>
                             {showBadge && (
-                              <Badge variant="secondary" className={createClass('ms-2')}>
+                              <Badge variant="secondary" className="ms-2">
                                 {t('status.active')}
                               </Badge>
                             )}
-                            <ChevronRight className={createClass('ms-auto transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90')} style={{ transform: isRTL ? 'rotate(180deg)' : 'none' }} />
+                            <ChevronRight className="ms-auto transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90 rtl:scale-x-[-1]" />
                           </SidebarMenuButton>
                         </CollapsibleTrigger>
                         <CollapsibleContent>
@@ -207,7 +204,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                         <item.icon />
                         <span>{item.title}</span>
                         {showBadge && (
-                          <Badge variant="secondary" className={createClass('ms-auto')}>
+                          <Badge variant="secondary" className="ms-auto">
                             {t('status.active')}
                           </Badge>
                         )}

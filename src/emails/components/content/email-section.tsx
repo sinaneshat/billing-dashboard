@@ -15,9 +15,9 @@ const spacingStyles = {
 };
 
 const alignStyles = {
-  left: 'text-left',
+  left: 'text-start',
   center: 'text-center',
-  right: 'text-right',
+  right: 'text-end',
 };
 
 export function EmailSection({

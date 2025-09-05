@@ -1,6 +1,7 @@
 'use client';
 
 import { BanknoteIcon, Building2, CheckCircle, CreditCard, Shield } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { useState } from 'react';
 
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -48,6 +49,7 @@ export function DirectDebitContractSetup({
   onSuccess,
   className,
 }: DirectDebitContractSetupProps) {
+  const t = useTranslations();
   const [open, setOpen] = useState(false);
   const [mobile, setMobile] = useState('');
   const [ssn, setSsn] = useState('');
@@ -72,7 +74,7 @@ export function DirectDebitContractSetup({
 
   const handleInitiateContract = async () => {
     if (!mobile.trim()) {
-      showErrorToast('Mobile number is required');
+      showErrorToast(t('directDebit.validation.mobileRequired'));
       return;
     }
 
@@ -80,7 +82,7 @@ export function DirectDebitContractSetup({
     const cleanMobile = mobile.replace(/\s/g, '');
     const mobileRegex = /^(?:\+98|0)?9\d{9}$/;
     if (!mobileRegex.test(cleanMobile)) {
-      showErrorToast('Please enter a valid Iranian mobile number (09xxxxxxxxx)');
+      showErrorToast(t('directDebit.validation.invalidMobile'));
       return;
     }
 
@@ -106,7 +108,7 @@ export function DirectDebitContractSetup({
         // Call success handler with contract ID
         handleContractSuccess(result.data.contractId);
       } else {
-        showErrorToast('Failed to initiate direct debit contract', {
+        showErrorToast(t('directDebit.validation.contractInitiateFailed'), {
           component: 'direct-debit-setup',
           actionType: 'contract-initiation',
         });
@@ -120,13 +122,13 @@ export function DirectDebitContractSetup({
 
   const handleBankSelection = () => {
     if (!selectedBankCode || !contractResult) {
-      showErrorToast('Please select a bank');
+      showErrorToast(t('directDebit.validation.selectBank'));
       return;
     }
 
     const selectedBank = contractResult.banks.find(b => b.bankCode === selectedBankCode);
     if (!selectedBank) {
-      showErrorToast('Invalid bank selection');
+      showErrorToast(t('directDebit.validation.invalidBank'));
       return;
     }
 
@@ -215,7 +217,7 @@ export function DirectDebitContractSetup({
                   id="mobile"
                   value={mobile}
                   onChange={handleMobileChange}
-                  placeholder="0912 123 4567"
+                  placeholder={t('directDebit.placeholders.mobile')}
                   maxLength={13} // Formatted length
                 />
                 <p className="text-sm text-muted-foreground mt-1">
@@ -229,7 +231,7 @@ export function DirectDebitContractSetup({
                   id="ssn"
                   value={ssn}
                   onChange={e => setSsn(e.target.value.replace(/\D/g, '').slice(0, 10))}
-                  placeholder="1234567890"
+                  placeholder={t('directDebit.placeholders.nationalId')}
                   maxLength={10}
                 />
                 <p className="text-sm text-muted-foreground mt-1">
@@ -298,7 +300,7 @@ export function DirectDebitContractSetup({
               <Label htmlFor="bank-select">Select Your Bank</Label>
               <Select value={selectedBankCode} onValueChange={setSelectedBankCode}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Choose your bank..." />
+                  <SelectValue placeholder={t('directDebit.placeholders.chooseBank')} />
                 </SelectTrigger>
                 <SelectContent>
                   {contractResult.banks.map(bank => (

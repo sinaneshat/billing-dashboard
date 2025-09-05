@@ -14,6 +14,7 @@
  * - Query optimization
  */
 
+import { z } from '@hono/zod-openapi';
 import type { SQL } from 'drizzle-orm';
 import { and, asc, desc, eq, getTableColumns, gt, gte, isNotNull, isNull, like, lt, lte, or } from 'drizzle-orm';
 import type { SQLiteTable, TableConfig } from 'drizzle-orm/sqlite-core';
@@ -24,6 +25,122 @@ import { db } from '@/db';
 
 // Transaction type from Drizzle ORM following official patterns
 type DrizzleTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+// =============================================================================
+// ZOD VALIDATION SCHEMAS (Context7 Best Practices)
+// =============================================================================
+
+/**
+ * Discriminated union for database operation results (replaces Record<string, unknown>)
+ * Following Zod best practices from Context7 documentation
+ */
+export const DatabaseOperationResultSchema = z.discriminatedUnion('operation', [
+  z.object({
+    operation: z.literal('select'),
+    success: z.boolean(),
+    data: z.unknown(),
+    rowCount: z.number().nonnegative().optional(),
+  }),
+  z.object({
+    operation: z.literal('insert'),
+    success: z.boolean(),
+    data: z.unknown(),
+    insertedId: z.string().optional(),
+  }),
+  z.object({
+    operation: z.literal('update'),
+    success: z.boolean(),
+    data: z.unknown(),
+    affectedRows: z.number().nonnegative().optional(),
+  }),
+  z.object({
+    operation: z.literal('delete'),
+    success: z.boolean(),
+    affectedRows: z.number().nonnegative().optional(),
+  }),
+]);
+
+export type DatabaseOperationResult = z.infer<typeof DatabaseOperationResultSchema>;
+
+/**
+ * Discriminated union for audit field operations (replaces Record<string, unknown>)
+ */
+export const AuditFieldDataSchema = z.discriminatedUnion('auditType', [
+  z.object({
+    auditType: z.literal('create'),
+    createdAt: z.date(),
+    updatedAt: z.date(),
+    createdBy: z.string().optional(),
+    updatedBy: z.string().optional(),
+  }),
+  z.object({
+    auditType: z.literal('update'),
+    updatedAt: z.date(),
+    updatedBy: z.string().optional(),
+  }),
+  z.object({
+    auditType: z.literal('delete'),
+    deletedAt: z.date(),
+    updatedAt: z.date(),
+    updatedBy: z.string().optional(),
+    deletedBy: z.string().optional(),
+  }),
+  z.object({
+    auditType: z.literal('restore'),
+    deletedAt: z.null(),
+    updatedAt: z.date(),
+    updatedBy: z.string().optional(),
+  }),
+]);
+
+export type AuditFieldData = z.infer<typeof AuditFieldDataSchema>;
+
+/**
+ * Generic function to safely parse database query results
+ * Eliminates need for 'as Type' casting
+ */
+export function parseQueryResult<T>(result: unknown[], schema?: z.ZodSchema<T>): T[] {
+  if (!schema) {
+    return result as T[];
+  }
+
+  return result.map((row) => {
+    const parseResult = schema.safeParse(row);
+    if (!parseResult.success) {
+      apiLogger.warn('Query result validation failed', {
+        validationErrors: parseResult.error.issues,
+        data: row,
+      });
+      // Return the raw data as fallback but log the issue
+      return row as T;
+    }
+    return parseResult.data;
+  });
+}
+
+/**
+ * Generic function to safely parse single database query result
+ */
+export function parseSingleResult<T>(result: unknown, schema?: z.ZodSchema<T>): T | null {
+  if (!result) {
+    return null;
+  }
+
+  if (!schema) {
+    return result as T;
+  }
+
+  const parseResult = schema.safeParse(result);
+  if (!parseResult.success) {
+    apiLogger.warn('Single result validation failed', {
+      validationErrors: parseResult.error.issues,
+      data: result,
+    });
+    // Return the raw data as fallback but log the issue
+    return result as T;
+  }
+  return parseResult.data;
+}
 
 // ============================================================================
 // TYPE DEFINITIONS
@@ -74,11 +191,22 @@ export abstract class BaseRepository<
   TUpdate extends Record<string, unknown> = Partial<TInsert>,
 > {
   protected readonly config: RepositoryConfig;
+  protected readonly selectSchema?: z.ZodSchema<TSelect>;
+  protected readonly insertSchema?: z.ZodSchema<TInsert>;
+  protected readonly updateSchema?: z.ZodSchema<TUpdate>;
 
   constructor(
     protected readonly table: TTable,
     config: Partial<RepositoryConfig> = {},
+    schemas: {
+      select?: z.ZodSchema<TSelect>;
+      insert?: z.ZodSchema<TInsert>;
+      update?: z.ZodSchema<TUpdate>;
+    } = {},
   ) {
+    this.selectSchema = schemas.select;
+    this.insertSchema = schemas.insert;
+    this.updateSchema = schemas.update;
     this.config = {
       tableName: 'unknown',
       primaryKey: 'id',
@@ -123,7 +251,7 @@ export abstract class BaseRepository<
         .where(and(...conditions))
         .limit(1);
 
-      return (result[0] as TSelect) ?? null;
+      return parseSingleResult(result[0], this.selectSchema);
     } catch (error) {
       apiLogger.error('Repository findById failed', {
         table: this.config.tableName,
@@ -132,7 +260,11 @@ export abstract class BaseRepository<
       });
       throw createError.database(
         `Failed to find ${this.config.tableName} by ID`,
-        { table: this.config.tableName, id },
+        {
+          errorType: 'database' as const,
+          operation: 'select' as const,
+          table: this.config.tableName,
+        },
       );
     }
   }
@@ -174,7 +306,11 @@ export abstract class BaseRepository<
       });
       throw createError.database(
         `Failed to find ${this.config.tableName} by user ID`,
-        { table: this.config.tableName, userId },
+        {
+          errorType: 'database' as const,
+          operation: 'select' as const,
+          table: this.config.tableName,
+        },
       );
     }
   }
@@ -207,7 +343,11 @@ export abstract class BaseRepository<
       });
       throw createError.database(
         `Failed to find ${this.config.tableName} records`,
-        { table: this.config.tableName },
+        {
+          errorType: 'database' as const,
+          operation: 'select' as const,
+          table: this.config.tableName,
+        },
       );
     }
   }
@@ -222,21 +362,35 @@ export abstract class BaseRepository<
     const { tx = db, userId } = options;
 
     try {
-      const insertData = { ...data } as Record<string, unknown>;
+      // Create audit fields data using discriminated union
+      const auditData: AuditFieldData = this.config.hasAuditFields
+        ? {
+            auditType: 'create',
+            createdAt: new Date(),
+            updatedAt: new Date(),
+            ...(userId && { createdBy: userId, updatedBy: userId }),
+          }
+        : { auditType: 'create', createdAt: new Date(), updatedAt: new Date() };
 
-      // Add audit fields if supported
-      if (this.config.hasAuditFields) {
-        insertData.createdAt = new Date();
-        insertData.updatedAt = new Date();
-        if (userId) {
-          insertData.createdBy = userId;
-          insertData.updatedBy = userId;
-        }
-      }
+      // Combine data with audit fields using proper type merging
+      const insertData = {
+        ...data,
+        ...(this.config.hasAuditFields && {
+          createdAt: auditData.createdAt,
+          updatedAt: auditData.updatedAt,
+          ...(auditData.createdBy && { createdBy: auditData.createdBy }),
+          ...(auditData.updatedBy && { updatedBy: auditData.updatedBy }),
+        }),
+      };
+
+      // Validate insert data if schema is provided
+      const validatedData = this.insertSchema
+        ? this.insertSchema.parse(insertData)
+        : insertData;
 
       const result = await tx
         .insert(this.table)
-        .values(insertData as TInsert)
+        .values(validatedData as TInsert)
         .returning();
 
       if (!result[0]) {
@@ -248,7 +402,7 @@ export abstract class BaseRepository<
         id: result[0][this.config.primaryKey],
       });
 
-      return result[0] as TSelect;
+      return parseSingleResult(result[0], this.selectSchema) as TSelect;
     } catch (error) {
       apiLogger.error('Repository create failed', {
         table: this.config.tableName,
@@ -257,7 +411,11 @@ export abstract class BaseRepository<
       });
       throw createError.database(
         `Failed to create ${this.config.tableName}`,
-        { table: this.config.tableName, data },
+        {
+          errorType: 'database' as const,
+          operation: 'insert' as const,
+          table: this.config.tableName,
+        },
       );
     }
   }
@@ -273,15 +431,28 @@ export abstract class BaseRepository<
     const { tx = db, userId } = options;
 
     try {
-      const updateData = { ...data } as Record<string, unknown>;
+      // Create audit fields data using discriminated union
+      const auditData: AuditFieldData = this.config.hasAuditFields
+        ? {
+            auditType: 'update',
+            updatedAt: new Date(),
+            ...(userId && { updatedBy: userId }),
+          }
+        : { auditType: 'update', updatedAt: new Date() };
 
-      // Add audit fields if supported
-      if (this.config.hasAuditFields) {
-        updateData.updatedAt = new Date();
-        if (userId) {
-          updateData.updatedBy = userId;
-        }
-      }
+      // Combine data with audit fields using proper type merging
+      const updateData = {
+        ...data,
+        ...(this.config.hasAuditFields && {
+          updatedAt: auditData.updatedAt,
+          ...(auditData.updatedBy && { updatedBy: auditData.updatedBy }),
+        }),
+      };
+
+      // Validate update data if schema is provided
+      const validatedData = this.updateSchema
+        ? this.updateSchema.parse(updateData)
+        : updateData;
 
       const tableColumns = getTableColumns(this.table);
       const primaryKeyColumn = tableColumns[this.config.primaryKey];
@@ -299,12 +470,16 @@ export abstract class BaseRepository<
 
       const result = await tx
         .update(this.table)
-        .set(updateData)
+        .set(validatedData)
         .where(and(...conditions))
         .returning();
 
       if (!result[0]) {
-        throw createError.notFound(`${this.config.tableName} record`, { id });
+        throw createError.notFound(`${this.config.tableName} record`, {
+          errorType: 'database' as const,
+          operation: 'update' as const,
+          table: this.config.tableName,
+        });
       }
 
       apiLogger.info('Repository update succeeded', {
@@ -312,7 +487,7 @@ export abstract class BaseRepository<
         id,
       });
 
-      return result[0] as TSelect;
+      return parseSingleResult(result[0], this.selectSchema) as TSelect;
     } catch (error) {
       apiLogger.error('Repository update failed', {
         table: this.config.tableName,
@@ -327,7 +502,11 @@ export abstract class BaseRepository<
 
       throw createError.database(
         `Failed to update ${this.config.tableName}`,
-        { table: this.config.tableName, id, data },
+        {
+          errorType: 'database' as const,
+          operation: 'update' as const,
+          table: this.config.tableName,
+        },
       );
     }
   }
@@ -343,16 +522,22 @@ export abstract class BaseRepository<
 
     try {
       if (this.config.hasSoftDelete && !hard) {
-        // Soft delete
-        const updateData: Record<string, unknown> = {
+        // Soft delete using discriminated union
+        const auditData: AuditFieldData = {
+          auditType: 'delete',
           deletedAt: new Date(),
+          updatedAt: new Date(),
+          ...(userId && { updatedBy: userId, deletedBy: userId }),
         };
 
-        if (this.config.hasAuditFields && userId) {
-          updateData.updatedAt = new Date();
-          updateData.updatedBy = userId;
-          updateData.deletedBy = userId;
-        }
+        const updateData = {
+          deletedAt: auditData.deletedAt,
+          ...(this.config.hasAuditFields && {
+            updatedAt: auditData.updatedAt,
+            ...(auditData.updatedBy && { updatedBy: auditData.updatedBy }),
+            ...(auditData.deletedBy && { deletedBy: auditData.deletedBy }),
+          }),
+        };
 
         const tableColumns = getTableColumns(this.table);
         const primaryKeyColumn = tableColumns[this.config.primaryKey];
@@ -373,7 +558,11 @@ export abstract class BaseRepository<
           .returning();
 
         if (!result[0]) {
-          throw createError.notFound(`${this.config.tableName} record`, { id });
+          throw createError.notFound(`${this.config.tableName} record`, {
+            errorType: 'database' as const,
+            operation: 'update' as const,
+            table: this.config.tableName,
+          });
         }
       } else {
         // Hard delete
@@ -389,7 +578,11 @@ export abstract class BaseRepository<
           .returning();
 
         if (!result[0]) {
-          throw createError.notFound(`${this.config.tableName} record`, { id });
+          throw createError.notFound(`${this.config.tableName} record`, {
+            errorType: 'database' as const,
+            operation: 'delete' as const,
+            table: this.config.tableName,
+          });
         }
       }
 
@@ -412,7 +605,11 @@ export abstract class BaseRepository<
 
       throw createError.database(
         `Failed to delete ${this.config.tableName}`,
-        { table: this.config.tableName, id },
+        {
+          errorType: 'database' as const,
+          operation: 'delete' as const,
+          table: this.config.tableName,
+        },
       );
     }
   }
@@ -431,16 +628,21 @@ export abstract class BaseRepository<
     const { tx = db, userId } = options;
 
     try {
-      const updateData: Record<string, unknown> = {
+      // Restore using discriminated union
+      const auditData: AuditFieldData = {
+        auditType: 'restore',
         deletedAt: null,
+        updatedAt: new Date(),
+        ...(userId && { updatedBy: userId }),
       };
 
-      if (this.config.hasAuditFields) {
-        updateData.updatedAt = new Date();
-        if (userId) {
-          updateData.updatedBy = userId;
-        }
-      }
+      const updateData = {
+        deletedAt: auditData.deletedAt,
+        ...(this.config.hasAuditFields && {
+          updatedAt: auditData.updatedAt,
+          ...(auditData.updatedBy && { updatedBy: auditData.updatedBy }),
+        }),
+      };
 
       const tableColumns = getTableColumns(this.table);
       const primaryKeyColumn = tableColumns[this.config.primaryKey];
@@ -461,7 +663,11 @@ export abstract class BaseRepository<
         .returning();
 
       if (!result[0]) {
-        throw createError.notFound(`Deleted ${this.config.tableName} record`, { id });
+        throw createError.notFound(`Deleted ${this.config.tableName} record`, {
+          errorType: 'database' as const,
+          operation: 'update' as const,
+          table: this.config.tableName,
+        });
       }
 
       apiLogger.info('Repository restore succeeded', {
@@ -469,7 +675,7 @@ export abstract class BaseRepository<
         id,
       });
 
-      return result[0] as TSelect;
+      return parseSingleResult(result[0], this.selectSchema) as TSelect;
     } catch (error) {
       apiLogger.error('Repository restore failed', {
         table: this.config.tableName,
@@ -483,7 +689,11 @@ export abstract class BaseRepository<
 
       throw createError.database(
         `Failed to restore ${this.config.tableName}`,
-        { table: this.config.tableName, id },
+        {
+          errorType: 'database' as const,
+          operation: 'update' as const,
+          table: this.config.tableName,
+        },
       );
     }
   }
@@ -556,7 +766,8 @@ export abstract class BaseRepository<
       query = query.limit(pagination.limit).offset(offset) as typeof query;
     }
 
-    const items = await query as TSelect[];
+    const queryResult = await query;
+    const items = parseQueryResult(queryResult, this.selectSchema);
 
     return { items, total };
   }
@@ -672,7 +883,11 @@ export abstract class BaseRepository<
       });
       throw createError.database(
         `Failed to count ${this.config.tableName} records`,
-        { table: this.config.tableName },
+        {
+          errorType: 'database' as const,
+          operation: 'select' as const,
+          table: this.config.tableName,
+        },
       );
     }
   }

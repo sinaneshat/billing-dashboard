@@ -9,8 +9,7 @@
 import type { RouteHandler } from '@hono/zod-openapi';
 
 import { createError } from '@/api/common/error-handling';
-import { ok } from '@/api/common/responses';
-import { createHandler, createHandlerWithTransaction } from '@/api/patterns/route-handler-factory';
+import { createHandler, createHandlerWithTransaction, Responses } from '@/api/core';
 import { billingRepositories } from '@/api/repositories/billing-repositories';
 import type { ApiEnv } from '@/api/types';
 
@@ -41,16 +40,18 @@ export const getPaymentMethodsHandler: RouteHandler<typeof getPaymentMethodsRout
   },
   async (c) => {
     const user = c.get('user')!; // Guaranteed by auth: 'session'
-    c.logger.info('Fetching payment methods for user', { userId: user.id });
+    c.logger.info('Fetching payment methods for user', { logType: 'operation', operationName: 'getPaymentMethods', userId: user.id });
 
     // Use repository instead of direct DB query
     const paymentMethods = await billingRepositories.paymentMethods.findPaymentMethodsByUserId(user.id);
 
     c.logger.info('Payment methods retrieved successfully', {
-      count: paymentMethods.length,
+      logType: 'operation',
+      operationName: 'getPaymentMethods',
+      resource: `paymentMethods[${paymentMethods.length}]`,
     });
 
-    return ok(c, paymentMethods);
+    return Responses.ok(c, paymentMethods);
   },
 );
 
@@ -68,7 +69,7 @@ export const createPaymentMethodHandler: RouteHandler<typeof createPaymentMethod
   async (c) => {
     const user = c.get('user')!;
 
-    c.logger.warn('Direct payment method creation attempted', { userId: user.id });
+    c.logger.warn('Direct payment method creation attempted', { logType: 'operation', operationName: 'createPaymentMethod', userId: user.id });
 
     // Payment methods are created through direct debit contract setup process
     // This maintains the existing business logic but with proper factory patterns
@@ -91,8 +92,10 @@ export const deletePaymentMethodHandler: RouteHandler<typeof deletePaymentMethod
     const { id } = c.validated.params as PaymentMethodParams;
 
     c.logger.info('Deleting payment method', {
-      paymentMethodId: id,
+      logType: 'operation',
+      operationName: 'deletePaymentMethod',
       userId: user.id,
+      resource: id,
     });
 
     // Find payment method using repository
@@ -100,8 +103,10 @@ export const deletePaymentMethodHandler: RouteHandler<typeof deletePaymentMethod
 
     if (!paymentMethodRecord || paymentMethodRecord.userId !== user.id || !paymentMethodRecord.isActive) {
       c.logger.warn('Payment method not found for deletion', {
-        paymentMethodId: id,
+        logType: 'operation',
+        operationName: 'deletePaymentMethod',
         userId: user.id,
+        resource: id,
       });
       throw createError.notFound('Payment method');
     }
@@ -116,7 +121,9 @@ export const deletePaymentMethodHandler: RouteHandler<typeof deletePaymentMethod
 
     if (isUsedBySubscription) {
       c.logger.warn('Cannot delete payment method in use by active subscription', {
-        paymentMethodId: id,
+        logType: 'operation',
+        operationName: 'deletePaymentMethod',
+        resource: id,
       });
       throw createError.conflict('Cannot delete payment method that is used by active subscriptions');
     }
@@ -150,9 +157,9 @@ export const deletePaymentMethodHandler: RouteHandler<typeof deletePaymentMethod
       severity: 'info',
     }, tx);
 
-    c.logger.info('Payment method deleted successfully', { paymentMethodId: id });
+    c.logger.info('Payment method deleted successfully', { logType: 'operation', operationName: 'deletePaymentMethod', resource: id });
 
-    return ok(c, {
+    return Responses.ok(c, {
       id,
       deleted: true,
       deletedAt: deletedAt.toISOString(),
@@ -175,8 +182,10 @@ export const setDefaultPaymentMethodHandler: RouteHandler<typeof setDefaultPayme
     const { id } = c.validated.params as PaymentMethodParams;
 
     c.logger.info('Setting primary payment method', {
-      paymentMethodId: id,
+      logType: 'operation',
+      operationName: 'setPrimaryPaymentMethod',
       userId: user.id,
+      resource: id,
     });
 
     // Find payment method using repository
@@ -184,16 +193,19 @@ export const setDefaultPaymentMethodHandler: RouteHandler<typeof setDefaultPayme
 
     if (!paymentMethodRecord || paymentMethodRecord.userId !== user.id || !paymentMethodRecord.isActive) {
       c.logger.warn('Payment method not found for primary setting', {
-        paymentMethodId: id,
+        logType: 'operation',
+        operationName: 'setPrimaryPaymentMethod',
         userId: user.id,
+        resource: id,
       });
       throw createError.notFound('Payment method');
     }
 
     if (paymentMethodRecord.contractStatus !== 'active') {
       c.logger.warn('Cannot set inactive contract as primary', {
-        paymentMethodId: id,
-        contractStatus: paymentMethodRecord.contractStatus,
+        logType: 'operation',
+        operationName: 'setPrimaryPaymentMethod',
+        resource: id,
       });
       throw createError.internal('Cannot set inactive payment contract as primary');
     }
@@ -216,9 +228,9 @@ export const setDefaultPaymentMethodHandler: RouteHandler<typeof setDefaultPayme
       severity: 'info',
     }, tx);
 
-    c.logger.info('Primary payment method set successfully', { paymentMethodId: id });
+    c.logger.info('Primary payment method set successfully', { logType: 'operation', operationName: 'setPrimaryPaymentMethod', resource: id });
 
-    return ok(c, {
+    return Responses.ok(c, {
       id,
       isPrimary: true,
       updatedAt: updatedPaymentMethod.updatedAt.toISOString(),

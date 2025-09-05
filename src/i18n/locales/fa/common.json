@@ -1,5 +1,6 @@
 {
   "navigation": {
+    "navigation": "منوی راهبری",
     "home": "خانه",
     "about": "درباره ما",
     "contact": "تماس با ما",
@@ -15,7 +16,6 @@
     "plans": "طرح‌ها",
     "overview": "مرور کلی",
     "account": "حساب کاربری",
-    "navigation": "منوی راهبری",
     "billingHistory": "تاریخچه پرداخت‌ها",
     "paymentHistory": "تاریخچه پرداخت‌ها"
   },
@@ -54,7 +54,10 @@
     "downgrade": "تنزل",
     "updatePayment": "به‌روزرسانی روش پرداخت",
     "downloadInvoice": "دانلود صورتحساب",
-    "billingSettings": "تنظیمات صورتحساب"
+    "billingSettings": "تنظیمات صورتحساب",
+    "manage": "مدیریت",
+    "addPaymentMethod": "افزودن روش پرداخت",
+    "viewAll": "مشاهده همه"
   },
   "validation": {
     "required": "این فیلد اجباری است",
@@ -134,7 +137,20 @@
       "title": "دسترسی‌پذیری",
       "reducedMotion": "کاهش حرکت",
       "highContrast": "کنتراست بالا",
-      "description": "گزینه‌های دسترسی‌پذیری را برای استفاده بهتر تنظیم کنید"
+      "description": "گزینه‌های دسترسی‌پذیری را برای استفاده بهتر تنظیم کنید",
+      "breadcrumb": "مسیر پیمایش",
+      "pagination": "صفحه‌بندی",
+      "previousPage": "برو به صفحه قبلی",
+      "nextPage": "برو به صفحه بعدی",
+      "selectAll": "انتخاب همه",
+      "selectRow": "انتخاب ردیف",
+      "selectAllRows": "انتخاب همه ردیف‌ها",
+      "toggleSidebar": "تغییر نوار کناری",
+      "openFiltersMenu": "باز کردن منوی فیلترها",
+      "notSetAsDefault": "به عنوان پیش‌فرض تنظیم نشده",
+      "continueToBankSigning": "ادامه برای امضای قرارداد با بانک",
+      "settingUpContract": "در حال راه‌اندازی قرارداد...",
+      "setupDirectDebitContract": "راه‌اندازی قرارداد برداشت مستقیم"
     }
   },
   "user": {
@@ -324,7 +340,33 @@
     "paymentHistoryEmpty": "تاریخچه پرداختی وجود ندارد",
     "paymentHistoryEmptyDescription": "تراکنش‌های پرداخت شما پس از اولین خرید اینجا نمایش داده می‌شود",
     "upcomingBillsEmpty": "صورتحساب آینده‌ای وجود ندارد",
-    "upcomingBillsEmptyDescription": "همه پرداخت‌ها به‌روز هستند"
+    "upcomingBillsEmptyDescription": "همه پرداخت‌ها به‌روز هستند",
+    "paymentSuccess": "پرداخت موفق",
+    "subscriptionBilling": "صورتحساب اشتراک",
+    "subscriptionBillingDescription": "تاریخچه صورتحساب اشتراک و پرداخت‌های خودکار خود را مشاهده کنید",
+    "subscriptionsTitle": "اشتراک‌ها",
+    "subscriptionsDescription": "اشتراک‌های فعال و گذشته خود را مدیریت کنید",
+    "monthlyCost": "هزینه ماهانه",
+    "noPlan": "بدون طرح",
+    "notScheduled": "زمان‌بندی نشده",
+    "quickActions": "عملیات سریع",
+    "commonBillingTasks": "کارهای معمول صورتحساب",
+    "unknownProduct": "محصول نامشخص",
+    "noActiveSubscription": "شما اشتراک فعالی ندارید. برای شروع، طرح‌های ما را مرور کنید.",
+    "viewPlans": "مشاهده طرح‌ها",
+    "paymentMethods": "روش‌های پرداخت",
+    "manageBillingInfo": "مدیریت اطلاعات صورتحساب",
+    "recentTransactions": "تراکنش‌های صورتحساب اخیر شما",
+    "started": "شروع شده",
+    "noPaymentMethods": "هیچ روش پرداختی اضافه نشده است",
+    "primaryDirectDebit": "اولیه • برداشت مستقیم",
+    "default": "پیش‌فرض",
+    "activeMethod": "روش فعال",
+    "activeMethods": "روش فعال",
+    "changePlanDescription": "ارتقاء یا تنزل اشتراک خود",
+    "updatePaymentDescription": "مدیریت روش‌های پرداخت خود",
+    "downloadInvoiceDescription": "دریافت آخرین صورت‌حساب‌های خود",
+    "billingSettingsDescription": "تنظیم ترجیحات صورتحساب خود"
   },
   "subscription": {
     "title": "اشتراک‌ها",
@@ -365,18 +407,35 @@
     "yourSubscriptions": "اشتراک‌های شما",
     "loadingSubscription": "بارگذاری اشتراک...",
     "subscriptionCount_one": "اشتراک",
-    "subscriptionCount_other": "اشتراک"
+    "subscriptionCount_other": "اشتراک",
+    "managementFailed": "باز کردن مدیریت اشتراک ناموفق بود",
+    "usageViewFailed": "مشاهده استفاده از اشتراک ناموفق بود",
+    "invoiceDownloaded": "فاکتور با موفقیت دانلود شد",
+    "invoiceDownloadFailed": "دانلود فاکتور ناموفق بود",
+    "cancelSuccess": "اشتراک با موفقیت لغو شد",
+    "cancelFailed": "لغو اشتراک ناموفق بود",
+    "activationSuccess": "اشتراک شما با موفقیت فعال شد!",
+    "activationFailed": "فعال‌سازی اشتراک ناموفق بود",
+    "activationError": "فعال‌سازی اشتراک ناموفق بود",
+    "noActive": "اشتراک فعالی وجود ندارد",
+    "default": "اشتراک",
+    "createSuccess": "اشتراک شما با موفقیت ایجاد شد!",
+    "createFailed": "ایجاد اشتراک ناموفق بود"
   },
   "plans": {
     "title": "طرح خود را انتخاب کنید",
     "subtitle": "همه قیمت‌ها با نرخ ارز زنده محاسبه می‌شوند. رایگان شروع کنید و با رشد ارتقاء دهید.",
+    "subscriptionPlans": "طرح‌های اشتراک",
+    "choosePerfectPlan": "طرح مناسب برای نیازهای خود انتخاب کنید",
+    "failedToLoad": "بارگذاری طرح‌ها ناموفق بود",
+    "congratulations": "تبریک!",
     "mostPopular": "محبوب‌ترین",
     "recommended": "پیشنهادی",
     "currentPlan": "طرح فعلی",
     "whatsIncluded": "شامل چه چیزی است:",
     "usageLimits": "محدودیت‌های استفاده:",
     "features": "ویژگی‌ها",
-    "pricing": "قیمت‌گذاری",
+    "pricingLabel": "قیمت‌گذاری",
     "free": "رایگان",
     "custom": "سفارشی",
     "contactSales": "تماس با فروش",
@@ -421,7 +480,71 @@
     "messagesMonth": "پیام در ماه",
     "conversationsMonth": "گفتگو در ماه",
     "modelsText": "مدل",
-    "aiModelsText": "مدل هوش مصنوعی"
+    "aiModelsText": "مدل هوش مصنوعی",
+    "plans": "طرح‌ها",
+    "payment": "پرداخت",
+    "confirm": "تأیید",
+    "liveRatesNote": "همه قیمت‌ها با نرخ ارز زنده محاسبه می‌شوند",
+    "confirmSelectedPlan": "تأیید طرح انتخابی",
+    "perMonth": "در ماه",
+    "subscriptionActivated": "اشتراک شما با موفقیت فعال شد.",
+    "goToDashboard": "رفتن به داشبورد",
+    "errorDescription": "خطایی در بارگیری طرح‌های اشتراک رخ داد. لطفا دوباره تلاش کنید.",
+    "loadingMessage": "بارگیری طرح‌های اشتراک...",
+    "pricing": {
+      "free": {
+        "name": "رایگان",
+        "description": "برای کاوش شخصی و شروع کار.",
+        "buttonText": "شروع کنید",
+        "features": {
+          "requestsPerDay": "۱۰۰ درخواست در روز",
+          "basicAccess": "دسترسی به ویژگی‌های پایه",
+          "communitySupport": "پشتیبانی جامعه",
+          "limitedApi": "دسترسی محدود API",
+          "prioritySupport": "پشتیبانی اولویت‌دار",
+          "advancedAnalytics": "تحلیل‌های پیشرفته"
+        }
+      },
+      "starter": {
+        "name": "شروع",
+        "description": "مناسب برای پروژه‌های کوچک و توسعه‌دهندگان فردی.",
+        "buttonText": "انتخاب طرح",
+        "features": {
+          "requestsPerDay": "۱٬۰۰۰ درخواست در روز",
+          "standardAccess": "دسترسی به ویژگی‌های استاندارد",
+          "emailSupport": "پشتیبانی ایمیل",
+          "apiAccess": "دسترسی API",
+          "basicAnalytics": "تحلیل‌های پایه",
+          "customIntegrations": "یکپارچه‌سازی‌های سفارشی"
+        }
+      },
+      "premium": {
+        "name": "پریمیوم",
+        "description": "مناسب برای متخصصان و کسب‌وکارهای در حال رشد.",
+        "buttonText": "محبوب‌ترین",
+        "features": {
+          "unlimitedGeneration": "تولید نامحدود هوش مصنوعی",
+          "fullAccess": "دسترسی کامل به ویژگی‌ها",
+          "prioritySupport": "پشتیبانی اولویت‌دار",
+          "advancedAnalytics": "تحلیل‌های پیشرفته",
+          "fullApi": "دسترسی کامل API",
+          "basicIntegrations": "یکپارچه‌سازی‌های پایه"
+        }
+      },
+      "enterprise": {
+        "name": "سازمانی",
+        "description": "برای سازمان‌های بزرگی که به پشتیبانی تخصصی نیاز دارند.",
+        "buttonText": "تماس با فروش",
+        "features": {
+          "customDeployment": "استقرار سفارشی",
+          "comprehensiveAnalytics": "تحلیل‌های جامع",
+          "specializedTraining": "آموزش تخصصی مدل",
+          "dedicatedSupport": "پشتیبانی اختصاصی ۲۴/۷",
+          "customIntegrations": "یکپارچه‌سازی‌های سفارشی",
+          "slaGuarantees": "تضمین‌های SLA"
+        }
+      }
+    }
   },
   "paymentMethods": {
     "title": "روش‌های پرداخت",
@@ -489,6 +612,36 @@
       "removingPaymentMethod": "حذف روش پرداخت...",
       "updatingDefault": "به‌روزرسانی پیش‌فرض...",
       "setting": "تنظیم..."
+    },
+    "table": {
+      "paymentMethod": "روش پرداخت",
+      "mobile": "موبایل",
+      "lastUsed": "آخرین استفاده",
+      "never": "هرگز",
+      "directDebitContract": "قرارداد برداشت مستقیم",
+      "searchPlaceholder": "جستجوی روش‌های پرداخت...",
+      "emptyStateTitle": "روش پرداختی وجود ندارد",
+      "emptyStateDescription": "هنوز هیچ روش پرداختی اضافه نکرده‌اید. برای شروع یکی اضافه کنید.",
+      "addMethod": "افزودن روش",
+      "actions": {
+        "viewContract": "مشاهده قرارداد",
+        "setAsDefault": "تنظیم به عنوان پیش‌فرض",
+        "managePermissions": "مدیریت مجوزها",
+        "removeMethod": "حذف روش",
+        "openActions": "باز کردن عملیات روش پرداخت"
+      },
+      "tabs": {
+        "allMethods": "همه روش‌ها",
+        "active": "فعال",
+        "inactive": "غیرفعال"
+      },
+      "filters": {
+        "selectStatus": "انتخاب وضعیت",
+        "allStatus": "همه وضعیت‌ها",
+        "signed": "امضا شده",
+        "allTypes": "همه انواع",
+        "secondary": "ثانویه"
+      }
     }
   },
   "directDebit": {
@@ -551,6 +704,18 @@
       "monthlyTransactionLimitValue": "۱۰۰ تراکنش",
       "maxAmountPerTransaction": "حداکثر مبلغ هر تراکنش",
       "maxAmountPerTransactionValue": "۵۰۰,۰۰۰ تومان"
+    },
+    "validation": {
+      "mobileRequired": "شماره موبایل الزامی است",
+      "invalidMobile": "لطفاً شماره موبایل ایرانی معتبر وارد کنید (۰۹xxxxxxxxx)",
+      "selectBank": "لطفاً بانک را انتخاب کنید",
+      "invalidBank": "انتخاب بانک نامعتبر",
+      "contractInitiateFailed": "ایجاد قرارداد برداشت مستقیم ناموفق بود"
+    },
+    "placeholders": {
+      "mobile": "۰۹۱۲ ۱۲۳ ۴۵۶۷",
+      "nationalId": "۱۲۳۴۵۶۷۸۹۰",
+      "chooseBank": "بانک خود را انتخاب کنید..."
     }
   },
   "payments": {
@@ -592,7 +757,13 @@
     "searchTransactions": "جستجوی تراکنش‌ها...",
     "empty": "تاریخچه پرداختی وجود ندارد",
     "emptyDescription": "تراکنش‌های پرداخت شما پس از اولین خرید اینجا نمایش داده می‌شود.",
-    "failureReason": "دلیل ناموفق بودن"
+    "failureReason": "دلیل ناموفق بودن",
+    "receiptDownloaded": "رسید با موفقیت دانلود شد",
+    "receiptDownloadFailed": "دانلود رسید ناموفق بود",
+    "invoiceDownloaded": "فاکتور با موفقیت دانلود شد",
+    "invoiceDownloadFailed": "دانلود فاکتور ناموفق بود",
+    "retryInitiated": "تلاش مجدد پرداخت با موفقیت آغاز شد",
+    "retryFailed": "تلاش مجدد پرداخت ناموفق بود"
   },
   "forms": {
     "firstName": "نام",
@@ -748,9 +919,55 @@
     "info": "اطلاعات",
     "loading": "در حال بارگذاری"
   },
+  "dataTable": {
+    "noDataFound": "هیچ داده‌ای یافت نشد",
+    "noItemsToDisplay": "هیچ موردی برای نمایش وجود ندارد.",
+    "dataTable": "جدول داده",
+    "openFiltersMenu": "منوی فیلترها را باز کن",
+    "columns": "ستون‌ها",
+    "selectAllRows": "انتخاب همه ردیف‌ها",
+    "selectRow": "انتخاب ردیف {id}",
+    "rowsSelected": "{selected} از {total} ردیف انتخاب شده",
+    "rowsPerPage": "تعداد ردیف در صفحه",
+    "selectAll": "انتخاب همه",
+    "selectRowCheckbox": "انتخاب ردیف",
+    "loadingSubscriptionPlans": "بارگیری طرح‌های اشتراک..."
+  },
+  "datePicker": {
+    "pickDate": "انتخاب تاریخ"
+  },
+  "pages": {
+    "myBilling": "صورتحساب من"
+  },
   "meta": {
     "defaultTitle": "داشبورد صورتحساب",
     "defaultDescription": "اشتراک‌ها و اطلاعات صورتحساب خود را مدیریت کنید",
-    "keywords": "صورتحساب، اشتراک، پرداخت، داشبورد"
+    "keywords": "صورتحساب، اشتراک، پرداخت، داشبورد",
+    "signIn": {
+      "title": "ورود",
+      "description": "وارد حساب کاربری خود شوید"
+    },
+    "signUp": {
+      "title": "ثبت نام",
+      "description": "حساب کاربری خود را ایجاد کنید"
+    },
+    "authCallback": {
+      "description": "تکمیل فرآیند ورود"
+    }
+  },
+  "accessibility": {
+    "breadcrumb": "مسیر پیمایش",
+    "pagination": "صفحه‌بندی",
+    "previousPage": "برو به صفحه قبلی",
+    "nextPage": "برو به صفحه بعدی",
+    "selectAll": "انتخاب همه",
+    "selectRow": "انتخاب ردیف",
+    "selectAllRows": "انتخاب همه ردیف‌ها",
+    "toggleSidebar": "تغییر نوار کناری",
+    "openFiltersMenu": "باز کردن منوی فیلترها",
+    "notSetAsDefault": "به عنوان پیش‌فرض تنظیم نشده",
+    "continueToBankSigning": "ادامه برای امضای قرارداد با بانک",
+    "settingUpContract": "در حال راه‌اندازی قرارداد...",
+    "setupDirectDebitContract": "راه‌اندازی قرارداد برداشت مستقیم"
   }
 }

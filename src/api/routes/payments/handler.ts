@@ -10,8 +10,7 @@ import type { RouteHandler } from '@hono/zod-openapi';
 import type { z } from 'zod';
 
 import { createError } from '@/api/common/error-handling';
-import { created, ok } from '@/api/common/responses';
-import { createHandler, createHandlerWithTransaction } from '@/api/patterns/route-handler-factory';
+import { createHandler, createHandlerWithTransaction, Responses } from '@/api/core';
 import { billingRepositories } from '@/api/repositories/billing-repositories';
 import { ZarinPalService } from '@/api/services/zarinpal';
 import type { ApiEnv } from '@/api/types';
@@ -44,7 +43,7 @@ export const getPaymentsHandler: RouteHandler<typeof getPaymentsRoute, ApiEnv> =
   },
   async (c) => {
     const user = c.get('user')!; // Guaranteed by auth: 'session'
-    c.logger.info('Fetching payments for user', { userId: user.id });
+    c.logger.info('Fetching payments for user', { logType: 'operation', operationName: 'getPayments', userId: user.id });
 
     // Use repository instead of direct DB query
     const payments = await billingRepositories.payments.findPaymentsByUserId(user.id);
@@ -79,10 +78,12 @@ export const getPaymentsHandler: RouteHandler<typeof getPaymentsRoute, ApiEnv> =
     );
 
     c.logger.info('Payments retrieved successfully', {
-      count: paymentsWithDetails.length,
+      logType: 'operation',
+      operationName: 'getPayments',
+      resource: `payments[${paymentsWithDetails.length}]`,
     });
 
-    return ok(c, paymentsWithDetails);
+    return Responses.ok(c, paymentsWithDetails);
   },
 );
 
@@ -99,24 +100,26 @@ export const paymentCallbackHandler: RouteHandler<typeof paymentCallbackRoute, A
   async (c, tx) => {
     const { Authority, Status } = c.validated.query as z.infer<typeof PaymentCallbackRequestSchema>;
 
-    c.logger.info('Processing payment callback', { Authority, Status });
+    c.logger.info('Processing payment callback', { logType: 'operation', operationName: 'paymentCallback', resource: Authority });
 
     // Find payment using repository
     const paymentRecord = await billingRepositories.payments.findByZarinpalAuthority(Authority);
 
     if (!paymentRecord) {
-      c.logger.warn('Payment not found for callback', { Authority });
+      c.logger.warn('Payment not found for callback', { logType: 'operation', operationName: 'paymentCallback', resource: Authority });
       throw createError.notFound('Payment');
     }
 
     c.logger.info('Found payment for callback', {
-      paymentId: paymentRecord.id,
+      logType: 'operation',
+      operationName: 'paymentCallback',
       userId: paymentRecord.userId,
+      resource: paymentRecord.id,
     });
 
     // Handle failed payment
     if (Status === 'NOK') {
-      c.logger.warn('Payment canceled by user', { paymentId: paymentRecord.id });
+      c.logger.warn('Payment canceled by user', { logType: 'operation', operationName: 'paymentCallback', resource: paymentRecord.id });
 
       await billingRepositories.payments.updateStatus(
         paymentRecord.id,
@@ -140,7 +143,7 @@ export const paymentCallbackHandler: RouteHandler<typeof paymentCallbackRoute, A
         severity: 'warning',
       }, tx);
 
-      return ok(c, {
+      return Responses.ok(c, {
         success: false,
         paymentId: paymentRecord.id,
         subscriptionId: paymentRecord.subscriptionId,
@@ -158,8 +161,9 @@ export const paymentCallbackHandler: RouteHandler<typeof paymentCallbackRoute, A
 
     if (isSuccessful) {
       c.logger.info('Payment verification successful', {
-        paymentId: paymentRecord.id,
-        refId: verification.data?.ref_id,
+        logType: 'operation',
+        operationName: 'paymentCallback',
+        resource: paymentRecord.id,
       });
 
       // Update payment status
@@ -198,7 +202,9 @@ export const paymentCallbackHandler: RouteHandler<typeof paymentCallbackRoute, A
           );
 
           c.logger.info('Subscription activated', {
-            subscriptionId: paymentRecord.subscriptionId,
+            logType: 'operation',
+            operationName: 'activateSubscription',
+            resource: paymentRecord.subscriptionId!,
           });
         }
       }
@@ -219,7 +225,7 @@ export const paymentCallbackHandler: RouteHandler<typeof paymentCallbackRoute, A
         severity: 'info',
       }, tx);
 
-      return ok(c, {
+      return Responses.ok(c, {
         success: true,
         paymentId: paymentRecord.id,
         subscriptionId: paymentRecord.subscriptionId,
@@ -227,9 +233,9 @@ export const paymentCallbackHandler: RouteHandler<typeof paymentCallbackRoute, A
       });
     } else {
       c.logger.warn('Payment verification failed', {
-        paymentId: paymentRecord.id,
-        code: verification.data?.code,
-        message: verification.data?.message,
+        logType: 'operation',
+        operationName: 'paymentCallback',
+        resource: paymentRecord.id,
       });
 
       // Update payment as failed
@@ -256,7 +262,7 @@ export const paymentCallbackHandler: RouteHandler<typeof paymentCallbackRoute, A
         severity: 'error',
       }, tx);
 
-      return ok(c, {
+      return Responses.ok(c, {
         success: false,
         paymentId: paymentRecord.id,
         subscriptionId: paymentRecord.subscriptionId,
@@ -280,15 +286,17 @@ export const verifyPaymentHandler: RouteHandler<typeof verifyPaymentRoute, ApiEn
     const { authority } = c.validated.body as z.infer<typeof VerifyPaymentRequestSchema>;
 
     c.logger.info('Manual payment verification requested', {
+      logType: 'operation',
+      operationName: 'verifyPayment',
       userId: user.id,
-      authority,
+      resource: authority,
     });
 
     // Find payment by authority and user
     const paymentRecord = await billingRepositories.payments.findByZarinpalAuthority(authority);
 
     if (!paymentRecord || paymentRecord.userId !== user.id) {
-      c.logger.warn('Payment not found for verification', { authority, userId: user.id });
+      c.logger.warn('Payment not found for verification', { logType: 'operation', operationName: 'verifyPayment', userId: user.id, resource: authority });
       throw createError.notFound('Payment');
     }
 
@@ -303,7 +311,9 @@ export const verifyPaymentHandler: RouteHandler<typeof verifyPaymentRoute, ApiEn
 
     if (isSuccessful && paymentRecord.status !== 'completed') {
       c.logger.info('Manual verification successful, updating payment', {
-        paymentId: paymentRecord.id,
+        logType: 'operation',
+        operationName: 'verifyPayment',
+        resource: paymentRecord.id,
       });
 
       // Update payment status
@@ -344,7 +354,9 @@ export const verifyPaymentHandler: RouteHandler<typeof verifyPaymentRoute, ApiEn
             );
 
             c.logger.info('Subscription activated via manual verification', {
-              subscriptionId: paymentRecord.subscriptionId,
+              logType: 'operation',
+              operationName: 'activateSubscription',
+              resource: paymentRecord.subscriptionId!,
             });
           }
         }
@@ -366,7 +378,7 @@ export const verifyPaymentHandler: RouteHandler<typeof verifyPaymentRoute, ApiEn
       }, tx);
     }
 
-    return ok(c, {
+    return Responses.ok(c, {
       verified: isSuccessful,
       paymentId: paymentRecord.id,
       refId: verification.data?.ref_id?.toString(),
@@ -392,24 +404,25 @@ export const generateInvoiceHandler: RouteHandler<typeof generateInvoiceRoute, A
     const { format, language, includeDetails } = c.validated.body as z.infer<typeof GenerateInvoiceRequestSchema>;
 
     c.logger.info('Invoice generation requested', {
-      paymentId,
-      format,
-      language,
+      logType: 'operation',
+      operationName: 'generateInvoice',
       userId: user.id,
+      resource: paymentId,
     });
 
     // Find payment with validation
     const paymentRecord = await billingRepositories.payments.findById(paymentId);
 
     if (!paymentRecord || paymentRecord.userId !== user.id) {
-      c.logger.warn('Payment not found for invoice generation', { paymentId, userId: user.id });
+      c.logger.warn('Payment not found for invoice generation', { logType: 'operation', operationName: 'generateInvoice', userId: user.id, resource: paymentId });
       throw createError.notFound('Payment');
     }
 
     if (paymentRecord.status !== 'completed') {
       c.logger.warn('Invoice requested for non-completed payment', {
-        paymentId,
-        status: paymentRecord.status,
+        logType: 'operation',
+        operationName: 'generateInvoice',
+        resource: paymentId,
       });
       throw createError.internal('Invoice can only be generated for completed payments');
     }
@@ -419,8 +432,9 @@ export const generateInvoiceHandler: RouteHandler<typeof generateInvoiceRoute, A
     const downloadUrl = `/api/v1/payments/${paymentId}/download/${invoiceId}`;
 
     c.logger.info('Invoice metadata generated', {
-      invoiceId,
-      downloadUrl,
+      logType: 'operation',
+      operationName: 'generateInvoice',
+      resource: invoiceId,
     });
 
     // Log invoice generation event
@@ -439,7 +453,7 @@ export const generateInvoiceHandler: RouteHandler<typeof generateInvoiceRoute, A
       severity: 'info',
     });
 
-    return created(c, {
+    return Responses.created(c, {
       invoiceId,
       downloadUrl,
       format,

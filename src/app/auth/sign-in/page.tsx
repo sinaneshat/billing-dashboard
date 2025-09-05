@@ -1,11 +1,16 @@
 import type { Metadata } from 'next';
+import { getTranslations } from 'next-intl/server';
 
 import { AuthForm } from '@/components/auth/auth-form';
 
-export const metadata: Metadata = {
-  title: 'Sign In',
-  description: 'Sign in to your account',
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations('meta.signIn');
+
+  return {
+    title: t('title'),
+    description: t('description'),
+  };
+}
 
 export default async function SignInPage() {
   return <AuthForm />;

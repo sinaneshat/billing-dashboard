@@ -9,12 +9,12 @@ import { and, eq } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import * as HttpStatusCodes from 'stoker/http-status-codes';
 
-import { parseMetadata } from '@/api/common';
-import { ok } from '@/api/common/responses';
+import { parseMetadata } from '@/api/common/metadata-utils';
 import {
   isZarinPalAuthError,
   isZarinPalServiceError,
 } from '@/api/common/zarinpal-error-utils';
+import { Responses } from '@/api/core';
 import { ZarinPalDirectDebitService } from '@/api/services/zarinpal-direct-debit';
 import type { ApiEnv } from '@/api/types';
 import { db } from '@/db';
@@ -137,7 +137,7 @@ export const initiateDirectDebitContractHandler: RouteHandler<
     });
 
     // Return contract setup data
-    return ok(c, {
+    return Responses.ok(c, {
       paymanAuthority,
       banks: banks.map(bank => ({
         name: bank.name,
@@ -249,7 +249,7 @@ export const verifyDirectDebitContractHandler: RouteHandler<
         })
         .where(eq(paymentMethod.id, contractId));
 
-      return ok(c, {
+      return Responses.ok(c, {
         contractVerified: false,
         error: {
           code: 'user_cancelled',
@@ -280,7 +280,7 @@ export const verifyDirectDebitContractHandler: RouteHandler<
         })
         .where(eq(paymentMethod.id, contractId));
 
-      return ok(c, {
+      return Responses.ok(c, {
         contractVerified: false,
         error: {
           code: signatureResult.data?.code?.toString() || 'verification_failed',
@@ -310,7 +310,7 @@ export const verifyDirectDebitContractHandler: RouteHandler<
       // Remove the temporary contract record
       await db.delete(paymentMethod).where(eq(paymentMethod.id, contractId));
 
-      return ok(c, {
+      return Responses.ok(c, {
         contractVerified: true,
         signature,
         paymentMethodId: existingSignature.id,
@@ -353,7 +353,7 @@ export const verifyDirectDebitContractHandler: RouteHandler<
       })
       .where(eq(paymentMethod.id, contractId));
 
-    return ok(c, {
+    return Responses.ok(c, {
       contractVerified: true,
       signature,
       paymentMethodId: contractId,

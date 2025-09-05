@@ -1,8 +1,7 @@
 import { createRoute } from '@hono/zod-openapi';
 import * as HttpStatusCodes from 'stoker/http-status-codes';
 
-import { CommonErrorResponses } from '@/api/common';
-
+// import { Responses } from '@/api/core'; // Commented out as unused
 import {
   GenerateInvoiceRequestSchema,
   GenerateInvoiceResponseSchema,
@@ -27,7 +26,9 @@ export const getPaymentsRoute = createRoute({
         'application/json': { schema: GetPaymentsResponseSchema },
       },
     },
-    ...CommonErrorResponses.read,
+    [HttpStatusCodes.BAD_REQUEST]: { description: 'Bad Request' },
+    [HttpStatusCodes.NOT_FOUND]: { description: 'Not Found' },
+    [HttpStatusCodes.INTERNAL_SERVER_ERROR]: { description: 'Internal Server Error' },
   },
 });
 
@@ -47,7 +48,9 @@ export const paymentCallbackRoute = createRoute({
         'application/json': { schema: PaymentCallbackResponseSchema },
       },
     },
-    ...CommonErrorResponses.crud,
+    [HttpStatusCodes.BAD_REQUEST]: { description: 'Bad Request' },
+    [HttpStatusCodes.UNPROCESSABLE_ENTITY]: { description: 'Validation Error' },
+    [HttpStatusCodes.INTERNAL_SERVER_ERROR]: { description: 'Internal Server Error' },
   },
 });
 
@@ -71,7 +74,10 @@ export const verifyPaymentRoute = createRoute({
         'application/json': { schema: VerifyPaymentResponseSchema },
       },
     },
-    ...CommonErrorResponses.update,
+    [HttpStatusCodes.BAD_REQUEST]: { description: 'Bad Request' },
+    [HttpStatusCodes.NOT_FOUND]: { description: 'Not Found' },
+    [HttpStatusCodes.UNPROCESSABLE_ENTITY]: { description: 'Validation Error' },
+    [HttpStatusCodes.INTERNAL_SERVER_ERROR]: { description: 'Internal Server Error' },
   },
 });
 
@@ -96,6 +102,9 @@ export const generateInvoiceRoute = createRoute({
         'application/json': { schema: GenerateInvoiceResponseSchema },
       },
     },
-    ...CommonErrorResponses.create,
+    [HttpStatusCodes.BAD_REQUEST]: { description: 'Bad Request' },
+    [HttpStatusCodes.UNPROCESSABLE_ENTITY]: { description: 'Validation Error' },
+    [HttpStatusCodes.CONFLICT]: { description: 'Conflict' },
+    [HttpStatusCodes.INTERNAL_SERVER_ERROR]: { description: 'Internal Server Error' },
   },
 });

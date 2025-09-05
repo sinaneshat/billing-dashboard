@@ -16,10 +16,8 @@ interface DashboardContainerProps {
  */
 export function DashboardContainer({ children, className }: DashboardContainerProps) {
   return (
-    <div className={cn('@container/main flex flex-1 flex-col gap-2', className)}>
-      <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
-        {children}
-      </div>
+    <div className={cn('@container/main flex flex-1 flex-col w-full min-w-0', className)}>
+      {children}
     </div>
   );
 }
@@ -95,7 +93,7 @@ export function DashboardGrid({
       'grid',
       columnClasses,
       gapClasses[gap],
-      'px-4 lg:px-6', // Official shadcn/ui dashboard-01 padding pattern
+      'w-full max-w-none min-w-0', // Ensure full width utilization and prevent overflow
       className
     )}>
       {children}
@@ -123,7 +121,7 @@ export function DashboardCardSection({
   return (
     <div className={cn('space-y-4 md:space-y-6', className)}>
       {(title || description) && (
-        <div className="px-4 lg:px-6">
+        <div className="">
           {title && (
             <h2 className="text-lg font-semibold tracking-tight">{title}</h2>
           )}
@@ -150,7 +148,7 @@ export function DashboardMetricGrid({ children, className }: DashboardMetricGrid
   return (
     <div className={cn(
       // Official shadcn/ui dashboard-01 metric grid pattern
-      'grid grid-cols-1 gap-4 px-4 lg:px-6',
+      'grid grid-cols-1 gap-4 w-full min-w-0',
       // Responsive columns following official pattern
       'sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-4',
       // Card styling using data attributes for consistency  
@@ -188,7 +186,7 @@ export function DashboardContentGrid({
 
   return (
     <div className={cn(
-      'grid gap-4 px-4 lg:px-6 md:gap-6',
+      'grid gap-4 md:gap-6 w-full min-w-0',
       layoutClasses[layout],
       className
     )}>

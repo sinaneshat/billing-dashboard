@@ -34,30 +34,30 @@ function getBillStatusInfo(status: string, dueDate: string, t: (key: string) => 
       return {
         badge: { variant: 'destructive' as const, label: t('status.overdue') },
         icon: AlertTriangle,
-        iconColor: 'text-red-600',
-        bgColor: 'bg-red-50 dark:bg-red-900/30',
+        iconColor: 'text-destructive',
+        bgColor: 'bg-destructive/10',
       };
     case 'processing':
       return {
         badge: { variant: 'secondary' as const, label: t('status.processing') },
         icon: Clock,
-        iconColor: 'text-yellow-600',
-        bgColor: 'bg-yellow-50 dark:bg-yellow-900/30',
+        iconColor: 'text-yellow-600 dark:text-yellow-400',
+        bgColor: 'bg-yellow-50 dark:bg-yellow-950/20',
       };
     default:
       if (daysUntilDue <= 3) {
         return {
           badge: { variant: 'outline' as const, label: t('status.due') },
           icon: Calendar,
-          iconColor: 'text-orange-600',
-          bgColor: 'bg-orange-50 dark:bg-orange-900/30',
+          iconColor: 'text-orange-600 dark:text-orange-400',
+          bgColor: 'bg-orange-50 dark:bg-orange-950/20',
         };
       }
       return {
         badge: { variant: 'outline' as const, label: t('status.upcoming') },
         icon: Calendar,
-        iconColor: 'text-blue-600',
-        bgColor: 'bg-blue-50 dark:bg-blue-900/30',
+        iconColor: 'text-primary',
+        bgColor: 'bg-primary/10',
       };
   }
 }

@@ -1,10 +1,10 @@
 import type { RouteHandler } from '@hono/zod-openapi';
-import * as HttpStatusCodes from 'stoker/http-status-codes';
 
-import { ok } from '@/api/common/responses';
-import { createHandler } from '@/api/patterns/route-handler-factory';
+// import * as HttpStatusCodes from 'stoker/http-status-codes'; // Unused
+import { createHandler, Responses } from '@/api/core';
 import { billingRepositories } from '@/api/repositories/billing-repositories';
 import type { ApiEnv } from '@/api/types';
+import type { ProductMetadata } from '@/api/types/metadata';
 import { currencyConverter } from '@/lib/services/currency-converter';
 
 import type { getProductsRoute } from './route';
@@ -26,7 +26,7 @@ export const getProductsHandler: RouteHandler<typeof getProductsRoute, ApiEnv> =
     // Convert USD prices to Iranian Rials for ZarinPal compatibility
     const enhancedProducts = await Promise.all(
       rawProducts.map(async (prod) => {
-        const metadata = prod.metadata as Record<string, unknown>;
+        const metadata = prod.metadata as ProductMetadata;
         const usdPrice = prod.price; // Database stores USD prices
 
         let pricingInfo;
@@ -67,6 +67,6 @@ export const getProductsHandler: RouteHandler<typeof getProductsRoute, ApiEnv> =
       }),
     );
 
-    return ok(c, enhancedProducts, undefined, HttpStatusCodes.OK);
+    return Responses.ok(c, enhancedProducts);
   },
 );

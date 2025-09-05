@@ -70,8 +70,8 @@ export default function AuthErrorScreen() {
   return (
     <Card className="w-full max-w-sm">
       <CardHeader className="text-center">
-        <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-red-100">
-          <AlertCircle className="h-10 w-10 text-red-600" />
+        <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-destructive/10">
+          <AlertCircle className="h-10 w-10 text-destructive" />
         </div>
         <CardTitle>{errorInfo.title}</CardTitle>
         <CardDescription>

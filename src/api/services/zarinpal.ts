@@ -3,65 +3,155 @@
  * Migrated to use BaseService pattern for consistent error handling and HTTP utilities
  */
 
+import { z } from '@hono/zod-openapi';
 import { HTTPException } from 'hono/http-exception';
 import * as HttpStatusCodes from 'stoker/http-status-codes';
 
-import type { ServiceConfig } from '@/api/patterns/service-factory';
+// ServiceConfig import removed as it's now defined in Zod schema
 import { BaseService } from '@/api/patterns/service-factory';
 
-export type ZarinPalConfig = ServiceConfig & {
-  merchantId: string;
-  accessToken: string;
-  isSandbox?: boolean;
-};
+// =============================================================================
+// ZOD SCHEMAS (Context7 Best Practices)
+// =============================================================================
 
-export type PaymentRequest = {
-  amount: number;
-  currency: 'IRR';
-  description: string;
-  callbackUrl: string;
-  metadata?: Record<string, unknown>;
-};
+/**
+ * ZarinPal Configuration Schema
+ * Extends ServiceConfig with ZarinPal-specific settings
+ */
+export const ZarinPalConfigSchema = z.object({
+  serviceName: z.string(),
+  baseUrl: z.string().url(),
+  timeout: z.number().positive(),
+  retries: z.number().int().min(0).max(5),
+  circuitBreaker: z.object({
+    failureThreshold: z.number().int().positive(),
+    resetTimeout: z.number().positive(),
+  }).optional(),
+  merchantId: z.string().length(36, 'ZarinPal merchant ID must be exactly 36 characters'),
+  accessToken: z.string().min(32, 'Access token must be at least 32 characters'),
+  isSandbox: z.boolean().optional(),
+}).openapi('ZarinPalConfig');
 
-export type VerifyRequest = {
-  authority: string;
-  amount: number;
-};
+/**
+ * Payment metadata schema with flexible structure (replaces Record<string, unknown>)
+ * Uses .passthrough() to allow additional fields while maintaining type safety for common fields
+ */
+export const PaymentMetadataSchema = z.object({
+  // Core tracking fields
+  paymentId: z.string().optional(),
+  userId: z.string().optional(),
 
-export type DirectDebitRequest = {
-  amount: number;
-  currency: 'IRR';
-  description: string;
-  card_hash: string;
-  metadata?: Record<string, unknown>;
-};
+  // Payment categorization
+  type: z.enum(['subscription', 'product', 'custom']).optional(),
+  category: z.enum(['payment', 'refund', 'adjustment']).optional(),
 
-export type PaymentResponse = {
-  data?: {
-    code: number;
-    message: string;
-    authority?: string;
-    ref_id?: number;
-    card_hash?: string;
-    card_pan?: string;
-    fee_type?: string;
-    fee?: number;
-  };
-  errors?: unknown;
-};
+  // Subscription-specific fields
+  subscriptionId: z.string().uuid().optional(),
+  planType: z.enum(['monthly', 'yearly', 'lifetime']).optional(),
+  billingCycle: z.union([
+    z.string(),
+    z.number().int().positive(),
+  ]).optional(),
+  isAutomaticBilling: z.boolean().optional(),
 
-export type VerifyResponse = {
-  data?: {
-    code: number;
-    message: string;
-    card_hash?: string;
-    card_pan?: string;
-    ref_id?: number;
-    fee_type?: string;
-    fee?: number;
-  };
-  errors?: unknown;
-};
+  // Product-specific fields
+  productId: z.string().uuid().optional(),
+  productName: z.string().optional(),
+  quantity: z.number().int().positive().optional(),
+
+  // General fields
+  reference: z.string().optional(),
+  notes: z.string().optional(),
+
+  // Allow additional fields for flexibility while maintaining type safety
+}).passthrough().openapi('PaymentMetadata');
+
+/**
+ * Payment Request Schema
+ */
+export const PaymentRequestSchema = z.object({
+  amount: z.number().int().min(1000, 'Amount must be at least 1000 IRR'),
+  currency: z.literal('IRR'),
+  description: z.string().min(1).max(255),
+  callbackUrl: z.string().url(),
+  metadata: PaymentMetadataSchema.optional(),
+}).openapi('PaymentRequest');
+
+/**
+ * Payment Verification Request Schema
+ */
+export const VerifyRequestSchema = z.object({
+  authority: z.string().length(36, 'Authority must be exactly 36 characters'),
+  amount: z.number().int().min(1000, 'Amount must be at least 1000 IRR'),
+}).openapi('VerifyRequest');
+
+/**
+ * Direct Debit Request Schema
+ */
+export const DirectDebitRequestSchema = z.object({
+  amount: z.number().int().min(1000, 'Amount must be at least 1000 IRR'),
+  currency: z.literal('IRR'),
+  description: z.string().min(1).max(255),
+  card_hash: z.string().min(10, 'Card hash must be at least 10 characters'),
+  metadata: PaymentMetadataSchema.optional(),
+}).openapi('DirectDebitRequest');
+
+/**
+ * ZarinPal API Response Data Schema
+ */
+export const ZarinPalResponseDataSchema = z.object({
+  code: z.number().int(),
+  message: z.string(),
+  authority: z.string().optional(),
+  ref_id: z.number().int().optional(),
+  card_hash: z.string().optional(),
+  card_pan: z.string().optional(),
+  fee_type: z.string().optional(),
+  fee: z.number().nonnegative().optional(),
+}).openapi('ZarinPalResponseData');
+
+/**
+ * ZarinPal Error Schema for response validation
+ */
+export const ZarinPalErrorSchema = z.object({
+  code: z.number().int(),
+  message: z.string(),
+  field: z.string().optional(),
+}).openapi('ZarinPalError');
+
+/**
+ * Payment Response Schema (backward compatible)
+ */
+export const PaymentResponseSchema = z.object({
+  data: ZarinPalResponseDataSchema.optional(),
+  errors: z.union([
+    z.array(ZarinPalErrorSchema),
+    z.unknown(), // For backward compatibility with existing error formats
+  ]).optional(),
+}).openapi('PaymentResponse');
+
+/**
+ * Verify Response Schema (backward compatible)
+ */
+export const VerifyResponseSchema = z.object({
+  data: ZarinPalResponseDataSchema.optional(),
+  errors: z.union([
+    z.array(ZarinPalErrorSchema),
+    z.unknown(), // For backward compatibility with existing error formats
+  ]).optional(),
+}).openapi('VerifyResponse');
+
+// =============================================================================
+// TYPE INFERENCE FROM SCHEMAS
+// =============================================================================
+
+export type ZarinPalConfig = z.infer<typeof ZarinPalConfigSchema>;
+export type PaymentMetadata = z.infer<typeof PaymentMetadataSchema>;
+export type PaymentRequest = z.infer<typeof PaymentRequestSchema>;
+export type VerifyRequest = z.infer<typeof VerifyRequestSchema>;
+export type DirectDebitRequest = z.infer<typeof DirectDebitRequestSchema>;
+export type PaymentResponse = z.infer<typeof PaymentResponseSchema>;
+export type VerifyResponse = z.infer<typeof VerifyResponseSchema>;
 
 /**
  * ZarinPal Service Class
@@ -74,6 +164,7 @@ export class ZarinPalService extends BaseService<ZarinPalConfig> {
 
   /**
    * Get service configuration from environment with validation
+   * Uses Zod schema validation for type safety
    */
   static getConfig(env: CloudflareEnv): ZarinPalConfig {
     // Validate ZarinPal specific configuration
@@ -87,7 +178,7 @@ export class ZarinPalService extends BaseService<ZarinPalConfig> {
     const accessToken = env.ZARINPAL_ACCESS_TOKEN;
     const isSandbox = env.NODE_ENV === 'development';
 
-    return {
+    const config = {
       serviceName: 'ZarinPal',
       baseUrl: isSandbox ? 'https://sandbox.zarinpal.com' : 'https://api.zarinpal.com',
       timeout: 30000,
@@ -100,24 +191,29 @@ export class ZarinPalService extends BaseService<ZarinPalConfig> {
       accessToken,
       isSandbox,
     };
+
+    // Validate configuration using Zod schema
+    return ZarinPalConfigSchema.parse(config);
   }
 
   /**
    * Request payment from ZarinPal
-   * Using BaseService HTTP methods for consistent error handling and retries
+   * Using BaseService HTTP methods with Zod validation for type safety
    */
   async requestPayment(request: PaymentRequest): Promise<PaymentResponse> {
+    // Validate input using Zod schema
+    const validatedRequest = PaymentRequestSchema.parse(request);
     const payload = {
       merchant_id: this.config.merchantId,
-      amount: request.amount,
-      currency: request.currency,
-      description: request.description,
-      callback_url: request.callbackUrl,
-      metadata: request.metadata,
+      amount: validatedRequest.amount,
+      currency: validatedRequest.currency,
+      description: validatedRequest.description,
+      callback_url: validatedRequest.callbackUrl,
+      metadata: validatedRequest.metadata,
     };
 
     try {
-      const result = await this.post<typeof payload, PaymentResponse>(
+      const rawResult = await this.post<typeof payload, PaymentResponse>(
         '/pg/v4/payment/request.json',
         payload,
         {
@@ -126,33 +222,41 @@ export class ZarinPalService extends BaseService<ZarinPalConfig> {
         'request payment',
       );
 
-      // Validate response and handle ZarinPal error codes
-      if (result.data && result.data.code !== 100) {
-        const errorMessage = this.getZarinPalErrorMessage(result.data.code);
+      // Validate response using Zod schema while maintaining backward compatibility
+      const validatedResult = PaymentResponseSchema.parse(rawResult);
+
+      // Handle ZarinPal error codes
+      if (validatedResult.data && validatedResult.data.code !== 100) {
+        const errorMessage = this.getZarinPalErrorMessage(validatedResult.data.code);
         throw new HTTPException(HttpStatusCodes.PAYMENT_REQUIRED, {
-          message: `Payment request failed: ${errorMessage} (Code: ${result.data.code})`,
+          message: `Payment request failed: ${errorMessage} (Code: ${validatedResult.data.code})`,
         });
       }
 
-      return result;
+      return validatedResult;
     } catch (error) {
-      throw this.handleError(error, 'request payment', { payload });
+      throw this.handleError(error, 'request payment', {
+        errorType: 'payment' as const,
+        provider: 'zarinpal' as const,
+      });
     }
   }
 
   /**
    * Verify payment with ZarinPal
-   * Using BaseService HTTP methods for consistent error handling and retries
+   * Using BaseService HTTP methods with Zod validation for type safety
    */
   async verifyPayment(request: VerifyRequest): Promise<VerifyResponse> {
+    // Validate input using Zod schema
+    const validatedRequest = VerifyRequestSchema.parse(request);
     const payload = {
       merchant_id: this.config.merchantId,
-      authority: request.authority,
-      amount: request.amount,
+      authority: validatedRequest.authority,
+      amount: validatedRequest.amount,
     };
 
     try {
-      const result = await this.post<typeof payload, VerifyResponse>(
+      const rawResult = await this.post<typeof payload, VerifyResponse>(
         '/pg/v4/payment/verify.json',
         payload,
         {
@@ -161,54 +265,53 @@ export class ZarinPalService extends BaseService<ZarinPalConfig> {
         'verify payment',
       );
 
+      // Validate response using Zod schema while maintaining backward compatibility
+      const validatedResult = VerifyResponseSchema.parse(rawResult);
+
       // Validate response structure
-      if (!result.data) {
+      if (!validatedResult.data && (!validatedResult.errors || (Array.isArray(validatedResult.errors) && validatedResult.errors.length === 0))) {
         throw new HTTPException(HttpStatusCodes.BAD_GATEWAY, {
           message: 'Invalid verification response format from ZarinPal',
         });
       }
 
       // Note: Don't throw error for verification codes here as they need to be handled by calling code
-      return result;
+      return validatedResult;
     } catch (error) {
-      throw this.handleError(error, 'verify payment', { payload });
+      throw this.handleError(error, 'verify payment', {
+        errorType: 'payment' as const,
+        provider: 'zarinpal' as const,
+      });
     }
   }
 
   /**
    * Process direct debit payment for recurring subscriptions
-   * Using BaseService HTTP methods with limited retries to avoid duplicate charges
+   * Using BaseService HTTP methods with Zod validation and limited retries
    */
   async directDebitPayment(request: DirectDebitRequest): Promise<PaymentResponse> {
-    // Validate card hash before processing
-    if (!request.card_hash || request.card_hash.length < 10) {
-      throw new HTTPException(HttpStatusCodes.BAD_REQUEST, {
-        message: 'Invalid card hash for direct debit payment',
-      });
-    }
-
-    // Validate amount (minimum 1000 IRR as per ZarinPal guidelines)
-    if (request.amount < 1000) {
-      throw new HTTPException(HttpStatusCodes.BAD_REQUEST, {
-        message: 'Minimum payment amount is 1000 IRR for direct debit',
-      });
-    }
+    // Validate input using Zod schema (handles card hash and amount validation)
+    const validatedRequest = DirectDebitRequestSchema.parse(request);
 
     const payload = {
       merchant_id: this.config.merchantId,
-      amount: request.amount,
-      currency: request.currency,
-      description: request.description,
-      card_hash: request.card_hash,
-      metadata: {
-        payment_type: 'direct_debit',
-        ...request.metadata,
-      },
+      amount: validatedRequest.amount,
+      currency: validatedRequest.currency,
+      description: validatedRequest.description,
+      card_hash: validatedRequest.card_hash,
+      metadata: validatedRequest.metadata
+        ? {
+            payment_type: 'direct_debit',
+            ...validatedRequest.metadata,
+          }
+        : {
+            payment_type: 'direct_debit',
+          },
     };
 
     try {
       // Use makeRequest with custom config for limited retries on direct debit
-      const result = await this.makeRequest<PaymentResponse>(
+      const rawResult = await this.makeRequest<PaymentResponse>(
         '/pg/v4/payment/request.json',
         {
           method: 'POST',
@@ -221,24 +324,30 @@ export class ZarinPalService extends BaseService<ZarinPalConfig> {
         'direct debit payment',
       );
 
+      // Validate response using Zod schema while maintaining backward compatibility
+      const validatedResult = PaymentResponseSchema.parse(rawResult);
+
       // Validate response structure
-      if (!result.data) {
+      if (!validatedResult.data && (!validatedResult.errors || (Array.isArray(validatedResult.errors) && validatedResult.errors.length === 0))) {
         throw new HTTPException(HttpStatusCodes.BAD_GATEWAY, {
           message: 'Invalid response format from ZarinPal',
         });
       }
 
       // Handle ZarinPal specific error codes
-      if (result.data.code !== 100 && result.data.code !== 101) {
-        const errorMessage = this.getZarinPalErrorMessage(result.data.code);
+      if (validatedResult.data && validatedResult.data.code !== 100 && validatedResult.data.code !== 101) {
+        const errorMessage = this.getZarinPalErrorMessage(validatedResult.data.code);
         throw new HTTPException(HttpStatusCodes.PAYMENT_REQUIRED, {
-          message: `Direct debit failed: ${errorMessage} (Code: ${result.data.code})`,
+          message: `Direct debit failed: ${errorMessage} (Code: ${validatedResult.data.code})`,
         });
       }
 
-      return result;
+      return validatedResult;
     } catch (error) {
-      throw this.handleError(error, 'direct debit payment', { payload });
+      throw this.handleError(error, 'direct debit payment', {
+        errorType: 'payment' as const,
+        provider: 'zarinpal' as const,
+      });
     }
   }
 

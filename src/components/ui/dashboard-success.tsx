@@ -27,8 +27,8 @@ export function DashboardSuccess({
     <Card className={`border-0 shadow-lg ${className}`}>
       <CardContent className="pt-6">
         <div className="text-center space-y-4">
-          <div className="w-16 h-16 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center mx-auto">
-            <div className="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center">
+          <div className="w-16 h-16 bg-emerald-50 dark:bg-emerald-950/20 rounded-full flex items-center justify-center mx-auto">
+            <div className="w-8 h-8 bg-emerald-600 dark:bg-emerald-500 rounded-full flex items-center justify-center">
               <CheckCircle className="h-5 w-5 text-white" />
             </div>
           </div>
@@ -38,7 +38,7 @@ export function DashboardSuccess({
             {action || (
               <Button onClick={() => window.location.href = actionHref}>
                 {actionText}
-                <ArrowRight className="h-4 w-4 ml-2" />
+                <ArrowRight className="h-4 w-4 ms-2" />
               </Button>
             )}
           </div>

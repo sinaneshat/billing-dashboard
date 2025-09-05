@@ -29,11 +29,11 @@ export function DashboardPageWrapper({
   showSeparator = true,
 }: DashboardPageWrapperProps) {
   return (
-    <div className={cn('flex flex-1 flex-col', className)}>
+    <div className={cn('flex flex-1 flex-col w-full min-w-0', className)}>
       {/* Page Header with Title, Description and Optional Actions */}
       <div className={cn('space-y-4 pb-4 md:pb-6', headerClassName)}>
-        <div className="flex items-center justify-between">
-          <div className="space-y-1">
+        <div className="flex items-center justify-between gap-4">
+          <div className="space-y-1 flex-1 min-w-0">
             <h1 className="text-2xl font-semibold tracking-tight md:text-3xl">
               {title}
             </h1>
@@ -44,7 +44,7 @@ export function DashboardPageWrapper({
             )}
           </div>
           {actions && (
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 shrink-0">
               {actions}
             </div>
           )}

@@ -7,8 +7,7 @@ import type { RouteHandler } from '@hono/zod-openapi';
 import { desc, like } from 'drizzle-orm';
 import type { z } from 'zod';
 
-import { ok } from '@/api/common/responses';
-import { createHandler } from '@/api/patterns/route-handler-factory';
+import { createHandler, Responses } from '@/api/core';
 import { billingRepositories } from '@/api/repositories/billing-repositories';
 import type { ApiEnv } from '@/api/types';
 import { db } from '@/db';
@@ -64,7 +63,7 @@ export const adminStatsHandler: RouteHandler<typeof adminStatsRoute, ApiEnv> = c
       },
     };
 
-    return ok(c, stats);
+    return Responses.ok(c, stats);
   },
 );
 
@@ -90,7 +89,7 @@ export const adminUsersHandler: RouteHandler<typeof adminUsersRoute, ApiEnv> = c
 
     const totalUsers = allUsers.length;
 
-    return ok(c, {
+    return Responses.ok(c, {
       data: userData.map(u => ({
         id: u.id,
         name: u.name,
@@ -124,7 +123,7 @@ export const adminTestWebhookHandler: RouteHandler<typeof adminTestWebhookRoute,
         message: 'External webhook URL not configured. Set EXTERNAL_WEBHOOK_URL environment variable.',
         webhook_url: undefined,
       };
-      return ok(c, responseData);
+      return Responses.ok(c, responseData);
     }
 
     // Use existing webhook infrastructure - leverage the database webhook event system
@@ -152,7 +151,7 @@ export const adminTestWebhookHandler: RouteHandler<typeof adminTestWebhookRoute,
 
     const success = response.ok;
 
-    return ok(c, {
+    return Responses.ok(c, {
       success,
       message: success
         ? `Test webhook sent successfully to ${webhookUrl}`

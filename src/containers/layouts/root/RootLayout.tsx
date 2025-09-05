@@ -8,8 +8,6 @@ import { Toaster } from '@/components/ui/toaster';
 import {
   QueryClientProvider,
 } from '@/containers/providers';
-import { cn } from '@/lib';
-import { getDirection } from '@/lib/rtl';
 
 type RootLayoutProps = {
   children: React.ReactNode;
@@ -31,14 +29,10 @@ export function RootLayout({
   theme,
   env,
 }: RootLayoutProps) {
-  const direction = getDirection(locale);
-  const isRTL = direction === 'rtl';
+  const direction = locale === 'fa' ? 'rtl' : 'ltr';
   return (
     <div
-      className={cn(
-        'min-h-screen bg-background font-sans antialiased',
-        isRTL && 'rtl',
-      )}
+      className="min-h-screen bg-background font-sans antialiased"
       dir={direction}
     >
       <ThemeProvider

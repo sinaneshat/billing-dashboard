@@ -54,7 +54,10 @@
     "downgrade": "Downgrade",
     "updatePayment": "Update Payment",
     "downloadInvoice": "Download Invoice",
-    "billingSettings": "Billing Settings"
+    "billingSettings": "Billing Settings",
+    "manage": "Manage",
+    "addPaymentMethod": "Add Payment Method",
+    "viewAll": "View All"
   },
   "validation": {
     "required": "This field is required",
@@ -325,9 +328,35 @@
     "paymentHistoryEmptyDescription": "Your payment transactions will appear here once you make your first purchase",
     "upcomingBillsEmpty": "No upcoming bills",
     "upcomingBillsEmptyDescription": "All payments are up to date",
-    "paymentSuccess": "Payment Success"
+    "paymentSuccess": "Payment Success",
+    "subscriptionBilling": "Subscription Billing",
+    "subscriptionBillingDescription": "View your subscription billing history and automated charges",
+    "subscriptionsTitle": "Subscriptions",
+    "subscriptionsDescription": "Manage your active and past subscriptions",
+    "monthlyCost": "Monthly Cost",
+    "noPlan": "No Plan",
+    "notScheduled": "Not scheduled",
+    "quickActions": "Quick Actions",
+    "commonBillingTasks": "Common billing tasks",
+    "unknownProduct": "Unknown Product",
+    "noActiveSubscription": "You don't have an active subscription. Browse our plans to get started.",
+    "viewPlans": "View Plans",
+    "paymentMethods": "Payment Methods",
+    "manageBillingInfo": "Manage your billing information",
+    "recentTransactions": "Your recent billing transactions",
+    "started": "Started",
+    "noPaymentMethods": "No payment methods added",
+    "primaryDirectDebit": "Primary • Direct Debit",
+    "default": "Default",
+    "activeMethod": "active method",
+    "activeMethods": "active methods",
+    "changePlanDescription": "Upgrade or downgrade your subscription",
+    "updatePaymentDescription": "Manage your payment methods",
+    "downloadInvoiceDescription": "Get your latest billing statements",
+    "billingSettingsDescription": "Configure your billing preferences"
   },
   "subscription": {
+    "nextBilling": "Next Billing",
     "title": "Subscriptions",
     "active": "Active Subscription",
     "inactive": "Inactive",
@@ -376,18 +405,24 @@
     "activationFailed": "Failed to activate subscription",
     "activationError": "Failed to activate subscription",
     "noActive": "No Active Subscription",
-    "default": "Subscription"
+    "default": "Subscription",
+    "createSuccess": "Your subscription has been created successfully!",
+    "createFailed": "Failed to create subscription"
   },
   "plans": {
     "title": "Choose your plan",
     "subtitle": "All prices calculated with live exchange rates. Start free and upgrade as you grow.",
+    "subscriptionPlans": "Subscription Plans",
+    "choosePerfectPlan": "Choose the perfect plan for your needs",
+    "failedToLoad": "Failed to load plans",
+    "congratulations": "Congratulations!",
     "mostPopular": "Most Popular",
     "recommended": "Recommended",
     "currentPlan": "Current Plan",
     "whatsIncluded": "What's included:",
     "usageLimits": "Usage limits:",
     "features": "Features",
-    "pricing": "Pricing",
+    "pricingLabel": "Pricing",
     "free": "Free",
     "custom": "Custom",
     "contactSales": "Contact Sales",
@@ -432,7 +467,71 @@
     "messagesMonth": "messages/month",
     "conversationsMonth": "conversations/month",
     "modelsText": "models",
-    "aiModelsText": "AI models"
+    "aiModelsText": "AI models",
+    "plans": "Plans",
+    "payment": "Payment",
+    "confirm": "Confirm",
+    "liveRatesNote": "All prices calculated with live exchange rates",
+    "confirmSelectedPlan": "Confirm Selected Plan",
+    "perMonth": "per month",
+    "subscriptionActivated": "Your subscription has been activated successfully.",
+    "goToDashboard": "Go to Dashboard",
+    "errorDescription": "There was an error loading subscription plans. Please try again.",
+    "loadingMessage": "Loading subscription plans...",
+    "pricing": {
+      "free": {
+        "name": "Free",
+        "description": "For personal exploration and getting started.",
+        "buttonText": "Get started",
+        "features": {
+          "requestsPerDay": "100 requests per day",
+          "basicAccess": "Basic features access",
+          "communitySupport": "Community support",
+          "limitedApi": "Limited API access",
+          "prioritySupport": "Priority support",
+          "advancedAnalytics": "Advanced analytics"
+        }
+      },
+      "starter": {
+        "name": "Starter",
+        "description": "Perfect for small projects and individual developers.",
+        "buttonText": "Choose plan",
+        "features": {
+          "requestsPerDay": "1,000 requests per day",
+          "standardAccess": "Standard features access",
+          "emailSupport": "Email support",
+          "apiAccess": "API access",
+          "basicAnalytics": "Basic analytics",
+          "customIntegrations": "Custom integrations"
+        }
+      },
+      "premium": {
+        "name": "Premium",
+        "description": "Perfect for professionals and growing businesses.",
+        "buttonText": "Most popular",
+        "features": {
+          "unlimitedGeneration": "Unlimited AI generation",
+          "fullAccess": "Full features access",
+          "prioritySupport": "Priority support",
+          "advancedAnalytics": "Advanced analytics",
+          "fullApi": "Full API access",
+          "basicIntegrations": "Basic integrations"
+        }
+      },
+      "enterprise": {
+        "name": "Enterprise",
+        "description": "For large organizations requiring specialized support.",
+        "buttonText": "Contact sales",
+        "features": {
+          "customDeployment": "Custom deployment",
+          "comprehensiveAnalytics": "Comprehensive analytics",
+          "specializedTraining": "Specialized model training",
+          "dedicatedSupport": "24/7 dedicated support",
+          "customIntegrations": "Custom integrations",
+          "slaGuarantees": "SLA guarantees"
+        }
+      }
+    }
   },
   "paymentMethods": {
     "title": "Payment Methods",
@@ -500,6 +599,36 @@
       "removingPaymentMethod": "Removing payment method...",
       "updatingDefault": "Updating default payment method...",
       "setting": "Setting..."
+    },
+    "table": {
+      "paymentMethod": "Payment Method",
+      "mobile": "Mobile",
+      "lastUsed": "Last Used",
+      "never": "Never",
+      "directDebitContract": "Direct Debit Contract",
+      "searchPlaceholder": "Search payment methods...",
+      "emptyStateTitle": "No Payment Methods",
+      "emptyStateDescription": "You haven't added any payment methods yet. Add one to get started.",
+      "addMethod": "Add Method",
+      "actions": {
+        "viewContract": "View Contract",
+        "setAsDefault": "Set as Default",
+        "managePermissions": "Manage Permissions",
+        "removeMethod": "Remove Method",
+        "openActions": "Open payment method actions"
+      },
+      "tabs": {
+        "allMethods": "All Methods",
+        "active": "Active",
+        "inactive": "Inactive"
+      },
+      "filters": {
+        "selectStatus": "Select status",
+        "allStatus": "All Status",
+        "signed": "Signed",
+        "allTypes": "All Types",
+        "secondary": "Secondary"
+      }
     }
   },
   "directDebit": {
@@ -562,6 +691,18 @@
       "monthlyTransactionLimitValue": "100 transactions",
       "maxAmountPerTransaction": "Maximum Amount per Transaction",
       "maxAmountPerTransactionValue": "500,000 Toman"
+    },
+    "validation": {
+      "mobileRequired": "Mobile number is required",
+      "invalidMobile": "Please enter a valid Iranian mobile number (09xxxxxxxxx)",
+      "selectBank": "Please select a bank",
+      "invalidBank": "Invalid bank selection",
+      "contractInitiateFailed": "Failed to initiate direct debit contract"
+    },
+    "placeholders": {
+      "mobile": "0912 123 4567",
+      "nationalId": "1234567890",
+      "chooseBank": "Choose your bank..."
     }
   },
   "payments": {
@@ -768,6 +909,52 @@
   "meta": {
     "defaultTitle": "Billing Dashboard",
     "defaultDescription": "Manage your subscriptions and billing information",
-    "keywords": "billing, subscription, payment, dashboard"
+    "keywords": "billing, subscription, payment, dashboard",
+    "signIn": {
+      "title": "Sign In",
+      "description": "Sign in to your account"
+    },
+    "signUp": {
+      "title": "Sign Up",
+      "description": "Create your account to get started"
+    },
+    "authCallback": {
+      "description": "Completing sign in process"
+    }
+  },
+  "accessibility": {
+    "breadcrumb": "breadcrumb",
+    "pagination": "pagination",
+    "previousPage": "Go to previous page",
+    "nextPage": "Go to next page",
+    "selectAll": "Select all",
+    "selectRow": "Select row",
+    "selectAllRows": "Select all rows",
+    "toggleSidebar": "Toggle Sidebar",
+    "openFiltersMenu": "Open filters menu",
+    "notSetAsDefault": "Not set as default",
+    "continueToBankSigning": "Continue to bank for contract signing",
+    "settingUpContract": "Setting up contract...",
+    "setupDirectDebitContract": "Setup direct debit contract"
+  },
+  "dataTable": {
+    "noDataFound": "No data found",
+    "noItemsToDisplay": "There are no items to display.",
+    "dataTable": "Data table",
+    "openFiltersMenu": "Open filters menu",
+    "columns": "Columns",
+    "selectAllRows": "Select all rows",
+    "selectRow": "Select row {id}",
+    "rowsSelected": "{selected} of {total} row(s) selected",
+    "rowsPerPage": "Rows per page",
+    "selectAll": "Select all",
+    "selectRowCheckbox": "Select row",
+    "loadingSubscriptionPlans": "Loading subscription plans..."
+  },
+  "datePicker": {
+    "pickDate": "Pick a date"
+  },
+  "pages": {
+    "myBilling": "My Billing"
   }
 }

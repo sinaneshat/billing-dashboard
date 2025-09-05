@@ -1,6 +1,7 @@
 // components/TextInput.tsx
 import { format, parseISO } from 'date-fns';
 import { CalendarIcon } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { useMemo } from 'react';
 import { Controller, useFormContext } from 'react-hook-form';
 
@@ -27,6 +28,7 @@ function RHFShadcnDatePicker({
   value: externalValue,
   onChange: externalOnChange,
 }: GeneralFormProps) {
+  const t = useTranslations();
   const { control } = useFormContext();
 
   const UTCtoUserDate = useMemo(
@@ -42,7 +44,7 @@ function RHFShadcnDatePicker({
         <FormItem className="flex w-full flex-col">
           <FormLabel>
             {title}
-            {required && <span className="text-destructive ml-1">*</span>}
+            {required && <span className="text-destructive ms-1">*</span>}
           </FormLabel>
           <Popover>
             <PopoverTrigger asChild>
@@ -50,7 +52,7 @@ function RHFShadcnDatePicker({
                 <Button
                   variant="outline"
                   className={cn(
-                    'pl-3 text-left font-normal w-full',
+                    'ps-3 text-start font-normal w-full',
                     !field.value && 'text-muted-foreground',
                   )}
                   aria-required={!!required}
@@ -60,9 +62,9 @@ function RHFShadcnDatePicker({
                         format(field.value, 'PPP')
                       )
                     : (
-                        <span>{placeholder || 'Pick a date'}</span>
+                        <span>{placeholder || t('forms.pickDate')}</span>
                       )}
-                  <CalendarIcon className="ml-auto size-4 opacity-50" />
+                  <CalendarIcon className="ms-auto size-4 opacity-50" />
                 </Button>
               </FormControl>
             </PopoverTrigger>

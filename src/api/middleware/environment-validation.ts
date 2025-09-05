@@ -321,15 +321,12 @@ export function createEnvironmentValidationMiddleware() {
  */
 export function validateServiceEnvironment(
   env: CloudflareEnv,
-  required: readonly string[],
+  required: readonly (keyof CloudflareEnv)[],
   serviceName: string,
 ): void {
   try {
-    // CloudflareEnv includes specific bindings (R2Bucket, D1Database) that need conversion
-    const envRecord = Object.fromEntries(
-      Object.entries(env).map(([key, value]) => [key, value]),
-    ) as Record<string, unknown>;
-    validateEnvironmentVariables(envRecord, [...required]);
+    // Use the original env parameter directly since validateEnvironmentVariables expects CloudflareEnv
+    validateEnvironmentVariables(env, [...required]);
   } catch (error) {
     apiLogger.error(`${serviceName} environment validation failed`, {
       error: error instanceof Error ? error.message : String(error),

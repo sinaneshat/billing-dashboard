@@ -56,23 +56,3 @@ export type ApiClient = typeof apiClient;
  * Export AppType for use in services layer
  */
 export type { AppType };
-
-// Advanced factory: create a typed client with overrides
-export function createApiClient(options?: {
-  baseUrl?: string;
-  headers?: Record<string, string>;
-  init?: RequestInit;
-  fetch?: typeof fetch;
-}) {
-  return hc<AppType>(options?.baseUrl ?? getBaseUrl(), {
-    headers: {
-      Accept: 'application/json',
-      ...(options?.headers ?? {}),
-    },
-    init: {
-      credentials: 'include',
-      ...(options?.init ?? {}),
-    },
-    fetch: options?.fetch,
-  });
-}

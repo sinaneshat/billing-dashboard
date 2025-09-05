@@ -3,12 +3,11 @@ import type { RouteHandler } from '@hono/zod-openapi';
 import { HTTPException } from 'hono/http-exception';
 import * as HttpStatusCodes from 'stoker/http-status-codes';
 
-import { extractFile, extractOptionalString } from '@/api/common';
 import type { ImageType } from '@/api/common/file-validation';
 import { FileValidator } from '@/api/common/file-validation';
-import { ok } from '@/api/common/responses';
+import { extractFile, extractOptionalString } from '@/api/common/form-utils';
 import { getStringFromObject } from '@/api/common/type-utils';
-import { createHandler } from '@/api/patterns/route-handler-factory';
+import { createHandler, Responses } from '@/api/core';
 import type { ApiEnv } from '@/api/types';
 
 import type {
@@ -91,7 +90,7 @@ export const uploadUserAvatarHandler: RouteHandler<typeof uploadUserAvatarRoute,
       headers: c.req.raw.headers, // Pass through the request headers for session
     });
 
-    return ok(
+    return Responses.ok(
       c,
       {
         key: imageKey,
@@ -105,8 +104,6 @@ export const uploadUserAvatarHandler: RouteHandler<typeof uploadUserAvatarRoute,
         entityType: 'user' as const,
         previousAvatarDeleted,
       },
-      undefined,
-      HttpStatusCodes.OK,
     );
   },
 );
@@ -172,7 +169,7 @@ export const uploadCompanyImageHandler: RouteHandler<typeof uploadCompanyImageRo
 
     const imageUrl = `${c.req.url.split('/api')[0]}/api/v1/storage/${imageKey}`;
 
-    return ok(
+    return Responses.ok(
       c,
       {
         key: imageKey,
@@ -186,8 +183,6 @@ export const uploadCompanyImageHandler: RouteHandler<typeof uploadCompanyImageRo
         entityType: 'user' as const,
         previousImageDeleted,
       },
-      undefined,
-      HttpStatusCodes.OK,
     );
   },
 );
@@ -250,14 +245,12 @@ export const getImagesHandler: RouteHandler<typeof getImagesRoute, ApiEnv> = cre
 
     const filteredImages = images.filter((img): img is NonNullable<typeof img> => img !== null);
 
-    return ok(
+    return Responses.ok(
       c,
       {
         images: filteredImages,
         total: filteredImages.length,
       },
-      undefined,
-      HttpStatusCodes.OK,
     );
   },
 );
@@ -292,7 +285,7 @@ export const getImageMetadataHandler: RouteHandler<typeof getImageMetadataRoute,
 
     const imageUrl = `${c.req.url.split('/api')[0]}/api/v1/storage/${key}`;
 
-    return ok(
+    return Responses.ok(
       c,
       {
         key,
@@ -305,8 +298,6 @@ export const getImageMetadataHandler: RouteHandler<typeof getImageMetadataRoute,
         entityId: metadata.userId || 'unknown',
         entityType: 'user' as const,
       },
-      undefined,
-      HttpStatusCodes.OK,
     );
   },
 );
@@ -356,15 +347,13 @@ export const deleteImageHandler: RouteHandler<typeof deleteImageRoute, ApiEnv> =
       });
     }
 
-    return ok(
+    return Responses.ok(
       c,
       {
         key,
         deleted: true,
         deletedAt: new Date().toISOString(),
       },
-      undefined,
-      HttpStatusCodes.OK,
     );
   },
 );

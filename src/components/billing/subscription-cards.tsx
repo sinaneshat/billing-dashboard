@@ -28,7 +28,12 @@ import { formatTomanCurrency, showErrorToast, showSuccessToast } from '@/lib';
 import type { GetSubscriptionsResponse } from '@/services/api/subscriptions';
 
 // Extract subscription type from API response
-type Subscription = NonNullable<GetSubscriptionsResponse['data']>[number];
+// API response structure: { success: boolean, data?: SubscriptionWithProduct[] }
+type Subscription = GetSubscriptionsResponse extends { data?: infer T }
+  ? T extends readonly (infer U)[]
+    ? U
+    : never
+  : never;
 
 type SubscriptionCardsProps = {
   subscriptions: Subscription[];

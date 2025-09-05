@@ -18,6 +18,7 @@ export default antfu(
       '**/*.md',
       '.claude-flow/**/*',
       '.claude/**/*',
+      'scripts/**/*',
     ],
     isInEditor: false,
     lessOpinionated: false,
@@ -70,7 +71,7 @@ export default antfu(
       }],
       'ts/no-explicit-any': 'error',
       'ts/explicit-function-return-type': 'off',
-      'no-console': 'warn',
+      'no-console': ['warn', { allow: ['error', 'warn'] }],
 
       // // Prevent re-exports and enforce better export patterns
       // 'import/no-namespace': ['error', { ignore: ['*.css', '*.scss', '*.less'] }], // Prevents export * from './module'

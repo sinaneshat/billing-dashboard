@@ -1,8 +1,7 @@
 import { createRoute } from '@hono/zod-openapi';
 import * as HttpStatusCodes from 'stoker/http-status-codes';
 
-import { CommonErrorResponses } from '@/api/common';
-
+// import { Responses } from '@/api/core'; // Commented out as unused
 import { CreatePaymentMethodRequestSchema, CreatePaymentMethodResponseSchema, DeletePaymentMethodResponseSchema, GetPaymentMethodsResponseSchema, PaymentMethodParamsSchema, SetDefaultPaymentMethodResponseSchema } from './schema';
 
 export const getPaymentMethodsRoute = createRoute({
@@ -18,7 +17,9 @@ export const getPaymentMethodsRoute = createRoute({
         'application/json': { schema: GetPaymentMethodsResponseSchema },
       },
     },
-    ...CommonErrorResponses.read,
+    [HttpStatusCodes.BAD_REQUEST]: { description: 'Bad Request' },
+    [HttpStatusCodes.NOT_FOUND]: { description: 'Not Found' },
+    [HttpStatusCodes.INTERNAL_SERVER_ERROR]: { description: 'Internal Server Error' },
   },
 });
 
@@ -43,7 +44,10 @@ export const createPaymentMethodRoute = createRoute({
         'application/json': { schema: CreatePaymentMethodResponseSchema },
       },
     },
-    ...CommonErrorResponses.create,
+    [HttpStatusCodes.BAD_REQUEST]: { description: 'Bad Request' },
+    [HttpStatusCodes.UNPROCESSABLE_ENTITY]: { description: 'Validation Error' },
+    [HttpStatusCodes.CONFLICT]: { description: 'Conflict' },
+    [HttpStatusCodes.INTERNAL_SERVER_ERROR]: { description: 'Internal Server Error' },
   },
 });
 
@@ -63,7 +67,10 @@ export const deletePaymentMethodRoute = createRoute({
         'application/json': { schema: DeletePaymentMethodResponseSchema },
       },
     },
-    ...CommonErrorResponses.create,
+    [HttpStatusCodes.BAD_REQUEST]: { description: 'Bad Request' },
+    [HttpStatusCodes.UNPROCESSABLE_ENTITY]: { description: 'Validation Error' },
+    [HttpStatusCodes.CONFLICT]: { description: 'Conflict' },
+    [HttpStatusCodes.INTERNAL_SERVER_ERROR]: { description: 'Internal Server Error' },
   },
 });
 
@@ -83,6 +90,9 @@ export const setDefaultPaymentMethodRoute = createRoute({
         'application/json': { schema: SetDefaultPaymentMethodResponseSchema },
       },
     },
-    ...CommonErrorResponses.create,
+    [HttpStatusCodes.BAD_REQUEST]: { description: 'Bad Request' },
+    [HttpStatusCodes.UNPROCESSABLE_ENTITY]: { description: 'Validation Error' },
+    [HttpStatusCodes.CONFLICT]: { description: 'Conflict' },
+    [HttpStatusCodes.INTERNAL_SERVER_ERROR]: { description: 'Internal Server Error' },
   },
 });

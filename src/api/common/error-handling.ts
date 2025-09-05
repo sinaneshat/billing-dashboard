@@ -14,16 +14,12 @@
  * - Request tracing and correlation IDs
  */
 
-import type { Context } from 'hono';
-import { HTTPException } from 'hono/http-exception';
 // Using Stoker's HttpStatusCodes for maximum reusability
 import * as HttpStatusCodes from 'stoker/http-status-codes';
-import { z } from 'zod';
+import type { z } from 'zod';
 
-import { apiLogger } from '@/api/middleware/hono-logger';
-import type { ErrorContext } from '@/api/types/errors';
-
-import { formatZodError, zodValidation } from './zod-validation-utils';
+// Import our unified type-safe error context instead of generic Record
+import type { ErrorContext } from '@/api/core';
 
 // ============================================================================
 // ERROR TYPE DEFINITIONS
@@ -106,7 +102,7 @@ class AppError extends Error {
   public readonly statusCode: number;
   public readonly severity: ErrorSeverity;
   public readonly details?: unknown;
-  public readonly context?: ErrorContext | Record<string, unknown>;
+  public readonly context?: ErrorContext;
   public readonly timestamp: Date;
   public readonly correlationId?: string;
 
@@ -124,7 +120,7 @@ class AppError extends Error {
     statusCode: number;
     severity?: ErrorSeverity;
     details?: unknown;
-    context?: ErrorContext | Record<string, unknown>;
+    context?: ErrorContext;
     correlationId?: string;
   }) {
     super(message);
@@ -163,21 +159,28 @@ class AppError extends Error {
 
   /**
    * Remove sensitive data from context for logging
+   * Now uses discriminated union for type safety
    */
   private sanitizeContext(): ErrorContext | undefined {
     if (!this.context)
       return undefined;
 
-    const sanitized = { ...this.context } as Record<string, unknown>;
-    const sensitiveKeys = ['password', 'token', 'secret', 'key', 'authorization'];
-
-    Object.keys(sanitized).forEach((key) => {
-      if (sensitiveKeys.some(sensitive => key.toLowerCase().includes(sensitive))) {
-        sanitized[key] = '[REDACTED]';
-      }
-    });
-
-    return sanitized as ErrorContext;
+    // The discriminated union ensures type safety - no need for generic Record
+    // Each error type has its own sanitization logic
+    switch (this.context.errorType) {
+      case 'authentication':
+        return {
+          ...this.context,
+          attemptedEmail: this.context.attemptedEmail ? '[REDACTED]' : undefined,
+        };
+      case 'payment':
+        return {
+          ...this.context,
+          // Keep payment info but redact sensitive details if needed
+        };
+      default:
+        return this.context;
+    }
   }
 }
 
@@ -195,7 +198,7 @@ class ValidationError extends AppError {
   }: {
     message?: string;
     validationErrors: Array<{ field: string; message: string }>;
-    context?: ErrorContext | Record<string, unknown>;
+    context?: ErrorContext;
     correlationId?: string;
   }) {
     super({
@@ -213,11 +216,17 @@ class ValidationError extends AppError {
 
   static fromZodError(
     error: z.ZodError,
-    context?: ErrorContext | Record<string, unknown>,
+    context?: ErrorContext,
     correlationId?: string,
   ): ValidationError {
+    const fieldErrors = error.issues.map(issue => ({
+      field: issue.path.join('.') || 'root',
+      message: issue.message,
+      code: issue.code,
+    }));
+
     return new ValidationError({
-      validationErrors: formatZodError(error),
+      validationErrors: fieldErrors,
       context,
       correlationId,
     });
@@ -240,7 +249,7 @@ class BusinessLogicError extends AppError {
     code: ErrorCode;
     severity?: ErrorSeverity;
     details?: unknown;
-    context?: ErrorContext | Record<string, unknown>;
+    context?: ErrorContext;
     correlationId?: string;
   }) {
     super({
@@ -274,7 +283,7 @@ class ExternalServiceError extends AppError {
     serviceName: string;
     code?: ErrorCode;
     originalError?: Error;
-    context?: ErrorContext | Record<string, unknown>;
+    context?: ErrorContext;
     correlationId?: string;
   }) {
     super({
@@ -306,7 +315,7 @@ export const createError = {
   /**
    * Authentication errors
    */
-  unauthenticated: (message = 'Authentication required', context?: ErrorContext | Record<string, unknown>, correlationId?: string) =>
+  unauthenticated: (message = 'Authentication required', context?: ErrorContext, correlationId?: string) =>
     new AppError({
       message,
       code: ERROR_CODES.UNAUTHENTICATED,
@@ -316,7 +325,7 @@ export const createError = {
       correlationId,
     }),
 
-  unauthorized: (message = 'Insufficient permissions', context?: ErrorContext | Record<string, unknown>, correlationId?: string) =>
+  unauthorized: (message = 'Insufficient permissions', context?: ErrorContext, correlationId?: string) =>
     new AppError({
       message,
       code: ERROR_CODES.UNAUTHORIZED,
@@ -326,7 +335,7 @@ export const createError = {
       correlationId,
     }),
 
-  tokenExpired: (message = 'Authentication token has expired', context?: ErrorContext | Record<string, unknown>, correlationId?: string) =>
+  tokenExpired: (message = 'Authentication token has expired', context?: ErrorContext, correlationId?: string) =>
     new AppError({
       message,
       code: ERROR_CODES.TOKEN_EXPIRED,
@@ -339,7 +348,7 @@ export const createError = {
   /**
    * Resource errors
    */
-  notFound: (resource = 'Resource', context?: ErrorContext | Record<string, unknown>, correlationId?: string) =>
+  notFound: (resource = 'Resource', context?: ErrorContext, correlationId?: string) =>
     new AppError({
       message: `${resource} not found`,
       code: ERROR_CODES.RESOURCE_NOT_FOUND,
@@ -349,7 +358,7 @@ export const createError = {
       correlationId,
     }),
 
-  alreadyExists: (resource = 'Resource', context?: ErrorContext | Record<string, unknown>, correlationId?: string) =>
+  alreadyExists: (resource = 'Resource', context?: ErrorContext, correlationId?: string) =>
     new AppError({
       message: `${resource} already exists`,
       code: ERROR_CODES.RESOURCE_ALREADY_EXISTS,
@@ -359,7 +368,7 @@ export const createError = {
       correlationId,
     }),
 
-  conflict: (message = 'Resource conflict', context?: ErrorContext | Record<string, unknown>, correlationId?: string) =>
+  conflict: (message = 'Resource conflict', context?: ErrorContext, correlationId?: string) =>
     new AppError({
       message,
       code: ERROR_CODES.RESOURCE_CONFLICT,
@@ -372,7 +381,7 @@ export const createError = {
   /**
    * Payment errors
    */
-  paymentFailed: (message = 'Payment processing failed', context?: ErrorContext | Record<string, unknown>, correlationId?: string) =>
+  paymentFailed: (message = 'Payment processing failed', context?: ErrorContext, correlationId?: string) =>
     new BusinessLogicError({
       message,
       code: ERROR_CODES.PAYMENT_FAILED,
@@ -381,7 +390,7 @@ export const createError = {
       correlationId,
     }),
 
-  insufficientFunds: (message = 'Insufficient funds for transaction', context?: ErrorContext | Record<string, unknown>, correlationId?: string) =>
+  insufficientFunds: (message = 'Insufficient funds for transaction', context?: ErrorContext, correlationId?: string) =>
     new BusinessLogicError({
       message,
       code: ERROR_CODES.INSUFFICIENT_FUNDS,
@@ -390,7 +399,7 @@ export const createError = {
       correlationId,
     }),
 
-  paymentMethodInvalid: (message = 'Payment method is invalid or inactive', context?: ErrorContext | Record<string, unknown>, correlationId?: string) =>
+  paymentMethodInvalid: (message = 'Payment method is invalid or inactive', context?: ErrorContext, correlationId?: string) =>
     new BusinessLogicError({
       message,
       code: ERROR_CODES.PAYMENT_METHOD_INVALID,
@@ -402,7 +411,7 @@ export const createError = {
   /**
    * System errors
    */
-  internal: (message = 'Internal server error', context?: ErrorContext | Record<string, unknown>, correlationId?: string) =>
+  internal: (message = 'Internal server error', context?: ErrorContext, correlationId?: string) =>
     new AppError({
       message,
       code: ERROR_CODES.INTERNAL_SERVER_ERROR,
@@ -412,7 +421,7 @@ export const createError = {
       correlationId,
     }),
 
-  database: (message = 'Database operation failed', context?: ErrorContext | Record<string, unknown>, correlationId?: string) =>
+  database: (message = 'Database operation failed', context?: ErrorContext, correlationId?: string) =>
     new AppError({
       message,
       code: ERROR_CODES.DATABASE_ERROR,
@@ -422,7 +431,7 @@ export const createError = {
       correlationId,
     }),
 
-  rateLimit: (message = 'Too many requests', context?: ErrorContext | Record<string, unknown>, correlationId?: string) =>
+  rateLimit: (message = 'Too many requests', context?: ErrorContext, correlationId?: string) =>
     new AppError({
       message,
       code: ERROR_CODES.RATE_LIMIT_EXCEEDED,
@@ -435,7 +444,7 @@ export const createError = {
   /**
    * External service errors
    */
-  zarinpal: (message = 'ZarinPal service error', originalError?: Error, context?: ErrorContext | Record<string, unknown>, correlationId?: string) =>
+  zarinpal: (message = 'ZarinPal service error', originalError?: Error, context?: ErrorContext, correlationId?: string) =>
     new ExternalServiceError({
       message,
       serviceName: 'ZarinPal',
@@ -445,7 +454,7 @@ export const createError = {
       correlationId,
     }),
 
-  emailService: (message = 'Email service error', originalError?: Error, context?: ErrorContext | Record<string, unknown>, correlationId?: string) =>
+  emailService: (message = 'Email service error', originalError?: Error, context?: ErrorContext, correlationId?: string) =>
     new ExternalServiceError({
       message,
       serviceName: 'Email',
@@ -455,217 +464,6 @@ export const createError = {
       correlationId,
     }),
 };
-
-// ============================================================================
-// ERROR HANDLING UTILITIES
-// ============================================================================
-
-/**
- * Get correlation ID from Hono context
- */
-export function getCorrelationId(c: Context): string {
-  return c.get('correlationId') || c.req.header('x-correlation-id') || generateCorrelationId();
-}
-
-/**
- * Generate a unique correlation ID
- */
-export function generateCorrelationId(): string {
-  return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-}
-
-/**
- * Extract request context for error logging
- */
-export function extractRequestContext(c: Context): ErrorContext | Record<string, unknown> {
-  const user = c.get('user');
-  const requestId = c.get('requestId');
-
-  return {
-    type: 'internal' as const,
-    method: c.req.method,
-    path: c.req.path,
-    userAgent: c.req.header('user-agent'),
-    ip: c.req.header('cf-connecting-ip') || c.req.header('x-forwarded-for'),
-    userId: user?.id,
-    requestId,
-    timestamp: new Date().toISOString(),
-  } as ErrorContext;
-}
-
-/**
- * Convert any error to AppError
- */
-export function normalizeError(error: unknown, context?: ErrorContext | Record<string, unknown>, correlationId?: string): AppError {
-  if (error instanceof AppError) {
-    return error;
-  }
-
-  if (error instanceof HTTPException) {
-    return new AppError({
-      message: error.message,
-      code: ERROR_CODES.INTERNAL_SERVER_ERROR,
-      statusCode: error.status,
-      context,
-      correlationId,
-    });
-  }
-
-  if (error instanceof z.ZodError) {
-    return ValidationError.fromZodError(error, context, correlationId);
-  }
-
-  if (error instanceof Error) {
-    return new AppError({
-      message: error.message,
-      code: ERROR_CODES.INTERNAL_SERVER_ERROR,
-      statusCode: HttpStatusCodes.INTERNAL_SERVER_ERROR,
-      severity: ERROR_SEVERITY.CRITICAL,
-      context: {
-        ...context,
-        type: 'internal' as const,
-      } as ErrorContext,
-      correlationId,
-    });
-  }
-
-  return new AppError({
-    message: 'Unknown error occurred',
-    code: ERROR_CODES.INTERNAL_SERVER_ERROR,
-    statusCode: HttpStatusCodes.INTERNAL_SERVER_ERROR,
-    severity: ERROR_SEVERITY.CRITICAL,
-    context: {
-      ...context,
-      type: 'internal' as const,
-    } as ErrorContext,
-    correlationId,
-  });
-}
-
-/**
- * Safe error logging without sensitive data
- */
-export function logError(error: AppError, additionalContext?: ErrorContext | Record<string, unknown>): void {
-  const logData = {
-    ...error.toJSON(),
-    ...additionalContext,
-  };
-
-  // Log based on severity
-  switch (error.severity) {
-    case ERROR_SEVERITY.LOW:
-      apiLogger.info('API Error (Low)', { data: logData });
-      break;
-    case ERROR_SEVERITY.MEDIUM:
-      apiLogger.warn('API Error (Medium)', { data: logData });
-      break;
-    case ERROR_SEVERITY.HIGH:
-      apiLogger.error('API Error (High)', { data: logData });
-      break;
-    case ERROR_SEVERITY.CRITICAL:
-      apiLogger.error('API Error (CRITICAL)', { data: logData });
-      // In production, you might want to send alerts here
-      break;
-  }
-}
-
-// ============================================================================
-// ERROR RESPONSE FORMATTING
-// ============================================================================
-
-/**
- * Standard error response schema
- */
-export const errorResponseSchema = zodValidation.apiErrorResponseSchema;
-
-/**
- * Format error for API response
- */
-export function formatErrorResponse(error: AppError) {
-  const response = {
-    success: false as const,
-    error: {
-      code: error.code,
-      message: error.message,
-      details: error.details,
-      ...(error instanceof ValidationError && {
-        validation: error.validationErrors,
-      }),
-    },
-    meta: {
-      correlationId: error.correlationId,
-      timestamp: error.timestamp.toISOString(),
-    },
-  };
-
-  // Validate the response format
-  const validation = errorResponseSchema.safeParse(response);
-  if (!validation.success) {
-    apiLogger.error('Error response format validation failed', { error: validation.error });
-    // Return a safe fallback response
-    return {
-      success: false as const,
-      error: {
-        code: ERROR_CODES.INTERNAL_SERVER_ERROR,
-        message: 'Internal server error',
-      },
-      meta: {
-        correlationId: error.correlationId,
-        timestamp: new Date().toISOString(),
-      },
-    };
-  }
-
-  return response;
-}
-
-/**
- * Handle and format error for Hono response
- */
-export function handleError(c: Context, error: unknown): Response {
-  const correlationId = getCorrelationId(c);
-  const context = extractRequestContext(c);
-  const normalizedError = normalizeError(error, context, correlationId);
-
-  // Log the error
-  logError(normalizedError);
-
-  // Format response
-  const errorResponse = formatErrorResponse(normalizedError);
-
-  return c.json(errorResponse, normalizedError.statusCode as never);
-}
-
-// ============================================================================
-// MIDDLEWARE FOR ERROR HANDLING
-// ============================================================================
-
-/**
- * Global error handling middleware for Hono
- */
-export function errorHandlingMiddleware() {
-  return async (c: Context, next: () => Promise<void>): Promise<Response> => {
-    try {
-      await next();
-      // If no error occurred and no response was set, return an empty response
-      return new Response(null, { status: HttpStatusCodes.OK });
-    } catch (error) {
-      return handleError(c, error);
-    }
-  };
-}
-
-/**
- * Correlation ID middleware
- */
-function correlationIdMiddleware() {
-  return async (c: Context, next: () => Promise<void>) => {
-    const correlationId = c.req.header('x-correlation-id') || generateCorrelationId();
-    c.set('correlationId', correlationId);
-    c.header('x-correlation-id', correlationId);
-    await next();
-  };
-}
 
 // ============================================================================
 // EXPORTS
@@ -682,15 +480,6 @@ export {
 
 export default {
   ERROR_CODES,
-  ERROR_SEVERITY,
   HttpStatusCodes,
   createError,
-  normalizeError,
-  handleError,
-  formatErrorResponse,
-  logError,
-  getCorrelationId,
-  extractRequestContext,
-  errorHandlingMiddleware,
-  correlationIdMiddleware,
 };

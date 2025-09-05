@@ -6,6 +6,7 @@ import React, { useState, useTransition } from 'react';
 
 import { setUserLocale } from '@/lib/i18n/locale-cookies';
 import { type Locale, locales } from '@/i18n/routing';
+import { useRouter, usePathname } from '@/i18n/navigation';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -28,6 +29,25 @@ interface LocaleSwitcherProps {
   showLabel?: boolean;
 }
 
+// Update HTML attributes for RTL/LTR without page refresh
+function updateHTMLAttributes(locale: Locale) {
+  const direction = locale === 'fa' ? 'rtl' : 'ltr';
+  const html = document.documentElement;
+  
+  // Update HTML attributes
+  html.lang = locale;
+  html.dir = direction;
+  
+  // Preserve all existing classes except lang-* and dir-*
+  const existingClasses = html.className
+    .split(' ')
+    .filter(cls => cls && !cls.match(/^lang-\w+$/) && !cls.match(/^dir-\w+$/))
+    .join(' ');
+  
+  // Set new className with preserved classes + new lang/dir classes
+  html.className = `${existingClasses} lang-${locale} dir-${direction}`.trim();
+}
+
 export function LocaleSwitcher({
   className,
   variant = 'ghost',
@@ -37,6 +57,9 @@ export function LocaleSwitcher({
   const currentLocale = useLocale() as Locale;
   const [isPending, startTransition] = useTransition();
   const [isChanging, setIsChanging] = useState(false);
+  const router = useRouter();
+  const pathname = usePathname();
+  
   // Note: translations are available but not used in this component
   // const t = useTranslations('language');
 
@@ -46,14 +69,17 @@ export function LocaleSwitcher({
     setIsChanging(true);
     
     try {
-      // Call server action to update the cookie
+      // Update the cookie first
       await setUserLocale(newLocale);
       
-      // Force a minimal refresh that preserves client state
+      // Update HTML attributes immediately for RTL/LTR
+      updateHTMLAttributes(newLocale);
+      
+      // Use next-intl router for smooth client-side navigation
       startTransition(() => {
-        // Use the browser's history API to trigger a clean reload
-        // while preserving theme and other localStorage state
-        window.location.href = window.location.href;
+        // This will trigger a re-render with new translations without page refresh
+        router.replace(pathname, { locale: newLocale });
+        setIsChanging(false);
       });
     } catch (error) {
       console.error('Failed to change locale:', error);
@@ -125,6 +151,8 @@ export function SimpleLocaleSwitcher({ className }: { className?: string }) {
   const currentLocale = useLocale() as Locale;
   const [isPending, startTransition] = useTransition();
   const [isChanging, setIsChanging] = useState(false);
+  const router = useRouter();
+  const pathname = usePathname();
 
   const otherLocale = currentLocale === 'en' ? 'fa' : 'en';
   const isLoading = isPending || isChanging;
@@ -133,10 +161,16 @@ export function SimpleLocaleSwitcher({ className }: { className?: string }) {
     setIsChanging(true);
     
     try {
+      // Update the cookie first  
       await setUserLocale(otherLocale);
+      
+      // Update HTML attributes immediately for RTL/LTR
+      updateHTMLAttributes(otherLocale);
+      
+      // Use next-intl router for smooth client-side navigation
       startTransition(() => {
-        // Use href assignment to maintain theme state
-        window.location.href = window.location.href;
+        router.replace(pathname, { locale: otherLocale });
+        setIsChanging(false);
       });
     } catch (error) {
       console.error('Failed to toggle locale:', error);

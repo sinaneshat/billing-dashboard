@@ -6,7 +6,7 @@
 
 import { and, eq, isNull, lte } from 'drizzle-orm';
 
-import { parseMetadata } from '@/api/common';
+import { parseMetadata } from '@/api/common/metadata-utils';
 import { getNumberFromMetadata } from '@/api/common/type-utils';
 import { apiLogger } from '@/api/middleware/hono-logger';
 import { ZarinPalService } from '@/api/services/zarinpal';

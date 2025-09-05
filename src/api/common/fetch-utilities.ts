@@ -446,18 +446,24 @@ export function createHTTPExceptionFromFetchResult(
 
 /**
  * Environment variable validation following Hono patterns
+ * Now uses CloudflareEnv type instead of generic Record
  */
 export function validateEnvironmentVariables(
-  env: Record<string, unknown>,
-  required: string[],
+  env: CloudflareEnv,
+  required: (keyof CloudflareEnv)[],
 ): void {
   const missing = required.filter(key => !env[key]);
 
   if (missing.length > 0) {
     const errorMessage = `Missing required environment variables: ${missing.join(', ')}`;
     apiLogger.error('Environment validation failed', {
-      missing,
-      component: 'fetch-utilities',
+      logType: 'validation' as const,
+      fieldCount: required.length,
+      validationType: 'params' as const,
+      errors: missing.map(key => ({
+        field: String(key),
+        message: `Required environment variable ${String(key)} is missing`,
+      })),
     });
 
     throw createError.internal(errorMessage);

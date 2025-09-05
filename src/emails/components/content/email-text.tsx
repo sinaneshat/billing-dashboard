@@ -25,18 +25,18 @@ const weightStyles = {
 };
 
 const colorStyles = {
-  primary: 'text-black',
-  secondary: 'text-[#6B7280]',
-  muted: 'text-[#9CA3AF]',
+  primary: 'text-foreground',
+  secondary: 'text-muted-foreground',
+  muted: 'text-muted-foreground/70',
   white: 'text-white',
-  error: 'text-[#EF4444]',
-  warning: 'text-[#F8C110]',
+  error: 'text-destructive',
+  warning: 'text-yellow-600',
 };
 
 const alignStyles = {
-  left: 'text-left',
+  left: 'text-start',
   center: 'text-center',
-  right: 'text-right',
+  right: 'text-end',
 };
 
 export function EmailText({

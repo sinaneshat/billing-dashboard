@@ -1,5 +1,6 @@
 'use client';
 
+import { useTranslations } from 'next-intl';
 import { useMemo } from 'react';
 
 import { CustomerBillingOverview } from '@/components/billing/customer-billing-overview';
@@ -16,6 +17,8 @@ import { useQueryUIState } from '@/hooks/utils/query-helpers';
  * NOT business analytics - this is for end users to manage their billing
  */
 export default function CustomerBillingOverviewScreen() {
+  const t = useTranslations();
+
   // Fetch user's current subscription
   const subscriptionQuery = useCurrentSubscriptionQuery();
   const subscriptionUI = useQueryUIState(subscriptionQuery);
@@ -43,7 +46,7 @@ export default function CustomerBillingOverviewScreen() {
       : [];
     return paymentsData.map(paymentRecord => ({
       id: paymentRecord.id,
-      productName: paymentRecord.product?.name || 'Unknown Product',
+      productName: paymentRecord.product?.name || t('billing.unknownProduct'),
       amount: paymentRecord.amount,
       status: paymentRecord.status,
       paidAt: paymentRecord.paidAt,
@@ -51,15 +54,15 @@ export default function CustomerBillingOverviewScreen() {
       paymentMethod: paymentRecord.paymentMethod,
       hasReceipt: paymentRecord.status === 'completed',
     })).slice(0, 5); // Show recent 5 payments
-  }, [paymentsQuery.data]);
+  }, [paymentsQuery.data, t]);
 
   const isLoading = subscriptionUI.isLoading || paymentMethodsUI.isLoading || paymentsUI.isLoading;
 
   return (
     <DashboardPage>
       <DashboardPageHeader
-        title="My Billing"
-        description="Manage your subscription, payments, and billing information"
+        title={t('billing.title')}
+        description={t('billing.description')}
       />
 
       <DashboardSection delay={0.1}>

@@ -6,8 +6,7 @@
 import { createRoute } from '@hono/zod-openapi';
 import * as HttpStatusCodes from 'stoker/http-status-codes';
 
-import { CommonErrorResponses } from '@/api/common';
-
+// import { Responses } from '@/api/core'; // Commented out as unused
 import {
   AdminStatsResponseSchema,
   AdminUsersQuerySchema,
@@ -34,7 +33,9 @@ export const adminStatsRoute = createRoute({
         'application/json': { schema: AdminStatsResponseSchema },
       },
     },
-    ...CommonErrorResponses.auth,
+    [HttpStatusCodes.UNAUTHORIZED]: { description: 'Unauthorized' },
+    [HttpStatusCodes.FORBIDDEN]: { description: 'Forbidden' },
+    [HttpStatusCodes.INTERNAL_SERVER_ERROR]: { description: 'Internal Server Error' },
   },
 });
 
@@ -57,7 +58,9 @@ export const adminUsersRoute = createRoute({
         },
       },
     },
-    ...CommonErrorResponses.read,
+    [HttpStatusCodes.BAD_REQUEST]: { description: 'Bad Request' },
+    [HttpStatusCodes.NOT_FOUND]: { description: 'Not Found' },
+    [HttpStatusCodes.INTERNAL_SERVER_ERROR]: { description: 'Internal Server Error' },
   },
 });
 
@@ -86,6 +89,8 @@ export const adminTestWebhookRoute = createRoute({
         },
       },
     },
-    ...CommonErrorResponses.auth,
+    [HttpStatusCodes.UNAUTHORIZED]: { description: 'Unauthorized' },
+    [HttpStatusCodes.FORBIDDEN]: { description: 'Forbidden' },
+    [HttpStatusCodes.INTERNAL_SERVER_ERROR]: { description: 'Internal Server Error' },
   },
 });

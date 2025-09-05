@@ -13,8 +13,44 @@ import { apiClient } from '@/api/client';
 //  Inferred Types for Components
 // ============================================================================
 
-// Get Payments (no query parameters)
-export type GetPaymentsResponse = InferResponseType<(typeof apiClient)['payments']['$get']>;
+// Get Payments (no query parameters) - Fix type inference issue
+export type GetPaymentsResponse = {
+  success: boolean;
+  data?: Array<{
+    id: string;
+    userId: string;
+    subscriptionId: string | null;
+    productId: string;
+    amount: number;
+    currency: string;
+    status: string;
+    paymentMethod: string;
+    zarinpalAuthority: string | null;
+    zarinpalRefId: string | null;
+    paidAt: string | null;
+    createdAt: string;
+    updatedAt: string;
+    product: {
+      id: string;
+      name: string;
+      description: string | null;
+    } | null;
+    subscription: {
+      id: string;
+      status: string;
+    } | null;
+  }>;
+  error?: {
+    code: number;
+    message: string;
+  };
+  meta?: {
+    requestId?: string;
+    timestamp?: string;
+    version?: string;
+    [key: string]: unknown;
+  };
+};
 
 // Payment Callback
 export type PaymentCallbackRequest = InferRequestType<(typeof apiClient)['payments']['callback']['$get']>['query'];

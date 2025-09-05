@@ -1,5 +1,6 @@
 import type { RouteHandler } from '@hono/zod-openapi';
 import * as HttpStatusCodes from 'stoker/http-status-codes';
+import { z } from 'zod';
 
 import type { FetchConfig } from '@/api/common/fetch-utilities';
 import { fetchJSON, fetchWithRetry } from '@/api/common/fetch-utilities';
@@ -10,11 +11,66 @@ import type { detailedHealthRoute, healthRoute } from './route';
 
 type HealthStatus = 'healthy' | 'degraded' | 'unhealthy';
 
+/**
+ * Discriminated union for health check details (Context7 Pattern)
+ * Maximum type safety replacing Record<string, unknown>
+ */
+const _HealthCheckDetailsSchema = z.discriminatedUnion('component', [
+  z.object({
+    component: z.literal('database'),
+    queryTime: z.number().positive(),
+    connectionAvailable: z.boolean(),
+    poolStatus: z.string().optional(),
+  }),
+  z.object({
+    component: z.literal('environment'),
+    errors: z.array(z.string()),
+    warnings: z.array(z.string()),
+    missingCritical: z.array(z.string()),
+    missingOptional: z.array(z.string()),
+  }),
+  z.object({
+    component: z.literal('storage'),
+    bucketAccessible: z.boolean(),
+    responseTime: z.number().positive(),
+    canList: z.boolean(),
+    canWrite: z.boolean().optional(),
+  }),
+  z.object({
+    component: z.literal('zarinpal'),
+    apiEndpointAccessible: z.boolean(),
+    responseTime: z.number().positive(),
+    environment: z.enum(['sandbox', 'production']),
+    credentialsValid: z.boolean().optional(),
+  }),
+  z.object({
+    component: z.literal('webhook'),
+    webhookAccessible: z.boolean(),
+    responseTime: z.number().positive(),
+    statusCode: z.number().int().optional(),
+    endpoint: z.string().url().optional(),
+  }),
+  z.object({
+    component: z.literal('kv'),
+    kvAccessible: z.boolean(),
+    responseTime: z.number().positive(),
+    testResult: z.enum(['expected_null', 'unexpected_value']),
+  }),
+  z.object({
+    component: z.literal('generic'),
+    error: z.string(),
+    statusCode: z.number().int().optional(),
+    responseStatus: z.number().int().optional(),
+  }),
+]);
+
+type HealthCheckDetails = z.infer<typeof _HealthCheckDetailsSchema>;
+
 type HealthCheckResult = {
   status: HealthStatus;
   message: string;
   duration?: number;
-  details?: Record<string, unknown>;
+  details?: HealthCheckDetails;
 };
 
 /**
@@ -144,6 +200,7 @@ async function checkDatabaseHealth(db?: D1Database): Promise<HealthCheckResult> 
       message,
       duration,
       details: {
+        component: 'database' as const,
         queryTime: duration,
         connectionAvailable: true,
       },
@@ -171,6 +228,7 @@ function checkEnvironmentHealth(env: CloudflareEnv): HealthCheckResult {
         ? 'Environment configuration is valid'
         : `Environment issues detected: ${envHealth.validation.errors.length} errors, ${envHealth.validation.warnings.length} warnings`,
       details: {
+        component: 'environment' as const,
         errors: envHealth.validation.errors,
         warnings: envHealth.validation.warnings,
         missingCritical: envHealth.validation.missingCritical,
@@ -181,7 +239,10 @@ function checkEnvironmentHealth(env: CloudflareEnv): HealthCheckResult {
     return {
       status: 'unhealthy',
       message: `Environment validation failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
-      details: { error: String(error) },
+      details: {
+        component: 'generic' as const,
+        error: String(error),
+      },
     };
   }
 }
@@ -213,6 +274,7 @@ async function checkStorageHealth(bucket?: R2Bucket): Promise<HealthCheckResult>
       message,
       duration,
       details: {
+        component: 'storage' as const,
         bucketAccessible: true,
         responseTime: duration,
         canList: true,
@@ -225,6 +287,7 @@ async function checkStorageHealth(bucket?: R2Bucket): Promise<HealthCheckResult>
       message: `Storage access failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
       duration,
       details: {
+        component: 'generic' as const,
         error: String(error),
       },
     };
@@ -275,6 +338,7 @@ async function checkZarinPalHealth(env: CloudflareEnv): Promise<HealthCheckResul
         message,
         duration,
         details: {
+          component: 'zarinpal' as const,
           apiEndpointAccessible: true,
           responseTime: duration,
           environment: env.NODE_ENV === 'development' ? 'sandbox' : 'production',
@@ -287,8 +351,9 @@ async function checkZarinPalHealth(env: CloudflareEnv): Promise<HealthCheckResul
       message: 'ZarinPal API returned unexpected response',
       duration,
       details: {
-        responseStatus: fetchResult.response?.status,
+        component: 'generic' as const,
         error: fetchResult.success ? 'No error' : fetchResult.error,
+        responseStatus: fetchResult.response?.status,
       },
     };
   } catch (error) {
@@ -298,6 +363,7 @@ async function checkZarinPalHealth(env: CloudflareEnv): Promise<HealthCheckResul
       message: `ZarinPal connectivity check failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
       duration,
       details: {
+        component: 'generic' as const,
         error: String(error),
       },
     };
@@ -344,6 +410,7 @@ async function checkExternalWebhookHealth(webhookUrl?: string): Promise<HealthCh
         message,
         duration,
         details: {
+          component: 'webhook' as const,
           webhookAccessible: true,
           responseTime: duration,
           statusCode: fetchResult.response?.status,
@@ -357,6 +424,7 @@ async function checkExternalWebhookHealth(webhookUrl?: string): Promise<HealthCh
       message: 'External webhook not accessible',
       duration,
       details: {
+        component: 'generic' as const,
         error: fetchResult.success ? 'No error' : fetchResult.error,
         statusCode: fetchResult.response?.status,
       },
@@ -368,6 +436,7 @@ async function checkExternalWebhookHealth(webhookUrl?: string): Promise<HealthCh
       message: `External webhook check failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
       duration,
       details: {
+        component: 'generic' as const,
         error: String(error),
       },
     };
@@ -403,6 +472,7 @@ async function checkKVHealth(kv?: KVNamespace): Promise<HealthCheckResult> {
       message,
       duration,
       details: {
+        component: 'kv' as const,
         kvAccessible: true,
         responseTime: duration,
         testResult: result === null ? 'expected_null' : 'unexpected_value',
@@ -415,6 +485,7 @@ async function checkKVHealth(kv?: KVNamespace): Promise<HealthCheckResult> {
       message: `KV store access failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
       duration,
       details: {
+        component: 'generic' as const,
         error: String(error),
       },
     };
