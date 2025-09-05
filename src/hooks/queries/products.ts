@@ -5,13 +5,13 @@ import { getProductsService } from '@/services/api/products';
 
 /**
  * Hook to fetch ALL available products (no pagination)
- * Simple TanStack Query pattern - shows all products always
+ * Context7 official pattern - EXACT match with server prefetch
  */
 export function useProductsQuery() {
   return useQuery({
-    queryKey: queryKeys.products.list(),
-    queryFn: () => getProductsService(), // No args = fetch all products
-    staleTime: 10 * 60 * 1000, // 10 minutes - products are stable
+    queryKey: queryKeys.products.list, // CRITICAL FIX: Static array like official examples
+    queryFn: getProductsService,
+    staleTime: 60 * 1000, // CRITICAL FIX: Match Context7 examples (60 seconds)
     retry: 2,
     throwOnError: false,
   });

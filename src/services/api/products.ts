@@ -19,9 +19,13 @@ export type GetProductsRequest = InferRequestType<typeof apiClient.products['$ge
 export type GetProductsResponse = InferResponseType<typeof apiClient.products['$get']>;
 
 /**
- * Get all active products
+ * Get all active products - Context7 consistent pattern
  * All types are inferred from the RPC client
+ * CRITICAL FIX: Consistent argument handling for SSR/hydration
  */
 export async function getProductsService(args?: GetProductsRequest) {
-  return parseResponse(apiClient.products.$get(args));
+  // Fix: Only pass args if defined to ensure consistent behavior between server/client
+  return args
+    ? parseResponse(apiClient.products.$get(args))
+    : parseResponse(apiClient.products.$get());
 }

@@ -1,22 +1,18 @@
 'use client';
 
 import {
-  Calendar,
+  BarChart3,
+  Download,
   EllipsisVerticalIcon,
   Package,
   Settings,
+  X,
 } from 'lucide-react';
-import { memo } from 'react';
+import { useLocale, useTranslations } from 'next-intl';
+import { memo, useCallback } from 'react';
 
 import { Button } from '@/components/ui/button';
-import {
-  Card,
-  CardAction,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
+import { EmptyCard, LoadingCard, StatusCard } from '@/components/ui/dashboard-cards';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -25,230 +21,195 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { FadeIn, StaggerContainer, StaggerItem } from '@/components/ui/motion';
-import { Skeleton } from '@/components/ui/skeleton';
 import { SubscriptionStatusBadge } from '@/components/ui/status-badge';
-import { formatTomanCurrency } from '@/lib/i18n/currency-utils';
+import { useDownloadSubscriptionInvoiceMutation, useManageSubscriptionMutation, useViewUsageMutation } from '@/hooks/mutations/subscription-management';
+import { useCancelSubscriptionMutation } from '@/hooks/mutations/subscriptions';
+import { formatTomanCurrency, showErrorToast, showSuccessToast } from '@/lib';
 import type { GetSubscriptionsResponse } from '@/services/api/subscriptions';
 
 // Extract subscription type from API response
-type Subscription = NonNullable<GetSubscriptionsResponse['data']>[number];
+// API response structure: { success: boolean, data?: SubscriptionWithProduct[] }
+type Subscription = GetSubscriptionsResponse extends { data?: infer T }
+  ? T extends readonly (infer U)[]
+    ? U
+    : never
+  : never;
 
 type SubscriptionCardsProps = {
   subscriptions: Subscription[];
-  loading?: boolean;
+  isLoading?: boolean;
   emptyStateTitle?: string;
   emptyStateDescription?: string;
   className?: string;
 };
 
-// Loading skeleton for subscription cards
-function SubscriptionCardSkeleton() {
-  return (
-    <Card className="w-full">
-      <CardHeader>
-        <div className="flex items-start justify-between">
-          <div className="flex items-center gap-3">
-            <Skeleton className="h-8 w-8 rounded-lg" />
-            <div className="space-y-2 flex-1">
-              <Skeleton className="h-5 w-40" />
-              <Skeleton className="h-4 w-24" />
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <Skeleton className="h-6 w-16 rounded-md" />
-            <Skeleton className="h-6 w-6" />
-          </div>
-        </div>
-      </CardHeader>
-      <CardContent>
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <Skeleton className="h-8 w-28" />
-            <Skeleton className="h-4 w-20" />
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-1">
-              <Skeleton className="h-3 w-16" />
-              <Skeleton className="h-4 w-20" />
-            </div>
-            <div className="space-y-1">
-              <Skeleton className="h-3 w-20" />
-              <Skeleton className="h-4 w-24" />
-            </div>
-          </div>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
 export const SubscriptionCards = memo(({
   subscriptions,
-  loading = false,
-  emptyStateTitle = 'No subscriptions found',
-  emptyStateDescription = 'You don\'t have any active subscriptions yet. Browse our plans to get started.',
+  isLoading = false,
+  emptyStateTitle,
+  emptyStateDescription,
   className,
 }: SubscriptionCardsProps) => {
+  const t = useTranslations();
+  const locale = useLocale();
+
+  // Mutations for subscription actions
+  const cancelSubscriptionMutation = useCancelSubscriptionMutation();
+  const viewUsageMutation = useViewUsageMutation();
+  const downloadInvoiceMutation = useDownloadSubscriptionInvoiceMutation();
+  const manageSubscriptionMutation = useManageSubscriptionMutation();
+
+  // Action handlers
+  const handleManageSubscription = useCallback(async (subscriptionId: string) => {
+    try {
+      await manageSubscriptionMutation.mutateAsync({ param: { id: subscriptionId } });
+    } catch {
+      showErrorToast(t('subscription.managementFailed'));
+    }
+  }, [manageSubscriptionMutation, t]);
+
+  const handleViewUsage = useCallback(async (subscriptionId: string) => {
+    try {
+      await viewUsageMutation.mutateAsync({ param: { id: subscriptionId } });
+    } catch {
+      showErrorToast(t('subscription.usageViewFailed'));
+    }
+  }, [viewUsageMutation, t]);
+
+  const handleDownloadInvoice = useCallback(async (subscriptionId: string) => {
+    try {
+      await downloadInvoiceMutation.mutateAsync({ param: { id: subscriptionId } });
+      showSuccessToast(t('subscription.invoiceDownloaded'));
+    } catch {
+      showErrorToast(t('subscription.invoiceDownloadFailed'));
+    }
+  }, [downloadInvoiceMutation, t]);
+
+  const handleCancelSubscription = useCallback(async (subscriptionId: string) => {
+    const reason = 'User requested cancellation'; // In real app, this would come from a modal/form
+    try {
+      await cancelSubscriptionMutation.mutateAsync({
+        param: { id: subscriptionId },
+        json: { reason },
+      });
+      showSuccessToast(t('subscription.cancelSuccess'));
+    } catch {
+      showErrorToast(t('subscription.cancelFailed'));
+    }
+  }, [cancelSubscriptionMutation, t]);
+
+  const defaultEmptyTitle = emptyStateTitle || t('subscription.empty');
+  const defaultEmptyDescription = emptyStateDescription || t('subscription.emptyDescription');
   // Render individual subscription card
   const renderSubscriptionCard = (subscription: Subscription, index: number) => {
     const isActive = subscription.status === 'active';
     const isCanceled = subscription.status === 'canceled';
     const isExpired = subscription.status === 'expired';
 
+    const getStatusColor = () => {
+      if (isActive)
+        return 'success';
+      if (isCanceled || isExpired)
+        return 'error';
+      return 'default';
+    };
+
     return (
       <StaggerItem key={subscription.id} delay={index * 0.05}>
-        <Card className="w-full hover:shadow-md transition-shadow" data-slot="subscription-card">
-          <CardHeader>
-            <div className="flex items-start justify-between">
-              <div className="flex items-center gap-3">
-                <div className={`p-2 rounded-lg ${
-                  isActive
-                    ? 'bg-green-50 dark:bg-green-900/30'
-                    : isCanceled || isExpired
-                      ? 'bg-red-50 dark:bg-red-900/30'
-                      : 'bg-gray-50 dark:bg-gray-900/30'
-                }`}
+        <StatusCard
+          title={subscription.product?.name || t('subscription.unknownPlan')}
+          subtitle={subscription.product?.description}
+          status={<SubscriptionStatusBadge status={subscription.status} size="sm" />}
+          icon={<Package className="h-4 w-4" />}
+          statusColor={getStatusColor()}
+          primaryInfo={(
+            <span className="text-2xl font-semibold text-foreground">
+              {formatTomanCurrency(subscription.currentPrice)}
+            </span>
+          )}
+          secondaryInfo={(
+            <div className="text-sm text-muted-foreground">
+              {subscription.endDate
+                ? `${t('subscription.endDate')}: ${new Date(subscription.endDate).toLocaleDateString(locale, { month: 'short', day: 'numeric' })}`
+                : subscription.nextBillingDate
+                  ? `${t('subscription.nextBilling')}: ${new Date(subscription.nextBillingDate).toLocaleDateString(locale, { month: 'short', day: 'numeric' })}`
+                  : t('subscription.toBeDecided')}
+            </div>
+          )}
+          metadata={undefined}
+          action={(
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="size-6"
+                  aria-label={t('subscription.openSubscriptionActions')}
+                  aria-haspopup="menu"
                 >
-                  <Package className={`h-4 w-4 ${
-                    isActive
-                      ? 'text-green-600 dark:text-green-400'
-                      : isCanceled || isExpired
-                        ? 'text-red-600 dark:text-red-400'
-                        : 'text-gray-600 dark:text-gray-400'
-                  }`}
-                  />
-                </div>
-                <div>
-                  <CardTitle className="text-base font-medium">
-                    {subscription.product?.name || 'Unknown Plan'}
-                  </CardTitle>
-                  <CardDescription>
-                    {subscription.product?.description || 'Subscription service'}
-                  </CardDescription>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <SubscriptionStatusBadge status={subscription.status} size="sm" />
-                <CardAction>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="size-6"
-                        aria-label="Open subscription actions"
-                      >
-                        <EllipsisVerticalIcon className="h-4 w-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem>
-                        <Settings className="h-4 w-4 mr-2" />
-                        Manage Subscription
-                      </DropdownMenuItem>
-                      <DropdownMenuItem>View Usage</DropdownMenuItem>
-                      <DropdownMenuItem>Download Invoice</DropdownMenuItem>
-                      <DropdownMenuSeparator />
-                      {isActive && (
-                        <DropdownMenuItem variant="destructive">
-                          Cancel Subscription
-                        </DropdownMenuItem>
-                      )}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </CardAction>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <span className="text-2xl font-semibold text-foreground">
-                    {formatTomanCurrency(subscription.currentPrice)}
-                  </span>
-                  <span className="text-sm text-muted-foreground ml-1">
-                    /month
-                  </span>
-                </div>
-                {isCanceled && (
-                  <span className="text-xs text-amber-600 bg-amber-50 px-2 py-1 rounded-md">
-                    Cancelled
-                  </span>
+                  <EllipsisVerticalIcon className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem
+                  onClick={() => handleManageSubscription(subscription.id)}
+                  className="cursor-pointer"
+                  disabled={manageSubscriptionMutation.isPending}
+                  aria-label={manageSubscriptionMutation.isPending ? t('states.loading.opening') : t('subscription.manage')}
+                >
+                  <Settings className="h-4 w-4 me-2" />
+                  {manageSubscriptionMutation.isPending ? t('states.loading.opening') : t('subscription.manage')}
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => handleViewUsage(subscription.id)}
+                  className="cursor-pointer"
+                  disabled={viewUsageMutation.isPending}
+                  aria-label={viewUsageMutation.isPending ? t('states.loading.loading') : t('subscription.viewUsage')}
+                >
+                  <BarChart3 className="h-4 w-4 me-2" />
+                  {viewUsageMutation.isPending ? t('states.loading.loading') : t('subscription.viewUsage')}
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => handleDownloadInvoice(subscription.id)}
+                  className="cursor-pointer"
+                  disabled={downloadInvoiceMutation.isPending}
+                  aria-label={downloadInvoiceMutation.isPending ? t('states.loading.downloading') : t('subscription.downloadInvoice')}
+                >
+                  <Download className="h-4 w-4 me-2" />
+                  {downloadInvoiceMutation.isPending ? t('states.loading.downloading') : t('subscription.downloadInvoice')}
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                {isActive && (
+                  <DropdownMenuItem
+                    onClick={() => handleCancelSubscription(subscription.id)}
+                    variant="destructive"
+                    className="cursor-pointer"
+                    disabled={cancelSubscriptionMutation.isPending}
+                    aria-label={cancelSubscriptionMutation.isPending ? t('states.loading.canceling') : t('subscription.cancel')}
+                  >
+                    <X className="h-4 w-4 me-2" />
+                    {cancelSubscriptionMutation.isPending ? t('states.loading.canceling') : t('subscription.cancel')}
+                  </DropdownMenuItem>
                 )}
-              </div>
-
-              <div className="grid grid-cols-2 gap-4 text-sm">
-                <div className="space-y-1">
-                  <span className="text-muted-foreground text-xs uppercase tracking-wide">
-                    Start Date
-                  </span>
-                  <div className="flex items-center gap-1 text-foreground">
-                    <Calendar className="h-3 w-3" />
-                    <span>
-                      {new Date(subscription.startDate).toLocaleDateString('en-US', {
-                        month: 'short',
-                        day: 'numeric',
-                        year: 'numeric',
-                      })}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="space-y-1">
-                  <span className="text-muted-foreground text-xs uppercase tracking-wide">
-                    {subscription.endDate ? 'End Date' : 'Next Billing'}
-                  </span>
-                  <div className="text-foreground">
-                    {subscription.endDate
-                      ? (
-                          new Date(subscription.endDate).toLocaleDateString('en-US', {
-                            month: 'short',
-                            day: 'numeric',
-                            year: 'numeric',
-                          })
-                        )
-                      : subscription.nextBillingDate
-                        ? (
-                            new Date(subscription.nextBillingDate).toLocaleDateString('en-US', {
-                              month: 'short',
-                              day: 'numeric',
-                              year: 'numeric',
-                            })
-                          )
-                        : (
-                            'TBD'
-                          )}
-                  </div>
-                </div>
-              </div>
-
-              {isActive && !isCanceled && (
-                <div className="pt-2 border-t border-border">
-                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                    <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                    <span>Auto-renewal enabled</span>
-                  </div>
-                </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
+        />
       </StaggerItem>
     );
   };
 
-  if (loading) {
+  if (isLoading) {
     return (
       <FadeIn className={className}>
         <div className="space-y-4">
           <div className="flex items-center justify-between">
-            <h3 className="text-lg font-semibold">Your Subscriptions</h3>
-            <span className="text-sm text-muted-foreground">Loading...</span>
+            <h3 className="text-lg font-semibold">{t('subscription.yourSubscriptions')}</h3>
+            <span className="text-sm text-muted-foreground">{t('states.loading.default')}</span>
           </div>
           <div className="grid gap-4 lg:grid-cols-2">
             {Array.from({ length: 2 }, (_, i) => (
-              <SubscriptionCardSkeleton key={i} />
+              <LoadingCard key={i} title={t('states.loading.subscriptions')} rows={3} variant="status" />
             ))}
           </div>
         </div>
@@ -259,15 +220,11 @@ export const SubscriptionCards = memo(({
   if (subscriptions.length === 0) {
     return (
       <FadeIn className={className}>
-        <div className="text-center py-12">
-          <div className="mx-auto w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
-            <Package className="h-6 w-6 text-gray-400" />
-          </div>
-          <h3 className="text-lg font-semibold mb-2">{emptyStateTitle}</h3>
-          <p className="text-muted-foreground max-w-md mx-auto">
-            {emptyStateDescription}
-          </p>
-        </div>
+        <EmptyCard
+          title={defaultEmptyTitle}
+          description={defaultEmptyDescription}
+          icon={<Package className="h-8 w-8 text-muted-foreground" />}
+        />
       </FadeIn>
     );
   }
@@ -276,11 +233,9 @@ export const SubscriptionCards = memo(({
     <FadeIn className={className}>
       <div className="space-y-4">
         <div className="flex items-center justify-between">
-          <h3 className="text-lg font-semibold">Your Subscriptions</h3>
+          <h3 className="text-lg font-semibold">{t('subscription.yourSubscriptions')}</h3>
           <span className="text-sm text-muted-foreground">
             {subscriptions.length}
-            {' '}
-            {subscriptions.length === 1 ? 'subscription' : 'subscriptions'}
           </span>
         </div>
 

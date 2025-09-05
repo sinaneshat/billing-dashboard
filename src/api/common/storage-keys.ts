@@ -3,24 +3,28 @@
  * Provides consistent key generation, validation, and parsing
  */
 
-export enum StoragePurpose {
-  USER_AVATAR = 'user_avatar',
-  COMPANY_LOGO = 'company_logo',
-  COMPANY_BANNER = 'company_banner',
-  DOCUMENT = 'document',
-  RECEIPT = 'receipt',
-  INVOICE = 'invoice',
-  TEMP = 'temp',
-}
+import { z } from 'zod';
+
+export const storagePurposeSchema = z.enum([
+  'user_avatar',
+  'company_logo',
+  'company_banner',
+  'document',
+  'receipt',
+  'invoice',
+  'temp',
+]);
+
+export type StoragePurpose = z.infer<typeof storagePurposeSchema>;
 
 export const STORAGE_PATH_PREFIXES: Record<StoragePurpose, string> = {
-  [StoragePurpose.USER_AVATAR]: 'images/avatar',
-  [StoragePurpose.COMPANY_LOGO]: 'images/logo',
-  [StoragePurpose.COMPANY_BANNER]: 'images/banner',
-  [StoragePurpose.DOCUMENT]: 'documents',
-  [StoragePurpose.RECEIPT]: 'receipts',
-  [StoragePurpose.INVOICE]: 'invoices',
-  [StoragePurpose.TEMP]: 'temp',
+  user_avatar: 'images/avatar',
+  company_logo: 'images/logo',
+  company_banner: 'images/banner',
+  document: 'documents',
+  receipt: 'receipts',
+  invoice: 'invoices',
+  temp: 'temp',
 };
 
 export type StorageKeyInfo = {
@@ -69,7 +73,7 @@ export class StorageKeyManager {
    * Generate a temporary upload key
    */
   static generateTempKey(userId: string, extension: string): string {
-    return this.generateKey(StoragePurpose.TEMP, userId, extension, {
+    return this.generateKey('temp', userId, extension, {
       timestamp: true,
       randomSuffix: true,
     });
@@ -108,7 +112,8 @@ export class StorageKeyManager {
   static extractPurpose(key: string): StoragePurpose | null {
     for (const [purpose, prefix] of Object.entries(STORAGE_PATH_PREFIXES)) {
       if (key.startsWith(`${prefix}/`)) {
-        return purpose as StoragePurpose;
+        const parsedPurpose = storagePurposeSchema.safeParse(purpose);
+        return parsedPurpose.success ? parsedPurpose.data : null;
       }
     }
     return null;
@@ -144,9 +149,9 @@ export class StorageKeyManager {
 
     // Determine entity type based on purpose
     let entityType: 'user' | 'organization' | 'temp';
-    if (purpose === StoragePurpose.USER_AVATAR) {
+    if (purpose === 'user_avatar') {
       entityType = 'user';
-    } else if (purpose === StoragePurpose.TEMP) {
+    } else if (purpose === 'temp') {
       entityType = 'temp';
     } else {
       entityType = 'organization';
@@ -216,7 +221,7 @@ export class StorageKeyManager {
    */
   static isPublicAsset(key: string): boolean {
     const purpose = this.extractPurpose(key);
-    return purpose === StoragePurpose.COMPANY_LOGO;
+    return purpose === 'company_logo';
   }
 
   /**
@@ -224,9 +229,9 @@ export class StorageKeyManager {
    */
   static getEntityType(purpose: StoragePurpose): 'user' | 'organization' | 'temp' {
     switch (purpose) {
-      case StoragePurpose.USER_AVATAR:
+      case 'user_avatar':
         return 'user';
-      case StoragePurpose.TEMP:
+      case 'temp':
         return 'temp';
       default:
         return 'organization';

@@ -1,15 +1,20 @@
-import type { RouteHandler } from '@hono/zod-openapi';
-import { and, desc, eq } from 'drizzle-orm';
-import { HTTPException } from 'hono/http-exception';
-import * as HttpStatusCodes from 'stoker/http-status-codes';
+/**
+ * Subscriptions Route Handlers - Refactored
+ *
+ * Uses the factory pattern for consistent authentication, validation,
+ * transaction management, and error handling. Leverages the repository
+ * pattern for clean data access.
+ */
 
-import { parsePlanChangeHistory } from '@/api/common';
-import { created, ok } from '@/api/common/responses';
+import type { RouteHandler } from '@hono/zod-openapi';
+import type { z } from 'zod';
+
+import { createError } from '@/api/common/error-handling';
+import { createHandler, createHandlerWithTransaction, Responses } from '@/api/core';
+import type { SubscriptionMetadata } from '@/api/core/schemas';
+import { billingRepositories } from '@/api/repositories/billing-repositories';
 import { ZarinPalService } from '@/api/services/zarinpal';
 import type { ApiEnv } from '@/api/types';
-import { db } from '@/db';
-import { payment, paymentMethod, product, subscription } from '@/db/tables/billing';
-import { logError } from '@/lib/utils/safe-logger';
 
 import type {
   cancelSubscriptionRoute,
@@ -19,649 +24,654 @@ import type {
   getSubscriptionsRoute,
   resubscribeRoute,
 } from './route';
+import {
+  CancelSubscriptionRequestSchema,
+  ChangePlanRequestSchema,
+  CreateSubscriptionRequestSchema,
+  SubscriptionParamsSchema,
+} from './schema';
+
+// ============================================================================
+// SUBSCRIPTION HANDLERS
+// ============================================================================
 
 /**
- * Handler for GET /subscriptions
- * Returns all subscriptions for the authenticated user
+ * GET /subscriptions - Get user subscriptions
+ * ✅ Refactored: Uses factory pattern + repositories
  */
-export const getSubscriptionsHandler: RouteHandler<typeof getSubscriptionsRoute, ApiEnv> = async (c) => {
-  c.header('X-Route', 'subscriptions');
+export const getSubscriptionsHandler: RouteHandler<typeof getSubscriptionsRoute, ApiEnv> = createHandler(
+  {
+    auth: 'session',
+    operationName: 'getSubscriptions',
+  },
+  async (c) => {
+    const user = c.get('user')!; // Guaranteed by auth: 'session'
+    c.logger.info('Fetching subscriptions for user', { logType: 'operation', operationName: 'getSubscriptions', userId: user.id });
 
-  const user = c.get('user');
-  if (!user) {
-    throw new HTTPException(HttpStatusCodes.UNAUTHORIZED, {
-      message: 'Authentication required',
+    // Use repository instead of direct DB query
+    const subscriptions = await billingRepositories.subscriptions.findSubscriptionsByUserId(user.id);
+
+    // Transform to match response schema with product data
+    const subscriptionsWithProduct = await Promise.all(
+      subscriptions.map(async (subscription) => {
+        const product = await billingRepositories.products.findById(subscription.productId);
+
+        return {
+          ...subscription,
+          product: product
+            ? {
+                id: product.id,
+                name: product.name,
+                description: product.description,
+                billingPeriod: product.billingPeriod,
+              }
+            : null,
+        };
+      }),
+    );
+
+    c.logger.info('Subscriptions retrieved successfully', {
+      logType: 'operation',
+      operationName: 'getSubscriptions',
+      resource: `subscriptions[${subscriptionsWithProduct.length}]`,
     });
-  }
 
-  try {
-    const subscriptions = await db
-      .select()
-      .from(subscription)
-      .innerJoin(product, eq(subscription.productId, product.id))
-      .where(eq(subscription.userId, user.id))
-      .orderBy(desc(subscription.createdAt));
-
-    // ✅ Return complete drizzle schema data with product joined
-    const subscriptionsWithProduct = subscriptions.map(row => ({
-      ...row.subscription,
-      product: {
-        id: row.product.id,
-        name: row.product.name,
-        description: row.product.description,
-        billingPeriod: row.product.billingPeriod,
-      },
-    }));
-
-    return ok(c, subscriptionsWithProduct);
-  } catch (error) {
-    logError('Failed to fetch subscriptions', error);
-    throw new HTTPException(HttpStatusCodes.INTERNAL_SERVER_ERROR, {
-      message: 'Failed to fetch subscriptions',
-    });
-  }
-};
+    return Responses.ok(c, subscriptionsWithProduct);
+  },
+);
 
 /**
- * Handler for GET /subscriptions/:id
- * Returns a specific subscription for the authenticated user
+ * GET /subscriptions/{id} - Get subscription by ID
+ * ✅ Refactored: Uses factory pattern + repositories
  */
-export const getSubscriptionHandler: RouteHandler<typeof getSubscriptionRoute, ApiEnv> = async (c) => {
-  c.header('X-Route', 'subscription');
+export const getSubscriptionHandler: RouteHandler<typeof getSubscriptionRoute, ApiEnv> = createHandler(
+  {
+    auth: 'session',
+    validateParams: SubscriptionParamsSchema,
+    operationName: 'getSubscription',
+  },
+  async (c) => {
+    const user = c.get('user')!;
+    const { id } = c.validated.params as z.infer<typeof SubscriptionParamsSchema>;
 
-  const user = c.get('user');
-  if (!user) {
-    throw new HTTPException(HttpStatusCodes.UNAUTHORIZED, {
-      message: 'Authentication required',
-    });
-  }
+    c.logger.info('Fetching subscription', { logType: 'operation', operationName: 'getSubscription', userId: user.id, resource: id });
 
-  const { id } = c.req.valid('param');
+    const subscription = await billingRepositories.subscriptions.findById(id);
 
-  try {
-    const subscriptionData = await db
-      .select()
-      .from(subscription)
-      .innerJoin(product, eq(subscription.productId, product.id))
-      .where(and(eq(subscription.id, id), eq(subscription.userId, user.id)))
-      .limit(1);
-
-    if (!subscriptionData.length) {
-      throw new HTTPException(HttpStatusCodes.NOT_FOUND, {
-        message: 'Subscription not found',
-      });
+    if (!subscription || subscription.userId !== user.id) {
+      c.logger.warn('Subscription not found', { logType: 'operation', operationName: 'getSubscription', userId: user.id, resource: id });
+      throw createError.notFound('Subscription');
     }
 
-    // ✅ Return complete drizzle schema data with product joined
-    const row = subscriptionData[0]!;
+    // Get product details
+    const product = await billingRepositories.products.findById(subscription.productId);
+
     const subscriptionWithProduct = {
-      ...row.subscription,
-      product: {
-        id: row.product.id,
-        name: row.product.name,
-        description: row.product.description,
-        billingPeriod: row.product.billingPeriod,
-      },
+      ...subscription,
+      product: product
+        ? {
+            id: product.id,
+            name: product.name,
+            description: product.description,
+            billingPeriod: product.billingPeriod,
+          }
+        : null,
     };
 
-    return ok(c, subscriptionWithProduct);
-  } catch (error) {
-    if (error instanceof HTTPException) {
-      throw error;
-    }
-    logError('Failed to fetch subscription', error);
-    throw new HTTPException(HttpStatusCodes.INTERNAL_SERVER_ERROR, {
-      message: 'Failed to fetch subscription',
-    });
-  }
-};
+    c.logger.info('Subscription retrieved successfully', { logType: 'operation', operationName: 'getSubscription', resource: id });
+
+    return Responses.ok(c, subscriptionWithProduct);
+  },
+);
 
 /**
- * Handler for POST /subscriptions
- * Creates a new subscription and initiates payment with ZarinPal
+ * POST /subscriptions - Create new subscription
+ * ✅ Refactored: Uses factory pattern + repositories + transaction
  */
-export const createSubscriptionHandler: RouteHandler<typeof createSubscriptionRoute, ApiEnv> = async (c) => {
-  c.header('X-Route', 'create-subscription');
+export const createSubscriptionHandler: RouteHandler<typeof createSubscriptionRoute, ApiEnv> = createHandlerWithTransaction(
+  {
+    auth: 'session',
+    validateBody: CreateSubscriptionRequestSchema,
+    operationName: 'createSubscription',
+  },
+  async (c, tx) => {
+    const user = c.get('user')!;
+    const { productId, paymentMethod, contractId, enableAutoRenew, callbackUrl } = c.validated.body as z.infer<typeof CreateSubscriptionRequestSchema>;
 
-  const user = c.get('user');
-  if (!user) {
-    throw new HTTPException(HttpStatusCodes.UNAUTHORIZED, {
-      message: 'Authentication required',
+    c.logger.info('Creating subscription', {
+      logType: 'operation',
+      operationName: 'createSubscription',
+      userId: user.id,
+      resource: productId,
     });
-  }
 
-  const { productId, paymentMethod: requestedPaymentMethod, contractId, enableAutoRenew, callbackUrl } = c.req.valid('json');
+    // Validate product exists and is active
+    const product = await billingRepositories.products.findById(productId);
 
-  try {
-    // Check if product exists and is active
-    const productData = await db
-      .select()
-      .from(product)
-      .where(and(eq(product.id, productId), eq(product.isActive, true)))
-      .limit(1);
-
-    if (!productData.length) {
-      throw new HTTPException(HttpStatusCodes.NOT_FOUND, {
-        message: 'Product not found or inactive',
-      });
+    if (!product || !product.isActive) {
+      c.logger.warn('Product not found or inactive', { logType: 'operation', operationName: 'createSubscription', resource: productId });
+      throw createError.notFound('Product not found or is not available');
     }
 
-    const selectedProduct = productData[0]!;
+    // Check if user already has an active subscription to this product
+    const existingSubscription = await billingRepositories.subscriptions.findActiveByUserAndProduct(
+      user.id,
+      productId,
+    );
 
-    // Check if user already has an active subscription for this product
-    const existingSubscription = await db
-      .select()
-      .from(subscription)
-      .where(
-        and(
-          eq(subscription.userId, user.id),
-          eq(subscription.productId, productId),
-          eq(subscription.status, 'active'),
-        ),
-      )
-      .limit(1);
-
-    if (existingSubscription.length > 0) {
-      throw new HTTPException(HttpStatusCodes.BAD_REQUEST, {
-        message: 'You already have an active subscription for this product',
-      });
-    }
-
-    // Create subscription in pending status
-    // ✅ CRITICAL FIX: Wrap entire subscription creation flow in transaction for atomicity
-    let subscriptionId: string;
-    let paymentId: string | undefined;
-    let resultPayload: {
-      subscriptionId: string;
-      paymentMethod: typeof requestedPaymentMethod;
-      contractId?: string;
-      autoRenewalEnabled: boolean;
-      paymentId?: string;
-      needsPaymentInitialization?: boolean;
-    } | undefined;
-
-    // Execute database operations in transaction
-    await db.transaction(async (tx) => {
-      subscriptionId = crypto.randomUUID();
-      const startDate = new Date();
-      const nextBillingDate = selectedProduct.billingPeriod === 'monthly'
-        ? new Date(startDate.getTime() + 30 * 24 * 60 * 60 * 1000)
-        : null;
-
-      // Create subscription record
-      await tx.insert(subscription).values({
-        id: subscriptionId,
+    if (existingSubscription) {
+      c.logger.warn('User already has active subscription', {
+        logType: 'operation',
+        operationName: 'createSubscription',
         userId: user.id,
-        productId,
-        status: 'pending',
-        startDate,
-        nextBillingDate,
-        currentPrice: selectedProduct.price,
-        billingPeriod: selectedProduct.billingPeriod,
+        resource: existingSubscription.id,
+      });
+      throw createError.conflict('You already have an active subscription to this product');
+    }
+
+    let paymentMethodRecord = null;
+
+    // Handle direct debit contract
+    if (paymentMethod === 'direct-debit-contract') {
+      if (!contractId) {
+        throw createError.internal('Contract ID is required for direct debit subscriptions');
+      }
+
+      // Validate contract exists and is active
+      paymentMethodRecord = await billingRepositories.paymentMethods.findByContractSignature(contractId);
+
+      if (!paymentMethodRecord || paymentMethodRecord.userId !== user.id || paymentMethodRecord.contractStatus !== 'active') {
+        c.logger.warn('Invalid or inactive payment contract', { logType: 'operation', operationName: 'createSubscription', userId: user.id, resource: contractId });
+        throw createError.internal('Invalid or inactive payment contract');
+      }
+
+      c.logger.info('Using direct debit contract', { logType: 'operation', operationName: 'createSubscription', resource: contractId });
+
+      // Create subscription with direct debit
+      const subscriptionData = {
+        userId: user.id,
+        productId: product.id,
+        status: 'active' as const,
+        startDate: new Date(),
+        nextBillingDate: product.billingPeriod === 'monthly'
+          ? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+          : null,
+        currentPrice: product.price,
+        billingPeriod: product.billingPeriod,
+        paymentMethodId: paymentMethodRecord.id,
+        directDebitContractId: contractId,
+        directDebitSignature: paymentMethodRecord.contractSignature,
+      };
+
+      const newSubscription = await billingRepositories.subscriptions.create(subscriptionData, { tx });
+
+      // Log subscription creation event
+      await billingRepositories.billingEvents.logEvent({
+        userId: user.id,
+        subscriptionId: newSubscription.id,
+        paymentId: null,
+        paymentMethodId: paymentMethodRecord.id,
+        eventType: 'subscription_created_direct_debit',
+        eventData: {
+          productId: product.id,
+          productName: product.name,
+          price: product.price,
+          billingPeriod: product.billingPeriod,
+          contractId,
+          autoRenewalEnabled: enableAutoRenew,
+        },
+        severity: 'info',
+      }, tx);
+
+      c.logger.info('Direct debit subscription created successfully', {
+        logType: 'operation',
+        operationName: 'createSubscription',
+        resource: newSubscription.id,
       });
 
-      // Handle subscription creation based on payment method
-      if (requestedPaymentMethod === 'direct-debit-contract') {
-        // Direct Debit Contract-based subscription (automatic renewal)
-        if (!contractId) {
-          throw new HTTPException(HttpStatusCodes.BAD_REQUEST, {
-            message: 'Contract ID is required for direct debit contract subscriptions',
-          });
-        }
-
-        // Verify the contract exists and belongs to the user
-        const contractData = await tx
-          .select()
-          .from(paymentMethod)
-          .where(
-            and(
-              eq(paymentMethod.userId, user.id),
-              eq(paymentMethod.id, contractId), // Contract ID is the payment method ID
-              eq(paymentMethod.contractType, 'direct_debit_contract'),
-              eq(paymentMethod.isActive, true),
-            ),
-          )
-          .limit(1);
-
-        if (!contractData.length) {
-          throw new HTTPException(HttpStatusCodes.NOT_FOUND, {
-            message: 'Direct debit contract not found or inactive',
-          });
-        }
-
-        // Update subscription with contract information (all in same transaction)
-        await tx
-          .update(subscription)
-          .set({
-            status: 'active', // Direct debit contracts activate immediately
-            paymentMethodId: contractId, // Link to the contract payment method
-            directDebitContractId: contractData[0]!.contractSignature, // Store actual ZarinPal signature
-            directDebitSignature: contractData[0]!.contractSignature, // ZarinPal contract signature
-          })
-          .where(eq(subscription.id, subscriptionId));
-
-        resultPayload = {
-          subscriptionId,
-          paymentMethod: requestedPaymentMethod,
-          contractId,
-          autoRenewalEnabled: enableAutoRenew ?? true,
-        };
-      } else if (requestedPaymentMethod === 'zarinpal-oneoff') {
-        // Legacy one-time payment (deprecated but supported)
-        if (!callbackUrl) {
-          throw new HTTPException(HttpStatusCodes.BAD_REQUEST, {
-            message: 'Callback URL is required for one-time payments',
-          });
-        }
-
-        // Create payment record (in same transaction as subscription)
-        paymentId = crypto.randomUUID();
-        await tx.insert(payment).values({
-          id: paymentId,
-          userId: user.id,
-          subscriptionId,
-          productId,
-          amount: selectedProduct.price,
-          status: 'pending',
-          paymentMethod: 'zarinpal',
-        });
-
-        resultPayload = {
-          subscriptionId,
-          paymentId,
-          paymentMethod: requestedPaymentMethod,
-          autoRenewalEnabled: false, // Legacy one-time payments don't support auto-renewal
-          needsPaymentInitialization: true,
-        };
-      } else {
-        throw new HTTPException(HttpStatusCodes.BAD_REQUEST, {
-          message: `Invalid payment method: ${requestedPaymentMethod}. Use direct-debit-contract for automatic renewal or zarinpal-oneoff for one-time payments`,
-        });
+      return Responses.created(c, {
+        subscriptionId: newSubscription.id,
+        paymentMethod: 'direct-debit-contract',
+        contractId,
+        autoRenewalEnabled: enableAutoRenew,
+      });
+    } else if (paymentMethod === 'zarinpal-oneoff') {
+    // Handle legacy one-time ZarinPal payment
+      if (!callbackUrl) {
+        throw createError.internal('Callback URL is required for ZarinPal payments');
       }
-    }); // ✅ Close the transaction block
 
-    // Handle ZarinPal payment initialization outside transaction (external API call)
-    if (resultPayload && 'needsPaymentInitialization' in resultPayload && resultPayload.needsPaymentInitialization) {
+      c.logger.info('Creating legacy ZarinPal subscription', { logType: 'operation', operationName: 'createSubscription', userId: user.id, resource: productId });
+
+      // Convert USD price to Iranian Rials (approximate rate)
+      const amountInRials = Math.round(product.price * 65000); // Rough conversion rate
+
+      // Create pending subscription first
+      const subscriptionData = {
+        userId: user.id,
+        productId: product.id,
+        status: 'pending' as const,
+        startDate: new Date(),
+        nextBillingDate: null, // Will be set after payment completion
+        currentPrice: product.price,
+        billingPeriod: product.billingPeriod,
+        paymentMethodId: null,
+      };
+
+      const newSubscription = await billingRepositories.subscriptions.create(subscriptionData, { tx });
+
+      // Create payment record
+      const paymentData = {
+        userId: user.id,
+        subscriptionId: newSubscription.id,
+        productId: product.id,
+        amount: amountInRials,
+        currency: 'IRR' as const,
+        status: 'pending' as const,
+        paymentMethod: 'zarinpal',
+        zarinpalDirectDebitUsed: false,
+      };
+
+      const paymentRecord = await billingRepositories.payments.create(paymentData, { tx });
+
+      // Request payment from ZarinPal
       const zarinPal = ZarinPalService.create(c.env);
-      const paymentRequest = await zarinPal.requestPayment({
-        amount: selectedProduct.price,
+      const paymentResponse = await zarinPal.requestPayment({
+        amount: amountInRials,
         currency: 'IRR',
-        description: `One-time subscription to ${selectedProduct.name}`,
-        callbackUrl: callbackUrl || `${c.env.NEXT_PUBLIC_APP_URL}/payment/callback`,
+        description: `Subscription to ${product.name}`,
+        callbackUrl,
         metadata: {
-          subscriptionId: resultPayload.subscriptionId,
-          paymentId: resultPayload.paymentId!,
+          subscriptionId: newSubscription.id,
+          paymentId: paymentRecord.id,
           userId: user.id,
         },
       });
 
-      // ✅ CRITICAL FIX: Update payment record with ZarinPal response in separate transaction
-      await db.transaction(async (tx) => {
-        // At this point, we know resultPayload exists from the outer condition check
-        if (!resultPayload?.paymentId) {
-          throw new HTTPException(HttpStatusCodes.INTERNAL_SERVER_ERROR, {
-            message: 'Payment ID not found in result payload',
-          });
-        }
-
-        if (!paymentRequest.data?.authority) {
-          await tx
-            .update(payment)
-            .set({
-              status: 'failed',
-              failureReason: paymentRequest.data?.message || 'Failed to initialize payment',
-              failedAt: new Date(),
-            })
-            .where(eq(payment.id, resultPayload.paymentId));
-
-          throw new HTTPException(HttpStatusCodes.INTERNAL_SERVER_ERROR, {
-            message: `Payment initialization failed: ${paymentRequest.data?.message}`,
-          });
-        }
-
-        await tx
-          .update(payment)
-          .set({
-            zarinpalAuthority: paymentRequest.data.authority,
-            metadata: paymentRequest,
-          })
-          .where(eq(payment.id, resultPayload.paymentId));
-      });
-
-      if (!paymentRequest.data?.authority) {
-        throw new HTTPException(HttpStatusCodes.INTERNAL_SERVER_ERROR, {
-          message: 'Payment request failed - no authority received',
+      if (!paymentResponse.data?.authority) {
+        c.logger.error('ZarinPal payment request failed', undefined, {
+          logType: 'operation',
+          operationName: 'createSubscription',
+          resource: paymentRecord.id,
         });
+        throw createError.zarinpal('Failed to initiate payment');
       }
 
-      const paymentUrl = zarinPal.getPaymentUrl(paymentRequest.data.authority);
+      // Update payment with ZarinPal authority
+      await billingRepositories.payments.update(
+        paymentRecord.id,
+        { zarinpalAuthority: paymentResponse.data.authority },
+        { tx },
+      );
 
-      return created(c, {
-        subscriptionId: resultPayload.subscriptionId,
-        paymentMethod: resultPayload.paymentMethod,
-        autoRenewalEnabled: resultPayload.autoRenewalEnabled,
+      // Log subscription creation event
+      await billingRepositories.billingEvents.logEvent({
+        userId: user.id,
+        subscriptionId: newSubscription.id,
+        paymentId: paymentRecord.id,
+        paymentMethodId: null,
+        eventType: 'subscription_created_zarinpal_legacy',
+        eventData: {
+          productId: product.id,
+          productName: product.name,
+          price: product.price,
+          amount: amountInRials,
+          authority: paymentResponse.data.authority,
+        },
+        severity: 'info',
+      }, tx);
+
+      const paymentUrl = zarinPal.getPaymentUrl(paymentResponse.data.authority);
+
+      c.logger.info('Legacy ZarinPal subscription created successfully', {
+        logType: 'operation',
+        operationName: 'createSubscription',
+        resource: newSubscription.id,
+      });
+
+      return Responses.created(c, {
+        subscriptionId: newSubscription.id,
+        paymentMethod: 'zarinpal-oneoff',
         paymentUrl,
-        authority: paymentRequest.data.authority,
+        authority: paymentResponse.data.authority,
+        autoRenewalEnabled: false, // Legacy payments don't support auto-renewal
       });
     }
 
-    // Return the response after transaction is complete
-    if (!resultPayload) {
-      throw new HTTPException(HttpStatusCodes.INTERNAL_SERVER_ERROR, {
-        message: 'Failed to create subscription - no result payload',
-      });
-    }
-
-    return created(c, resultPayload);
-  } catch (error) {
-    if (error instanceof HTTPException) {
-      throw error;
-    }
-    logError('Failed to create subscription', error);
-    throw new HTTPException(HttpStatusCodes.INTERNAL_SERVER_ERROR, {
-      message: 'Failed to create subscription',
-    });
-  }
-};
+    throw createError.internal('Invalid payment method');
+  },
+);
 
 /**
- * Handler for PATCH /subscriptions/:id/cancel
- * Cancels an active subscription
+ * PATCH /subscriptions/{id}/cancel - Cancel subscription
+ * ✅ Refactored: Uses factory pattern + repositories + transaction
  */
-export const cancelSubscriptionHandler: RouteHandler<typeof cancelSubscriptionRoute, ApiEnv> = async (c) => {
-  c.header('X-Route', 'cancel-subscription');
+export const cancelSubscriptionHandler: RouteHandler<typeof cancelSubscriptionRoute, ApiEnv> = createHandlerWithTransaction(
+  {
+    auth: 'session',
+    validateParams: SubscriptionParamsSchema,
+    validateBody: CancelSubscriptionRequestSchema,
+    operationName: 'cancelSubscription',
+  },
+  async (c, tx) => {
+    const user = c.get('user')!;
+    const { id } = c.validated.params as z.infer<typeof SubscriptionParamsSchema>;
+    const { reason } = c.validated.body as z.infer<typeof CancelSubscriptionRequestSchema>;
 
-  const user = c.get('user');
-  if (!user) {
-    throw new HTTPException(HttpStatusCodes.UNAUTHORIZED, {
-      message: 'Authentication required',
+    c.logger.info('Canceling subscription', {
+      logType: 'operation',
+      operationName: 'cancelSubscription',
+      userId: user.id,
+      resource: id,
     });
-  }
 
-  const { id } = c.req.valid('param');
-  const { reason } = c.req.valid('json');
+    const subscription = await billingRepositories.subscriptions.findById(id);
 
-  try {
-    // Check if subscription exists and belongs to user
-    const subscriptionData = await db
-      .select()
-      .from(subscription)
-      .where(and(eq(subscription.id, id), eq(subscription.userId, user.id)))
-      .limit(1);
-
-    if (!subscriptionData.length) {
-      throw new HTTPException(HttpStatusCodes.NOT_FOUND, {
-        message: 'Subscription not found',
-      });
+    if (!subscription || subscription.userId !== user.id) {
+      c.logger.warn('Subscription not found for cancellation', { logType: 'operation', operationName: 'cancelSubscription', userId: user.id, resource: id });
+      throw createError.notFound('Subscription');
     }
 
-    const sub = subscriptionData[0]!;
-
-    if (sub.status !== 'active') {
-      throw new HTTPException(HttpStatusCodes.BAD_REQUEST, {
-        message: 'Only active subscriptions can be canceled',
+    if (subscription.status !== 'active') {
+      c.logger.warn('Subscription not active for cancellation', {
+        logType: 'operation',
+        operationName: 'cancelSubscription',
+        resource: id,
       });
+      throw createError.internal('Only active subscriptions can be canceled');
     }
 
-    // Update subscription to canceled
     const canceledAt = new Date();
-    await db
-      .update(subscription)
-      .set({
+
+    // Update subscription status
+    await billingRepositories.subscriptions.update(
+      id,
+      {
         status: 'canceled',
         endDate: canceledAt,
-        metadata: reason ? { cancellationReason: reason } : undefined,
-      })
-      .where(eq(subscription.id, id));
+        cancellationReason: reason,
+        nextBillingDate: null, // Stop future billing
+      },
+      { tx },
+    );
 
-    return ok(c, {
+    // Log cancellation event
+    await billingRepositories.billingEvents.logEvent({
+      userId: user.id,
+      subscriptionId: id,
+      paymentId: null,
+      paymentMethodId: subscription.paymentMethodId,
+      eventType: 'subscription_canceled',
+      eventData: {
+        reason: reason || 'User requested cancellation',
+        canceledAt: canceledAt.toISOString(),
+        previousStatus: subscription.status,
+      },
+      severity: 'info',
+    }, tx);
+
+    c.logger.info('Subscription canceled successfully', { logType: 'operation', operationName: 'cancelSubscription', resource: id });
+
+    return Responses.ok(c, {
       subscriptionId: id,
       status: 'canceled' as const,
       canceledAt: canceledAt.toISOString(),
     });
-  } catch (error) {
-    if (error instanceof HTTPException) {
-      throw error;
-    }
-    logError('Failed to cancel subscription', error);
-    throw new HTTPException(HttpStatusCodes.INTERNAL_SERVER_ERROR, {
-      message: 'Failed to cancel subscription',
-    });
-  }
-};
+  },
+);
 
 /**
- * Handler for POST /subscriptions/:id/resubscribe
- * Reactivates a canceled subscription by initiating new payment
+ * POST /subscriptions/{id}/resubscribe - Resubscribe to canceled subscription
+ * ✅ Refactored: Uses factory pattern + repositories + transaction
  */
-export const resubscribeHandler: RouteHandler<typeof resubscribeRoute, ApiEnv> = async (c) => {
-  c.header('X-Route', 'resubscribe');
+export const resubscribeHandler: RouteHandler<typeof resubscribeRoute, ApiEnv> = createHandlerWithTransaction(
+  {
+    auth: 'session',
+    validateParams: SubscriptionParamsSchema,
+    validateBody: CreateSubscriptionRequestSchema.pick({ callbackUrl: true }),
+    operationName: 'resubscribe',
+  },
+  async (c, tx) => {
+    const user = c.get('user')!;
+    const { id } = c.validated.params as z.infer<typeof SubscriptionParamsSchema>;
+    const { callbackUrl } = c.validated.body as z.infer<typeof CreateSubscriptionRequestSchema>;
 
-  const user = c.get('user');
-  if (!user) {
-    throw new HTTPException(HttpStatusCodes.UNAUTHORIZED, {
-      message: 'Authentication required',
-    });
-  }
-
-  const { id } = c.req.valid('param');
-  const { callbackUrl } = c.req.valid('json');
-
-  if (!callbackUrl) {
-    throw new HTTPException(HttpStatusCodes.BAD_REQUEST, {
-      message: 'Callback URL is required for resubscription',
-    });
-  }
-
-  try {
-    // Get subscription with product data
-    const subscriptionData = await db
-      .select()
-      .from(subscription)
-      .innerJoin(product, eq(subscription.productId, product.id))
-      .where(and(eq(subscription.id, id), eq(subscription.userId, user.id)))
-      .limit(1);
-
-    if (!subscriptionData.length) {
-      throw new HTTPException(HttpStatusCodes.NOT_FOUND, {
-        message: 'Subscription not found',
-      });
-    }
-
-    const { subscription: sub, product: prod } = subscriptionData[0]!;
-
-    if (sub.status !== 'canceled') {
-      throw new HTTPException(HttpStatusCodes.BAD_REQUEST, {
-        message: 'Only canceled subscriptions can be reactivated',
-      });
-    }
-
-    if (!prod.isActive) {
-      throw new HTTPException(HttpStatusCodes.BAD_REQUEST, {
-        message: 'Product is no longer available',
-      });
-    }
-
-    // Create new payment record
-    const paymentId = crypto.randomUUID();
-    await db.insert(payment).values({
-      id: paymentId,
+    c.logger.info('Resubscribing to subscription', {
+      logType: 'operation',
+      operationName: 'resubscribe',
       userId: user.id,
-      subscriptionId: sub.id,
-      productId: sub.productId,
-      amount: prod.price, // Use current product price
-      status: 'pending',
-      paymentMethod: 'zarinpal',
+      resource: id,
     });
 
-    // Initialize ZarinPal payment
+    const subscription = await billingRepositories.subscriptions.findById(id);
+
+    if (!subscription || subscription.userId !== user.id) {
+      c.logger.warn('Subscription not found for resubscription', { logType: 'operation', operationName: 'resubscribe', userId: user.id, resource: id });
+      throw createError.notFound('Subscription');
+    }
+
+    if (subscription.status !== 'canceled') {
+      c.logger.warn('Subscription not canceled for resubscription', {
+        logType: 'operation',
+        operationName: 'resubscribe',
+        resource: id,
+      });
+      throw createError.internal('Only canceled subscriptions can be resubscribed');
+    }
+
+    // Get product details
+    const product = await billingRepositories.products.findById(subscription.productId);
+
+    if (!product || !product.isActive) {
+      c.logger.warn('Product no longer available for resubscription', {
+        logType: 'operation',
+        operationName: 'resubscribe',
+        resource: subscription.productId,
+      });
+      throw createError.internal('This product is no longer available for subscription');
+    }
+
+    // Convert USD price to Iranian Rials
+    const amountInRials = Math.round(product.price * 65000);
+
+    // Create payment record for resubscription
+    const paymentData = {
+      userId: user.id,
+      subscriptionId: subscription.id,
+      productId: product.id,
+      amount: amountInRials,
+      currency: 'IRR' as const,
+      status: 'pending' as const,
+      paymentMethod: 'zarinpal',
+      zarinpalDirectDebitUsed: false,
+    };
+
+    const paymentRecord = await billingRepositories.payments.create(paymentData, { tx });
+
+    // Validate callback URL is provided
+    if (!callbackUrl) {
+      throw createError.internal('Callback URL is required for resubscription');
+    }
+
+    // Request payment from ZarinPal
     const zarinPal = ZarinPalService.create(c.env);
-    const paymentRequest = await zarinPal.requestPayment({
-      amount: prod.price,
+    const paymentResponse = await zarinPal.requestPayment({
+      amount: amountInRials,
       currency: 'IRR',
-      description: `Resubscribe to ${prod.name}`,
+      description: `Resubscription to ${product.name}`,
       callbackUrl,
       metadata: {
-        subscriptionId: sub.id,
-        paymentId,
+        subscriptionId: subscription.id,
+        paymentId: paymentRecord.id,
         userId: user.id,
-        isResubscribe: true,
+        isResubscription: true,
       },
     });
 
-    if (!paymentRequest.data?.authority) {
-      // Update payment status to failed
-      await db
-        .update(payment)
-        .set({
-          status: 'failed',
-          failureReason: paymentRequest.data?.message || 'Failed to initialize payment',
-          failedAt: new Date(),
-        })
-        .where(eq(payment.id, paymentId));
-
-      throw new HTTPException(HttpStatusCodes.INTERNAL_SERVER_ERROR, {
-        message: `Payment initialization failed: ${paymentRequest.data?.message}`,
+    if (!paymentResponse.data?.authority) {
+      c.logger.error('ZarinPal payment request failed for resubscription', undefined, {
+        logType: 'operation',
+        operationName: 'resubscribe',
+        resource: id,
       });
+      throw createError.zarinpal('Failed to initiate payment for resubscription');
     }
 
-    // Update payment record with ZarinPal authority
-    await db
-      .update(payment)
-      .set({
-        zarinpalAuthority: paymentRequest.data?.authority,
-        metadata: paymentRequest,
-      })
-      .where(eq(payment.id, paymentId));
+    // Update payment with ZarinPal authority
+    await billingRepositories.payments.update(
+      paymentRecord.id,
+      { zarinpalAuthority: paymentResponse.data.authority },
+      { tx },
+    );
 
-    const paymentUrl = zarinPal.getPaymentUrl(paymentRequest.data.authority);
+    // Update subscription to pending (will be activated on payment completion)
+    await billingRepositories.subscriptions.update(
+      id,
+      {
+        status: 'pending',
+        endDate: null,
+        cancellationReason: null,
+      },
+      { tx },
+    );
 
-    return ok(c, {
-      subscriptionId: sub.id,
+    // Log resubscription event
+    await billingRepositories.billingEvents.logEvent({
+      userId: user.id,
+      subscriptionId: id,
+      paymentId: paymentRecord.id,
+      paymentMethodId: null,
+      eventType: 'subscription_resubscribed',
+      eventData: {
+        productId: product.id,
+        productName: product.name,
+        amount: amountInRials,
+        authority: paymentResponse.data.authority,
+      },
+      severity: 'info',
+    }, tx);
+
+    const paymentUrl = zarinPal.getPaymentUrl(paymentResponse.data.authority);
+
+    c.logger.info('Resubscription initiated successfully', {
+      logType: 'operation',
+      operationName: 'resubscribe',
+      resource: id,
+    });
+
+    return Responses.ok(c, {
+      subscriptionId: id,
       paymentUrl,
-      authority: paymentRequest.data?.authority,
+      authority: paymentResponse.data.authority,
     });
-  } catch (error) {
-    if (error instanceof HTTPException) {
-      throw error;
-    }
-    logError('Failed to resubscribe', error);
-    throw new HTTPException(HttpStatusCodes.INTERNAL_SERVER_ERROR, {
-      message: 'Failed to resubscribe',
-    });
-  }
-};
+  },
+);
 
 /**
- * Handler for POST /subscriptions/:id/change-plan
- * Changes a subscription to a different plan (upgrade or downgrade)
+ * POST /subscriptions/{id}/change-plan - Change subscription plan
+ * ✅ Refactored: Uses factory pattern + repositories + transaction
  */
-export const changePlanHandler: RouteHandler<typeof changePlanRoute, ApiEnv> = async (c) => {
-  c.header('X-Route', 'change-plan');
+export const changePlanHandler: RouteHandler<typeof changePlanRoute, ApiEnv> = createHandlerWithTransaction(
+  {
+    auth: 'session',
+    validateParams: SubscriptionParamsSchema,
+    validateBody: ChangePlanRequestSchema,
+    operationName: 'changePlan',
+  },
+  async (c, tx) => {
+    const user = c.get('user')!;
+    const { id } = c.validated.params as z.infer<typeof SubscriptionParamsSchema>;
+    const { newProductId, callbackUrl, effectiveDate } = c.validated.body as z.infer<typeof ChangePlanRequestSchema>;
 
-  const user = c.get('user');
-  if (!user) {
-    throw new HTTPException(HttpStatusCodes.UNAUTHORIZED, {
-      message: 'Authentication required',
+    c.logger.info('Changing subscription plan', {
+      logType: 'operation',
+      operationName: 'changePlan',
+      userId: user.id,
+      resource: id,
     });
-  }
 
-  const { id } = c.req.valid('param');
-  const { newProductId, callbackUrl, effectiveDate } = c.req.valid('json');
+    const subscription = await billingRepositories.subscriptions.findById(id);
 
-  try {
-    // Get current subscription with product
-    const subscriptionData = await db
-      .select()
-      .from(subscription)
-      .innerJoin(product, eq(subscription.productId, product.id))
-      .where(and(eq(subscription.id, id), eq(subscription.userId, user.id)))
-      .limit(1);
-
-    if (!subscriptionData.length) {
-      throw new HTTPException(HttpStatusCodes.NOT_FOUND, {
-        message: 'Subscription not found',
-      });
+    if (!subscription || subscription.userId !== user.id) {
+      c.logger.warn('Subscription not found for plan change', { logType: 'operation', operationName: 'changePlan', userId: user.id, resource: id });
+      throw createError.notFound('Subscription');
     }
 
-    const { subscription: currentSub, product: currentProduct } = subscriptionData[0]!;
-
-    if (currentSub.status !== 'active') {
-      throw new HTTPException(HttpStatusCodes.BAD_REQUEST, {
-        message: 'Only active subscriptions can change plans',
+    if (subscription.status !== 'active') {
+      c.logger.warn('Subscription not active for plan change', {
+        logType: 'operation',
+        operationName: 'changePlan',
+        resource: id,
       });
+      throw createError.internal('Only active subscriptions can have their plan changed');
     }
 
-    // Get the new product
-    const newProductData = await db
-      .select()
-      .from(product)
-      .where(and(eq(product.id, newProductId), eq(product.isActive, true)))
-      .limit(1);
+    // Get current and new products
+    const [currentProduct, newProduct] = await Promise.all([
+      billingRepositories.products.findById(subscription.productId),
+      billingRepositories.products.findById(newProductId),
+    ]);
 
-    if (!newProductData.length) {
-      throw new HTTPException(HttpStatusCodes.NOT_FOUND, {
-        message: 'New product not found or inactive',
+    if (!currentProduct || !newProduct || !newProduct.isActive) {
+      c.logger.warn('Products not found for plan change', {
+        logType: 'operation',
+        operationName: 'changePlan',
+        resource: newProductId,
       });
-    }
-
-    const newProduct = newProductData[0]!;
-
-    if (currentProduct.id === newProduct.id) {
-      throw new HTTPException(HttpStatusCodes.BAD_REQUEST, {
-        message: 'Cannot change to the same plan',
-      });
+      throw createError.internal('Invalid product selection for plan change');
     }
 
     const priceDifference = newProduct.price - currentProduct.price;
-    let paymentUrl: string | null = null;
-    let authority: string | null = null;
-    let prorationAmount: number | null = null;
+    const isUpgrade = priceDifference > 0;
+    const changeDate = effectiveDate === 'immediate' ? new Date() : subscription.nextBillingDate;
 
-    const now = new Date();
-    let effectiveDateTimestamp = now;
+    c.logger.info('Plan change analysis', {
+      logType: 'operation',
+      operationName: 'changePlan',
+      resource: id,
+    });
 
-    // Calculate effective date
-    if (effectiveDate === 'next_billing_cycle' && currentSub.nextBillingDate) {
-      effectiveDateTimestamp = currentSub.nextBillingDate;
+    // Calculate proration for immediate changes
+    let prorationAmount = null;
+    if (effectiveDate === 'immediate' && subscription.nextBillingDate) {
+      const daysRemaining = Math.max(0, Math.ceil((subscription.nextBillingDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24)),
+      );
+      const totalDaysInCycle = 30; // Assuming monthly billing
+      prorationAmount = (priceDifference * daysRemaining) / totalDaysInCycle;
     }
 
-    // For immediate changes, calculate proration if it's an upgrade
-    if (effectiveDate === 'immediate' && priceDifference > 0) {
-      // Calculate prorated amount based on remaining days in current billing cycle
-      if (currentSub.nextBillingDate && currentProduct.billingPeriod === 'monthly') {
-        const daysInMonth = 30; // Simplified - could be more accurate
-        const remainingDays = Math.ceil(
-          (currentSub.nextBillingDate.getTime() - now.getTime()) / (24 * 60 * 60 * 1000),
-        );
-        prorationAmount = Math.round((priceDifference * remainingDays) / daysInMonth);
-      } else {
-        prorationAmount = priceDifference;
-      }
+    // For upgrades or immediate changes, create payment if needed
+    let paymentUrl = null;
+    let authority = null;
 
-      // If it's an upgrade requiring payment, create payment flow
-      if (prorationAmount > 0) {
-        const paymentId = crypto.randomUUID();
-        await db.insert(payment).values({
-          id: paymentId,
+    if (isUpgrade && effectiveDate === 'immediate') {
+      const amountToCharge = prorationAmount ? Math.round(prorationAmount * 65000) : Math.round(priceDifference * 65000);
+
+      if (amountToCharge > 0) {
+        // Create payment record
+        const paymentData = {
           userId: user.id,
-          subscriptionId: currentSub.id,
+          subscriptionId: subscription.id,
           productId: newProduct.id,
-          amount: prorationAmount,
-          status: 'pending',
+          amount: amountToCharge,
+          currency: 'IRR' as const,
+          status: 'pending' as const,
           paymentMethod: 'zarinpal',
-        });
+          zarinpalDirectDebitUsed: false,
+        };
 
-        // Initialize ZarinPal payment
+        const paymentRecord = await billingRepositories.payments.create(paymentData, { tx });
+
+        // Request payment from ZarinPal
         const zarinPal = ZarinPalService.create(c.env);
-        const paymentRequest = await zarinPal.requestPayment({
-          amount: prorationAmount,
+        const paymentResponse = await zarinPal.requestPayment({
+          amount: amountToCharge,
           currency: 'IRR',
-          description: `Plan upgrade from ${currentProduct.name} to ${newProduct.name}`,
+          description: `Plan upgrade to ${newProduct.name}`,
           callbackUrl,
           metadata: {
-            subscriptionId: currentSub.id,
-            paymentId,
+            subscriptionId: subscription.id,
+            paymentId: paymentRecord.id,
             userId: user.id,
             planChange: true,
             oldProductId: currentProduct.id,
@@ -669,84 +679,97 @@ export const changePlanHandler: RouteHandler<typeof changePlanRoute, ApiEnv> = a
           },
         });
 
-        if (!paymentRequest.data?.authority) {
-          await db
-            .update(payment)
-            .set({
-              status: 'failed',
-              failureReason: paymentRequest.data?.message || 'Failed to initialize payment',
-              failedAt: now,
-            })
-            .where(eq(payment.id, paymentId));
-
-          throw new HTTPException(HttpStatusCodes.INTERNAL_SERVER_ERROR, {
-            message: `Payment initialization failed: ${paymentRequest.data?.message}`,
+        if (!paymentResponse.data?.authority) {
+          c.logger.error('ZarinPal payment request failed for plan change', undefined, {
+            logType: 'operation',
+            operationName: 'changePlan',
+            resource: id,
           });
+          throw createError.zarinpal('Failed to initiate payment for plan change');
         }
 
-        await db
-          .update(payment)
-          .set({
-            zarinpalAuthority: paymentRequest.data?.authority,
-            metadata: paymentRequest,
-          })
-          .where(eq(payment.id, paymentId));
+        await billingRepositories.payments.update(
+          paymentRecord.id,
+          { zarinpalAuthority: paymentResponse.data.authority },
+          { tx },
+        );
 
-        paymentUrl = zarinPal.getPaymentUrl(paymentRequest.data.authority);
-        authority = paymentRequest.data?.authority;
+        paymentUrl = zarinPal.getPaymentUrl(paymentResponse.data.authority);
+        authority = paymentResponse.data.authority;
+
+        c.logger.info('Payment required for plan upgrade', {
+          logType: 'operation',
+          operationName: 'changePlan',
+          resource: authority,
+        });
       }
     }
 
-    // Update subscription if no payment required or it's a downgrade/next cycle change
-    if (!paymentUrl) {
-      const nextBillingDate = effectiveDateTimestamp.getTime() === now.getTime()
-        ? (newProduct.billingPeriod === 'monthly'
-            ? new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000)
-            : null)
-        : currentSub.nextBillingDate;
-
-      await db
-        .update(subscription)
-        .set({
+    // Update subscription (either immediately or mark for next billing cycle)
+    if (effectiveDate === 'immediate') {
+      await billingRepositories.subscriptions.update(
+        id,
+        {
           productId: newProduct.id,
           currentPrice: newProduct.price,
           billingPeriod: newProduct.billingPeriod,
-          nextBillingDate,
-          updatedAt: now,
-          metadata: {
-            planChangeHistory: [
-              ...parsePlanChangeHistory(currentSub.metadata),
-              {
-                fromProductId: currentProduct.id,
-                toProductId: newProduct.id,
-                fromPrice: currentProduct.price,
-                toPrice: newProduct.price,
-                changedAt: effectiveDateTimestamp.toISOString(),
-                effectiveDate,
-              },
-            ],
-          },
-        })
-        .where(eq(subscription.id, id));
+          upgradeDowngradeAt: changeDate,
+          prorationCredit: prorationAmount && priceDifference < 0 ? Math.abs(prorationAmount) : 0,
+        },
+        { tx },
+      );
+    } else {
+      // Store plan change for next billing cycle
+      const planChangeMetadata: SubscriptionMetadata = {
+        subscriptionType: 'plan_change_pending',
+        newProductId,
+        scheduledFor: subscription.nextBillingDate!.toISOString(),
+        requestedAt: new Date().toISOString(),
+        changeType: priceDifference > 0 ? 'upgrade' : priceDifference < 0 ? 'downgrade' : 'lateral',
+      };
+
+      await billingRepositories.subscriptions.update(
+        id,
+        { metadata: planChangeMetadata },
+        { tx },
+      );
     }
 
-    return ok(c, {
+    // Log plan change event
+    await billingRepositories.billingEvents.logEvent({
+      userId: user.id,
+      subscriptionId: id,
+      paymentId: null,
+      paymentMethodId: subscription.paymentMethodId,
+      eventType: 'subscription_plan_changed',
+      eventData: {
+        oldProductId: currentProduct.id,
+        oldProductName: currentProduct.name,
+        newProductId: newProduct.id,
+        newProductName: newProduct.name,
+        effectiveDate,
+        priceDifference,
+        prorationAmount,
+        requiresPayment: !!paymentUrl,
+      },
+      severity: 'info',
+    }, tx);
+
+    c.logger.info('Plan change completed successfully', {
+      logType: 'operation',
+      operationName: 'changePlan',
+      resource: id,
+    });
+
+    return Responses.ok(c, {
       subscriptionId: id,
       oldProductId: currentProduct.id,
       newProductId: newProduct.id,
-      effectiveDate: effectiveDateTimestamp.toISOString(),
+      effectiveDate: changeDate?.toISOString() || new Date().toISOString(),
       paymentUrl,
       authority,
       priceDifference,
       prorationAmount,
     });
-  } catch (error) {
-    if (error instanceof HTTPException) {
-      throw error;
-    }
-    logError('Failed to change plan', error);
-    throw new HTTPException(HttpStatusCodes.INTERNAL_SERVER_ERROR, {
-      message: 'Failed to change plan',
-    });
-  }
-};
+  },
+);

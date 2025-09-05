@@ -91,7 +91,7 @@ export const CreateSubscriptionResponseSchema = ApiResponseSchema(
       example: true,
       description: 'Whether automatic renewal is enabled via direct debit contract',
     }),
-    // Legacy fields for zarinpal-oneoff compatibility (deprecated)
+    // ZarinPal compatibility fields
     paymentUrl: z.string().url().optional().openapi({
       example: 'https://www.zarinpal.com/pg/StartPay/A00000000000000000000000000123456789',
       description: 'ZarinPal payment gateway URL (only for legacy zarinpal-oneoff)',

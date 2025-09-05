@@ -1,8 +1,7 @@
 import { createRoute } from '@hono/zod-openapi';
 import * as HttpStatusCodes from 'stoker/http-status-codes';
 
-import { CommonErrorResponses } from '@/api/common';
-
+// import { Responses } from '@/api/core'; // Commented out as unused
 import {
   CancelSubscriptionRequestSchema,
   CancelSubscriptionResponseSchema,
@@ -29,7 +28,9 @@ export const getSubscriptionsRoute = createRoute({
         'application/json': { schema: GetSubscriptionsResponseSchema },
       },
     },
-    ...CommonErrorResponses.read,
+    [HttpStatusCodes.BAD_REQUEST]: { description: 'Bad Request' },
+    [HttpStatusCodes.NOT_FOUND]: { description: 'Not Found' },
+    [HttpStatusCodes.INTERNAL_SERVER_ERROR]: { description: 'Internal Server Error' },
   },
 });
 
@@ -49,7 +50,9 @@ export const getSubscriptionRoute = createRoute({
         'application/json': { schema: GetSubscriptionResponseSchema },
       },
     },
-    ...CommonErrorResponses.read,
+    [HttpStatusCodes.BAD_REQUEST]: { description: 'Bad Request' },
+    [HttpStatusCodes.NOT_FOUND]: { description: 'Not Found' },
+    [HttpStatusCodes.INTERNAL_SERVER_ERROR]: { description: 'Internal Server Error' },
   },
 });
 
@@ -73,7 +76,10 @@ export const createSubscriptionRoute = createRoute({
         'application/json': { schema: CreateSubscriptionResponseSchema },
       },
     },
-    ...CommonErrorResponses.create,
+    [HttpStatusCodes.BAD_REQUEST]: { description: 'Bad Request' },
+    [HttpStatusCodes.UNPROCESSABLE_ENTITY]: { description: 'Validation Error' },
+    [HttpStatusCodes.CONFLICT]: { description: 'Conflict' },
+    [HttpStatusCodes.INTERNAL_SERVER_ERROR]: { description: 'Internal Server Error' },
   },
 });
 
@@ -98,7 +104,10 @@ export const cancelSubscriptionRoute = createRoute({
         'application/json': { schema: CancelSubscriptionResponseSchema },
       },
     },
-    ...CommonErrorResponses.update,
+    [HttpStatusCodes.BAD_REQUEST]: { description: 'Bad Request' },
+    [HttpStatusCodes.NOT_FOUND]: { description: 'Not Found' },
+    [HttpStatusCodes.UNPROCESSABLE_ENTITY]: { description: 'Validation Error' },
+    [HttpStatusCodes.INTERNAL_SERVER_ERROR]: { description: 'Internal Server Error' },
   },
 });
 
@@ -125,7 +134,10 @@ export const resubscribeRoute = createRoute({
         'application/json': { schema: ResubscribeResponseSchema },
       },
     },
-    ...CommonErrorResponses.update,
+    [HttpStatusCodes.BAD_REQUEST]: { description: 'Bad Request' },
+    [HttpStatusCodes.NOT_FOUND]: { description: 'Not Found' },
+    [HttpStatusCodes.UNPROCESSABLE_ENTITY]: { description: 'Validation Error' },
+    [HttpStatusCodes.INTERNAL_SERVER_ERROR]: { description: 'Internal Server Error' },
   },
 });
 
@@ -150,6 +162,9 @@ export const changePlanRoute = createRoute({
         'application/json': { schema: ChangePlanResponseSchema },
       },
     },
-    ...CommonErrorResponses.update,
+    [HttpStatusCodes.BAD_REQUEST]: { description: 'Bad Request' },
+    [HttpStatusCodes.NOT_FOUND]: { description: 'Not Found' },
+    [HttpStatusCodes.UNPROCESSABLE_ENTITY]: { description: 'Validation Error' },
+    [HttpStatusCodes.INTERNAL_SERVER_ERROR]: { description: 'Internal Server Error' },
   },
 });

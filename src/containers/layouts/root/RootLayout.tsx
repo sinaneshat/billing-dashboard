@@ -8,13 +8,13 @@ import { Toaster } from '@/components/ui/toaster';
 import {
   QueryClientProvider,
 } from '@/containers/providers';
-import { cn } from '@/lib/utils/tailwind';
 
 type RootLayoutProps = {
   children: React.ReactNode;
   modal: React.ReactNode;
   locale: string;
   translations: Record<string, unknown>;
+  theme?: string;
   env: {
     NEXT_PUBLIC_WEBAPP_ENV?: string;
     NEXT_PUBLIC_MAINTENANCE?: string;
@@ -26,18 +26,20 @@ export function RootLayout({
   modal,
   locale,
   translations,
+  theme,
   env,
 }: RootLayoutProps) {
+  const direction = locale === 'fa' ? 'rtl' : 'ltr';
   return (
     <div
-      className={cn(
-        'min-h-screen bg-background font-sans antialiased',
-      )}
+      className="min-h-screen bg-background font-sans antialiased"
+      dir={direction}
     >
       <ThemeProvider
         attribute="class"
-        defaultTheme="dark"
+        defaultTheme={theme || 'system'}
         enableSystem={true}
+        disableTransitionOnChange
       >
         <QueryClientProvider>
           <>

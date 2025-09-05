@@ -1,126 +1,224 @@
 /**
  * ZarinPal Direct Debit (Payman) API Service
+ * Migrated to use BaseService pattern for consistent error handling and HTTP utilities
  * Implementation following official ZarinPal direct debit documentation
  * https://docs.zarinpal.com/paymentGateway/directPayment.html
  */
 
+import { z } from '@hono/zod-openapi';
 import { HTTPException } from 'hono/http-exception';
 import * as HttpStatusCodes from 'stoker/http-status-codes';
 
 import { createZarinPalHTTPException } from '@/api/common/zarinpal-error-utils';
+import { BaseService } from '@/api/patterns/service-factory';
 
-export type ZarinPalConfig = {
-  merchantId: string;
-  baseUrl?: string;
-  isSandbox?: boolean;
-  isPlaceholder?: boolean; // Indicates using dev placeholder ID
-};
+// =============================================================================
+// ZOD SCHEMAS (Context7 Best Practices)
+// =============================================================================
 
 /**
- * Direct Debit Contract Request (Step 1: Create Payman)
- * Following ZarinPal Payman API exactly
+ * ZarinPal Direct Debit Configuration Schema
  */
-export type DirectDebitContractRequest = {
-  mobile: string;
-  ssn?: string; // Optional - Iranian National ID
-  expire_at: string; // Contract expiry date "YYYY-MM-DD HH:MM:SS"
-  max_daily_count: string; // Maximum daily transactions
-  max_monthly_count: string; // Maximum monthly transactions
-  max_amount: string; // Maximum transaction amount in Rials
-  callback_url: string; // Return URL after contract signing
-};
+export const ZarinPalDirectDebitConfigSchema = z.object({
+  serviceName: z.string(),
+  baseUrl: z.string().url(),
+  timeout: z.number().positive(),
+  retries: z.number().int().min(0).max(5),
+  circuitBreaker: z.object({
+    failureThreshold: z.number().int().positive(),
+    resetTimeout: z.number().positive(),
+  }).optional(),
+  merchantId: z.string().length(36, 'ZarinPal merchant ID must be exactly 36 characters'),
+  isSandbox: z.boolean().optional(),
+  isPlaceholder: z.boolean().optional().openapi({
+    description: 'Indicates using development placeholder ID',
+  }),
+}).openapi('ZarinPalDirectDebitConfig');
 
 /**
- * Direct Debit Contract Response
+ * Iranian Mobile Number Schema with validation
  */
-export type DirectDebitContractResponse = {
-  data?: {
-    payman_authority: string; // Contract authority to be stored
-    code: number;
-    message: string;
-  };
-  errors?: unknown[];
-};
+export const IranianMobileSchema = z.string()
+  .regex(/^(?:\+98|0)?9\d{9}$/, 'Invalid Iranian mobile number format')
+  .transform(mobile => mobile.startsWith('+98') ? mobile : mobile.startsWith('09') ? mobile : `09${mobile.slice(-9)}`)
+  .openapi({
+    example: '09123456789',
+    description: 'Iranian mobile number',
+  });
 
 /**
- * Bank List Response for contract signing
+ * Iranian National ID (SSN) Schema
  */
-export type BankListResponse = {
-  data?: {
-    banks: Array<{
-      name: string;
-      slug: string;
-      bank_code: string; // Required for contract signing URL
-      max_daily_amount: number;
-      max_daily_count: number | null;
-    }>;
-    code: number;
-    message: string;
-  };
-  errors?: unknown[];
-};
+export const IranianSSNSchema = z.string()
+  .regex(/^\d{10}$/, 'Iranian national ID must be exactly 10 digits')
+  .openapi({
+    example: '1234567890',
+    description: 'Iranian national ID (optional)',
+  });
 
 /**
- * Signature Verification Request (Step 3: Get signature after contract)
+ * Direct Debit Contract Request Schema (Step 1: Create Payman)
  */
-export type SignatureRequest = {
-  payman_authority: string;
-};
+export const DirectDebitContractRequestSchema = z.object({
+  mobile: IranianMobileSchema,
+  ssn: IranianSSNSchema.optional(),
+  expire_at: z.string().datetime().openapi({
+    example: '2024-12-31 23:59:59',
+    description: 'Contract expiry date in YYYY-MM-DD HH:MM:SS format',
+  }),
+  max_daily_count: z.string().regex(/^\d+$/, 'Must be a numeric string').openapi({
+    example: '10',
+    description: 'Maximum daily transactions',
+  }),
+  max_monthly_count: z.string().regex(/^\d+$/, 'Must be a numeric string').openapi({
+    example: '100',
+    description: 'Maximum monthly transactions',
+  }),
+  max_amount: z.string().regex(/^\d+$/, 'Must be a numeric string').openapi({
+    example: '50000000',
+    description: 'Maximum transaction amount in Iranian Rials',
+  }),
+  callback_url: z.string().url().openapi({
+    example: 'https://example.com/contract/callback',
+    description: 'Return URL after contract signing',
+  }),
+}).openapi('DirectDebitContractRequest');
 
 /**
- * Signature Response
+ * ZarinPal API Error Schema (replaces unknown[])
  */
-export type SignatureResponse = {
-  data?: {
-    signature: string; // 200-character signature to store securely
-    code: number;
-    message: string;
-  };
-  errors?: unknown[];
-};
+export const ZarinPalApiErrorSchema = z.object({
+  code: z.number().int(),
+  message: z.string(),
+  field: z.string().optional(),
+}).openapi('ZarinPalApiError');
 
 /**
- * Direct Transaction Request (Step 4: Execute direct payment)
+ * Bank Information Schema
  */
-export type DirectTransactionRequest = {
-  authority: string; // Authority from regular payment request
-  signature: string; // Signature from contract verification
-};
+export const BankInfoSchema = z.object({
+  name: z.string().openapi({
+    example: 'بانک ملی ایران',
+    description: 'Bank display name in Persian',
+  }),
+  slug: z.string().openapi({
+    example: 'bmi',
+    description: 'Bank slug identifier',
+  }),
+  bank_code: z.string().openapi({
+    example: '011',
+    description: 'Bank code for contract signing URL',
+  }),
+  max_daily_amount: z.number().int().nonnegative().openapi({
+    example: 50000000,
+    description: 'Maximum daily amount in IRR',
+  }),
+  max_daily_count: z.number().int().nonnegative().nullable().openapi({
+    example: 10,
+    description: 'Maximum daily transaction count',
+  }),
+}).openapi('BankInfo');
 
 /**
- * Direct Transaction Response
+ * Direct Debit Contract Response Schema
  */
-export type DirectTransactionResponse = {
-  data?: {
-    refrence_id: number; // Transaction reference ID
-    amount: number; // Transaction amount
-    code: number;
-    message: string;
-  };
-  errors?: unknown[];
-};
+export const DirectDebitContractResponseSchema = z.object({
+  data: z.object({
+    payman_authority: z.string().length(36, 'Payman authority must be exactly 36 characters'),
+    code: z.number().int(),
+    message: z.string(),
+  }).optional(),
+  errors: z.array(ZarinPalApiErrorSchema).optional(),
+}).openapi('DirectDebitContractResponse');
 
 /**
- * Contract Cancellation Request
+ * Bank List Response Schema
  */
-export type CancelContractRequest = {
-  signature: string;
-};
+export const BankListResponseSchema = z.object({
+  data: z.object({
+    banks: z.array(BankInfoSchema),
+    code: z.number().int(),
+    message: z.string(),
+  }).optional(),
+  errors: z.array(ZarinPalApiErrorSchema).optional(),
+}).openapi('BankListResponse');
+
+/**
+ * Signature Verification Request Schema (Step 3)
+ */
+export const SignatureRequestSchema = z.object({
+  payman_authority: z.string().length(36, 'Payman authority must be exactly 36 characters'),
+}).openapi('SignatureRequest');
+
+/**
+ * Signature Response Schema
+ */
+export const SignatureResponseSchema = z.object({
+  data: z.object({
+    signature: z.string().length(200, 'Signature must be exactly 200 characters'),
+    code: z.number().int(),
+    message: z.string(),
+  }).optional(),
+  errors: z.array(ZarinPalApiErrorSchema).optional(),
+}).openapi('SignatureResponse');
+
+/**
+ * Direct Transaction Request Schema (Step 4)
+ */
+export const DirectTransactionRequestSchema = z.object({
+  authority: z.string().length(36, 'Authority must be exactly 36 characters'),
+  signature: z.string().length(200, 'Signature must be exactly 200 characters'),
+}).openapi('DirectTransactionRequest');
+
+/**
+ * Direct Transaction Response Schema
+ */
+export const DirectTransactionResponseSchema = z.object({
+  data: z.object({
+    refrence_id: z.number().int().positive(),
+    amount: z.number().int().positive(),
+    code: z.number().int(),
+    message: z.string(),
+  }).optional(),
+  errors: z.array(ZarinPalApiErrorSchema).optional(),
+}).openapi('DirectTransactionResponse');
+
+/**
+ * Contract Cancellation Request Schema
+ */
+export const CancelContractRequestSchema = z.object({
+  signature: z.string().length(200, 'Signature must be exactly 200 characters'),
+}).openapi('CancelContractRequest');
+
+// =============================================================================
+// TYPE INFERENCE FROM SCHEMAS
+// =============================================================================
+
+export type ZarinPalDirectDebitConfig = z.infer<typeof ZarinPalDirectDebitConfigSchema>;
+export type DirectDebitContractRequest = z.infer<typeof DirectDebitContractRequestSchema>;
+export type DirectDebitContractResponse = z.infer<typeof DirectDebitContractResponseSchema>;
+export type BankListResponse = z.infer<typeof BankListResponseSchema>;
+export type SignatureRequest = z.infer<typeof SignatureRequestSchema>;
+export type SignatureResponse = z.infer<typeof SignatureResponseSchema>;
+export type DirectTransactionRequest = z.infer<typeof DirectTransactionRequestSchema>;
+export type DirectTransactionResponse = z.infer<typeof DirectTransactionResponseSchema>;
+export type CancelContractRequest = z.infer<typeof CancelContractRequestSchema>;
+export type BankInfo = z.infer<typeof BankInfoSchema>;
 
 /**
  * ZarinPal Direct Debit Service
+ * Extends BaseService for consistent HTTP handling, error management, and circuit breaking
  * Implements complete Payman (Direct Debit) workflow
  */
-export class ZarinPalDirectDebitService {
-  constructor(private config: ZarinPalConfig) {}
+export class ZarinPalDirectDebitService extends BaseService<ZarinPalDirectDebitConfig> {
+  constructor(config: ZarinPalDirectDebitConfig) {
+    super(config);
+  }
 
   /**
-   * Create service instance with environment validation
+   * Get service configuration from environment with Zod validation
    */
-  static create(env: {
-    ZARINPAL_MERCHANT_ID?: string;
-    NODE_ENV?: string;
-  }): ZarinPalDirectDebitService {
+  static getConfig(env: CloudflareEnv): ZarinPalDirectDebitConfig {
     if (!env.ZARINPAL_MERCHANT_ID) {
       throw new HTTPException(HttpStatusCodes.INTERNAL_SERVER_ERROR, {
         message: 'ZarinPal merchant ID not configured. Set ZARINPAL_MERCHANT_ID.',
@@ -145,10 +243,11 @@ export class ZarinPalDirectDebitService {
     ];
 
     const isPlaceholder = placeholderPatterns.some(pattern => env.ZARINPAL_MERCHANT_ID!.includes(pattern));
+    const isSandbox = env.NODE_ENV === 'development';
 
     if (isPlaceholder) {
       // In development, allow placeholder but warn
-      if (env.NODE_ENV === 'development') {
+      if (isSandbox) {
         console.warn('⚠️  Using placeholder ZarinPal merchant ID. API calls will fail but won\'t crash the application.');
         console.warn('📝 To test real payments, get credentials from https://next.zarinpal.com/panel/');
       } else {
@@ -159,26 +258,32 @@ export class ZarinPalDirectDebitService {
       }
     }
 
-    return new ZarinPalDirectDebitService({
+    const config = {
+      serviceName: 'ZarinPal-DirectDebit',
+      baseUrl: 'https://api.zarinpal.com', // Direct debit only works on production
+      timeout: 30000,
+      retries: 2,
+      circuitBreaker: {
+        failureThreshold: 3,
+        resetTimeout: 60000,
+      },
       merchantId: env.ZARINPAL_MERCHANT_ID,
-      isSandbox: env.NODE_ENV === 'development',
+      isSandbox,
       isPlaceholder,
-    });
-  }
+    };
 
-  private getBaseUrl(): string {
-    if (this.config.baseUrl) {
-      return this.config.baseUrl;
-    }
-    // ZarinPal Direct Debit (Payman) API only works on production endpoints
-    // No sandbox version available - requires manual activation via ticket
-    return 'https://api.zarinpal.com';
+    // Validate configuration using Zod schema
+    return ZarinPalDirectDebitConfigSchema.parse(config);
   }
 
   /**
    * Step 1: Request Direct Debit Contract (Payman Request)
+   * Using BaseService HTTP methods with Zod validation for type safety
    */
-  async requestContract(request: DirectDebitContractRequest) {
+  async requestContract(request: DirectDebitContractRequest): Promise<DirectDebitContractResponse> {
+    // Validate input using Zod schema
+    const validatedRequest = DirectDebitContractRequestSchema.parse(request);
+
     // Return mock data in development with placeholder ID
     if (this.config.isPlaceholder) {
       throw new HTTPException(HttpStatusCodes.BAD_REQUEST, {
@@ -186,66 +291,50 @@ export class ZarinPalDirectDebitService {
       });
     }
 
+    const payload = {
+      merchant_id: this.config.merchantId,
+      mobile: validatedRequest.mobile,
+      ssn: validatedRequest.ssn,
+      expire_at: validatedRequest.expire_at,
+      max_daily_count: validatedRequest.max_daily_count,
+      max_monthly_count: validatedRequest.max_monthly_count,
+      max_amount: validatedRequest.max_amount,
+      callback_url: validatedRequest.callback_url,
+    };
+
     try {
-      const url = `${this.getBaseUrl()}/pg/v4/payman/request.json`;
+      const rawResult = await this.post<typeof payload, DirectDebitContractResponse>(
+        '/pg/v4/payman/request.json',
+        payload,
+        {},
+        'contract request',
+      );
 
-      const payload = {
-        merchant_id: this.config.merchantId,
-        mobile: request.mobile,
-        ssn: request.ssn,
-        expire_at: request.expire_at,
-        max_daily_count: request.max_daily_count,
-        max_monthly_count: request.max_monthly_count,
-        max_amount: request.max_amount,
-        callback_url: request.callback_url,
-      };
+      // Validate response using Zod schema
+      const validatedResult = DirectDebitContractResponseSchema.parse(rawResult);
 
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-          'User-Agent': 'DeadPixel-BillingDashboard/1.0',
-        },
-        body: JSON.stringify(payload),
-      });
-
-      const responseText = await response.text();
-
-      if (!response.ok) {
-        createZarinPalHTTPException('contract request', response.status, responseText);
+      if (validatedResult.data && validatedResult.data.code !== 100) {
+        createZarinPalHTTPException('contract request', HttpStatusCodes.BAD_REQUEST, validatedResult.data?.message || 'Unknown error');
       }
 
-      let result: DirectDebitContractResponse;
-      try {
-        result = JSON.parse(responseText);
-      } catch {
-        createZarinPalHTTPException('contract request', response.status, responseText);
+      if (!validatedResult.data?.payman_authority) {
+        createZarinPalHTTPException('contract request', HttpStatusCodes.BAD_REQUEST, validatedResult.data?.message || 'Unknown error');
       }
 
-      if (result.data && result.data.code !== 100) {
-        createZarinPalHTTPException('contract request', response.status, responseText);
-      }
-
-      if (!result.data?.payman_authority) {
-        createZarinPalHTTPException('contract request', response.status, responseText);
-      }
-
-      return result;
+      return validatedResult;
     } catch (error) {
-      if (error instanceof HTTPException) {
-        throw error;
-      }
-      throw new HTTPException(HttpStatusCodes.INTERNAL_SERVER_ERROR, {
-        message: 'Failed to request direct debit contract from ZarinPal',
+      throw this.handleError(error, 'request contract', {
+        errorType: 'payment' as const,
+        provider: 'zarinpal' as const,
       });
     }
   }
 
   /**
    * Step 2: Get list of available banks for contract signing
+   * Using BaseService HTTP methods with Zod validation for type safety
    */
-  async getBankList() {
+  async getBankList(): Promise<BankListResponse> {
     // Return mock data in development with placeholder ID
     if (this.config.isPlaceholder) {
       throw new HTTPException(HttpStatusCodes.BAD_REQUEST, {
@@ -254,30 +343,17 @@ export class ZarinPalDirectDebitService {
     }
 
     try {
-      const url = `${this.getBaseUrl()}/pg/v4/payman/banksList.json`;
+      const rawResult = await this.get<BankListResponse>(
+        '/pg/v4/payman/banksList.json',
+        {},
+        'get bank list',
+      );
 
-      const response = await fetch(url, {
-        method: 'GET',
-        headers: {
-          'Accept': 'application/json',
-          'User-Agent': 'DeadPixel-BillingDashboard/1.0',
-        },
-      });
-
-      if (!response.ok) {
-        const responseText = await response.text();
-        createZarinPalHTTPException('bank list', response.status, responseText);
-      }
-
-      const result: BankListResponse = await response.json();
-      return result;
+      // Validate response using Zod schema
+      const validatedResult = BankListResponseSchema.parse(rawResult);
+      return validatedResult;
     } catch (error) {
-      if (error instanceof HTTPException) {
-        throw error;
-      }
-      throw new HTTPException(HttpStatusCodes.INTERNAL_SERVER_ERROR, {
-        message: 'Failed to get bank list from ZarinPal',
-      });
+      throw this.handleError(error, 'get bank list');
     }
   }
 
@@ -291,8 +367,12 @@ export class ZarinPalDirectDebitService {
 
   /**
    * Step 3: Verify contract and get signature after user returns
+   * Using BaseService HTTP methods with Zod validation for type safety
    */
-  async verifyContractAndGetSignature(request: SignatureRequest) {
+  async verifyContractAndGetSignature(request: SignatureRequest): Promise<SignatureResponse> {
+    // Validate input using Zod schema
+    const validatedRequest = SignatureRequestSchema.parse(request);
+
     // Return mock data in development with placeholder ID
     if (this.config.isPlaceholder) {
       throw new HTTPException(HttpStatusCodes.BAD_REQUEST, {
@@ -300,141 +380,91 @@ export class ZarinPalDirectDebitService {
       });
     }
 
+    const payload = {
+      merchant_id: this.config.merchantId,
+      payman_authority: validatedRequest.payman_authority,
+    };
+
     try {
-      const url = `${this.getBaseUrl()}/pg/v4/payman/verify.json`;
-
-      const payload = {
-        merchant_id: this.config.merchantId,
-        payman_authority: request.payman_authority,
-      };
-
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-          'User-Agent': 'DeadPixel-BillingDashboard/1.0',
-        },
-        body: JSON.stringify(payload),
-      });
-
-      const responseText = await response.text();
-
-      if (!response.ok) {
-        createZarinPalHTTPException('contract verification', response.status, responseText);
-      }
-
-      let result: SignatureResponse;
-      try {
-        result = JSON.parse(responseText);
-      } catch {
-        createZarinPalHTTPException('contract verification', response.status, responseText);
-      }
+      const result = await this.post<typeof payload, SignatureResponse>(
+        '/pg/v4/payman/verify.json',
+        payload,
+        {},
+        'contract verification',
+      );
 
       if (result.data && result.data.code !== 100) {
-        createZarinPalHTTPException('contract verification', response.status, responseText);
+        createZarinPalHTTPException('contract verification', HttpStatusCodes.BAD_REQUEST, result.data?.message || 'Unknown error');
       }
 
       return result;
     } catch (error) {
-      if (error instanceof HTTPException) {
-        throw error;
-      }
-      throw new HTTPException(HttpStatusCodes.INTERNAL_SERVER_ERROR, {
-        message: 'Failed to verify contract with ZarinPal',
+      throw this.handleError(error, 'verify contract and get signature', {
+        errorType: 'payment' as const,
+        provider: 'zarinpal' as const,
       });
     }
   }
 
   /**
    * Step 4: Execute direct transaction using signature
+   * Using BaseService with limited retries to avoid duplicate charges
    * Note: You still need to create regular payment authority first
    */
-  async executeDirectTransaction(request: DirectTransactionRequest) {
+  async executeDirectTransaction(request: DirectTransactionRequest): Promise<DirectTransactionResponse> {
+    const payload = {
+      merchant_id: this.config.merchantId,
+      authority: request.authority,
+      signature: request.signature,
+    };
+
     try {
-      const url = `${this.getBaseUrl()}/pg/v4/payman/checkout.json`;
-
-      const payload = {
-        merchant_id: this.config.merchantId,
-        authority: request.authority,
-        signature: request.signature,
-      };
-
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-          'User-Agent': 'DeadPixel-BillingDashboard/1.0',
+      // Use makeRequest for limited retries on financial transactions
+      const result = await this.makeRequest<DirectTransactionResponse>(
+        '/pg/v4/payman/checkout.json',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(payload),
         },
-        body: JSON.stringify(payload),
-      });
-
-      const responseText = await response.text();
-
-      if (!response.ok) {
-        createZarinPalHTTPException('direct transaction', response.status, responseText);
-      }
-
-      let result: DirectTransactionResponse;
-      try {
-        result = JSON.parse(responseText);
-      } catch {
-        createZarinPalHTTPException('direct transaction', response.status, responseText);
-      }
+        'direct transaction',
+      );
 
       if (result.data && result.data.code !== 100) {
-        createZarinPalHTTPException('direct transaction', response.status, responseText);
+        createZarinPalHTTPException('direct transaction', HttpStatusCodes.BAD_REQUEST, result.data?.message || 'Unknown error');
       }
 
       return result;
     } catch (error) {
-      if (error instanceof HTTPException) {
-        throw error;
-      }
-      throw new HTTPException(HttpStatusCodes.INTERNAL_SERVER_ERROR, {
-        message: 'Failed to execute direct transaction',
+      throw this.handleError(error, 'execute direct transaction', {
+        errorType: 'payment' as const,
+        provider: 'zarinpal' as const,
       });
     }
   }
 
   /**
    * Cancel direct debit contract
+   * Using BaseService HTTP methods for consistent error handling
    */
-  async cancelContract(request: CancelContractRequest) {
+  async cancelContract(request: CancelContractRequest): Promise<{ code: number; message: string }> {
+    const payload = {
+      merchant_id: this.config.merchantId,
+      signature: request.signature,
+    };
+
     try {
-      const url = `${this.getBaseUrl()}/pg/v4/payman/cancelContract.json`;
-
-      const payload = {
-        merchant_id: this.config.merchantId,
-        signature: request.signature,
-      };
-
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-          'User-Agent': 'DeadPixel-BillingDashboard/1.0',
-        },
-        body: JSON.stringify(payload),
-      });
-
-      const responseText = await response.text();
-
-      if (!response.ok) {
-        createZarinPalHTTPException('contract cancellation', response.status, responseText);
-      }
-
-      let result: { data?: { code: number; message: string } };
-      try {
-        result = JSON.parse(responseText);
-      } catch {
-        createZarinPalHTTPException('contract cancellation', response.status, responseText);
-      }
+      const result = await this.post<typeof payload, { data?: { code: number; message: string } }>(
+        '/pg/v4/payman/cancelContract.json',
+        payload,
+        {},
+        'cancel contract',
+      );
 
       if (result.data && result.data.code !== 100) {
-        createZarinPalHTTPException('contract cancellation', response.status, responseText);
+        createZarinPalHTTPException('contract cancellation', HttpStatusCodes.BAD_REQUEST, result.data?.message || 'Unknown error');
       }
 
       return {
@@ -442,11 +472,9 @@ export class ZarinPalDirectDebitService {
         message: result.data?.message || 'Contract cancelled successfully',
       };
     } catch (error) {
-      if (error instanceof HTTPException) {
-        throw error;
-      }
-      throw new HTTPException(HttpStatusCodes.INTERNAL_SERVER_ERROR, {
-        message: 'Failed to cancel contract',
+      throw this.handleError(error, 'cancel contract', {
+        errorType: 'payment' as const,
+        provider: 'zarinpal' as const,
       });
     }
   }

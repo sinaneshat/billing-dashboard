@@ -11,14 +11,24 @@ import { hc } from 'hono/client';
 import type { AppType } from '@/api';
 
 /**
- * Base API URL - automatically uses the correct URL for development/production
+ * Base API URL - Context7 consistent pattern for SSR/hydration
+ * CRITICAL FIX: Ensures consistent base URL between server and client
  */
 function getBaseUrl() {
-  // Server-side: use configured API URL or localhost
-  if (typeof window === 'undefined') {
-    return process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api/v1';
+  // Both server and client should use the same base URL for query consistency
+  const baseUrl = process.env.NEXT_PUBLIC_API_URL;
+
+  if (baseUrl) {
+    return baseUrl;
   }
-  // Client-side: ensure absolute URL so $url() works
+
+  // Fallback logic
+  if (typeof window === 'undefined') {
+    // Server-side: use localhost for development
+    return 'http://localhost:3000/api/v1';
+  }
+
+  // Client-side: use same origin
   return `${window.location.origin}/api/v1`;
 }
 
@@ -46,23 +56,3 @@ export type ApiClient = typeof apiClient;
  * Export AppType for use in services layer
  */
 export type { AppType };
-
-// Advanced factory: create a typed client with overrides
-export function createApiClient(options?: {
-  baseUrl?: string;
-  headers?: Record<string, string>;
-  init?: RequestInit;
-  fetch?: typeof fetch;
-}) {
-  return hc<AppType>(options?.baseUrl ?? getBaseUrl(), {
-    headers: {
-      Accept: 'application/json',
-      ...(options?.headers ?? {}),
-    },
-    init: {
-      credentials: 'include',
-      ...(options?.init ?? {}),
-    },
-    fetch: options?.fetch,
-  });
-}

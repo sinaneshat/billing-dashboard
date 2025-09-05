@@ -7,6 +7,7 @@ import {
   Shield,
   Trash2,
 } from 'lucide-react';
+import { useLocale, useTranslations } from 'next-intl';
 import { memo } from 'react';
 
 import { Button } from '@/components/ui/button';
@@ -20,6 +21,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { FadeIn } from '@/components/ui/motion';
 import { ContractStatusBadge, DefaultBadge } from '@/components/ui/status-badge';
+import { createLocaleFormatters } from '@/lib/i18n/locale-formatters';
 
 type PaymentMethod = {
   id: string;
@@ -34,7 +36,7 @@ type PaymentMethod = {
 
 type PaymentMethodsTableProps = {
   paymentMethods: PaymentMethod[];
-  loading?: boolean;
+  isLoading?: boolean;
   onSelectionChange?: (selectedIds: string[]) => void;
   onTabChange?: (tab: string) => void;
   onFilterChange?: (key: string, value: string) => void;
@@ -46,12 +48,16 @@ const defaultSelectedItems: Record<string, boolean> = {};
 
 export const PaymentMethodsTable = memo(({
   paymentMethods,
-  loading = false,
+  isLoading = false,
   onSelectionChange,
   onTabChange,
   onFilterChange,
   selectedItems = defaultSelectedItems,
 }: PaymentMethodsTableProps) => {
+  const t = useTranslations();
+  const locale = useLocale();
+  const formatters = createLocaleFormatters(locale);
+
   // Convert selection format for new DataTable
   const handleSelectionChange: OnChangeFn<RowSelectionState> = (updaterOrValue) => {
     const newSelection = typeof updaterOrValue === 'function'
@@ -64,7 +70,7 @@ export const PaymentMethodsTable = memo(({
   const columns: ColumnDef<PaymentMethod>[] = [
     {
       accessorKey: 'paymentMethod',
-      header: 'Payment Method',
+      header: t('paymentMethods.table.paymentMethod'),
       cell: ({ row }) => (
         <div className="flex flex-col gap-1">
           <div className="flex items-center gap-2">
@@ -72,14 +78,14 @@ export const PaymentMethodsTable = memo(({
             <span className="font-medium">{row.original.contractDisplayName}</span>
           </div>
           <div className="text-sm text-muted-foreground">
-            Direct Debit Contract
+            {t('paymentMethods.table.directDebitContract')}
           </div>
         </div>
       ),
     },
     {
       accessorKey: 'contractMobile',
-      header: 'Mobile',
+      header: t('paymentMethods.table.mobile'),
       cell: ({ row }) => (
         <span className="text-sm">
           {row.original.contractMobile || '—'}
@@ -88,7 +94,7 @@ export const PaymentMethodsTable = memo(({
     },
     {
       accessorKey: 'contractStatus',
-      header: 'Status',
+      header: t('status.status'),
       cell: ({ row }) => (
         <ContractStatusBadge
           status={row.original.contractStatus}
@@ -98,23 +104,23 @@ export const PaymentMethodsTable = memo(({
     },
     {
       accessorKey: 'isPrimary',
-      header: 'Default',
+      header: t('paymentMethods.defaultMethod'),
       cell: ({ row }) => (
         <DefaultBadge isPrimary={row.original.isPrimary} />
       ),
     },
     {
       accessorKey: 'lastUsedAt',
-      header: createSortableHeader('Last Used'),
+      header: createSortableHeader(t('paymentMethods.table.lastUsed')),
       cell: ({ row }) => (
         <span className="text-sm">
           {row.original.lastUsedAt
-            ? new Date(row.original.lastUsedAt).toLocaleDateString('en-US', {
+            ? formatters.date(row.original.lastUsedAt, {
                 month: 'short',
                 day: 'numeric',
                 year: 'numeric',
               })
-            : 'Never'}
+            : t('paymentMethods.table.never')}
         </span>
       ),
     },
@@ -128,20 +134,20 @@ export const PaymentMethodsTable = memo(({
               variant="ghost"
               size="icon"
               className="size-6"
-              aria-label="Open payment method actions"
+              aria-label={t('paymentMethods.table.actions.openActions')}
             >
               <EllipsisVerticalIcon className="h-4 w-4" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            <DropdownMenuItem>View Contract</DropdownMenuItem>
+            <DropdownMenuItem>{t('paymentMethods.table.actions.viewContract')}</DropdownMenuItem>
             {!row.original.isPrimary && (
-              <DropdownMenuItem>Set as Default</DropdownMenuItem>
+              <DropdownMenuItem>{t('paymentMethods.table.actions.setAsDefault')}</DropdownMenuItem>
             )}
-            <DropdownMenuItem>Manage Permissions</DropdownMenuItem>
+            <DropdownMenuItem>{t('paymentMethods.table.actions.managePermissions')}</DropdownMenuItem>
             <DropdownMenuItem variant="destructive">
-              <Trash2 className="h-4 w-4 mr-2" />
-              Remove Method
+              <Trash2 className="h-4 w-4 me-2" />
+              {t('paymentMethods.table.actions.removeMethod')}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -155,7 +161,7 @@ export const PaymentMethodsTable = memo(({
   const dataTableProps: DataTableProps<PaymentMethod> = {
     columns,
     'data': paymentMethods,
-    loading,
+    'loading': isLoading,
     'enableSelection': true,
     'rowSelection': selectedItems,
     'onRowSelectionChange': handleSelectionChange,
@@ -163,15 +169,15 @@ export const PaymentMethodsTable = memo(({
 
     // Tabs configuration
     'tabs': [
-      { value: 'all', label: 'All Methods', count: paymentMethods.length },
+      { value: 'all', label: t('paymentMethods.table.tabs.allMethods'), count: paymentMethods.length },
       {
         value: 'active',
-        label: 'Active',
+        label: t('paymentMethods.table.tabs.active'),
         count: paymentMethods.filter(m => m.isActive).length,
       },
       {
         value: 'inactive',
-        label: 'Inactive',
+        label: t('paymentMethods.table.tabs.inactive'),
         count: paymentMethods.filter(m => !m.isActive).length,
       },
     ],
@@ -181,24 +187,24 @@ export const PaymentMethodsTable = memo(({
     'filters': [
       {
         key: 'status',
-        label: 'Status',
-        placeholder: 'Select status',
+        label: t('status.status'),
+        placeholder: t('paymentMethods.table.filters.selectStatus'),
         options: [
-          { value: 'all', label: 'All Status' },
-          { value: 'signed', label: 'Signed' },
-          { value: 'pending', label: 'Pending' },
-          { value: 'expired', label: 'Expired' },
+          { value: 'all', label: t('paymentMethods.table.filters.allStatus') },
+          { value: 'signed', label: t('paymentMethods.table.filters.signed') },
+          { value: 'pending', label: t('status.pending') },
+          { value: 'expired', label: t('status.expired') },
         ],
         defaultValue: 'all',
       },
       {
         key: 'type',
-        label: 'Type',
-        placeholder: 'Select type',
+        label: t('forms.type'),
+        placeholder: t('paymentMethods.table.filters.selectStatus'),
         options: [
-          { value: 'all', label: 'All Types' },
-          { value: 'primary', label: 'Primary' },
-          { value: 'secondary', label: 'Secondary' },
+          { value: 'all', label: t('paymentMethods.table.filters.allTypes') },
+          { value: 'primary', label: t('paymentMethods.primary') },
+          { value: 'secondary', label: t('paymentMethods.table.filters.secondary') },
         ],
         defaultValue: 'all',
       },
@@ -207,19 +213,19 @@ export const PaymentMethodsTable = memo(({
 
     // Search functionality
     'searchKey': 'contractDisplayName',
-    'searchPlaceholder': 'Search payment methods...',
+    'searchPlaceholder': t('paymentMethods.table.searchPlaceholder'),
 
     // Pagination
     'enablePagination': true,
     'pageSize': 10,
 
     // Empty state
-    'emptyStateTitle': 'No Payment Methods',
-    'emptyStateDescription': 'You haven\'t added any payment methods yet. Add one to get started.',
+    'emptyStateTitle': t('paymentMethods.table.emptyStateTitle'),
+    'emptyStateDescription': t('paymentMethods.table.emptyStateDescription'),
     'emptyStateAction': (
       <Button>
-        <PlusIcon className="h-4 w-4 mr-2" />
-        Add Payment Method
+        <PlusIcon className="h-4 w-4 me-2" />
+        {t('paymentMethods.addPaymentMethod')}
       </Button>
     ),
 
@@ -233,14 +239,14 @@ export const PaymentMethodsTable = memo(({
       {/* Header Actions */}
       <FadeIn className="flex items-center justify-between">
         <div className="space-y-1">
-          <h2 className="text-2xl font-semibold">Payment Methods</h2>
+          <h2 className="text-2xl font-semibold">{t('paymentMethods.title')}</h2>
           <p className="text-muted-foreground">
-            Manage your payment methods and direct debit contracts.
+            {t('paymentMethods.subtitle')}
           </p>
         </div>
         <Button>
-          <PlusIcon className="h-4 w-4 mr-2" />
-          Add Method
+          <PlusIcon className="h-4 w-4 me-2" />
+          {t('paymentMethods.table.addMethod')}
         </Button>
       </FadeIn>
 

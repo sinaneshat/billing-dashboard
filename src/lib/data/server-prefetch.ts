@@ -14,55 +14,55 @@ import {
 import { queryKeys } from './query-keys';
 
 /**
- * Prefetch subscriptions on server - official TanStack Query pattern
+ * Prefetch subscriptions on server - Context7 official pattern
  * Use in server components before HydrationBoundary
  */
 export async function prefetchSubscriptions(queryClient: QueryClient) {
   await queryClient.prefetchQuery({
-    queryKey: queryKeys.subscriptions.list(),
+    queryKey: queryKeys.subscriptions.list, // CRITICAL FIX: Static array like official examples
     queryFn: getSubscriptionsService,
   });
 }
 
 /**
- * Prefetch payment methods on server - official TanStack Query pattern
+ * Prefetch payment methods on server - Context7 official pattern
  * Use in server components before HydrationBoundary
  */
 export async function prefetchPaymentMethods(queryClient: QueryClient) {
   await queryClient.prefetchQuery({
-    queryKey: queryKeys.paymentMethods.list(),
+    queryKey: queryKeys.paymentMethods.list, // CRITICAL FIX: Static array like official examples
     queryFn: getPaymentMethodsService,
   });
 }
 
 /**
- * Prefetch products on server - official TanStack Query pattern
+ * Prefetch products on server - Context7 official pattern
  * Use in server components before HydrationBoundary
  */
 export async function prefetchProducts(queryClient: QueryClient) {
   await queryClient.prefetchQuery({
-    queryKey: queryKeys.products.list(),
+    queryKey: queryKeys.products.list, // CRITICAL FIX: Static array like official examples
     queryFn: getProductsService,
   });
 }
 
 /**
- * Prefetch all billing data - parallel prefetching from Context7 docs
+ * Prefetch all billing data - Context7 official parallel pattern
  * Use for pages that need comprehensive billing data
  */
 export async function prefetchAllBillingData(queryClient: QueryClient) {
-  // Direct parallel prefetching - no complex abstractions needed
+  // Direct parallel prefetching - Context7 official pattern
   await Promise.all([
     queryClient.prefetchQuery({
-      queryKey: queryKeys.subscriptions.list(),
+      queryKey: queryKeys.subscriptions.list, // CRITICAL FIX: Static array like official examples
       queryFn: getSubscriptionsService,
     }),
     queryClient.prefetchQuery({
-      queryKey: queryKeys.paymentMethods.list(),
+      queryKey: queryKeys.paymentMethods.list, // CRITICAL FIX: Static array like official examples
       queryFn: getPaymentMethodsService,
     }),
     queryClient.prefetchQuery({
-      queryKey: queryKeys.products.list(),
+      queryKey: queryKeys.products.list, // CRITICAL FIX: Static array like official examples
       queryFn: getProductsService,
     }),
   ]);

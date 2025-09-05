@@ -2,12 +2,10 @@
 // Use useSession() from '@/lib/auth/client' instead
 export {
   useHealthQuery,
-  usePrefetchHealth,
 } from './health';
 // Image queries removed - user image comes from session data
 // Use session.user.image directly instead of making API calls
 export {
-  prefetchPaymentMethods,
   usePaymentMethodsQuery,
 } from './payment-methods';
 // Payment queries removed - subscription platform only

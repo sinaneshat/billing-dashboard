@@ -3,9 +3,10 @@
 import * as React from 'react'
 import { CheckCircle, Clock, AlertCircle, X, Shield, User } from 'lucide-react'
 import { cva } from 'class-variance-authority'
+import { z } from 'zod'
 
 import { Badge } from '@/components/ui/badge'
-import { cn } from '@/lib/tailwind-utils'
+import { cn } from '@/lib'
 
 /**
  * Enhanced Status Badge System following Shadcn/UI v4 patterns
@@ -39,27 +40,27 @@ const statusVariants = cva(
     variants: {
       status: {
         // Success states
-        active: "bg-green-100 text-green-800 border-green-200 hover:bg-green-100 dark:bg-green-900/30 dark:text-green-400 dark:border-green-800",
-        completed: "bg-green-100 text-green-800 border-green-200 hover:bg-green-100 dark:bg-green-900/30 dark:text-green-400 dark:border-green-800",
-        signed: "bg-green-100 text-green-800 border-green-200 hover:bg-green-100 dark:bg-green-900/30 dark:text-green-400 dark:border-green-800",
-        success: "bg-green-100 text-green-800 border-green-200 hover:bg-green-100 dark:bg-green-900/30 dark:text-green-400 dark:border-green-800",
+        active: "bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-50 dark:bg-emerald-950/20 dark:text-emerald-400 dark:border-emerald-800",
+        completed: "bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-50 dark:bg-emerald-950/20 dark:text-emerald-400 dark:border-emerald-800",
+        signed: "bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-50 dark:bg-emerald-950/20 dark:text-emerald-400 dark:border-emerald-800",
+        success: "bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-50 dark:bg-emerald-950/20 dark:text-emerald-400 dark:border-emerald-800",
         
         // Warning states
-        pending: "bg-amber-100 text-amber-800 border-amber-200 hover:bg-amber-100 dark:bg-amber-900/30 dark:text-amber-400 dark:border-amber-800 animate-pulse",
-        processing: "bg-blue-100 text-blue-800 border-blue-200 hover:bg-blue-100 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-800",
+        pending: "bg-amber-50 text-amber-800 border-amber-200 hover:bg-amber-50 dark:bg-amber-950/20 dark:text-amber-400 dark:border-amber-800 animate-pulse",
+        processing: "bg-primary/10 text-primary border-primary/20 hover:bg-primary/10 dark:text-primary dark:border-primary/20",
         
         // Error states
-        failed: "bg-red-100 text-red-800 border-red-200 hover:bg-red-100 dark:bg-red-900/30 dark:text-red-400 dark:border-red-800",
-        canceled: "bg-red-100 text-red-800 border-red-200 hover:bg-red-100 dark:bg-red-900/30 dark:text-red-400 dark:border-red-800",
-        expired: "bg-red-100 text-red-800 border-red-200 hover:bg-red-100 dark:bg-red-900/30 dark:text-red-400 dark:border-red-800",
-        rejected: "bg-red-100 text-red-800 border-red-200 hover:bg-red-100 dark:bg-red-900/30 dark:text-red-400 dark:border-red-800",
+        failed: "bg-destructive/10 text-destructive border-destructive/20 hover:bg-destructive/10",
+        canceled: "bg-destructive/10 text-destructive border-destructive/20 hover:bg-destructive/10",
+        expired: "bg-destructive/10 text-destructive border-destructive/20 hover:bg-destructive/10",
+        rejected: "bg-destructive/10 text-destructive border-destructive/20 hover:bg-destructive/10",
         
         // Neutral states
-        inactive: "bg-gray-100 text-gray-800 border-gray-200 hover:bg-gray-100 dark:bg-gray-900/30 dark:text-gray-400 dark:border-gray-800",
-        draft: "bg-gray-100 text-gray-800 border-gray-200 hover:bg-gray-100 dark:bg-gray-900/30 dark:text-gray-400 dark:border-gray-800",
+        inactive: "bg-muted text-muted-foreground border-border hover:bg-muted",
+        draft: "bg-muted text-muted-foreground border-border hover:bg-muted",
         
         // Special states
-        primary: "bg-blue-100 text-blue-800 border-blue-200 hover:bg-blue-100 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-800",
+        primary: "bg-primary/10 text-primary border-primary/20 hover:bg-primary/10",
       },
       size: {
         sm: "text-xs px-2 py-0.5 rounded-md",
@@ -130,23 +131,26 @@ const statusLabels = {
   },
 } as const
 
-export interface StatusBadgeProps 
-  extends Omit<React.HTMLAttributes<HTMLSpanElement>, 'variant'> {
+const statusBadgePropsSchema = z.object({
   /** Status value to display - accepts any string for backend flexibility */
-  status: string
+  status: z.string(),
   /** Context type for semantic labeling */
-  type?: keyof typeof statusLabels
+  type: z.enum(['subscription', 'payment', 'contract', 'default']).optional(),
   /** Size variant */
-  size?: 'sm' | 'md' | 'lg'
+  size: z.enum(['sm', 'md', 'lg']).optional(),
   /** Show status icon */
-  showIcon?: boolean
+  showIcon: z.boolean().optional(),
   /** Icon size override */
-  iconSize?: 'sm' | 'md' | 'lg'
+  iconSize: z.enum(['sm', 'md', 'lg']).optional(),
+  /** Pulse animation for pending states */
+  pulse: z.boolean().optional(),
+});
+
+export type StatusBadgeProps = z.infer<typeof statusBadgePropsSchema> & 
+  Omit<React.HTMLAttributes<HTMLSpanElement>, 'variant' | keyof z.infer<typeof statusBadgePropsSchema>> & {
   /** Custom icon component */
   icon?: React.ComponentType<{ className?: string }>
-  /** Pulse animation for pending states */
-  pulse?: boolean
-}
+};
 
 /**
  * Enhanced StatusBadge component following Shadcn/UI v4 patterns
@@ -261,7 +265,7 @@ export function DefaultBadge({
         status="primary" 
         type="default" 
         icon={CheckCircle}
-        className={cn("bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:text-blue-400", className)}
+        className={cn("bg-primary/10 text-primary border-primary/20", className)}
         {...props}
       >
         {children || 'Default'}
@@ -287,10 +291,10 @@ export function PriorityBadge({
   priority: 'low' | 'medium' | 'high' | 'critical' 
 } & Omit<StatusBadgeProps, 'status' | 'type'>) {
   const priorityConfig = {
-    low: { status: 'inactive' as const, className: "bg-gray-100 text-gray-600" },
-    medium: { status: 'pending' as const, className: "bg-yellow-100 text-yellow-700" },
-    high: { status: 'processing' as const, className: "bg-orange-100 text-orange-700" },
-    critical: { status: 'failed' as const, className: "bg-red-100 text-red-700" },
+    low: { status: 'inactive' as const, className: "bg-muted text-muted-foreground" },
+    medium: { status: 'pending' as const, className: "bg-yellow-50 text-yellow-700 dark:bg-yellow-950/20 dark:text-yellow-400" },
+    high: { status: 'processing' as const, className: "bg-orange-50 text-orange-700 dark:bg-orange-950/20 dark:text-orange-400" },
+    critical: { status: 'failed' as const, className: "bg-destructive/10 text-destructive" },
   }
   
   const config = priorityConfig[priority]

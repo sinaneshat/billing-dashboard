@@ -10,7 +10,37 @@
 
 import { z } from 'zod';
 
-import { zodValidation } from '@/api/common/zod-validation-utils';
+import { CoreSchemas, iranianRialAmountSchema, Validators } from '@/api/core';
+
+// Helper validators to replace formValidators usage
+const formValidators = {
+  string: {
+    withLength: (min: number, max: number, message?: string) =>
+      z.string().min(min, message).max(max, message),
+    uuid: () => CoreSchemas.uuid(),
+    url: () => CoreSchemas.url(),
+  },
+  iranianRialAmount: iranianRialAmountSchema(),
+  paymentMethodType: z.enum(['zarinpal', 'bank_transfer', 'cash']),
+  billingPeriod: z.enum(['monthly', 'quarterly', 'yearly']),
+  metadataValidator: z.record(z.string(), z.unknown()).optional(),
+  fileUploadValidator: (
+    _allowedTypes: string[],
+    _maxSizeMB: number,
+  ) => z.object({
+    name: z.string(),
+    size: z.number(),
+    type: z.string(),
+    content: z.string(),
+  }), // Proper file validator
+  number: {
+    positiveInt: z.number().int().positive(),
+    nonNegativeInt: z.number().int().nonnegative(),
+    intRange: (min: number, max: number) => z.number().int().min(min).max(max),
+  },
+  sanitizedString: (maxLength: number) => z.string().max(maxLength),
+  zarinpalAuthority: () => z.string().min(36).max(36, 'Invalid payment authority'),
+};
 // Types available from database validation schemas
 // import type {
 //   ProductInsert,
@@ -27,11 +57,10 @@ import { zodValidation } from '@/api/common/zod-validation-utils';
  * User registration form schema
  */
 export const registerFormSchema = z.object({
-  email: zodValidation.string.email('Please enter a valid email address'),
-  password: zodValidation.string.withLength(8, 128, 'Password must be 8-128 characters')
-    .regex(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/, 'Password must contain at least one lowercase letter, one uppercase letter, and one number'),
-  confirmPassword: zodValidation.string.nonEmpty('Please confirm your password'),
-  name: zodValidation.string.withLength(2, 100, 'Name must be 2-100 characters'),
+  email: CoreSchemas.email(),
+  password: Validators.strongPassword(),
+  confirmPassword: z.string().min(1, 'Please confirm your password'),
+  name: z.string().min(2).max(100, 'Name must be 2-100 characters'),
   acceptTerms: z.boolean().refine(val => val === true, 'You must accept the terms and conditions'),
 }).refine(data => data.password === data.confirmPassword, {
   message: 'Passwords do not match',
@@ -42,8 +71,8 @@ export const registerFormSchema = z.object({
  * User login form schema
  */
 export const loginFormSchema = z.object({
-  email: zodValidation.string.email(),
-  password: zodValidation.string.nonEmpty('Password is required'),
+  email: CoreSchemas.email(),
+  password: z.string().min(1, 'Password is required'),
   rememberMe: z.boolean().optional().default(false),
 });
 
@@ -51,17 +80,16 @@ export const loginFormSchema = z.object({
  * Password reset request form schema
  */
 export const passwordResetRequestSchema = z.object({
-  email: zodValidation.string.email(),
+  email: CoreSchemas.email(),
 });
 
 /**
  * Password reset form schema
  */
 export const passwordResetSchema = z.object({
-  token: zodValidation.string.nonEmpty('Reset token is required'),
-  password: zodValidation.string.withLength(8, 128)
-    .regex(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/, 'Password must contain at least one lowercase letter, one uppercase letter, and one number'),
-  confirmPassword: zodValidation.string.nonEmpty('Please confirm your password'),
+  token: z.string().min(1, 'Reset token is required'),
+  password: Validators.strongPassword(),
+  confirmPassword: z.string().min(1, 'Please confirm your password'),
 }).refine(data => data.password === data.confirmPassword, {
   message: 'Passwords do not match',
   path: ['confirmPassword'],
@@ -75,10 +103,10 @@ export const passwordResetSchema = z.object({
  * User profile update form schema
  */
 export const profileUpdateSchema = z.object({
-  name: zodValidation.string.withLength(2, 100).optional(),
-  email: zodValidation.string.email().optional(),
-  mobile: zodValidation.iranianMobile().optional(),
-  nationalId: zodValidation.iranianNationalId().optional(),
+  name: z.string().min(2).max(100).optional(),
+  email: CoreSchemas.email().optional(),
+  mobile: z.string().regex(/^(\+98|0)?9\d{9}$/, 'Invalid Iranian mobile format').optional(),
+  nationalId: z.string().regex(/^\d{10}$/, 'National ID must be exactly 10 digits').optional(),
   avatar: z.string().url().optional(),
 });
 
@@ -86,10 +114,9 @@ export const profileUpdateSchema = z.object({
  * Change password form schema
  */
 export const changePasswordSchema = z.object({
-  currentPassword: zodValidation.string.nonEmpty('Current password is required'),
-  newPassword: zodValidation.string.withLength(8, 128)
-    .regex(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/, 'Password must contain at least one lowercase letter, one uppercase letter, and one number'),
-  confirmNewPassword: zodValidation.string.nonEmpty('Please confirm your new password'),
+  currentPassword: z.string().min(1, 'Current password is required'),
+  newPassword: Validators.strongPassword(),
+  confirmNewPassword: z.string().min(1, 'Please confirm your new password'),
 }).refine(data => data.newPassword === data.confirmNewPassword, {
   message: 'Passwords do not match',
   path: ['confirmNewPassword'],
@@ -107,16 +134,16 @@ export const changePasswordSchema = z.object({
  * Maps directly to API route validation
  */
 export const subscriptionCreateSchema = z.object({
-  productId: zodValidation.string.uuid('Please select a valid product'),
-  paymentMethod: zodValidation.paymentMethodType,
-  contractId: zodValidation.string.uuid().optional(),
+  productId: formValidators.string.uuid(),
+  paymentMethod: formValidators.paymentMethodType,
+  contractId: formValidators.string.uuid().optional(),
   enableAutoRenew: z.boolean().default(true),
-  callbackUrl: zodValidation.string.url().optional(),
+  callbackUrl: formValidators.string.url().optional(),
   // Additional form-specific fields
   agreedToTerms: z.boolean().refine(val => val === true, 'You must agree to the subscription terms'),
 }).superRefine((data, ctx) => {
   // Conditional validation: contractId required for direct debit
-  if (data.paymentMethod === 'direct-debit-contract' && !data.contractId) {
+  if (data.paymentMethod === 'bank_transfer' && !data.contractId) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
       message: 'Contract ID is required for direct debit contracts',
@@ -125,7 +152,7 @@ export const subscriptionCreateSchema = z.object({
   }
 
   // Conditional validation: callbackUrl required for one-time payments
-  if (data.paymentMethod === 'zarinpal-oneoff' && !data.callbackUrl) {
+  if (data.paymentMethod === 'zarinpal' && !data.callbackUrl) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
       message: 'Callback URL is required for one-time payments',
@@ -146,7 +173,7 @@ export const subscriptionCancelSchema = z.object({
     'poor_support',
     'other',
   ]).describe('Please select a cancellation reason'),
-  feedback: zodValidation.string.withLength(0, 500).optional(),
+  feedback: formValidators.string.withLength(0, 500).optional(),
   confirmCancellation: z.boolean().refine(val => val === true, 'Please confirm you want to cancel your subscription'),
 });
 
@@ -154,9 +181,9 @@ export const subscriptionCancelSchema = z.object({
  * Direct debit contract setup form schema
  */
 export const directDebitContractSchema = z.object({
-  mobile: zodValidation.iranianMobile('Please enter a valid Iranian mobile number'),
-  nationalId: zodValidation.iranianNationalId('Please enter a valid Iranian national ID'),
-  displayName: zodValidation.string.withLength(3, 50, 'Display name must be 3-50 characters').optional(),
+  mobile: z.string().regex(/^(\+98|0)?9\d{9}$/, 'Invalid Iranian mobile format'),
+  nationalId: z.string().regex(/^\d{10}$/, 'National ID must be exactly 10 digits'),
+  displayName: formValidators.string.withLength(3, 50, 'Display name must be 3-50 characters').optional(),
   // Bank selection
   selectedBank: z.enum([
     'mellat',
@@ -190,17 +217,17 @@ export const directDebitContractSchema = z.object({
  * Payment processing form schema
  */
 export const paymentProcessingSchema = z.object({
-  subscriptionId: zodValidation.string.uuid(),
-  amount: zodValidation.iranianRialAmount,
-  description: zodValidation.string.withLength(5, 200),
-  metadata: zodValidation.metadataValidator,
+  subscriptionId: formValidators.string.uuid(),
+  amount: formValidators.iranianRialAmount,
+  description: formValidators.string.withLength(5, 200),
+  metadata: formValidators.metadataValidator,
 });
 
 /**
  * Payment callback verification schema
  */
 export const paymentCallbackSchema = z.object({
-  Authority: zodValidation.zarinpalAuthority('Invalid payment authority'),
+  Authority: formValidators.zarinpalAuthority(),
   Status: z.enum(['OK', 'NOK']).describe('Invalid payment status'),
 });
 
@@ -213,18 +240,18 @@ export const paymentCallbackSchema = z.object({
  * Maps to database product schema
  */
 export const productFormSchema = z.object({
-  name: zodValidation.string.withLength(2, 100, 'Product name must be 2-100 characters'),
-  description: zodValidation.string.withLength(10, 500, 'Description must be 10-500 characters'),
-  price: zodValidation.iranianRialAmount,
-  billingPeriod: zodValidation.billingPeriod,
+  name: z.string().min(2).max(100, 'Product name must be 2-100 characters'),
+  description: formValidators.string.withLength(10, 500, 'Description must be 10-500 characters'),
+  price: formValidators.iranianRialAmount,
+  billingPeriod: formValidators.billingPeriod,
   isActive: z.boolean().default(true),
   metadata: z.object({
-    features: z.array(zodValidation.string.withLength(3, 100)).min(1, 'At least one feature is required'),
-    tier: zodValidation.string.withLength(3, 50),
+    features: z.array(formValidators.string.withLength(3, 100)).min(1, 'At least one feature is required'),
+    tier: formValidators.string.withLength(3, 50),
     popular: z.boolean().default(false),
     color: z.enum(['blue', 'green', 'purple', 'gold', 'gray']).default('blue'),
-    discount: zodValidation.string.withLength(0, 50).optional(),
-    originalMonthlyPrice: zodValidation.iranianRialAmount().optional(),
+    discount: formValidators.string.withLength(0, 50).optional(),
+    originalMonthlyPrice: formValidators.iranianRialAmount.optional(),
     isAddon: z.boolean().default(false),
   }).optional(),
 });
@@ -237,12 +264,12 @@ export const productFormSchema = z.object({
  * General search form schema
  */
 export const searchFormSchema = z.object({
-  query: zodValidation.sanitizedString(200).optional(),
-  category: zodValidation.string.withLength(2, 50).optional(),
+  query: formValidators.sanitizedString(200).optional(),
+  category: formValidators.string.withLength(2, 50).optional(),
   sortBy: z.enum(['name', 'date', 'price', 'popularity']).default('date'),
   sortOrder: z.enum(['asc', 'desc']).default('desc'),
-  page: zodValidation.number.positiveInt().default(1),
-  limit: zodValidation.number.intRange(1, 100).default(20),
+  page: z.number().int().min(1).default(1),
+  limit: z.number().int().min(1).max(100).default(20),
 });
 
 /**
@@ -268,27 +295,50 @@ export const dateRangeFilterSchema = z.object({
 /**
  * Avatar upload form schema
  */
-export const avatarUploadSchema = zodValidation.fileUploadValidator(
+export const avatarUploadSchema = formValidators.fileUploadValidator(
   ['image/jpeg', 'image/png', 'image/webp'],
-  2 * 1024 * 1024, // 2MB
+  2, // 2MB
 ).extend({
   cropData: z.object({
-    x: zodValidation.number.nonNegativeInt,
-    y: zodValidation.number.nonNegativeInt,
-    width: zodValidation.number.positiveInt,
-    height: zodValidation.number.positiveInt,
+    x: formValidators.number.nonNegativeInt,
+    y: formValidators.number.nonNegativeInt,
+    width: formValidators.number.positiveInt,
+    height: formValidators.number.positiveInt,
   }).optional(),
 });
 
 /**
  * Document upload form schema
  */
-export const documentUploadSchema = zodValidation.fileUploadValidator(
+export const documentUploadSchema = formValidators.fileUploadValidator(
   ['application/pdf', 'image/jpeg', 'image/png'],
-  10 * 1024 * 1024, // 10MB
+  10, // 10MB
 ).extend({
-  documentType: z.enum(['invoice', 'receipt', 'contract', 'identity']).describe('Please select a document type'),
-  description: zodValidation.string.withLength(5, 200).optional(),
+  category: z.enum(['identity', 'proof_of_address', 'bank_statement', 'other']),
+  description: formValidators.string.withLength(3, 200, 'Description must be 3-200 characters').optional(),
+});
+
+// ============================================================================
+// UTILITY FORM SCHEMAS
+// ============================================================================
+
+/**
+ * Confirmation dialog form schema
+ */
+export const confirmationSchema = z.object({
+  confirmed: z.boolean().refine(val => val === true, 'Please confirm this action'),
+  confirmationText: z.string().optional(),
+});
+
+/**
+ * Contact form schema
+ */
+export const contactFormSchema = z.object({
+  name: z.string().min(2).max(100, 'Name must be 2-100 characters'),
+  email: CoreSchemas.email(),
+  subject: formValidators.string.withLength(5, 200, 'Subject must be 5-200 characters'),
+  message: formValidators.string.withLength(10, 2000, 'Message must be 10-2000 characters'),
+  category: z.enum(['general', 'billing', 'technical', 'feedback']).default('general'),
 });
 
 // ============================================================================
@@ -296,56 +346,37 @@ export const documentUploadSchema = zodValidation.fileUploadValidator(
 // ============================================================================
 
 /**
- * Client-side form validation helper
+ * Generic form field error extraction utility
  */
-export function validateForm<T>(
-  schema: z.ZodSchema<T>,
-  data: unknown,
-): { success: true; data: T } | { success: false; errors: Record<string, string> } {
-  const result = schema.safeParse(data);
+export function extractFormErrors<_T>(
+  result: { success: false; error: { errors: z.ZodIssue[] } },
+): Record<string, string> {
+  return result.error.errors.reduce((acc: Record<string, string>, error: z.ZodIssue) => {
+    const path = error.path.join('.');
+    acc[path] = error.message;
+    return acc;
+  }, {} as Record<string, string>);
+}
 
+/**
+ * Validate form data and return typed result or errors
+ */
+export function validateFormData<T extends z.ZodSchema>(
+  schema: T,
+  data: unknown,
+): { success: true; data: z.infer<T> } | { success: false; errors: Record<string, string> } {
+  const result = schema.safeParse(data);
   if (result.success) {
     return { success: true, data: result.data };
-  } else {
-    const errors: Record<string, string> = {};
-    result.error.issues.forEach((error: z.ZodIssue) => {
-      const path = error.path.join('.');
-      if (!errors[path]) {
-        errors[path] = error.message;
-      }
-    });
-    return { success: false, errors };
   }
-}
-
-/**
- * Get first error message for a field
- */
-export function getFieldError(
-  errors: Record<string, string> | undefined,
-  fieldName: string,
-): string | undefined {
-  return errors?.[fieldName];
-}
-
-/**
- * Check if a field has an error
- */
-export function hasFieldError(
-  errors: Record<string, string> | undefined,
-  fieldName: string,
-): boolean {
-  return Boolean(errors?.[fieldName]);
-}
-
-/**
- * Transform form data to API format
- */
-export function transformFormToApi<T, U>(
-  formData: T,
-  transformer: (data: T) => U,
-): U {
-  return transformer(formData);
+  return {
+    success: false,
+    errors: result.error.issues.reduce((acc: Record<string, string>, error: z.ZodIssue) => {
+      const path = error.path.join('.');
+      acc[path] = error.message;
+      return acc;
+    }, {} as Record<string, string>),
+  };
 }
 
 // ============================================================================
@@ -354,65 +385,16 @@ export function transformFormToApi<T, U>(
 
 export type RegisterFormData = z.infer<typeof registerFormSchema>;
 export type LoginFormData = z.infer<typeof loginFormSchema>;
-export type PasswordResetRequestData = z.infer<typeof passwordResetRequestSchema>;
-export type PasswordResetData = z.infer<typeof passwordResetSchema>;
-
-export type ProfileUpdateData = z.infer<typeof profileUpdateSchema>;
-export type ChangePasswordData = z.infer<typeof changePasswordSchema>;
-
-export type SubscriptionCreateData = z.infer<typeof subscriptionCreateSchema>;
-export type SubscriptionCancelData = z.infer<typeof subscriptionCancelSchema>;
-export type DirectDebitContractData = z.infer<typeof directDebitContractSchema>;
-
-export type PaymentProcessingData = z.infer<typeof paymentProcessingSchema>;
-export type PaymentCallbackData = z.infer<typeof paymentCallbackSchema>;
-
+export type PasswordResetFormData = z.infer<typeof passwordResetSchema>;
+export type ProfileUpdateFormData = z.infer<typeof profileUpdateSchema>;
+export type SubscriptionCreateFormData = z.infer<typeof subscriptionCreateSchema>;
+export type SubscriptionCancelFormData = z.infer<typeof subscriptionCancelSchema>;
+export type DirectDebitContractFormData = z.infer<typeof directDebitContractSchema>;
+export type PaymentProcessingFormData = z.infer<typeof paymentProcessingSchema>;
+export type PaymentCallbackFormData = z.infer<typeof paymentCallbackSchema>;
 export type ProductFormData = z.infer<typeof productFormSchema>;
-
 export type SearchFormData = z.infer<typeof searchFormSchema>;
 export type DateRangeFilterData = z.infer<typeof dateRangeFilterSchema>;
-
-export type AvatarUploadData = z.infer<typeof avatarUploadSchema>;
-export type DocumentUploadData = z.infer<typeof documentUploadSchema>;
-
-// ============================================================================
-// FORM SCHEMA REGISTRY
-// ============================================================================
-
-/**
- * Registry of all form schemas for easy access and type safety
- */
-export const formSchemas = {
-  // Authentication
-  register: registerFormSchema,
-  login: loginFormSchema,
-  passwordResetRequest: passwordResetRequestSchema,
-  passwordReset: passwordResetSchema,
-
-  // Profile & Settings
-  profileUpdate: profileUpdateSchema,
-  changePassword: changePasswordSchema,
-
-  // Subscription & Billing
-  subscriptionCreate: subscriptionCreateSchema,
-  subscriptionCancel: subscriptionCancelSchema,
-  directDebitContract: directDebitContractSchema,
-
-  // Payment
-  paymentProcessing: paymentProcessingSchema,
-  paymentCallback: paymentCallbackSchema,
-
-  // Admin
-  productForm: productFormSchema,
-
-  // Search & Filter
-  search: searchFormSchema,
-  dateRangeFilter: dateRangeFilterSchema,
-
-  // File Upload
-  avatarUpload: avatarUploadSchema,
-  documentUpload: documentUploadSchema,
-} as const;
-
-export type FormSchemaKey = keyof typeof formSchemas;
-export type FormSchemaType<K extends FormSchemaKey> = z.infer<typeof formSchemas[K]>;
+export type AvatarUploadFormData = z.infer<typeof avatarUploadSchema>;
+export type DocumentUploadFormData = z.infer<typeof documentUploadSchema>;
+export type ContactFormData = z.infer<typeof contactFormSchema>;

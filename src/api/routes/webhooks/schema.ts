@@ -1,6 +1,7 @@
 import { z } from '@hono/zod-openapi';
 
 import { ApiResponseSchema } from '@/api/common/schemas';
+import { webhookEventSelectSchema } from '@/db/validation/billing';
 
 // ZarinPal webhook payload schema
 export const ZarinPalWebhookRequestSchema = z.object({
@@ -35,18 +36,25 @@ export const ZarinPalWebhookRequestSchema = z.object({
   }),
 }).openapi('ZarinPalWebhookRequest');
 
-// Generic webhook event schema for database storage
-const WebhookEventSchema = z.object({
-  id: z.string().openapi({ example: 'webhook_123' }),
-  source: z.string().openapi({ example: 'zarinpal' }),
-  eventType: z.string().openapi({ example: 'payment.completed' }),
-  paymentId: z.string().nullable().openapi({ example: 'pay_123' }),
-  processed: z.boolean().openapi({ example: true }),
-  processedAt: z.string().datetime().nullable().openapi({ example: new Date().toISOString() }),
-  forwardedToExternal: z.boolean().openapi({ example: true }),
-  forwardedAt: z.string().datetime().nullable().openapi({ example: new Date().toISOString() }),
-  externalWebhookUrl: z.string().url().nullable().openapi({ example: 'https://api.example.com/webhooks' }),
-  createdAt: z.string().datetime().openapi({ example: new Date().toISOString() }),
+// ✅ Single source of truth - use drizzle-zod schema, omit sensitive fields for public API
+const WebhookEventSchema = webhookEventSelectSchema.omit({
+  rawPayload: true, // Contains sensitive webhook data
+  processingError: true, // Internal error details
+  forwardingError: true, // Internal error details
+  updatedAt: true, // Not needed for public API
+}).openapi({
+  example: {
+    id: 'webhook_123',
+    source: 'zarinpal',
+    eventType: 'payment.completed',
+    paymentId: 'pay_123',
+    processed: true,
+    processedAt: new Date().toISOString(),
+    forwardedToExternal: true,
+    forwardedAt: new Date().toISOString(),
+    externalWebhookUrl: 'https://api.example.com/webhooks',
+    createdAt: new Date().toISOString(),
+  },
 });
 
 // Response schemas

@@ -6,7 +6,7 @@ import { Search } from 'lucide-react';
 import * as React from 'react';
 
 import { Dialog, DialogContent } from '@/components/ui/dialog';
-import { cn } from '@/lib/utils/tailwind';
+import { cn } from '@/lib';
 
 function Command({ ref, className, ...props }: React.ComponentPropsWithoutRef<typeof CommandPrimitive> & { ref?: React.RefObject<React.ElementRef<typeof CommandPrimitive> | null> }) {
   return (
@@ -39,7 +39,7 @@ function CommandDialog({ children, ...props }: CommandDialogProps) {
 function CommandInput({ ref, className, ...props }: React.ComponentPropsWithoutRef<typeof CommandPrimitive.Input> & { ref?: React.RefObject<React.ElementRef<typeof CommandPrimitive.Input> | null> }) {
   return (
     <div className="flex items-center border-b px-3" cmdk-input-wrapper="">
-      <Search className="mr-2 size-4 shrink-0 opacity-50" />
+      <Search className="me-2 size-4 shrink-0 opacity-50" />
       <CommandPrimitive.Input
         ref={ref}
         className={cn(
@@ -126,7 +126,7 @@ function CommandShortcut({
   return (
     <span
       className={cn(
-        'ml-auto text-xs tracking-widest text-muted-foreground',
+        'ms-auto text-xs tracking-widest text-muted-foreground',
         className,
       )}
       {...props}

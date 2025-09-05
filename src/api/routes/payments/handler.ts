@@ -1,14 +1,19 @@
-import type { RouteHandler } from '@hono/zod-openapi';
-import { and, desc, eq } from 'drizzle-orm';
-import { HTTPException } from 'hono/http-exception';
-import * as HttpStatusCodes from 'stoker/http-status-codes';
+/**
+ * Payments Route Handlers - Refactored
+ *
+ * Uses the factory pattern for consistent authentication, validation,
+ * transaction management, and error handling. Leverages the repository
+ * pattern for clean data access.
+ */
 
-import { ok } from '@/api/common/responses';
+import type { RouteHandler } from '@hono/zod-openapi';
+import type { z } from 'zod';
+
+import { createError } from '@/api/common/error-handling';
+import { createHandler, createHandlerWithTransaction, Responses } from '@/api/core';
+import { billingRepositories } from '@/api/repositories/billing-repositories';
 import { ZarinPalService } from '@/api/services/zarinpal';
 import type { ApiEnv } from '@/api/types';
-import { db } from '@/db';
-import { billingEvent, payment, product, subscription } from '@/db/tables/billing';
-import { logError } from '@/lib/utils/safe-logger';
 
 import type {
   generateInvoiceRoute,
@@ -16,101 +21,129 @@ import type {
   paymentCallbackRoute,
   verifyPaymentRoute,
 } from './route';
+import {
+  GenerateInvoiceRequestSchema,
+  PaymentCallbackRequestSchema,
+  PaymentParamsSchema,
+  VerifyPaymentRequestSchema,
+} from './schema';
 
-// Legacy card detection function removed - this platform uses direct debit contracts only
-
-// Legacy card detection and payment method creation functions removed
-// Payment methods are now created exclusively through direct debit contract setup
-
-/**
- * Handler for GET /payments
- * Returns all payments for the authenticated user
- */
-export const getPaymentsHandler: RouteHandler<typeof getPaymentsRoute, ApiEnv> = async (c) => {
-  c.header('X-Route', 'payments');
-
-  const user = c.get('user');
-  if (!user) {
-    throw new HTTPException(HttpStatusCodes.UNAUTHORIZED, {
-      message: 'Authentication required',
-    });
-  }
-
-  try {
-    const paymentsData = await db
-      .select()
-      .from(payment)
-      .innerJoin(product, eq(payment.productId, product.id))
-      .leftJoin(subscription, eq(payment.subscriptionId, subscription.id))
-      .where(eq(payment.userId, user.id))
-      .orderBy(desc(payment.createdAt));
-
-    // ✅ Return complete drizzle schema data with joined data
-    const paymentsWithDetails = paymentsData.map(row => ({
-      ...row.payment,
-      product: {
-        id: row.product.id,
-        name: row.product.name,
-        description: row.product.description,
-      },
-      subscription: row.subscription
-        ? {
-            id: row.subscription.id,
-            status: row.subscription.status,
-          }
-        : null,
-    }));
-
-    return ok(c, paymentsWithDetails);
-  } catch (error) {
-    logError('Failed to fetch payments', error);
-    throw new HTTPException(HttpStatusCodes.INTERNAL_SERVER_ERROR, {
-      message: 'Failed to fetch payments',
-    });
-  }
-};
+// ============================================================================
+// PAYMENT HANDLERS
+// ============================================================================
 
 /**
- * Handler for GET /payments/callback
- * Processes payment callback from ZarinPal
+ * GET /payments - Get user payment history
+ * ✅ Refactored: Uses factory pattern + repositories
  */
-export const paymentCallbackHandler: RouteHandler<typeof paymentCallbackRoute, ApiEnv> = async (c) => {
-  c.header('X-Route', 'payment-callback');
+export const getPaymentsHandler: RouteHandler<typeof getPaymentsRoute, ApiEnv> = createHandler(
+  {
+    auth: 'session',
+    operationName: 'getPayments',
+  },
+  async (c) => {
+    const user = c.get('user')!; // Guaranteed by auth: 'session'
+    c.logger.info('Fetching payments for user', { logType: 'operation', operationName: 'getPayments', userId: user.id });
 
-  const { Authority, Status } = c.req.valid('query');
+    // Use repository instead of direct DB query
+    const payments = await billingRepositories.payments.findPaymentsByUserId(user.id);
 
-  try {
-    // Find payment by ZarinPal authority
-    const paymentData = await db
-      .select()
-      .from(payment)
-      .leftJoin(subscription, eq(payment.subscriptionId, subscription.id))
-      .innerJoin(product, eq(payment.productId, product.id))
-      .where(eq(payment.zarinpalAuthority, Authority))
-      .limit(1);
+    // Transform to match response schema with related data
+    const paymentsWithDetails = await Promise.all(
+      payments.map(async (payment) => {
+        const [product, subscription] = await Promise.all([
+          billingRepositories.products.findById(payment.productId),
+          payment.subscriptionId
+            ? billingRepositories.subscriptions.findById(payment.subscriptionId)
+            : null,
+        ]);
 
-    if (!paymentData.length) {
-      throw new HTTPException(HttpStatusCodes.NOT_FOUND, {
-        message: 'Payment not found',
-      });
+        return {
+          ...payment,
+          product: product
+            ? {
+                id: product.id,
+                name: product.name,
+                description: product.description,
+              }
+            : null,
+          subscription: subscription
+            ? {
+                id: subscription.id,
+                status: subscription.status,
+              }
+            : null,
+        };
+      }),
+    );
+
+    c.logger.info('Payments retrieved successfully', {
+      logType: 'operation',
+      operationName: 'getPayments',
+      resource: `payments[${paymentsWithDetails.length}]`,
+    });
+
+    return Responses.ok(c, paymentsWithDetails);
+  },
+);
+
+/**
+ * GET /payments/callback - Handle ZarinPal payment callback
+ * ✅ Refactored: Uses factory pattern + repositories + transaction
+ */
+export const paymentCallbackHandler: RouteHandler<typeof paymentCallbackRoute, ApiEnv> = createHandlerWithTransaction(
+  {
+    auth: 'public', // Callback comes from ZarinPal, not user
+    validateQuery: PaymentCallbackRequestSchema,
+    operationName: 'paymentCallback',
+  },
+  async (c, tx) => {
+    const { Authority, Status } = c.validated.query as z.infer<typeof PaymentCallbackRequestSchema>;
+
+    c.logger.info('Processing payment callback', { logType: 'operation', operationName: 'paymentCallback', resource: Authority });
+
+    // Find payment using repository
+    const paymentRecord = await billingRepositories.payments.findByZarinpalAuthority(Authority);
+
+    if (!paymentRecord) {
+      c.logger.warn('Payment not found for callback', { logType: 'operation', operationName: 'paymentCallback', resource: Authority });
+      throw createError.notFound('Payment');
     }
 
-    const paymentRecord = paymentData[0]!.payment;
-    const subscriptionRecord = paymentData[0]!.subscription;
-    const productRecord = paymentData[0]!.product;
+    c.logger.info('Found payment for callback', {
+      logType: 'operation',
+      operationName: 'paymentCallback',
+      userId: paymentRecord.userId,
+      resource: paymentRecord.id,
+    });
 
     // Handle failed payment
     if (Status === 'NOK') {
-      await db
-        .update(payment)
-        .set({
-          status: 'failed',
-          failureReason: 'Payment canceled by user',
-          failedAt: new Date(),
-        })
-        .where(eq(payment.id, paymentRecord.id));
+      c.logger.warn('Payment canceled by user', { logType: 'operation', operationName: 'paymentCallback', resource: paymentRecord.id });
 
-      return ok(c, {
+      await billingRepositories.payments.updateStatus(
+        paymentRecord.id,
+        'failed',
+        { failureReason: 'Payment canceled by user' },
+        tx,
+      );
+
+      // Log billing event
+      await billingRepositories.billingEvents.logEvent({
+        userId: paymentRecord.userId,
+        subscriptionId: paymentRecord.subscriptionId,
+        paymentId: paymentRecord.id,
+        paymentMethodId: null,
+        eventType: 'payment_cancelled',
+        eventData: {
+          amount: paymentRecord.amount,
+          cancelledBy: 'user',
+          authority: Authority,
+        },
+        severity: 'warning',
+      }, tx);
+
+      return Responses.ok(c, {
         success: false,
         paymentId: paymentRecord.id,
         subscriptionId: paymentRecord.subscriptionId,
@@ -127,144 +160,145 @@ export const paymentCallbackHandler: RouteHandler<typeof paymentCallbackRoute, A
     const isSuccessful = verification.data?.code === 100 || verification.data?.code === 101;
 
     if (isSuccessful) {
-      // ✅ CRITICAL FIX: Wrap all related database operations in a single transaction
-      // This ensures atomicity - either all operations succeed or all fail
-      await db.transaction(async (tx) => {
-        // Update payment record - direct debit contracts don't create payment methods here
-        await tx
-          .update(payment)
-          .set({
-            status: 'completed',
-            zarinpalRefId: verification.data?.ref_id?.toString(),
-            zarinpalCardHash: verification.data?.card_hash,
-            paidAt: new Date(),
-          })
-          .where(eq(payment.id, paymentRecord.id));
+      c.logger.info('Payment verification successful', {
+        logType: 'operation',
+        operationName: 'paymentCallback',
+        resource: paymentRecord.id,
+      });
 
-        // Update subscription if this is for a subscription (legacy one-time payment)
-        if (subscriptionRecord && paymentRecord.subscriptionId) {
+      // Update payment status
+      await billingRepositories.payments.updateStatus(
+        paymentRecord.id,
+        'completed',
+        {
+          zarinpalRefId: verification.data?.ref_id?.toString(),
+          zarinpalCardHash: verification.data?.card_hash,
+        },
+        tx,
+      );
+
+      // Handle subscription activation if needed
+      if (paymentRecord.subscriptionId) {
+        const subscription = await billingRepositories.subscriptions.findById(
+          paymentRecord.subscriptionId,
+        );
+        const product = await billingRepositories.products.findById(paymentRecord.productId);
+
+        if (subscription && product && subscription.status === 'pending') {
           const startDate = new Date();
-          const nextBillingDate = productRecord.billingPeriod === 'monthly'
+          const nextBillingDate = product.billingPeriod === 'monthly'
             ? new Date(startDate.getTime() + 30 * 24 * 60 * 60 * 1000)
             : null;
 
-          await tx
-            .update(subscription)
-            .set({
+          await billingRepositories.subscriptions.update(
+            paymentRecord.subscriptionId,
+            {
               status: 'active',
               startDate,
               nextBillingDate,
-              currentPrice: productRecord.price,
-              // Note: Legacy one-time payments don't create direct debit contracts
-            })
-            .where(eq(subscription.id, subscriptionRecord.id));
+              currentPrice: product.price,
+            },
+            { tx },
+          );
+
+          c.logger.info('Subscription activated', {
+            logType: 'operation',
+            operationName: 'activateSubscription',
+            resource: paymentRecord.subscriptionId!,
+          });
         }
+      }
 
-        // Log successful payment event
-        await tx.insert(billingEvent).values({
-          userId: paymentRecord.userId,
-          subscriptionId: paymentRecord.subscriptionId,
-          paymentId: paymentRecord.id,
-          paymentMethodId: null, // No payment method created for legacy payments
-          eventType: 'payment_completed',
-          eventData: {
-            amount: paymentRecord.amount,
-            refId: verification.data?.ref_id?.toString(),
-            productName: productRecord.name,
-            paymentType: 'zarinpal_oneoff_legacy',
-          },
-          severity: 'info',
-        });
-      });
+      // Log successful payment event
+      await billingRepositories.billingEvents.logEvent({
+        userId: paymentRecord.userId,
+        subscriptionId: paymentRecord.subscriptionId,
+        paymentId: paymentRecord.id,
+        paymentMethodId: null,
+        eventType: 'payment_completed',
+        eventData: {
+          amount: paymentRecord.amount,
+          refId: verification.data?.ref_id?.toString(),
+          authority: Authority,
+          paymentType: 'zarinpal_standard',
+        },
+        severity: 'info',
+      }, tx);
 
-      return ok(c, {
+      return Responses.ok(c, {
         success: true,
         paymentId: paymentRecord.id,
         subscriptionId: paymentRecord.subscriptionId,
         refId: verification.data?.ref_id?.toString(),
       });
     } else {
-      // ✅ CRITICAL FIX: Wrap failed payment operations in transaction for atomicity
-      await db.transaction(async (tx) => {
-        // Payment verification failed
-        await tx
-          .update(payment)
-          .set({
-            status: 'failed',
-            failureReason: `ZarinPal verification failed: ${verification.data?.message || 'Unknown error'}`,
-            failedAt: new Date(),
-          })
-          .where(eq(payment.id, paymentRecord.id));
-
-        // Log failed payment event
-        await tx.insert(billingEvent).values({
-          userId: paymentRecord.userId,
-          subscriptionId: paymentRecord.subscriptionId,
-          paymentId: paymentRecord.id,
-          eventType: 'payment_failed',
-          eventData: {
-            amount: paymentRecord.amount,
-            failureReason: verification.data?.message || 'Unknown error',
-            productName: productRecord.name,
-            zarinpalCode: verification.data?.code,
-          },
-          severity: 'error',
-        });
+      c.logger.warn('Payment verification failed', {
+        logType: 'operation',
+        operationName: 'paymentCallback',
+        resource: paymentRecord.id,
       });
 
-      return ok(c, {
+      // Update payment as failed
+      await billingRepositories.payments.updateStatus(
+        paymentRecord.id,
+        'failed',
+        { failureReason: `ZarinPal verification failed: ${verification.data?.message}` },
+        tx,
+      );
+
+      // Log failed payment event
+      await billingRepositories.billingEvents.logEvent({
+        userId: paymentRecord.userId,
+        subscriptionId: paymentRecord.subscriptionId,
+        paymentId: paymentRecord.id,
+        paymentMethodId: null,
+        eventType: 'payment_failed',
+        eventData: {
+          amount: paymentRecord.amount,
+          failureReason: verification.data?.message || 'Unknown error',
+          zarinpalCode: verification.data?.code,
+          authority: Authority,
+        },
+        severity: 'error',
+      }, tx);
+
+      return Responses.ok(c, {
         success: false,
         paymentId: paymentRecord.id,
         subscriptionId: paymentRecord.subscriptionId,
       });
     }
-  } catch (error) {
-    if (error instanceof HTTPException) {
-      throw error;
-    }
-    logError('Payment callback processing failed', error);
-    throw new HTTPException(HttpStatusCodes.INTERNAL_SERVER_ERROR, {
-      message: 'Failed to process payment callback',
-    });
-  }
-};
+  },
+);
 
 /**
- * Handler for POST /payments/verify
- * Manually verify a payment (for debugging/recovery)
+ * POST /payments/verify - Manually verify a payment
+ * ✅ Refactored: Uses factory pattern + repositories + transaction
  */
-export const verifyPaymentHandler: RouteHandler<typeof verifyPaymentRoute, ApiEnv> = async (c) => {
-  c.header('X-Route', 'verify-payment');
+export const verifyPaymentHandler: RouteHandler<typeof verifyPaymentRoute, ApiEnv> = createHandlerWithTransaction(
+  {
+    auth: 'session',
+    validateBody: VerifyPaymentRequestSchema,
+    operationName: 'verifyPayment',
+  },
+  async (c, tx) => {
+    const user = c.get('user')!;
+    const { authority } = c.validated.body as z.infer<typeof VerifyPaymentRequestSchema>;
 
-  const user = c.get('user');
-  if (!user) {
-    throw new HTTPException(HttpStatusCodes.UNAUTHORIZED, {
-      message: 'Authentication required',
+    c.logger.info('Manual payment verification requested', {
+      logType: 'operation',
+      operationName: 'verifyPayment',
+      userId: user.id,
+      resource: authority,
     });
-  }
 
-  const { authority } = c.req.valid('json');
-
-  try {
     // Find payment by authority and user
-    const paymentData = await db
-      .select()
-      .from(payment)
-      .where(
-        and(
-          eq(payment.zarinpalAuthority, authority),
-          eq(payment.userId, user.id),
-        ),
-      )
-      .limit(1);
+    const paymentRecord = await billingRepositories.payments.findByZarinpalAuthority(authority);
 
-    if (!paymentData.length) {
-      throw new HTTPException(HttpStatusCodes.NOT_FOUND, {
-        message: 'Payment not found',
-      });
+    if (!paymentRecord || paymentRecord.userId !== user.id) {
+      c.logger.warn('Payment not found for verification', { logType: 'operation', operationName: 'verifyPayment', userId: user.id, resource: authority });
+      throw createError.notFound('Payment');
     }
-
-    const paymentRecord = paymentData[0]!;
 
     // Verify with ZarinPal
     const zarinPal = ZarinPalService.create(c.env);
@@ -276,149 +310,156 @@ export const verifyPaymentHandler: RouteHandler<typeof verifyPaymentRoute, ApiEn
     const isSuccessful = verification.data?.code === 100 || verification.data?.code === 101;
 
     if (isSuccessful && paymentRecord.status !== 'completed') {
-      // ✅ CRITICAL FIX: Wrap all payment verification updates in a single transaction
-      await db.transaction(async (tx) => {
-        // Update payment status
-        await tx
-          .update(payment)
-          .set({
-            status: 'completed',
-            zarinpalRefId: verification.data?.ref_id?.toString(),
-            zarinpalCardHash: verification.data?.card_hash,
-            paidAt: new Date(),
-          })
-          .where(eq(payment.id, paymentRecord.id));
+      c.logger.info('Manual verification successful, updating payment', {
+        logType: 'operation',
+        operationName: 'verifyPayment',
+        resource: paymentRecord.id,
+      });
 
-        // Update subscription if exists and not already active
-        if (paymentRecord.subscriptionId) {
-          const subscriptionData = await tx
-            .select()
-            .from(subscription)
-            .where(eq(subscription.id, paymentRecord.subscriptionId))
-            .limit(1);
+      // Update payment status
+      await billingRepositories.payments.updateStatus(
+        paymentRecord.id,
+        'completed',
+        {
+          zarinpalRefId: verification.data?.ref_id?.toString(),
+          zarinpalCardHash: verification.data?.card_hash,
+        },
+        tx,
+      );
 
-          if (subscriptionData.length && subscriptionData[0]!.status === 'pending') {
+      // Activate subscription if pending
+      if (paymentRecord.subscriptionId) {
+        const subscription = await billingRepositories.subscriptions.findById(
+          paymentRecord.subscriptionId,
+        );
+
+        if (subscription && subscription.status === 'pending') {
+          const product = await billingRepositories.products.findById(paymentRecord.productId);
+
+          if (product) {
             const startDate = new Date();
-            const productData = await tx
-              .select()
-              .from(product)
-              .where(eq(product.id, paymentRecord.productId))
-              .limit(1);
-
-            const nextBillingDate = productData.length && productData[0]!.billingPeriod === 'monthly'
+            const nextBillingDate = product.billingPeriod === 'monthly'
               ? new Date(startDate.getTime() + 30 * 24 * 60 * 60 * 1000)
               : null;
 
-            await tx
-              .update(subscription)
-              .set({
+            await billingRepositories.subscriptions.update(
+              paymentRecord.subscriptionId,
+              {
                 status: 'active',
                 startDate,
                 nextBillingDate,
                 directDebitContractId: verification.data?.card_hash,
-              })
-              .where(eq(subscription.id, paymentRecord.subscriptionId));
+              },
+              { tx },
+            );
+
+            c.logger.info('Subscription activated via manual verification', {
+              logType: 'operation',
+              operationName: 'activateSubscription',
+              resource: paymentRecord.subscriptionId!,
+            });
           }
         }
-      });
+      }
+
+      // Log manual verification event
+      await billingRepositories.billingEvents.logEvent({
+        userId: user.id,
+        subscriptionId: paymentRecord.subscriptionId,
+        paymentId: paymentRecord.id,
+        paymentMethodId: null,
+        eventType: 'payment_manually_verified',
+        eventData: {
+          amount: paymentRecord.amount,
+          refId: verification.data?.ref_id?.toString(),
+          verifiedBy: user.id,
+        },
+        severity: 'info',
+      }, tx);
     }
 
-    return ok(c, {
+    return Responses.ok(c, {
       verified: isSuccessful,
       paymentId: paymentRecord.id,
       refId: verification.data?.ref_id?.toString(),
       cardHash: verification.data?.card_hash,
     });
-  } catch (error) {
-    if (error instanceof HTTPException) {
-      throw error;
-    }
-    logError('Payment verification failed', error);
-    throw new HTTPException(HttpStatusCodes.INTERNAL_SERVER_ERROR, {
-      message: 'Failed to verify payment',
-    });
-  }
-};
+  },
+);
 
 /**
- * Handler for POST /payments/{id}/invoice
- * Generate a downloadable invoice for a payment
+ * POST /payments/{id}/invoice - Generate payment invoice
+ * ✅ Refactored: Uses factory pattern + repositories
  */
-export const generateInvoiceHandler: RouteHandler<typeof generateInvoiceRoute, ApiEnv> = async (c) => {
-  c.header('X-Route', 'generate-invoice');
+export const generateInvoiceHandler: RouteHandler<typeof generateInvoiceRoute, ApiEnv> = createHandler(
+  {
+    auth: 'session',
+    validateParams: PaymentParamsSchema,
+    validateBody: GenerateInvoiceRequestSchema,
+    operationName: 'generateInvoice',
+  },
+  async (c) => {
+    const user = c.get('user')!;
+    const { id: paymentId } = c.validated.params as z.infer<typeof PaymentParamsSchema>;
+    const { format, language, includeDetails } = c.validated.body as z.infer<typeof GenerateInvoiceRequestSchema>;
 
-  const user = c.get('user');
-  if (!user) {
-    throw new HTTPException(HttpStatusCodes.UNAUTHORIZED, {
-      message: 'Authentication required',
+    c.logger.info('Invoice generation requested', {
+      logType: 'operation',
+      operationName: 'generateInvoice',
+      userId: user.id,
+      resource: paymentId,
     });
-  }
 
-  const { id: paymentId } = c.req.valid('param');
-  const { format, language } = c.req.valid('json');
+    // Find payment with validation
+    const paymentRecord = await billingRepositories.payments.findById(paymentId);
 
-  try {
-    // Fetch payment with related data
-    const paymentData = await db
-      .select()
-      .from(payment)
-      .leftJoin(product, eq(payment.productId, product.id))
-      .leftJoin(subscription, eq(payment.subscriptionId, subscription.id))
-      .where(
-        and(
-          eq(payment.id, paymentId),
-          eq(payment.userId, user.id),
-        ),
-      )
-      .limit(1);
-
-    if (!paymentData.length) {
-      throw new HTTPException(HttpStatusCodes.NOT_FOUND, {
-        message: 'Payment not found',
-      });
+    if (!paymentRecord || paymentRecord.userId !== user.id) {
+      c.logger.warn('Payment not found for invoice generation', { logType: 'operation', operationName: 'generateInvoice', userId: user.id, resource: paymentId });
+      throw createError.notFound('Payment');
     }
 
-    const paymentRecord = paymentData[0]!;
-
-    // Only generate invoices for completed payments
-    if (paymentRecord.payment.status !== 'completed') {
-      throw new HTTPException(HttpStatusCodes.BAD_REQUEST, {
-        message: 'Invoice can only be generated for completed payments',
+    if (paymentRecord.status !== 'completed') {
+      c.logger.warn('Invoice requested for non-completed payment', {
+        logType: 'operation',
+        operationName: 'generateInvoice',
+        resource: paymentId,
       });
+      throw createError.internal('Invoice can only be generated for completed payments');
     }
 
-    // Generate unique invoice ID
+    // Generate invoice metadata
     const invoiceId = `INV-${paymentId.slice(-8).toUpperCase()}-${Date.now()}`;
-
-    // Invoice content generation would happen here in production
-    // For now, we just return metadata about the invoice
-
-    // In a production system, you would:
-    // 1. Save the invoice content to cloud storage (S3, GCS, etc.)
-    // 2. Generate a signed URL for download
-    // 3. Set appropriate expiration time
-
-    // For this example, we'll return the content directly
     const downloadUrl = `/api/v1/payments/${paymentId}/download/${invoiceId}`;
 
-    return c.json({
-      success: true,
-      data: {
+    c.logger.info('Invoice metadata generated', {
+      logType: 'operation',
+      operationName: 'generateInvoice',
+      resource: invoiceId,
+    });
+
+    // Log invoice generation event
+    await billingRepositories.billingEvents.logEvent({
+      userId: user.id,
+      subscriptionId: paymentRecord.subscriptionId,
+      paymentId: paymentRecord.id,
+      paymentMethodId: null,
+      eventType: 'invoice_generated',
+      eventData: {
         invoiceId,
-        downloadUrl,
         format,
         language,
-        generatedAt: new Date().toISOString(),
-        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), // 24 hours
+        includeDetails,
       },
-    }, HttpStatusCodes.CREATED);
-  } catch (error) {
-    if (error instanceof HTTPException) {
-      throw error;
-    }
-    logError('Invoice generation failed', error);
-    throw new HTTPException(HttpStatusCodes.INTERNAL_SERVER_ERROR, {
-      message: 'Failed to generate invoice',
+      severity: 'info',
     });
-  }
-};
+
+    return Responses.created(c, {
+      invoiceId,
+      downloadUrl,
+      format,
+      language,
+      generatedAt: new Date().toISOString(),
+      expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), // 24 hours
+    });
+  },
+);

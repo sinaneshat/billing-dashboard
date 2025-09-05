@@ -19,6 +19,7 @@ import {
   ArrowUpDown,
   ListFilter,
 } from "lucide-react"
+import { useTranslations } from 'next-intl'
 import * as React from "react"
 
 import { Button } from "@/components/ui/button"
@@ -57,7 +58,7 @@ import {
 } from "@/components/ui/table"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { FadeIn, StaggerContainer, StaggerItem } from "@/components/ui/motion"
-import { cn } from "@/lib/tailwind-utils"
+import { cn } from "@/lib"
 
 // Enhanced filter configuration
 export type DataTableFilter = {
@@ -164,16 +165,23 @@ export function DataTable<TData extends Record<string, any>>({
   enablePagination = true,
   loading = false,
   loadingRowCount = 5,
-  emptyStateTitle = "No data found",
-  emptyStateDescription = "There are no items to display.",
+  emptyStateTitle,
+  emptyStateDescription,
   emptyStateAction,
   className,
   tableClassName,
   showColumnToggle = true,
   showToolbar = true,
-  "aria-label": ariaLabel = "Data table",
+  "aria-label": ariaLabel,
   ...props
 }: DataTableProps<TData>) {
+  const t = useTranslations()
+  
+  // Set default translated values
+  const defaultEmptyStateTitle = emptyStateTitle || t('dataTable.noDataFound')
+  const defaultEmptyStateDescription = emptyStateDescription || t('dataTable.noItemsToDisplay')
+  const defaultAriaLabel = ariaLabel || t('dataTable.dataTable')
+  
   const [sorting, setSorting] = React.useState<SortingState>([])
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([])
   const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({})
@@ -252,7 +260,7 @@ export function DataTable<TData extends Record<string, any>>({
                   <TabsTrigger key={tab.value} value={tab.value} data-slot="tab">
                     {tab.label}
                     {tab.count !== undefined && (
-                      <span className="ml-1 text-xs">({tab.count})</span>
+                      <span className="ms-1 text-xs">({tab.count})</span>
                     )}
                   </TabsTrigger>
                 ))}
@@ -297,7 +305,7 @@ export function DataTable<TData extends Record<string, any>>({
             ))}
             
             {filters.length > 0 && (
-              <Button variant="outline" size="icon" aria-label="Open filters menu">
+              <Button variant="outline" size="icon" aria-label={t('dataTable.openFiltersMenu')}>
                 <ListFilter className="h-4 w-4" />
               </Button>
             )}
@@ -305,8 +313,8 @@ export function DataTable<TData extends Record<string, any>>({
             {showColumnToggle && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="outline" className="ml-auto">
-                    Columns <ChevronDown className="ml-2 h-4 w-4" />
+                  <Button variant="outline" className="ms-auto">
+                    {t('dataTable.columns')} <ChevronDown className="ms-2 h-4 w-4" />
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
@@ -334,7 +342,7 @@ export function DataTable<TData extends Record<string, any>>({
       
       {/* Data Table */}
       <FadeIn className="overflow-hidden rounded-lg border border-border/50">
-        <Table className={tableClassName} aria-label={ariaLabel}>
+        <Table className={tableClassName} aria-label={defaultAriaLabel}>
           <TableHeader data-slot="table-header">
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow key={headerGroup.id} className="border-b border-border/50">
@@ -343,7 +351,7 @@ export function DataTable<TData extends Record<string, any>>({
                     <Checkbox
                       checked={allCurrentSelected}
                       onCheckedChange={handleSelectAll}
-                      aria-label="Select all rows"
+                      aria-label={t('dataTable.selectAllRows')}
                     />
                   </TableHead>
                 )}
@@ -397,7 +405,7 @@ export function DataTable<TData extends Record<string, any>>({
                                   return newSelection
                                 })
                               }}
-                              aria-label={`Select row ${rowId}`}
+                              aria-label={t('dataTable.selectRow', { id: rowId })}
                             />
                           </TableCell>
                         )}
@@ -422,8 +430,8 @@ export function DataTable<TData extends Record<string, any>>({
                   className="text-center py-12"
                 >
                   <div className="flex flex-col items-center gap-4">
-                    <h3 className="text-lg font-semibold">{emptyStateTitle}</h3>
-                    <p className="text-muted-foreground">{emptyStateDescription}</p>
+                    <h3 className="text-lg font-semibold">{defaultEmptyStateTitle}</h3>
+                    <p className="text-muted-foreground">{defaultEmptyStateDescription}</p>
                     {emptyStateAction && <div className="mt-2">{emptyStateAction}</div>}
                   </div>
                 </TableCell>
@@ -439,12 +447,12 @@ export function DataTable<TData extends Record<string, any>>({
           <div className="flex items-center gap-2">
             {enableSelection && selectedCount > 0 && (
               <p className="text-sm text-muted-foreground">
-                {selectedCount} of {totalItems || data.length} row(s) selected
+                {t('dataTable.rowsSelected', { selected: selectedCount, total: totalItems || data.length })}
               </p>
             )}
             {onPageSizeChange && (
               <div className="flex items-center gap-2">
-                <p className="text-sm text-muted-foreground">Rows per page</p>
+                <p className="text-sm text-muted-foreground">{t('dataTable.rowsPerPage')}</p>
                 <Select
                   value={pageSize.toString()}
                   onValueChange={(value) => onPageSizeChange(Number(value))}
@@ -531,10 +539,10 @@ export function createSortableHeader(title: string) {
     <Button
       variant="ghost"
       onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-      className="-ml-4 h-8 data-[state=open]:bg-accent"
+      className="-ms-4 h-8 data-[state=open]:bg-accent"
     >
       {title}
-      <ArrowUpDown className="ml-2 h-4 w-4" />
+      <ArrowUpDown className="ms-2 h-4 w-4" />
     </Button>
   )
 }

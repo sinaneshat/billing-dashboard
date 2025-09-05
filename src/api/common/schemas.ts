@@ -3,7 +3,7 @@ import * as HttpStatusCodes from 'stoker/http-status-codes';
 import * as HttpStatusPhrases from 'stoker/http-status-phrases';
 
 // Shared Error schema used in OpenAPI responses and validation hooks
-// Legacy simple error schema for backward compatibility
+// Simple error schema for compatibility
 export const ErrorSchema = z.object({
   code: z.number().openapi({ example: HttpStatusCodes.BAD_REQUEST }),
   message: z.string().openapi({ example: HttpStatusPhrases.BAD_REQUEST }),
@@ -36,14 +36,56 @@ export function ApiResponseSchema<T extends z.ZodTypeAny>(dataSchema: T) {
   });
 }
 
+/**
+ * Discriminated union for API metadata (Context7 Pattern)
+ * Maximum type safety replacing Record<string, unknown>
+ */
+export const ApiMetaSchema = z.discriminatedUnion('category', [
+  z.object({
+    category: z.literal('request'),
+    requestId: z.string().uuid(),
+    timestamp: z.string().datetime(),
+    duration: z.number().positive(),
+    endpoint: z.string().min(1),
+    method: z.enum(['GET', 'POST', 'PUT', 'DELETE', 'PATCH']),
+  }),
+  z.object({
+    category: z.literal('pagination'),
+    requestId: z.string().uuid().optional(),
+    timestamp: z.string().datetime().optional(),
+    page: z.number().int().positive(),
+    limit: z.number().int().positive().max(100),
+    total: z.number().int().nonnegative(),
+    hasNext: z.boolean(),
+    hasPrev: z.boolean(),
+  }),
+  z.object({
+    category: z.literal('performance'),
+    requestId: z.string().uuid().optional(),
+    timestamp: z.string().datetime().optional(),
+    processingTime: z.number().positive(),
+    dbQueries: z.number().int().nonnegative(),
+    cacheHits: z.number().int().nonnegative(),
+    cacheMisses: z.number().int().nonnegative(),
+  }),
+  z.object({
+    category: z.literal('error'),
+    requestId: z.string().uuid(),
+    timestamp: z.string().datetime(),
+    errorCode: z.string(),
+    errorType: z.enum(['validation', 'authentication', 'authorization', 'server', 'external']),
+    retryable: z.boolean(),
+  }),
+]);
+
+export type ApiMeta = z.infer<typeof ApiMetaSchema>;
+
 export type ApiResponse<T> = {
   success: boolean;
   data?: T;
   error?: ErrorResponse;
-  meta?: { requestId?: string; timestamp?: string } & Record<string, unknown>;
+  meta?: ApiMeta;
 };
-
-export type ApiMeta = NonNullable<ApiResponse<unknown>['meta']>;
 
 /**
  * Common reusable field schemas matching reference patterns

@@ -1,8 +1,7 @@
 import { createRoute } from '@hono/zod-openapi';
 import * as HttpStatusCodes from 'stoker/http-status-codes';
 
-import { CommonErrorResponses } from '@/api/common';
-
+// import { Responses } from '@/api/core'; // Commented out as unused
 import {
   GetWebhookEventsResponseSchema,
   TestWebhookRequestSchema,
@@ -32,7 +31,8 @@ export const zarinPalWebhookRoute = createRoute({
         'application/json': { schema: WebhookReceiveResponseSchema },
       },
     },
-    ...CommonErrorResponses.public,
+    [HttpStatusCodes.BAD_REQUEST]: { description: 'Bad Request' },
+    [HttpStatusCodes.INTERNAL_SERVER_ERROR]: { description: 'Internal Server Error' },
   },
 });
 
@@ -52,7 +52,9 @@ export const getWebhookEventsRoute = createRoute({
         'application/json': { schema: GetWebhookEventsResponseSchema },
       },
     },
-    ...CommonErrorResponses.read,
+    [HttpStatusCodes.BAD_REQUEST]: { description: 'Bad Request' },
+    [HttpStatusCodes.NOT_FOUND]: { description: 'Not Found' },
+    [HttpStatusCodes.INTERNAL_SERVER_ERROR]: { description: 'Internal Server Error' },
   },
 });
 
@@ -76,6 +78,8 @@ export const testWebhookRoute = createRoute({
         'application/json': { schema: TestWebhookResponseSchema },
       },
     },
-    ...CommonErrorResponses.auth,
+    [HttpStatusCodes.UNAUTHORIZED]: { description: 'Unauthorized' },
+    [HttpStatusCodes.FORBIDDEN]: { description: 'Forbidden' },
+    [HttpStatusCodes.INTERNAL_SERVER_ERROR]: { description: 'Internal Server Error' },
   },
 });

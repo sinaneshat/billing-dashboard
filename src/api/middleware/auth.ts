@@ -3,6 +3,7 @@ import { timingSafeEqual } from 'node:crypto';
 
 import { createMiddleware } from 'hono/factory';
 import { HTTPException } from 'hono/http-exception';
+import * as HttpStatusCodes from 'stoker/http-status-codes';
 
 import type { ApiEnv } from '@/api/types';
 
@@ -33,50 +34,50 @@ export const requireMasterKey = createMiddleware<ApiEnv>(async (c, next) => {
 
   if (!apiKey) {
     const res = new Response(JSON.stringify({
-      code: 401,
+      code: HttpStatusCodes.UNAUTHORIZED,
       message: 'Missing API key. Include your API key in the X-API-Key header or Authorization header.',
     }), {
-      status: 401,
+      status: HttpStatusCodes.UNAUTHORIZED,
       headers: {
         'Content-Type': 'application/json',
         'WWW-Authenticate': 'ApiKey',
       },
     });
-    throw new HTTPException(401, { res });
+    throw new HTTPException(HttpStatusCodes.UNAUTHORIZED, { res });
   }
 
   if (!masterKey) {
     const res = new Response(JSON.stringify({
-      code: 500,
+      code: HttpStatusCodes.INTERNAL_SERVER_ERROR,
       message: 'API configuration error',
     }), {
-      status: 500,
+      status: HttpStatusCodes.INTERNAL_SERVER_ERROR,
       headers: {
         'Content-Type': 'application/json',
       },
     });
-    throw new HTTPException(500, { res });
+    throw new HTTPException(HttpStatusCodes.INTERNAL_SERVER_ERROR, { res });
   }
 
   if (!safeStringCompare(apiKey, masterKey)) {
     const res = new Response(JSON.stringify({
-      code: 401,
+      code: HttpStatusCodes.UNAUTHORIZED,
       message: 'Invalid API key',
     }), {
-      status: 401,
+      status: HttpStatusCodes.UNAUTHORIZED,
       headers: {
         'Content-Type': 'application/json',
         'WWW-Authenticate': 'ApiKey',
       },
     });
-    throw new HTTPException(401, { res });
+    throw new HTTPException(HttpStatusCodes.UNAUTHORIZED, { res });
   }
 
   c.set('apiKey', apiKey);
   return next();
 });
 
-// Legacy alias for compatibility
+// Alias for compatibility
 export const requireApiKey = requireMasterKey;
 
 // Attach session if present; does not enforce authentication
@@ -100,27 +101,27 @@ export const requireSession = createMiddleware<ApiEnv>(async (c, next) => {
     const result = await auth.api.getSession({ headers: c.req.raw.headers });
 
     if (!result?.session) {
-      const res = new Response(JSON.stringify({ code: 401, message: 'Unauthorized' }), {
-        status: 401,
+      const res = new Response(JSON.stringify({ code: HttpStatusCodes.UNAUTHORIZED, message: 'Unauthorized' }), {
+        status: HttpStatusCodes.UNAUTHORIZED,
         headers: {
           'Content-Type': 'application/json',
           'WWW-Authenticate': 'Session',
         },
       });
-      throw new HTTPException(401, { res });
+      throw new HTTPException(HttpStatusCodes.UNAUTHORIZED, { res });
     }
 
     c.set('session', result.session);
     c.set('user', result.user ?? null);
     return next();
   } catch (e) {
-    const res = new Response(JSON.stringify({ code: 401, message: 'Unauthorized' }), {
-      status: 401,
+    const res = new Response(JSON.stringify({ code: HttpStatusCodes.UNAUTHORIZED, message: 'Unauthorized' }), {
+      status: HttpStatusCodes.UNAUTHORIZED,
       headers: {
         'Content-Type': 'application/json',
         'WWW-Authenticate': 'Session',
       },
     });
-    throw new HTTPException(401, { res, cause: e });
+    throw new HTTPException(HttpStatusCodes.UNAUTHORIZED, { res, cause: e });
   }
 });

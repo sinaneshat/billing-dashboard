@@ -16,7 +16,20 @@
 
 import { z } from 'zod';
 
-import { zodValidation } from '@/api/common/zod-validation-utils';
+// Inline validation utilities to avoid server-side imports on client
+const ValidationUtils = {
+  string: {
+    nonEmpty: () => z.string().min(1),
+    url: () => z.string().url(),
+    email: () => z.string().email(),
+  },
+  environmentValidator: z.enum(['development', 'production', 'test', 'preview']),
+  apiVersionValidator: z.enum(['v1', 'v2']),
+  number: {
+    percentage: () => z.number().min(0).max(100),
+  },
+  iranianRialAmount: () => z.number().positive().int(),
+};
 
 // ============================================================================
 // ENVIRONMENT VALIDATION SCHEMAS
@@ -27,20 +40,20 @@ import { zodValidation } from '@/api/common/zod-validation-utils';
  */
 const coreEnvironmentSchema = z.object({
   // Environment
-  NODE_ENV: zodValidation.environmentValidator.default('development'),
-  NEXT_PUBLIC_WEBAPP_ENV: zodValidation.environmentValidator.default('development'),
+  NODE_ENV: ValidationUtils.environmentValidator.default('development'),
+  NEXT_PUBLIC_WEBAPP_ENV: ValidationUtils.environmentValidator.default('development'),
 
   // Application URLs
-  NEXT_PUBLIC_APP_URL: zodValidation.string.url('Invalid app URL'),
-  NEXT_PUBLIC_API_URL: zodValidation.string.url().optional(),
+  NEXT_PUBLIC_APP_URL: ValidationUtils.string.url(),
+  NEXT_PUBLIC_API_URL: ValidationUtils.string.url().optional(),
 
   // Application metadata
-  NEXT_PUBLIC_APP_NAME: zodValidation.string.nonEmpty().default('Roundtable Billing Dashboard'),
-  NEXT_PUBLIC_APP_VERSION: zodValidation.string.nonEmpty().default('1.0.0'),
+  NEXT_PUBLIC_APP_NAME: ValidationUtils.string.nonEmpty().default('Roundtable Billing Dashboard'),
+  NEXT_PUBLIC_APP_VERSION: ValidationUtils.string.nonEmpty().default('1.0.0'),
 
   // API Configuration
-  API_BASE_PATH: zodValidation.string.nonEmpty().default('/api'),
-  API_VERSION: zodValidation.apiVersionValidator.default('v1'),
+  API_BASE_PATH: ValidationUtils.string.nonEmpty().default('/api'),
+  API_VERSION: ValidationUtils.apiVersionValidator.default('v1'),
 });
 
 /**
@@ -48,18 +61,18 @@ const coreEnvironmentSchema = z.object({
  */
 const databaseEnvironmentSchema = z.object({
   // Database URLs
-  DATABASE_URL: zodValidation.string.nonEmpty('Database URL is required'),
-  DATABASE_AUTH_TOKEN: zodValidation.string.nonEmpty().optional(),
+  DATABASE_URL: ValidationUtils.string.nonEmpty(),
+  DATABASE_AUTH_TOKEN: ValidationUtils.string.nonEmpty().optional(),
 
   // Local development database
-  LOCAL_DATABASE_PATH: zodValidation.string.nonEmpty().default('./local.db'),
+  LOCAL_DATABASE_PATH: ValidationUtils.string.nonEmpty().default('./local.db'),
 
   // Database configuration
   DATABASE_CONNECTION_LIMIT: z.coerce.number().int().positive().default(10),
   DATABASE_TIMEOUT: z.coerce.number().int().positive().default(30000), // 30 seconds
 
   // Migration settings
-  DATABASE_MIGRATION_DIR: zodValidation.string.nonEmpty().default('./src/db/migrations'),
+  DATABASE_MIGRATION_DIR: ValidationUtils.string.nonEmpty().default('./src/db/migrations'),
   DATABASE_SEED_DATA: z.boolean().default(false),
 });
 
@@ -68,15 +81,15 @@ const databaseEnvironmentSchema = z.object({
  */
 const authEnvironmentSchema = z.object({
   // Better Auth configuration
-  BETTER_AUTH_SECRET: zodValidation.string.nonEmpty().optional(),
-  BETTER_AUTH_URL: zodValidation.string.url().optional(),
+  BETTER_AUTH_SECRET: ValidationUtils.string.nonEmpty().optional(),
+  BETTER_AUTH_URL: ValidationUtils.string.url().optional(),
 
   // Session configuration
   SESSION_MAX_AGE: z.coerce.number().int().positive().default(30 * 24 * 60 * 60), // 30 days
-  SESSION_COOKIE_NAME: zodValidation.string.nonEmpty().default('roundtable-session'),
+  SESSION_COOKIE_NAME: ValidationUtils.string.nonEmpty().default('roundtable-session'),
 
   // Security settings
-  CSRF_SECRET: zodValidation.string.nonEmpty().optional(),
+  CSRF_SECRET: ValidationUtils.string.nonEmpty().optional(),
   RATE_LIMIT_MAX: z.coerce.number().int().positive().default(100),
   RATE_LIMIT_WINDOW: z.coerce.number().int().positive().default(15 * 60 * 1000), // 15 minutes
 });
@@ -86,18 +99,18 @@ const authEnvironmentSchema = z.object({
  */
 const paymentEnvironmentSchema = z.object({
   // ZarinPal configuration
-  ZARINPAL_MERCHANT_ID: zodValidation.string.nonEmpty('ZarinPal merchant ID is required'),
+  ZARINPAL_MERCHANT_ID: ValidationUtils.string.nonEmpty(),
   ZARINPAL_SANDBOX: z.boolean().default(false),
-  ZARINPAL_API_VERSION: zodValidation.string.nonEmpty().default('v4'),
-  ZARINPAL_CALLBACK_URL: zodValidation.string.url().optional(),
+  ZARINPAL_API_VERSION: ValidationUtils.string.nonEmpty().default('v4'),
+  ZARINPAL_CALLBACK_URL: ValidationUtils.string.url().optional(),
 
   // Direct debit configuration
   ZARINPAL_DIRECT_DEBIT_ENABLED: z.boolean().default(true),
   ZARINPAL_DIRECT_DEBIT_CONTRACT_DURATION: z.coerce.number().int().positive().default(365), // days
 
   // Payment limits (in Iranian Rials)
-  PAYMENT_MIN_AMOUNT: zodValidation.iranianRialAmount().default(1000),
-  PAYMENT_MAX_AMOUNT: zodValidation.iranianRialAmount().default(500_000_000),
+  PAYMENT_MIN_AMOUNT: ValidationUtils.iranianRialAmount().default(1000),
+  PAYMENT_MAX_AMOUNT: ValidationUtils.iranianRialAmount().default(500_000_000),
   PAYMENT_DEFAULT_CURRENCY: z.literal('IRR').default('IRR'),
 });
 
@@ -109,18 +122,18 @@ const emailEnvironmentSchema = z.object({
   EMAIL_PROVIDER: z.enum(['resend', 'sendgrid', 'ses', 'smtp']).default('resend'),
 
   // Resend configuration
-  RESEND_API_KEY: zodValidation.string.nonEmpty().optional(),
-  RESEND_FROM_EMAIL: zodValidation.string.email().optional(),
+  RESEND_API_KEY: ValidationUtils.string.nonEmpty().optional(),
+  RESEND_FROM_EMAIL: ValidationUtils.string.email().optional(),
 
   // SendGrid configuration
-  SENDGRID_API_KEY: zodValidation.string.nonEmpty().optional(),
-  SENDGRID_FROM_EMAIL: zodValidation.string.email().optional(),
+  SENDGRID_API_KEY: ValidationUtils.string.nonEmpty().optional(),
+  SENDGRID_FROM_EMAIL: ValidationUtils.string.email().optional(),
 
   // SMTP configuration
-  SMTP_HOST: zodValidation.string.nonEmpty().optional(),
+  SMTP_HOST: ValidationUtils.string.nonEmpty().optional(),
   SMTP_PORT: z.coerce.number().int().positive().optional(),
-  SMTP_USER: zodValidation.string.nonEmpty().optional(),
-  SMTP_PASS: zodValidation.string.nonEmpty().optional(),
+  SMTP_USER: ValidationUtils.string.nonEmpty().optional(),
+  SMTP_PASS: ValidationUtils.string.nonEmpty().optional(),
   SMTP_SECURE: z.boolean().default(true),
 
   // Email settings
@@ -133,11 +146,11 @@ const emailEnvironmentSchema = z.object({
  */
 const storageEnvironmentSchema = z.object({
   // Cloudflare R2 configuration
-  R2_ACCOUNT_ID: zodValidation.string.nonEmpty().optional(),
-  R2_ACCESS_KEY_ID: zodValidation.string.nonEmpty().optional(),
-  R2_SECRET_ACCESS_KEY: zodValidation.string.nonEmpty().optional(),
-  R2_BUCKET_NAME: zodValidation.string.nonEmpty().optional(),
-  R2_PUBLIC_URL: zodValidation.string.url().optional(),
+  R2_ACCOUNT_ID: ValidationUtils.string.nonEmpty().optional(),
+  R2_ACCESS_KEY_ID: ValidationUtils.string.nonEmpty().optional(),
+  R2_SECRET_ACCESS_KEY: ValidationUtils.string.nonEmpty().optional(),
+  R2_BUCKET_NAME: ValidationUtils.string.nonEmpty().optional(),
+  R2_PUBLIC_URL: ValidationUtils.string.url().optional(),
 
   // File upload limits
   MAX_FILE_SIZE: z.coerce.number().int().positive().default(10 * 1024 * 1024), // 10MB
@@ -159,16 +172,16 @@ const monitoringEnvironmentSchema = z.object({
 
   // Analytics
   ANALYTICS_ENABLED: z.boolean().default(true),
-  GOOGLE_ANALYTICS_ID: zodValidation.string.nonEmpty().optional(),
+  GOOGLE_ANALYTICS_ID: ValidationUtils.string.nonEmpty().optional(),
 
   // Error tracking
-  SENTRY_DSN: zodValidation.string.url().optional(),
-  SENTRY_ENVIRONMENT: zodValidation.environmentValidator.optional(),
-  SENTRY_TRACES_SAMPLE_RATE: zodValidation.number.percentage().default(10),
+  SENTRY_DSN: ValidationUtils.string.url().optional(),
+  SENTRY_ENVIRONMENT: ValidationUtils.environmentValidator.optional(),
+  SENTRY_TRACES_SAMPLE_RATE: ValidationUtils.number.percentage().default(10),
 
   // Performance monitoring
   PERFORMANCE_MONITORING: z.boolean().default(false),
-  METRICS_ENDPOINT: zodValidation.string.url().optional(),
+  METRICS_ENDPOINT: ValidationUtils.string.url().optional(),
 });
 
 /**
@@ -448,7 +461,7 @@ export function isPreview(): boolean {
 /**
  * Get the current environment
  */
-export function getEnvironment(): 'development' | 'preview' | 'production' {
+export function getEnvironment(): 'development' | 'preview' | 'production' | 'test' {
   return getConfigValue('NEXT_PUBLIC_WEBAPP_ENV');
 }
 

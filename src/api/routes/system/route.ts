@@ -1,8 +1,7 @@
 import { createRoute } from '@hono/zod-openapi';
 import * as HttpStatusCodes from 'stoker/http-status-codes';
 
-import { CommonErrorResponses } from '@/api/common';
-
+// import { Responses } from '@/api/core'; // Commented out as unused
 import { DetailedHealthResponseSchema, HealthResponseSchema } from './schema';
 
 export const healthRoute = createRoute({
@@ -18,7 +17,8 @@ export const healthRoute = createRoute({
         'application/json': { schema: HealthResponseSchema },
       },
     },
-    ...CommonErrorResponses.public,
+    [HttpStatusCodes.BAD_REQUEST]: { description: 'Bad Request' },
+    [HttpStatusCodes.INTERNAL_SERVER_ERROR]: { description: 'Internal Server Error' },
   },
 });
 
@@ -41,6 +41,7 @@ export const detailedHealthRoute = createRoute({
         'application/json': { schema: DetailedHealthResponseSchema },
       },
     },
-    ...CommonErrorResponses.public,
+    [HttpStatusCodes.BAD_REQUEST]: { description: 'Bad Request' },
+    [HttpStatusCodes.INTERNAL_SERVER_ERROR]: { description: 'Internal Server Error' },
   },
 });

@@ -7,14 +7,25 @@
 import { createRoute, z } from '@hono/zod-openapi';
 import * as HttpStatusCodes from 'stoker/http-status-codes';
 
-import { CommonErrorResponses } from '@/api/common/error-responses';
-
 import {
   InitiateDirectDebitRequestSchema,
   InitiateDirectDebitResponseSchema,
   VerifyDirectDebitContractRequestSchema,
   VerifyDirectDebitContractResponseSchema,
 } from './schema';
+
+// Temporary inline error responses - will be replaced with unified system
+const tempErrorResponses = {
+  [HttpStatusCodes.BAD_REQUEST]: { description: 'Bad Request' },
+  [HttpStatusCodes.UNAUTHORIZED]: { description: 'Unauthorized' },
+  [HttpStatusCodes.UNPROCESSABLE_ENTITY]: { description: 'Validation Error' },
+  [HttpStatusCodes.INTERNAL_SERVER_ERROR]: { description: 'Internal Server Error' },
+};
+
+const CommonErrorResponses = {
+  auth: tempErrorResponses,
+  validation: tempErrorResponses,
+};
 
 // ============================================================================
 // DIRECT DEBIT CONTRACT SETUP ROUTES

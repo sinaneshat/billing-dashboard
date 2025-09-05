@@ -1,4 +1,5 @@
 #!/usr/bin/env tsx
+/* eslint-disable no-console */
 /**
  * Production-Ready Database Seeding Script
  * This script seeds the database with initial production data

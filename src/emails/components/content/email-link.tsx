@@ -14,7 +14,7 @@ const colorStyles = {
   primary: 'text-brand-primary',
   secondary: 'text-brand-secondary',
   dark: 'text-brand-dark',
-  muted: 'text-[#6B7280]',
+  muted: 'text-muted-foreground',
 };
 
 export function EmailLink({

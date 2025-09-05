@@ -3,7 +3,7 @@ import Link from 'next/link';
 
 export default function NotFoundScreen() {
   return (
-    <div className="flex min-h-dvh flex-col items-center justify-center bg-white dark:bg-black px-4 py-12 sm:px-6 lg:px-8">
+    <div className="flex min-h-dvh flex-col items-center justify-center bg-background px-4 py-12 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-md text-center">
         <FrownIcon className="mx-auto size-12 text-primary" />
         <h1 className="mt-4 text-3xl font-bold tracking-tighter leading-tight text-foreground sm:text-4xl md:text-5xl">

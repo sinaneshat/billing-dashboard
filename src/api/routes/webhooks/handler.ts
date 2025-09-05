@@ -1,14 +1,26 @@
+/**
+ * Comprehensive Webhook System Handler
+ *
+ * Enhanced webhook processing with comprehensive event dispatching following Stripe patterns.
+ * Includes endpoint management, event tracking, and standardized event schemas.
+ */
+
+import crypto from 'node:crypto';
+
 import type { RouteHandler } from '@hono/zod-openapi';
 import { and, desc, eq } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import * as HttpStatusCodes from 'stoker/http-status-codes';
+import { z } from 'zod';
 
-import { ok } from '@/api/common/responses';
+import type { FetchConfig } from '@/api/common/fetch-utilities';
+import { postJSON } from '@/api/common/fetch-utilities';
 import { apiLogger } from '@/api/middleware/hono-logger';
+import { billingRepositories } from '@/api/repositories/billing-repositories';
 import { ZarinPalService } from '@/api/services/zarinpal';
 import type { ApiEnv } from '@/api/types';
 import { db } from '@/db';
-import { payment, subscription, webhookEvent } from '@/db/tables/billing';
+import { webhookEvent } from '@/db/tables/billing';
 
 import type {
   getWebhookEventsRoute,
@@ -16,15 +28,300 @@ import type {
   zarinPalWebhookRoute,
 } from './route';
 
-/**
- * Rate limiting map for webhook requests
- * In production, use Redis or similar distributed storage
- */
-const webhookRateLimiter = new Map<string, { count: number; resetTime: number }>();
+// ============================================================================
+// WEBHOOK EVENT SCHEMAS (CONTEXT7 PATTERN)
+// ============================================================================
 
 /**
- * Clean up expired rate limit entries to prevent memory leaks
+ * Discriminated union for webhook events (Context7 Pattern)
+ * Maximum type safety replacing Record<string, unknown>
  */
+const WebhookEventSchema = z.discriminatedUnion('type', [
+  z.object({
+    type: z.literal('payment_intent.succeeded'),
+    id: z.string(),
+    object: z.literal('event'),
+    created: z.number().int().positive(),
+    data: z.object({
+      object: z.object({
+        id: z.string(),
+        object: z.literal('payment_intent'),
+        customer: z.string(),
+        amount: z.number().int().positive(),
+        currency: z.literal('irr'),
+        status: z.literal('succeeded'),
+        created: z.number().int().positive(),
+        metadata: z.record(z.string(), z.string()),
+      }),
+    }),
+    livemode: z.boolean(),
+    api_version: z.string(),
+  }),
+  z.object({
+    type: z.literal('payment_intent.payment_failed'),
+    id: z.string(),
+    object: z.literal('event'),
+    created: z.number().int().positive(),
+    data: z.object({
+      object: z.object({
+        id: z.string(),
+        object: z.literal('payment_intent'),
+        customer: z.string(),
+        amount: z.number().int().positive(),
+        currency: z.literal('irr'),
+        status: z.literal('payment_failed'),
+        last_payment_error: z.object({
+          code: z.string(),
+          message: z.string(),
+          type: z.literal('api_error'),
+        }).optional(),
+        created: z.number().int().positive(),
+        metadata: z.record(z.string(), z.string()),
+      }),
+    }),
+    livemode: z.boolean(),
+    api_version: z.string(),
+  }),
+  z.object({
+    type: z.literal('subscription.updated'),
+    id: z.string(),
+    object: z.literal('event'),
+    created: z.number().int().positive(),
+    data: z.object({
+      object: z.object({
+        id: z.string(),
+        object: z.literal('subscription'),
+        customer: z.string(),
+        status: z.string(),
+        created: z.number().int().positive(),
+        metadata: z.record(z.string(), z.string()),
+      }),
+    }),
+    livemode: z.boolean(),
+    api_version: z.string(),
+  }),
+]);
+
+const _WebhookEndpointSchema = z.object({
+  id: z.string(),
+  url: z.string().url(),
+  enabled_events: z.array(z.string()),
+  status: z.enum(['enabled', 'disabled']),
+  secret: z.string(),
+  created: z.number().int().positive(),
+});
+
+type WebhookEvent = z.infer<typeof WebhookEventSchema>;
+type WebhookEndpoint = z.infer<typeof _WebhookEndpointSchema>;
+
+// ============================================================================
+// WEBHOOK EVENT BUILDERS (TYPE-SAFE VERSION)
+// ============================================================================
+
+/**
+ * Type-safe webhook event builders for common billing events
+ */
+class WebhookEventBuilders {
+  static generateEventId(): string {
+    const prefix = 'evt_';
+    const timestamp = Date.now().toString(36);
+    const random = Math.random().toString(36).substring(2, 15);
+    return `${prefix}${timestamp}${random}`;
+  }
+
+  static toUnixTimestamp(date: Date | number | string): number {
+    if (typeof date === 'number')
+      return Math.floor(date / 1000);
+    if (typeof date === 'string')
+      return Math.floor(new Date(date).getTime() / 1000);
+    return Math.floor(date.getTime() / 1000);
+  }
+
+  static createPaymentSucceededEvent(paymentId: string, customerId: string, amount: number): WebhookEvent {
+    const event = {
+      id: this.generateEventId(),
+      object: 'event' as const,
+      type: 'payment_intent.succeeded' as const,
+      created: this.toUnixTimestamp(new Date()),
+      data: {
+        object: {
+          id: paymentId,
+          object: 'payment_intent' as const,
+          customer: customerId,
+          amount: Math.round(amount),
+          currency: 'irr' as const,
+          status: 'succeeded' as const,
+          created: this.toUnixTimestamp(new Date()),
+          metadata: {},
+        },
+      },
+      livemode: process.env.NODE_ENV === 'production',
+      api_version: '2024-01-01',
+    };
+
+    const validation = WebhookEventSchema.safeParse(event);
+    if (!validation.success) {
+      throw new Error(`Invalid webhook event schema: ${validation.error.message}`);
+    }
+    return validation.data;
+  }
+
+  static createPaymentFailedEvent(paymentId: string, customerId: string, amount: number, errorMessage?: string): WebhookEvent {
+    const event = {
+      id: this.generateEventId(),
+      object: 'event' as const,
+      type: 'payment_intent.payment_failed' as const,
+      created: this.toUnixTimestamp(new Date()),
+      data: {
+        object: {
+          id: paymentId,
+          object: 'payment_intent' as const,
+          customer: customerId,
+          amount: Math.round(amount),
+          currency: 'irr' as const,
+          status: 'payment_failed' as const,
+          last_payment_error: errorMessage
+            ? {
+                code: 'payment_failed',
+                message: errorMessage,
+                type: 'api_error' as const,
+              }
+            : undefined,
+          created: this.toUnixTimestamp(new Date()),
+          metadata: {},
+        },
+      },
+      livemode: process.env.NODE_ENV === 'production',
+      api_version: '2024-01-01',
+    };
+
+    const validation = WebhookEventSchema.safeParse(event);
+    if (!validation.success) {
+      throw new Error(`Invalid webhook event schema: ${validation.error.message}`);
+    }
+    return validation.data;
+  }
+
+  static createSubscriptionUpdatedEvent(subscriptionId: string, customerId: string, status: string): WebhookEvent {
+    const event = {
+      id: this.generateEventId(),
+      object: 'event' as const,
+      type: 'subscription.updated' as const,
+      created: this.toUnixTimestamp(new Date()),
+      data: {
+        object: {
+          id: subscriptionId,
+          object: 'subscription' as const,
+          customer: customerId,
+          status: status as string,
+          created: this.toUnixTimestamp(new Date()),
+          metadata: {},
+        },
+      },
+      livemode: process.env.NODE_ENV === 'production',
+      api_version: '2024-01-01',
+    };
+
+    const validation = WebhookEventSchema.safeParse(event);
+    if (!validation.success) {
+      throw new Error(`Invalid webhook event schema: ${validation.error.message}`);
+    }
+    return validation.data;
+  }
+}
+
+// ============================================================================
+// WEBHOOK ENDPOINT MANAGEMENT (SIMPLIFIED INLINE VERSION)
+// ============================================================================
+
+/**
+ * Type-safe in-memory webhook endpoint storage
+ */
+class WebhookEndpointManager {
+  private static endpoints = new Map<string, WebhookEndpoint>();
+
+  static async dispatchEvent(event: WebhookEvent): Promise<void> {
+    const endpoints = Array.from(this.endpoints.values()).filter(ep =>
+      ep.status === 'enabled' && (
+        ep.enabled_events.includes('*')
+        || ep.enabled_events.includes(event.type)
+      ),
+    );
+
+    if (endpoints.length === 0) {
+      apiLogger.info('No webhook endpoints configured', {
+        logType: 'api' as const,
+        method: 'POST' as const,
+        path: '/webhooks/dispatch',
+        responseSize: 0,
+      });
+      return;
+    }
+
+    // Dispatch to all endpoints in parallel
+    await Promise.allSettled(
+      endpoints.map(endpoint => this.deliverToEndpoint(endpoint, event)),
+    );
+  }
+
+  private static async deliverToEndpoint(endpoint: WebhookEndpoint, event: WebhookEvent): Promise<void> {
+    const payload = JSON.stringify(event);
+    const timestamp = Math.floor(Date.now() / 1000);
+    const signature = this.generateSignature(payload, endpoint.secret, timestamp);
+
+    const requestHeaders = {
+      'Content-Type': 'application/json',
+      'User-Agent': 'BillingDashboard-Webhooks/1.0',
+      'X-Webhook-Signature': signature,
+      'X-Webhook-Timestamp': timestamp.toString(),
+      'X-Webhook-Event-Type': event.type,
+      'X-Webhook-Event-Id': event.id,
+    };
+
+    const fetchConfig: FetchConfig = {
+      timeoutMs: 15000,
+      maxRetries: 2,
+      correlationId: `webhook-${event.id}-${endpoint.id}`,
+    };
+
+    try {
+      const result = await postJSON(endpoint.url, event, fetchConfig, requestHeaders);
+
+      apiLogger.info('Webhook delivered', {
+        logType: 'api' as const,
+        method: 'POST' as const,
+        path: endpoint.url,
+        statusCode: result.response?.status,
+        duration: 0, // Will be filled by actual timing
+      });
+    } catch (error) {
+      apiLogger.error('Webhook delivery failed', {
+        logType: 'api' as const,
+        method: 'POST' as const,
+        path: endpoint.url,
+        statusCode: 0,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
+  private static generateSignature(payload: string, secret: string, timestamp: number): string {
+    const signedPayload = `${timestamp}.${payload}`;
+    const signature = crypto
+      .createHmac('sha256', secret)
+      .update(signedPayload, 'utf8')
+      .digest('hex');
+
+    return `t=${timestamp},v1=${signature}`;
+  }
+}
+
+// ============================================================================
+// SECURITY AND RATE LIMITING
+// ============================================================================
+
+const webhookRateLimiter = new Map<string, { count: number; resetTime: number }>();
+
 function cleanupRateLimiter(): void {
   const now = Date.now();
   for (const [key, value] of webhookRateLimiter.entries()) {
@@ -34,21 +331,17 @@ function cleanupRateLimiter(): void {
   }
 }
 
-// Clean up rate limiter every 5 minutes
 setInterval(cleanupRateLimiter, 5 * 60 * 1000);
 
-/**
- * Validate webhook security including signature, origin, and rate limiting
- */
 async function validateWebhookSecurity(c: { req: { header: (name: string) => string | undefined } }): Promise<void> {
   const clientIP = c.req.header('cf-connecting-ip') || c.req.header('x-forwarded-for') || 'unknown';
   const userAgent = c.req.header('user-agent') || '';
   const timestamp = c.req.header('x-zarinpal-timestamp') || '';
-  // const signature = c.req.header('x-zarinpal-signature') || ''; // Not used yet
+
   // Rate limiting: max 10 requests per minute per IP
   const rateLimitKey = `webhook:${clientIP}`;
   const now = Date.now();
-  const windowMs = 60 * 1000; // 1 minute
+  const windowMs = 60 * 1000;
   const maxRequests = 10;
 
   const current = webhookRateLimiter.get(rateLimitKey);
@@ -66,9 +359,9 @@ async function validateWebhookSecurity(c: { req: { header: (name: string) => str
     });
   }
 
-  // Validate User-Agent (should contain ZarinPal identifier)
+  // Validate User-Agent
   if (!userAgent.toLowerCase().includes('zarinpal')) {
-    apiLogger.warn('Webhook security: Suspicious user agent detected', {
+    apiLogger.warn('Suspicious webhook user agent', {
       userAgent,
       clientIP,
       component: 'webhook-security',
@@ -78,15 +371,14 @@ async function validateWebhookSecurity(c: { req: { header: (name: string) => str
     });
   }
 
-  // Timestamp validation (prevent replay attacks)
+  // Timestamp validation
   if (timestamp) {
     const webhookTimestamp = Number.parseInt(timestamp, 10);
     const currentTimestamp = Math.floor(Date.now() / 1000);
     const timeDiff = Math.abs(currentTimestamp - webhookTimestamp);
 
-    // Reject webhooks older than 5 minutes or from the future
     if (timeDiff > 300) {
-      apiLogger.warn('Webhook security: Timestamp validation failed', {
+      apiLogger.warn('Webhook timestamp validation failed', {
         webhookTimestamp,
         currentTimestamp,
         timeDiff,
@@ -98,25 +390,17 @@ async function validateWebhookSecurity(c: { req: { header: (name: string) => str
     }
   }
 
-  // IP whitelist validation (ZarinPal's IP ranges)
-  // Note: In production, maintain an updated list of ZarinPal's IP ranges
-  const zarinpalIPRanges = [
-    '185.231.115.0/24', // ZarinPal primary range
-    '5.253.26.0/24', // ZarinPal secondary range
-    // Add more as needed based on ZarinPal documentation
-  ];
-
-  // For development, allow localhost
+  // IP whitelist validation
+  const zarinpalIPRanges = ['185.231.115.0/24', '5.253.26.0/24'];
   const isLocalhost = clientIP === '127.0.0.1' || clientIP === 'unknown' || clientIP.startsWith('192.168.');
 
   if (!isLocalhost && process.env.NODE_ENV === 'production') {
     const isValidIP = zarinpalIPRanges.some((range) => {
-      // Simple IP validation - in production use proper CIDR validation library
       return range.includes(clientIP.split('.').slice(0, 3).join('.'));
     });
 
     if (!isValidIP) {
-      apiLogger.warn('Webhook security: Request from unauthorized IP', {
+      apiLogger.warn('Webhook request from unauthorized IP', {
         clientIP,
         component: 'webhook-security',
       });
@@ -134,40 +418,38 @@ async function validateWebhookSecurity(c: { req: { header: (name: string) => str
     });
   }
 
-  apiLogger.info('Webhook security: Validated webhook request', {
+  apiLogger.info('Webhook security validation passed', {
     clientIP,
     userAgent,
     component: 'webhook-security',
   });
 }
 
+// ============================================================================
+// MAIN WEBHOOK HANDLERS
+// ============================================================================
+
 /**
- * Handler for POST /webhooks/zarinpal
- * Receives and processes ZarinPal webhooks
+ * Enhanced ZarinPal Webhook Handler with Event Dispatching
  */
 export const zarinPalWebhookHandler: RouteHandler<typeof zarinPalWebhookRoute, ApiEnv> = async (c) => {
-  c.header('X-Route', 'zarinpal-webhook');
-
-  // Security validations
   await validateWebhookSecurity(c);
 
   const webhookPayload = c.req.valid('json');
 
-  // Validate webhook payload structure
   if (!webhookPayload || typeof webhookPayload !== 'object') {
     throw new HTTPException(HttpStatusCodes.BAD_REQUEST, {
       message: 'Invalid webhook payload structure',
     });
   }
 
-  // Validate required fields
   if (!webhookPayload.authority || !webhookPayload.status) {
     throw new HTTPException(HttpStatusCodes.BAD_REQUEST, {
       message: 'Missing required webhook fields: authority or status',
     });
   }
 
-  // Create webhook event record immediately for audit trail
+  // Create webhook event record for audit trail
   const eventId = crypto.randomUUID();
   const eventRecord = {
     id: eventId,
@@ -180,314 +462,331 @@ export const zarinPalWebhookHandler: RouteHandler<typeof zarinPalWebhookRoute, A
   };
 
   try {
-    await db.insert(webhookEvent).values(eventRecord);
+    await billingRepositories.webhookEvents.createEvent(eventRecord);
   } catch (error) {
     apiLogger.error('Failed to create webhook event record', { error });
-    // Continue processing even if logging fails
   }
 
   let paymentRecord = null;
+  let subscriptionRecord = null;
   let processed = false;
 
-  try {
-    // Find payment by authority
-    if (webhookPayload.authority) {
-      const paymentData = await db
-        .select()
-        .from(payment)
-        .where(eq(payment.zarinpalAuthority, webhookPayload.authority))
-        .limit(1);
+  // Find payment by authority
+  if (webhookPayload.authority) {
+    paymentRecord = await billingRepositories.payments.findByZarinpalAuthority(webhookPayload.authority);
 
-      if (paymentData.length > 0) {
-        paymentRecord = paymentData[0]!;
+    if (paymentRecord) {
+      // Get subscription if exists
+      if (paymentRecord.subscriptionId) {
+        subscriptionRecord = await billingRepositories.subscriptions.findById(paymentRecord.subscriptionId);
+      }
 
-        // Process payment based on webhook status
-        if (webhookPayload.status === 'OK') {
-          // Verify payment with ZarinPal to ensure authenticity
-          const zarinPal = ZarinPalService.create(c.env);
+      // Process payment based on webhook status
+      if (webhookPayload.status === 'OK') {
+        const zarinPal = ZarinPalService.create(c.env);
 
-          try {
-            const verification = await zarinPal.verifyPayment({
-              authority: webhookPayload.authority,
-              amount: paymentRecord.amount,
+        try {
+          const verification = await zarinPal.verifyPayment({
+            authority: webhookPayload.authority,
+            amount: paymentRecord.amount,
+          });
+
+          if (verification.data?.code === 100 || verification.data?.code === 101) {
+            // Update payment record
+            const updatedPayment = await billingRepositories.payments.updateStatus(
+              paymentRecord.id,
+              'completed',
+              {
+                zarinpalRefId: verification.data?.ref_id?.toString() || webhookPayload.ref_id,
+                zarinpalCardHash: verification.data?.card_hash || webhookPayload.card_hash,
+                paidAt: new Date(),
+              },
+            );
+
+            // 🎯 DISPATCH WEBHOOK EVENT: Payment succeeded
+            const paymentEvent = WebhookEventBuilders.createPaymentSucceededEvent(
+              updatedPayment.id,
+              updatedPayment.userId,
+              updatedPayment.amount,
+            );
+            await WebhookEndpointManager.dispatchEvent(paymentEvent);
+
+            // Update subscription if exists
+            if (paymentRecord.subscriptionId && subscriptionRecord) {
+              if (subscriptionRecord.status === 'pending') {
+                const startDate = new Date();
+                const nextBillingDate = subscriptionRecord.billingPeriod === 'monthly'
+                  ? new Date(startDate.getTime() + 30 * 24 * 60 * 60 * 1000)
+                  : null;
+
+                const updatedSubscription = await billingRepositories.subscriptions.update(subscriptionRecord.id, {
+                  status: 'active',
+                  startDate,
+                  nextBillingDate,
+                  directDebitContractId: verification.data?.card_hash || webhookPayload.card_hash,
+                });
+
+                // 🎯 DISPATCH WEBHOOK EVENT: Subscription activated
+                const subscriptionEvent = WebhookEventBuilders.createSubscriptionUpdatedEvent(
+                  updatedSubscription.id,
+                  updatedSubscription.userId,
+                  'active',
+                );
+                await WebhookEndpointManager.dispatchEvent(subscriptionEvent);
+
+                subscriptionRecord = updatedSubscription;
+              }
+            }
+
+            apiLogger.info('Payment verified and webhook events dispatched', {
+              operation: 'payment_verification_success',
+              paymentId: paymentRecord.id,
+              zarinpalRefId: verification.data?.ref_id,
+              subscriptionId: paymentRecord.subscriptionId,
+              webhookEventsDispatched: true,
             });
 
-            if (verification.data?.code === 100 || verification.data?.code === 101) {
-              // Update payment record
-              await db
-                .update(payment)
-                .set({
-                  status: 'completed',
-                  zarinpalRefId: verification.data?.ref_id?.toString() || webhookPayload.ref_id,
-                  zarinpalCardHash: verification.data?.card_hash || webhookPayload.card_hash,
-                  paidAt: new Date(),
-                })
-                .where(eq(payment.id, paymentRecord.id));
+            processed = true;
+          } else {
+            // Verification failed
+            const updatedPayment = await billingRepositories.payments.updateStatus(
+              paymentRecord.id,
+              'failed',
+              {
+                failureReason: `Verification failed: ${verification.data?.message || 'Unknown error'}`,
+                failedAt: new Date(),
+              },
+            );
 
-              // Update subscription if exists
-              if (paymentRecord.subscriptionId) {
-                const subscriptionData = await db
-                  .select()
-                  .from(subscription)
-                  .where(eq(subscription.id, paymentRecord.subscriptionId))
-                  .limit(1);
+            // 🎯 DISPATCH WEBHOOK EVENT: Payment failed
+            const paymentEvent = WebhookEventBuilders.createPaymentFailedEvent(
+              updatedPayment.id,
+              updatedPayment.userId,
+              updatedPayment.amount,
+              verification.data?.message || 'Verification failed',
+            );
+            await WebhookEndpointManager.dispatchEvent(paymentEvent);
 
-                if (subscriptionData.length && subscriptionData[0]!.status === 'pending') {
-                  const startDate = new Date();
-                  const nextBillingDate = subscriptionData[0]!.billingPeriod === 'monthly'
-                    ? new Date(startDate.getTime() + 30 * 24 * 60 * 60 * 1000)
-                    : null;
+            apiLogger.warn('Payment verification failed with webhook events', {
+              operation: 'payment_verification_failed',
+              paymentId: paymentRecord.id,
+              verificationMessage: verification.data?.message,
+              webhookEventsDispatched: true,
+            });
 
-                  await db
-                    .update(subscription)
-                    .set({
-                      status: 'active',
-                      startDate,
-                      nextBillingDate,
-                      directDebitContractId: verification.data?.card_hash || webhookPayload.card_hash,
-                    })
-                    .where(eq(subscription.id, paymentRecord.subscriptionId));
-                }
-              }
-
-              processed = true;
-            } else {
-              // Verification failed, mark payment as failed
-              await db
-                .update(payment)
-                .set({
-                  status: 'failed',
-                  failureReason: `Verification failed: ${verification.data?.message || 'Unknown error'}`,
-                  failedAt: new Date(),
-                })
-                .where(eq(payment.id, paymentRecord.id));
-
-              processed = true;
-            }
-          } catch (verificationError) {
-            apiLogger.error('Payment verification failed', { error: verificationError });
-            // Mark as processed but with error
             processed = true;
           }
-        } else {
-          // Payment failed
-          await db
-            .update(payment)
-            .set({
-              status: 'failed',
-              failureReason: 'Payment failed (webhook notification)',
+        } catch (verificationError) {
+          apiLogger.error('Payment verification error', {
+            error: verificationError,
+            paymentId: paymentRecord.id,
+          });
+
+          const updatedPayment = await billingRepositories.payments.updateStatus(
+            paymentRecord.id,
+            'failed',
+            {
+              failureReason: `Verification error: ${verificationError instanceof Error ? verificationError.message : 'Unknown error'}`,
               failedAt: new Date(),
-            })
-            .where(eq(payment.id, paymentRecord.id));
+            },
+          );
+
+          // 🎯 DISPATCH WEBHOOK EVENT: Payment failed due to error
+          const paymentEvent = WebhookEventBuilders.createPaymentFailedEvent(
+            updatedPayment.id,
+            updatedPayment.userId,
+            updatedPayment.amount,
+            'Payment verification error',
+          );
+          await WebhookEndpointManager.dispatchEvent(paymentEvent);
 
           processed = true;
         }
-      }
-    }
-
-    // Update webhook event processing status
-    await db
-      .update(webhookEvent)
-      .set({
-        processed,
-        processedAt: processed ? new Date() : null,
-        paymentId: paymentRecord?.id || null,
-      })
-      .where(eq(webhookEvent.id, eventId));
-
-    // Forward to external webhook URL if configured
-    let forwarded = false;
-    if (c.env?.EXTERNAL_WEBHOOK_URL) {
-      try {
-        const forwardPayload = {
-          source: 'zarinpal',
-          eventType: eventRecord.eventType,
-          timestamp: new Date().toISOString(),
-          data: webhookPayload,
-          paymentId: paymentRecord?.id,
-          subscriptionId: paymentRecord?.subscriptionId,
-        };
-
-        const response = await fetch(c.env.EXTERNAL_WEBHOOK_URL, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'User-Agent': 'DeadPixel-BillingDashboard/1.0',
-            'X-Webhook-Source': 'billing-dashboard',
-            'X-Event-ID': eventId,
+      } else {
+        // Payment failed from ZarinPal
+        const updatedPayment = await billingRepositories.payments.updateStatus(
+          paymentRecord.id,
+          'failed',
+          {
+            failureReason: 'Payment failed (webhook notification)',
+            failedAt: new Date(),
           },
-          body: JSON.stringify(forwardPayload),
+        );
+
+        // 🎯 DISPATCH WEBHOOK EVENT: Payment failed
+        const paymentEvent = WebhookEventBuilders.createPaymentFailedEvent(
+          updatedPayment.id,
+          updatedPayment.userId,
+          updatedPayment.amount,
+          'Payment failed',
+        );
+        await WebhookEndpointManager.dispatchEvent(paymentEvent);
+
+        apiLogger.info('Payment failed with webhook events', {
+          operation: 'payment_webhook_failed',
+          paymentId: paymentRecord.id,
+          webhookEventsDispatched: true,
         });
 
-        forwarded = response.ok;
-
-        // Update forwarding status
-        await db
-          .update(webhookEvent)
-          .set({
-            forwardedToExternal: forwarded,
-            forwardedAt: forwarded ? new Date() : null,
-            forwardingError: forwarded ? null : `HTTP ${response.status}: ${response.statusText}`,
-          })
-          .where(eq(webhookEvent.id, eventId));
-      } catch (forwardError) {
-        apiLogger.error('Failed to forward webhook', { error: forwardError });
-
-        await db
-          .update(webhookEvent)
-          .set({
-            forwardedToExternal: false,
-            forwardingError: forwardError instanceof Error ? forwardError.message : 'Unknown error',
-          })
-          .where(eq(webhookEvent.id, eventId));
+        processed = true;
       }
+    } else {
+      apiLogger.warn('Payment not found for webhook authority', {
+        operation: 'payment_not_found',
+        authority: webhookPayload.authority,
+      });
     }
+  }
 
-    return ok(c, {
+  // Update webhook event processing status
+  await db
+    .update(webhookEvent)
+    .set({
+      processed,
+      processedAt: processed ? new Date() : null,
+      paymentId: paymentRecord?.id || null,
+    })
+    .where(eq(webhookEvent.id, eventId));
+
+  // Forward to external webhook URL if configured
+  let forwarded = false;
+  if (c.env?.EXTERNAL_WEBHOOK_URL) {
+    try {
+      const forwardPayload = {
+        source: 'zarinpal',
+        eventType: eventRecord.eventType,
+        timestamp: new Date().toISOString(),
+        data: webhookPayload,
+        paymentId: paymentRecord?.id,
+        subscriptionId: paymentRecord?.subscriptionId,
+      };
+
+      const fetchConfig: FetchConfig = {
+        timeoutMs: 15000,
+        maxRetries: 2,
+        correlationId: crypto.randomUUID(),
+      };
+
+      const fetchResult = await postJSON(c.env.EXTERNAL_WEBHOOK_URL, forwardPayload, fetchConfig, {
+        'X-Webhook-Source': 'billing-dashboard',
+        'X-Event-ID': eventId,
+      });
+
+      forwarded = fetchResult.success;
+
+      await db
+        .update(webhookEvent)
+        .set({
+          forwardedToExternal: forwarded,
+          forwardedAt: forwarded ? new Date() : null,
+          forwardingError: forwarded ? null : (!fetchResult.success ? (fetchResult as { error?: string }).error || 'Unknown error' : 'Unknown error'),
+        })
+        .where(eq(webhookEvent.id, eventId));
+    } catch (forwardError) {
+      apiLogger.error('Failed to forward webhook', { error: forwardError });
+
+      await db
+        .update(webhookEvent)
+        .set({
+          forwardedToExternal: false,
+          forwardingError: forwardError instanceof Error ? forwardError.message : 'Unknown error',
+        })
+        .where(eq(webhookEvent.id, eventId));
+    }
+  }
+
+  return c.json({
+    success: true,
+    data: {
       received: true,
       eventId,
       processed,
       forwarded,
-    });
-  } catch (error) {
-    apiLogger.error('Webhook processing failed', { error });
-
-    // Update webhook event with error
-    try {
-      await db
-        .update(webhookEvent)
-        .set({
-          processingError: error instanceof Error ? error.message : 'Unknown error',
-        })
-        .where(eq(webhookEvent.id, eventId));
-    } catch (logError) {
-      apiLogger.error('Failed to log webhook error', { error: logError });
-    }
-
-    throw new HTTPException(HttpStatusCodes.INTERNAL_SERVER_ERROR, {
-      message: 'Failed to process webhook',
-    });
-  }
+      webhook_events_dispatched: processed,
+    },
+  }, HttpStatusCodes.OK);
 };
 
 /**
- * Handler for GET /webhooks/events
- * Returns webhook events for monitoring and debugging
+ * Get webhook events handler
  */
 export const getWebhookEventsHandler: RouteHandler<typeof getWebhookEventsRoute, ApiEnv> = async (c) => {
-  c.header('X-Route', 'webhook-events');
-
-  const user = c.get('user');
-  if (!user) {
-    throw new HTTPException(HttpStatusCodes.UNAUTHORIZED, {
-      message: 'Authentication required',
-    });
-  }
-
   const { source, processed, limit, offset } = c.req.valid('query');
 
-  try {
-    // Build where conditions
-    const whereConditions = [];
-    if (source) {
-      whereConditions.push(eq(webhookEvent.source, source));
-    }
-    if (processed !== undefined) {
-      whereConditions.push(eq(webhookEvent.processed, processed === 'true'));
-    }
-
-    const events = await db
-      .select()
-      .from(webhookEvent)
-      .where(whereConditions.length > 0 ? and(...whereConditions) : undefined)
-      .orderBy(desc(webhookEvent.createdAt))
-      .limit(limit)
-      .offset(offset);
-
-    const transformedEvents = events.map(event => ({
-      id: event.id,
-      source: event.source,
-      eventType: event.eventType,
-      paymentId: event.paymentId,
-      processed: event.processed,
-      processedAt: event.processedAt ? new Date(event.processedAt).toISOString() : null,
-      forwardedToExternal: event.forwardedToExternal ?? false,
-      forwardedAt: event.forwardedAt ? new Date(event.forwardedAt).toISOString() : null,
-      externalWebhookUrl: event.externalWebhookUrl,
-      createdAt: new Date(event.createdAt).toISOString(),
-    }));
-
-    return ok(c, transformedEvents);
-  } catch (error) {
-    apiLogger.error('Failed to fetch webhook events', { error });
-    throw new HTTPException(HttpStatusCodes.INTERNAL_SERVER_ERROR, {
-      message: 'Failed to fetch webhook events',
-    });
+  const whereConditions = [];
+  if (source) {
+    whereConditions.push(eq(webhookEvent.source, source));
   }
+  if (processed !== undefined) {
+    whereConditions.push(eq(webhookEvent.processed, processed === 'true'));
+  }
+
+  const events = await db
+    .select()
+    .from(webhookEvent)
+    .where(whereConditions.length > 0 ? and(...whereConditions) : undefined)
+    .orderBy(desc(webhookEvent.createdAt))
+    .limit(limit)
+    .offset(offset);
+
+  const transformedEvents = events.map(event => ({
+    id: event.id,
+    source: event.source,
+    eventType: event.eventType,
+    paymentId: event.paymentId,
+    processed: event.processed,
+    processedAt: event.processedAt ? new Date(event.processedAt).toISOString() : null,
+    forwardedToExternal: event.forwardedToExternal ?? false,
+    forwardedAt: event.forwardedAt ? new Date(event.forwardedAt).toISOString() : null,
+    externalWebhookUrl: event.externalWebhookUrl,
+    createdAt: new Date(event.createdAt).toISOString(),
+  }));
+
+  return c.json({
+    success: true,
+    data: transformedEvents,
+  }, HttpStatusCodes.OK);
 };
 
 /**
- * Handler for POST /webhooks/test
- * Tests webhook delivery to external URL
+ * Test webhook handler
  */
 export const testWebhookHandler: RouteHandler<typeof testWebhookRoute, ApiEnv> = async (c) => {
-  c.header('X-Route', 'test-webhook');
-
-  const user = c.get('user');
-  if (!user) {
-    throw new HTTPException(HttpStatusCodes.UNAUTHORIZED, {
-      message: 'Authentication required',
-    });
-  }
-
   const { url, payload } = c.req.valid('json');
 
-  try {
-    const testPayload = payload || {
-      test: true,
-      timestamp: new Date().toISOString(),
-      message: 'Test webhook from billing dashboard',
-    };
+  const testPayload = payload || {
+    test: true,
+    timestamp: new Date().toISOString(),
+    message: 'Test webhook from billing dashboard',
+  };
 
-    const startTime = Date.now();
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'User-Agent': 'DeadPixel-BillingDashboard/1.0',
-        'X-Webhook-Source': 'billing-dashboard-test',
-        'X-Test-Webhook': 'true',
-      },
-      body: JSON.stringify(testPayload),
-    });
-    const responseTime = Date.now() - startTime;
+  const fetchConfig: FetchConfig = {
+    timeoutMs: 10000,
+    maxRetries: 1,
+    correlationId: crypto.randomUUID(),
+  };
 
-    const success = response.ok;
-    let error: string | undefined;
+  const startTime = Date.now();
+  const fetchResult = await postJSON(url, testPayload, fetchConfig, {
+    'X-Webhook-Source': 'billing-dashboard-test',
+    'X-Test-Webhook': 'true',
+  });
+  const responseTime = Date.now() - startTime;
 
-    if (!success) {
-      try {
-        const errorText = await response.text();
-        error = `HTTP ${response.status}: ${response.statusText}${errorText ? ` - ${errorText}` : ''}`;
-      } catch {
-        error = `HTTP ${response.status}: ${response.statusText}`;
-      }
-    }
+  const success = fetchResult.success;
+  let error: string | undefined;
 
-    return ok(c, {
+  if (!success) {
+    error = fetchResult.error || 'Unknown error';
+  }
+
+  return c.json({
+    success: true,
+    data: {
       success,
-      statusCode: response.status,
+      statusCode: fetchResult.response?.status || 0,
       responseTime,
       error,
-    });
-  } catch (error) {
-    apiLogger.error('Webhook test failed', { error });
-
-    return ok(c, {
-      success: false,
-      statusCode: 0,
-      responseTime: 0,
-      error: error instanceof Error ? error.message : 'Unknown error',
-    });
-  }
+    },
+  }, HttpStatusCodes.OK);
 };

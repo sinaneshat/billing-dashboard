@@ -1,6 +1,7 @@
 @import 'tailwindcss';
 
 @variant dark (&:is(.dark *));
+@variant rtl (&:is([dir="rtl"] *));
 
 @plugin "tailwindcss-animate";
 

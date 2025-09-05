@@ -1,7 +1,7 @@
 import type React from 'react';
 
-import { DashboardHeader } from '@/components/dashboard/dashboard-header';
 import { AppSidebar } from '@/components/dashboard/dashboard-nav';
+import { NavigationHeader } from '@/components/ui/dashboard-header';
 import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar';
 
 export default async function DashboardLayout({
@@ -13,8 +13,8 @@ export default async function DashboardLayout({
     <SidebarProvider>
       <AppSidebar />
       <SidebarInset>
-        <DashboardHeader />
-        <div className="flex flex-1 flex-col gap-6 p-4 pt-0 lg:p-8 lg:pt-0">
+        <NavigationHeader />
+        <div className="flex flex-1 flex-col gap-6 p-4 pt-0 lg:ps-6 lg:pe-6 lg:pt-0 w-full min-w-0">
           {children}
         </div>
       </SidebarInset>

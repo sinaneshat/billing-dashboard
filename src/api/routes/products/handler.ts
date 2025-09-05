@@ -1,13 +1,10 @@
 import type { RouteHandler } from '@hono/zod-openapi';
-import { eq } from 'drizzle-orm';
-import { HTTPException } from 'hono/http-exception';
-import * as HttpStatusCodes from 'stoker/http-status-codes';
 
-import { ok } from '@/api/common/responses';
-import { apiLogger } from '@/api/middleware/hono-logger';
+// import * as HttpStatusCodes from 'stoker/http-status-codes'; // Unused
+import { createHandler, Responses } from '@/api/core';
+import { billingRepositories } from '@/api/repositories/billing-repositories';
 import type { ApiEnv } from '@/api/types';
-import { db } from '@/db';
-import { product } from '@/db/tables/billing';
+import type { ProductMetadata } from '@/api/types/metadata';
 import { currencyConverter } from '@/lib/services/currency-converter';
 
 import type { getProductsRoute } from './route';
@@ -16,25 +13,21 @@ import type { getProductsRoute } from './route';
  * Handler for GET /products endpoint
  * Returns all active products with live Rial pricing for ZarinPal compatibility
  * Database stores USD prices, API converts to Iranian Rials
- * @param c - Hono context
- * @returns List of active products with live currency conversion
+ * Using factory pattern for consistent authentication and error handling
  */
-export const getProductsHandler: RouteHandler<typeof getProductsRoute, ApiEnv> = async (c) => {
-  c.header('X-Route', 'products');
-
-  try {
-    // Get raw products from database (stored in USD)
-    const rawProducts = await db
-      .select()
-      .from(product)
-      .where(eq(product.isActive, true))
-      .orderBy(product.createdAt);
+export const getProductsHandler: RouteHandler<typeof getProductsRoute, ApiEnv> = createHandler(
+  {
+    operationName: 'getProducts',
+  },
+  async (c) => {
+    // Get raw products from database (stored in USD) using repository
+    const rawProducts = await billingRepositories.products.findActive();
 
     // Convert USD prices to Iranian Rials for ZarinPal compatibility
     const enhancedProducts = await Promise.all(
       rawProducts.map(async (prod) => {
-        const metadata = prod.metadata as Record<string, unknown>;
-        const usdPrice = prod.price; // Database now stores USD prices
+        const metadata = prod.metadata as ProductMetadata;
+        const usdPrice = prod.price; // Database stores USD prices
 
         let pricingInfo;
 
@@ -74,17 +67,6 @@ export const getProductsHandler: RouteHandler<typeof getProductsRoute, ApiEnv> =
       }),
     );
 
-    apiLogger.info('Products fetched with live USD to Rial conversion', {
-      count: enhancedProducts.length,
-      exchangeRate: enhancedProducts[0]?.metadata?.pricing?.exchangeRate,
-    });
-
-    return ok(c, enhancedProducts, undefined, HttpStatusCodes.OK);
-  } catch (error) {
-    apiLogger.error('Failed to fetch products with currency conversion', { error });
-
-    throw new HTTPException(HttpStatusCodes.INTERNAL_SERVER_ERROR, {
-      message: 'Failed to fetch products',
-    });
-  }
-};
+    return Responses.ok(c, enhancedProducts);
+  },
+);

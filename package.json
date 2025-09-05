@@ -121,7 +121,13 @@
     "blog:add-to-db:preview": "LAST_BLOG=$(ls -t ./src/tools/blog-generator/output/*.sql | head -1) && npx wrangler d1 execute DB --remote --preview --file=$LAST_BLOG",
     "blog:add-to-db:prod": "LAST_BLOG=$(ls -t ./src/tools/blog-generator/output/*.sql | head -1) && npx wrangler d1 execute DB --remote --file=$LAST_BLOG",
     "prepare": "husky",
-    "knip": "knip"
+    "knip": "knip",
+    "i18n:validate": "tsx scripts/validate-translations.ts",
+    "i18n:check-unused": "tsx scripts/find-unused-keys.ts",
+    "i18n:find-hardcoded": "grep -r --include='*.tsx' --include='*.ts' --exclude-dir=node_modules --exclude-dir=.next '\"[^\"]*[A-Za-z][^\"]*\"' src/components/ src/app/ | grep -v 't(' | grep -v 'useTranslations' | head -20",
+    "i18n:check-missing": "tsx scripts/check-missing-translations.ts",
+    "i18n:full-check": "npm run i18n:validate && npm run i18n:check-unused && npm run i18n:find-hardcoded && npm run i18n:check-missing",
+    "i18n:coverage": "tsx scripts/translation-coverage.ts"
   },
   "dependencies": {
     "@aws-sdk/client-ses": "^3.864.0",

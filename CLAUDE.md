@@ -63,10 +63,9 @@ This project uses SPARC (Specification, Pseudocode, Architecture, Refinement, Co
 - `npx claude-flow sparc concurrent <mode> "<tasks-file>"` - Multi-task processing
 
 ### Build Commands
-- `npm run build` - Build project
 - `npm run test` - Run tests
-- `npm run lint` - Linting
-- `npm run typecheck` - Type checking
+- `npm run lint:fix` - Linting
+- `npm run check-types` - Type checking
 - `npm run cf-typegen` - Generate CloudflareEnv types after updating .env/.dev.vars
 
 ## SPARC Workflow Phases

@@ -15,9 +15,9 @@ export default function AuthLayout({ children }: AuthLayoutProps) {
       {/* Animated background elements */}
       <div className="fixed inset-0 -z-10">
         {/* Primary gradient orb */}
-        <div className="absolute left-1/4 top-1/4 h-96 w-96 animate-pulse rounded-full bg-primary/5 blur-3xl" />
+        <div className="absolute start-1/4 top-1/4 h-96 w-96 animate-pulse rounded-full bg-primary/5 blur-3xl" />
         {/* Secondary gradient orb */}
-        <div className="absolute right-1/4 bottom-1/4 h-80 w-80 animate-pulse rounded-full bg-chart-2/5 blur-3xl delay-1000" />
+        <div className="absolute end-1/4 bottom-1/4 h-80 w-80 animate-pulse rounded-full bg-chart-2/5 blur-3xl delay-1000" />
         {/* Subtle grid pattern */}
         <div className="absolute inset-0 bg-grid-pattern opacity-[0.02] dark:opacity-[0.05]" />
       </div>
