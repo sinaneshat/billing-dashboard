@@ -11,6 +11,8 @@ import {
   TrendingUp,
   Wallet,
 } from 'lucide-react';
+import type { AppRouterInstance } from 'next/dist/shared/lib/app-router-context.shared-runtime';
+import { useRouter } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
 import { memo, useMemo } from 'react';
 
@@ -33,7 +35,7 @@ import {
 import { FadeIn } from '@/components/ui/motion';
 import { Skeleton } from '@/components/ui/skeleton';
 import { PaymentStatusBadge, SubscriptionStatusBadge } from '@/components/ui/status-badge';
-import { cn, formatTomanCurrency } from '@/lib';
+import { cn, formatTomanCurrency, showSuccessToast } from '@/lib';
 
 // Types for customer billing overview
 type CustomerSubscription = {
@@ -180,13 +182,13 @@ function BillingSummaryCards({ subscription, recentPayments, paymentMethods: _pa
     const diffDays = Math.ceil((date.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
 
     if (diffDays <= 0)
-      return 'Overdue';
+      return t('status.overdue');
     if (diffDays === 1)
-      return 'Tomorrow';
+      return t('time.tomorrow');
     if (diffDays <= 7)
       return `${diffDays} days`;
     return date.toLocaleDateString(locale, { month: 'short', day: 'numeric' });
-  }, [subscription?.nextBillingDate, locale]);
+  }, [subscription?.nextBillingDate, locale, t]);
 
   // Count active and primary payment methods
 
@@ -263,7 +265,7 @@ function BillingSummaryCards({ subscription, recentPayments, paymentMethods: _pa
 }
 
 // Current subscription overview
-function CurrentSubscriptionOverview({ subscription, locale, t }: { subscription: CustomerSubscription | null; locale: string; t: (key: string) => string }) {
+function CurrentSubscriptionOverview({ subscription, locale, t, router }: { subscription: CustomerSubscription | null; locale: string; t: (key: string) => string; router: AppRouterInstance }) {
   if (!subscription) {
     return (
       <Card className="h-full flex flex-col">
@@ -276,7 +278,9 @@ function CurrentSubscriptionOverview({ subscription, locale, t }: { subscription
             <p className="text-muted-foreground mb-4">
               {t('billing.noActiveSubscription')}
             </p>
-            <Button>{t('billing.viewPlans')}</Button>
+            <Button onClick={() => router.push('/dashboard/billing/plans')}>
+              {t('billing.viewPlans')}
+            </Button>
           </div>
         </CardContent>
       </Card>
@@ -298,7 +302,7 @@ function CurrentSubscriptionOverview({ subscription, locale, t }: { subscription
         <div className="flex items-start justify-between">
           <div>
             <CardTitle className="flex items-center gap-2">
-              {subscription.product?.name || 'Unknown Plan'}
+              {subscription.product?.name || t('subscription.unknownPlan')}
               <SubscriptionStatusBadge status={subscription.status} size="sm" />
             </CardTitle>
             {subscription.product?.description && (
@@ -307,7 +311,11 @@ function CurrentSubscriptionOverview({ subscription, locale, t }: { subscription
               </CardDescription>
             )}
           </div>
-          <Button variant="outline" size="sm">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => router.push('/dashboard/billing/subscriptions')}
+          >
             <Settings className="h-4 w-4 me-2" />
             {t('actions.manage')}
           </Button>
@@ -324,7 +332,7 @@ function CurrentSubscriptionOverview({ subscription, locale, t }: { subscription
             {isActive && (
               <div className="text-end">
                 <p className="text-sm text-muted-foreground">{t('billing.nextBilling')}</p>
-                <p className="font-medium">{nextBillingDate || 'TBD'}</p>
+                <p className="font-medium">{nextBillingDate || t('subscription.toBeDecided')}</p>
               </div>
             )}
           </div>
@@ -346,7 +354,7 @@ function CurrentSubscriptionOverview({ subscription, locale, t }: { subscription
 }
 
 // Recent payment history
-function RecentPaymentHistory({ payments, locale, t }: { payments: CustomerPayment[]; locale: string; t: (key: string) => string }) {
+function RecentPaymentHistory({ payments, locale, t, router }: { payments: CustomerPayment[]; locale: string; t: (key: string) => string; router: AppRouterInstance }) {
   if (payments.length === 0) {
     return (
       <Card className="h-full flex flex-col">
@@ -359,7 +367,7 @@ function RecentPaymentHistory({ payments, locale, t }: { payments: CustomerPayme
             <div className="mx-auto w-16 h-16 bg-muted rounded-full flex items-center justify-center mb-4">
               <FileText className="h-6 w-6 text-muted-foreground" />
             </div>
-            <p className="text-muted-foreground">No payment history found</p>
+            <p className="text-muted-foreground">{t('states.empty.payments')}</p>
           </div>
         </CardContent>
       </Card>
@@ -374,7 +382,11 @@ function RecentPaymentHistory({ payments, locale, t }: { payments: CustomerPayme
             <CardTitle>{t('billing.paymentHistory')}</CardTitle>
             <CardDescription>{t('billing.recentTransactions')}</CardDescription>
           </div>
-          <Button variant="outline" size="sm">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => router.push('/dashboard/billing/payments')}
+          >
             {t('actions.viewAll')}
           </Button>
         </div>
@@ -410,7 +422,7 @@ function RecentPaymentHistory({ payments, locale, t }: { payments: CustomerPayme
 }
 
 // Payment methods summary
-function PaymentMethodsSummary({ paymentMethods, t }: { paymentMethods: CustomerPaymentMethod[]; t: (key: string) => string }) {
+function PaymentMethodsSummary({ paymentMethods, t, router }: { paymentMethods: CustomerPaymentMethod[]; t: (key: string) => string; router: AppRouterInstance }) {
   const primaryMethod = paymentMethods.find(method => method.isPrimary);
   const activeMethodsCount = paymentMethods.filter(method => method.isActive).length;
 
@@ -422,7 +434,11 @@ function PaymentMethodsSummary({ paymentMethods, t }: { paymentMethods: Customer
             <CardTitle>{t('billing.paymentMethods')}</CardTitle>
             <CardDescription>{t('billing.manageBillingInfo')}</CardDescription>
           </div>
-          <Button variant="outline" size="sm">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => router.push('/dashboard/billing/methods')}
+          >
             <CreditCard className="h-4 w-4 me-2" />
             {t('actions.manage')}
           </Button>
@@ -437,7 +453,12 @@ function PaymentMethodsSummary({ paymentMethods, t }: { paymentMethods: Customer
                     <CreditCard className="h-6 w-6 text-muted-foreground" />
                   </div>
                   <p className="text-muted-foreground mb-4">{t('billing.noPaymentMethods')}</p>
-                  <Button size="sm">{t('actions.addPaymentMethod')}</Button>
+                  <Button
+                    size="sm"
+                    onClick={() => router.push('/dashboard/billing/methods')}
+                  >
+                    {t('actions.addPaymentMethod')}
+                  </Button>
                 </div>
               </div>
             )
@@ -464,7 +485,14 @@ function PaymentMethodsSummary({ paymentMethods, t }: { paymentMethods: Customer
                     {' '}
                     {activeMethodsCount === 1 ? t('billing.activeMethod') : t('billing.activeMethods')}
                   </span>
-                  <Button variant="ghost" size="sm" className="text-xs h-8">{t('actions.viewAll')}</Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-xs h-8"
+                    onClick={() => router.push('/dashboard/billing/methods')}
+                  >
+                    {t('actions.viewAll')}
+                  </Button>
                 </div>
               </div>
             )}
@@ -508,7 +536,21 @@ function UpcomingBillsSection({ subscription, t }: { subscription: CustomerSubsc
 }
 
 // Quick actions panel
-function QuickActions({ subscription, t }: { subscription: CustomerSubscription | null; t: (key: string) => string }) {
+function QuickActions({
+  subscription,
+  t,
+  onChangePlan,
+  onUpdatePayment,
+  onDownloadInvoice,
+  onBillingSettings,
+}: {
+  subscription: CustomerSubscription | null;
+  t: (key: string) => string;
+  onChangePlan: () => void;
+  onUpdatePayment: () => void;
+  onDownloadInvoice: () => void;
+  onBillingSettings: () => void;
+}) {
   const actions = [
     {
       label: t('actions.changePlan'),
@@ -516,6 +558,7 @@ function QuickActions({ subscription, t }: { subscription: CustomerSubscription 
       icon: Package,
       variant: 'default' as const,
       disabled: !subscription,
+      onClick: onChangePlan,
     },
     {
       label: t('actions.updatePayment'),
@@ -523,6 +566,7 @@ function QuickActions({ subscription, t }: { subscription: CustomerSubscription 
       icon: CreditCard,
       variant: 'outline' as const,
       disabled: false,
+      onClick: onUpdatePayment,
     },
     {
       label: t('actions.downloadInvoice'),
@@ -530,6 +574,7 @@ function QuickActions({ subscription, t }: { subscription: CustomerSubscription 
       icon: Download,
       variant: 'outline' as const,
       disabled: false,
+      onClick: onDownloadInvoice,
     },
     {
       label: t('actions.billingSettings'),
@@ -537,6 +582,7 @@ function QuickActions({ subscription, t }: { subscription: CustomerSubscription 
       icon: Settings,
       variant: 'outline' as const,
       disabled: false,
+      onClick: onBillingSettings,
     },
   ];
 
@@ -554,6 +600,7 @@ function QuickActions({ subscription, t }: { subscription: CustomerSubscription 
             size="sm"
             className="w-full justify-start p-3 h-auto"
             disabled={action.disabled}
+            onClick={action.onClick}
           >
             <action.icon className="h-4 w-4 shrink-0" />
             <div className="flex flex-col items-start text-start flex-1 overflow-hidden ms-2">
@@ -576,6 +623,33 @@ export const CustomerBillingOverview = memo(({
 }: CustomerBillingOverviewProps) => {
   const locale = useLocale();
   const t = useTranslations();
+  const router = useRouter();
+
+  // Handler functions for quick actions
+  const handleChangePlan = () => {
+    if (subscription) {
+      router.push('/dashboard/billing/plans');
+    } else {
+      showSuccessToast(t('subscription.noActive'));
+    }
+  };
+
+  const handleUpdatePayment = () => {
+    router.push('/dashboard/billing/methods');
+  };
+
+  const handleDownloadInvoice = () => {
+    if (subscription) {
+      // In a real app, this would download the latest invoice
+      showSuccessToast(t('actions.downloadInvoice'));
+    } else {
+      showSuccessToast(t('subscription.noActive'));
+    }
+  };
+
+  const handleBillingSettings = () => {
+    router.push('/dashboard/billing');
+  };
 
   if (isLoading) {
     return (
@@ -611,14 +685,21 @@ export const CustomerBillingOverview = memo(({
           layout="main-sidebar"
           className="lg:grid-cols-[2fr_1fr] w-full"
         >
-          <CurrentSubscriptionOverview subscription={subscription} locale={locale} t={t} />
-          <QuickActions subscription={subscription} t={t} />
+          <CurrentSubscriptionOverview subscription={subscription} locale={locale} t={t} router={router} />
+          <QuickActions
+            subscription={subscription}
+            t={t}
+            onChangePlan={handleChangePlan}
+            onUpdatePayment={handleUpdatePayment}
+            onDownloadInvoice={handleDownloadInvoice}
+            onBillingSettings={handleBillingSettings}
+          />
         </DashboardContentGrid>
 
         {/* Payment History, Methods, and Upcoming Bills */}
         <DashboardThreeColumnGrid className="w-full">
-          <RecentPaymentHistory payments={recentPayments} locale={locale} t={t} />
-          <PaymentMethodsSummary paymentMethods={paymentMethods} t={t} />
+          <RecentPaymentHistory payments={recentPayments} locale={locale} t={t} router={router} />
+          <PaymentMethodsSummary paymentMethods={paymentMethods} t={t} router={router} />
           <UpcomingBillsSection subscription={subscription} t={t} />
         </DashboardThreeColumnGrid>
       </DashboardSection>

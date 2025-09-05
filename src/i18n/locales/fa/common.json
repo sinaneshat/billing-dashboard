@@ -312,6 +312,7 @@
   "billing": {
     "title": "صورتحساب",
     "subtitle": "اشتراک و اطلاعات صورتحساب خود را مدیریت کنید",
+    "paymentSuccess": "نرخ موفقیت پرداخت",
     "currentPlan": "طرح فعلی",
     "nextBilling": "تاریخ صورتحساب بعدی",
     "paymentMethod": "روش پرداخت",
@@ -341,7 +342,7 @@
     "paymentHistoryEmptyDescription": "تراکنش‌های پرداخت شما پس از اولین خرید اینجا نمایش داده می‌شود",
     "upcomingBillsEmpty": "صورتحساب آینده‌ای وجود ندارد",
     "upcomingBillsEmptyDescription": "همه پرداخت‌ها به‌روز هستند",
-    "paymentSuccess": "پرداخت موفق",
+    "paymentSuccessful": "پرداخت موفق",
     "subscriptionBilling": "صورتحساب اشتراک",
     "subscriptionBillingDescription": "تاریخچه صورتحساب اشتراک و پرداخت‌های خودکار خود را مشاهده کنید",
     "subscriptionsTitle": "اشتراک‌ها",
@@ -648,6 +649,37 @@
     "title": "راه‌اندازی برداشت مستقیم",
     "subtitle": "پرداخت‌های خودکار را با زرین‌پال راه‌اندازی کنید",
     "contractSetup": "راه‌اندازی قرارداد برداشت مستقیم",
+    "setupDirectDebit": "راه‌اندازی برداشت مستقیم",
+    "setupDescription": "صورتحساب خودکار را با سیستم امن برداشت مستقیم زرین‌پال راه‌اندازی کنید",
+    "secureTitle": "برداشت مستقیم امن",
+    "secureDescription": "این فرآیند قراردادی امن با زرین‌پال ایجاد می‌کند که امکان صورتحساب خودکار برای اشتراک‌های شما را فراهم می‌آورد. اطلاعات بانکی شما مستقیماً توسط بانک و زرین‌پال مدیریت می‌شود.",
+    "settingUp": "در حال راه‌اندازی...",
+    "contractCreatedSuccess": "قرارداد با موفقیت ایجاد شد",
+    "selectBank": "بانک خود را انتخاب کنید",
+    "continueToBank": "ادامه به بانک",
+    "redirectingToBank": "در حال انتقال به بانک",
+    "redirectingTitle": "در حال انتقال به بانک",
+    "redirectingDescription": "لطفاً منتظر بمانید تا شما را به وب‌سایت امن بانک برای امضای قرارداد هدایت کنیم.",
+    "redirectingMessage": "لطفاً منتظر بمانید تا شما را به وب‌سایت امن بانک برای تکمیل فرآیند امضای قرارداد هدایت کنیم.",
+    "mobileHelperText": "شماره موبایل ایرانی (برای امضای قرارداد ضروری است)",
+    "nationalIdHelperText": "اختیاری اما برای امنیت بیشتر توصیه می‌شود",
+    "contractTermsTitle": "شرایط قرارداد",
+    "duration": "مدت زمان",
+    "durationValue": "۱ سال (قابل تمدید)",
+    "dailyTransactionLimit": "محدودیت تراکنش روزانه",
+    "dailyTransactionValue": "۱۰ تراکنش",
+    "monthlyTransactionLimit": "محدودیت تراکنش ماهانه",
+    "monthlyTransactionValue": "۱۰۰ تراکنش",
+    "maximumAmount": "حداکثر مبلغ",
+    "perTransaction": "در هر تراکنش",
+    "setupContract": "راه‌اندازی قرارداد",
+    "bankSelectionDescription": "لطفاً بانک خود را برای امضای قرارداد برداشت مستقیم انتخاب کنید. شما به وب‌سایت امن بانک هدایت خواهید شد.",
+    "successMessages": {
+      "contractInitiated": "راه‌اندازی قرارداد آغاز شد! لطفاً بانک خود را انتخاب کنید.",
+      "redirectingToBank": "در حال انتقال به {bankName} برای امضای قرارداد..."
+    },
+    "mobileNumberLabel": "شماره موبایل",
+    "nationalIdLabel": "کد ملی",
     "bankAccount": "حساب بانکی",
     "accountNumber": "شماره حساب",
     "accountHolderName": "نام صاحب حساب",
@@ -659,7 +691,6 @@
     "description": "توضیحات پرداخت",
     "terms": "شرایط و ضوابط",
     "agreeToTerms": "با شرایط و ضوابط برداشت مستقیم موافقم",
-    "setupContract": "راه‌اندازی قرارداد",
     "initiateContract": "شروع برداشت مستقیم",
     "contractStatus": "وضعیت قرارداد",
     "contractId": "شناسه قرارداد",
@@ -694,7 +725,7 @@
         "description": "اشتراک‌های شما به طور خودکار با استفاده از قرارداد امضا شده تمدید می‌شوند"
       }
     },
-    "contractTermsTitle": "شرایط و محدودیت‌های قرارداد",
+    "contractTermsAndLimits": "شرایط و محدودیت‌های قرارداد",
     "contractTerms": {
       "contractDuration": "مدت قرارداد",
       "contractDurationValue": "۱ سال (قابل تمدید خودکار)",
@@ -850,14 +881,15 @@
       "please_wait": "لطفاً منتظر بمانید تا داده‌های شما بارگذاری شود...",
       "upcoming_bills": "در حال بارگذاری صورتحساب‌های آینده...",
       "payment_history": "در حال بارگذاری تاریخچه پرداخت‌ها...",
-      "payment_methods": "در حال بارگذاری روش‌های پرداخت..."
+      "payment_methods": "در حال بارگذاری روش‌های پرداخت...",
+      "paymentHistory": "در حال بارگذاری تاریخچه پرداخت‌ها..."
     },
     "empty": {
       "default": "داده‌ای یافت نشد",
       "description": "در حال حاضر داده‌ای برای نمایش وجود ندارد.",
       "subscriptions": "اشتراکی یافت نشد",
       "subscriptionsDescription": "هنوز اشتراک فعالی ندارید. طرح‌های ما را مرور کنید تا شروع کنید.",
-      "payments": "تاریخچه پرداختی وجود ندارد",
+      "payments": "تاریخچه پرداختی یافت نشد",
       "paymentsDescription": "تراکنش‌های پرداخت شما پس از اولین خرید اینجا نمایش داده می‌شود.",
       "plans": "طرحی در دسترس نیست",
       "plansDescription": "در حال حاضر هیچ طرح اشتراکی در دسترس نیست. لطفاً بعداً بررسی کنید.",
@@ -887,7 +919,9 @@
       "serverErrorDescription": "خطای داخلی سرور رخ داد. لطفاً بعداً دوباره تلاش کنید.",
       "boundary": "مشکلی رخ داده است",
       "boundaryDescription": "خطای غیرمنتظره‌ای هنگام بارگذاری این محتوا رخ داد.",
-      "retry": "تلاش مجدد"
+      "retry": "تلاش مجدد",
+      "loadPaymentHistory": "بارگذاری تاریخچه پرداخت‌ها ناموفق بود",
+      "loadPaymentHistoryDescription": "خطایی در بارگیری تاریخچه صورتحساب شما رخ داد. لطفاً دوباره تلاش کنید."
     },
     "success": {
       "default": "موفق",
@@ -962,12 +996,16 @@
     "nextPage": "برو به صفحه بعدی",
     "selectAll": "انتخاب همه",
     "selectRow": "انتخاب ردیف",
-    "selectAllRows": "انتخاب همه ردیف‌ها",
     "toggleSidebar": "تغییر نوار کناری",
     "openFiltersMenu": "باز کردن منوی فیلترها",
     "notSetAsDefault": "به عنوان پیش‌فرض تنظیم نشده",
     "continueToBankSigning": "ادامه برای امضای قرارداد با بانک",
     "settingUpContract": "در حال راه‌اندازی قرارداد...",
     "setupDirectDebitContract": "راه‌اندازی قرارداد برداشت مستقیم"
+  },
+  "networkStatus": {
+    "offline": "آفلاین",
+    "timeout": "انقضای زمان",
+    "connectionError": "خطای اتصال"
   }
 }

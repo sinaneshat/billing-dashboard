@@ -548,21 +548,21 @@ export function createSortableHeader(title: string) {
 }
 
 // Selection column helper
-export function createSelectionColumn<TData>(): ColumnDef<TData> {
+export function createSelectionColumn<TData>(t: (key: string) => string): ColumnDef<TData> {
   return {
     id: "select",
     header: ({ table }) => (
       <Checkbox
         checked={table.getIsAllPageRowsSelected()}
         onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
-        aria-label="Select all"
+        aria-label={t('accessibility.selectAll')}
       />
     ),
     cell: ({ row }) => (
       <Checkbox
         checked={row.getIsSelected()}
         onCheckedChange={(value) => row.toggleSelected(!!value)}
-        aria-label="Select row"
+        aria-label={t('accessibility.selectRow')}
       />
     ),
     enableSorting: false,

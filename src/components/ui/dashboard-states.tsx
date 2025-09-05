@@ -110,21 +110,21 @@ export function ErrorState({
       icon: WifiOff,
       title: t('states.error.offline'),
       description: t('states.error.offlineDescription'),
-      badge: 'Offline',
+      badge: t('networkStatus.offline'),
       badgeVariant: 'destructive' as const
     },
     timeout: {
       icon: Clock,
       title: t('states.error.timeout'),
       description: t('states.error.timeoutDescription'),
-      badge: 'Timeout',
+      badge: t('networkStatus.timeout'),
       badgeVariant: 'secondary' as const
     },
     connection: {
       icon: Wifi,
       title: t('states.error.network'),
       description: t('states.error.networkDescription'),
-      badge: 'Connection Error',
+      badge: t('networkStatus.connectionError'),
       badgeVariant: 'destructive' as const
     }
   };

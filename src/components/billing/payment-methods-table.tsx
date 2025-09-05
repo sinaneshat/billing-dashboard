@@ -21,6 +21,8 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { FadeIn } from '@/components/ui/motion';
 import { ContractStatusBadge, DefaultBadge } from '@/components/ui/status-badge';
+import { useDeletePaymentMethodMutation, useSetDefaultPaymentMethodMutation } from '@/hooks/mutations/payment-methods';
+import { showErrorToast, showSuccessToast } from '@/lib';
 import { createLocaleFormatters } from '@/lib/i18n/locale-formatters';
 
 type PaymentMethod = {
@@ -41,6 +43,8 @@ type PaymentMethodsTableProps = {
   onTabChange?: (tab: string) => void;
   onFilterChange?: (key: string, value: string) => void;
   selectedItems?: Record<string, boolean>;
+  onViewContract?: (paymentMethodId: string) => void;
+  onManagePermissions?: (paymentMethodId: string) => void;
 };
 
 // Default values to prevent React unstable prop warnings
@@ -53,10 +57,53 @@ export const PaymentMethodsTable = memo(({
   onTabChange,
   onFilterChange,
   selectedItems = defaultSelectedItems,
+  onViewContract,
+  onManagePermissions,
 }: PaymentMethodsTableProps) => {
   const t = useTranslations();
   const locale = useLocale();
   const formatters = createLocaleFormatters(locale);
+
+  // Mutations for payment method actions
+  const deletePaymentMethodMutation = useDeletePaymentMethodMutation();
+  const setDefaultPaymentMethodMutation = useSetDefaultPaymentMethodMutation();
+
+  // Handler functions for dropdown actions
+  const handleViewContract = (paymentMethodId: string) => {
+    if (onViewContract) {
+      onViewContract(paymentMethodId);
+    } else {
+      // Default implementation - could navigate to contract view
+      showSuccessToast(t('paymentMethods.table.actions.viewContract'));
+    }
+  };
+
+  const handleSetAsDefault = async (paymentMethodId: string) => {
+    try {
+      await setDefaultPaymentMethodMutation.mutateAsync({ param: { id: paymentMethodId } });
+      showSuccessToast(t('paymentMethods.successMessages.defaultPaymentMethodUpdated'));
+    } catch {
+      showErrorToast(t('paymentMethods.errorMessages.failedToUpdateDefault'));
+    }
+  };
+
+  const handleManagePermissions = (paymentMethodId: string) => {
+    if (onManagePermissions) {
+      onManagePermissions(paymentMethodId);
+    } else {
+      // Default implementation - could open permissions modal
+      showSuccessToast(t('paymentMethods.table.actions.managePermissions'));
+    }
+  };
+
+  const handleRemoveMethod = async (paymentMethodId: string) => {
+    try {
+      await deletePaymentMethodMutation.mutateAsync({ param: { id: paymentMethodId } });
+      showSuccessToast(t('paymentMethods.successMessages.paymentMethodRemoved'));
+    } catch {
+      showErrorToast(t('paymentMethods.errorMessages.failedToRemove'));
+    }
+  };
 
   // Convert selection format for new DataTable
   const handleSelectionChange: OnChangeFn<RowSelectionState> = (updaterOrValue) => {
@@ -140,14 +187,31 @@ export const PaymentMethodsTable = memo(({
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            <DropdownMenuItem>{t('paymentMethods.table.actions.viewContract')}</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => handleViewContract(row.original.id)}>
+              {t('paymentMethods.table.actions.viewContract')}
+            </DropdownMenuItem>
             {!row.original.isPrimary && (
-              <DropdownMenuItem>{t('paymentMethods.table.actions.setAsDefault')}</DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => handleSetAsDefault(row.original.id)}
+                disabled={setDefaultPaymentMethodMutation.isPending}
+              >
+                {setDefaultPaymentMethodMutation.isPending
+                  ? t('paymentMethods.loadingMessages.setting')
+                  : t('paymentMethods.table.actions.setAsDefault')}
+              </DropdownMenuItem>
             )}
-            <DropdownMenuItem>{t('paymentMethods.table.actions.managePermissions')}</DropdownMenuItem>
-            <DropdownMenuItem variant="destructive">
+            <DropdownMenuItem onClick={() => handleManagePermissions(row.original.id)}>
+              {t('paymentMethods.table.actions.managePermissions')}
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              variant="destructive"
+              onClick={() => handleRemoveMethod(row.original.id)}
+              disabled={deletePaymentMethodMutation.isPending}
+            >
               <Trash2 className="h-4 w-4 me-2" />
-              {t('paymentMethods.table.actions.removeMethod')}
+              {deletePaymentMethodMutation.isPending
+                ? t('paymentMethods.loadingMessages.removingPaymentMethod')
+                : t('paymentMethods.table.actions.removeMethod')}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -223,7 +287,7 @@ export const PaymentMethodsTable = memo(({
     'emptyStateTitle': t('paymentMethods.table.emptyStateTitle'),
     'emptyStateDescription': t('paymentMethods.table.emptyStateDescription'),
     'emptyStateAction': (
-      <Button>
+      <Button onClick={() => showSuccessToast(t('paymentMethods.addPaymentMethod'))}>
         <PlusIcon className="h-4 w-4 me-2" />
         {t('paymentMethods.addPaymentMethod')}
       </Button>
@@ -244,7 +308,7 @@ export const PaymentMethodsTable = memo(({
             {t('paymentMethods.subtitle')}
           </p>
         </div>
-        <Button>
+        <Button onClick={() => showSuccessToast(t('paymentMethods.addPaymentMethod'))}>
           <PlusIcon className="h-4 w-4 me-2" />
           {t('paymentMethods.table.addMethod')}
         </Button>
