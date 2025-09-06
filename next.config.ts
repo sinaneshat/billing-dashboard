@@ -3,7 +3,6 @@ import type { NextConfig } from 'next';
 import createNextIntlPlugin from 'next-intl/plugin';
 
 const nextConfig: NextConfig = {
-
   // Compiler optimizations
   compiler: {
     // Remove console in production
@@ -38,6 +37,14 @@ const nextConfig: NextConfig = {
           {
             key: 'X-Cache-Type',
             value: 'optimized-image',
+          },
+          {
+            key: 'Referrer-Policy',
+            value: 'no-referrer-when-downgrade',
+          },
+          {
+            key: 'Cross-Origin-Resource-Policy',
+            value: 'cross-origin',
           },
         ],
       },
@@ -101,11 +108,11 @@ const nextConfig: NextConfig = {
           },
           {
             key: 'Content-Security-Policy',
-            value: 'default-src \'self\'; script-src \'self\' \'unsafe-inline\' \'unsafe-eval\' challenges.cloudflare.com; style-src \'self\' \'unsafe-inline\'; img-src \'self\' data: https:; font-src \'self\'; connect-src \'self\' https://api.zarinpal.com; frame-src \'none\'; object-src \'none\'; base-uri \'self\'; form-action \'self\';',
+            value: 'default-src \'self\'; script-src \'self\' \'unsafe-inline\' \'unsafe-eval\' challenges.cloudflare.com; style-src \'self\' \'unsafe-inline\'; img-src \'self\' data: https: *.googleusercontent.com; font-src \'self\'; connect-src \'self\' https://api.zarinpal.com; frame-src \'none\'; object-src \'none\'; base-uri \'self\'; form-action \'self\';',
           },
           {
             key: 'Cross-Origin-Embedder-Policy',
-            value: 'require-corp',
+            value: 'credentialless',
           },
           {
             key: 'Cross-Origin-Opener-Policy',
@@ -138,6 +145,26 @@ const nextConfig: NextConfig = {
         protocol: 'http',
         hostname: 'localhost',
         port: '3000',
+      },
+      {
+        protocol: 'https',
+        hostname: 'lh3.googleusercontent.com',
+      },
+      {
+        protocol: 'https',
+        hostname: 'lh4.googleusercontent.com',
+      },
+      {
+        protocol: 'https',
+        hostname: 'lh5.googleusercontent.com',
+      },
+      {
+        protocol: 'https',
+        hostname: 'lh6.googleusercontent.com',
+      },
+      {
+        protocol: 'https',
+        hostname: 'googleusercontent.com',
       },
       {
         protocol: 'https',
