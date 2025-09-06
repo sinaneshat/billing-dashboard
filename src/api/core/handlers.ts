@@ -24,6 +24,7 @@ import { apiLogger } from '@/api/middleware/hono-logger';
 import type { ApiEnv } from '@/api/types';
 import { db } from '@/db';
 
+import { HTTPExceptionFactory } from './http-exceptions';
 import { Responses } from './responses';
 import type { LoggerData } from './schemas';
 import {
@@ -227,9 +228,9 @@ async function validateRequest<
       const result = validateWithSchema(config.validateBody, body);
 
       if (!result.success) {
-        throw new HTTPException(HttpStatusCodes.UNPROCESSABLE_ENTITY, {
+        throw HTTPExceptionFactory.unprocessableEntity({
           message: 'Request body validation failed',
-          cause: { validationErrors: result.errors },
+          details: { validationErrors: result.errors },
         });
       }
 
@@ -238,9 +239,9 @@ async function validateRequest<
       if (error instanceof HTTPException)
         throw error;
 
-      throw new HTTPException(HttpStatusCodes.UNPROCESSABLE_ENTITY, {
+      throw HTTPExceptionFactory.unprocessableEntity({
         message: 'Invalid request body format',
-        cause: { validationErrors: [{ field: 'body', message: 'Unable to parse request body' }] },
+        details: { validationErrors: [{ field: 'body', message: 'Unable to parse request body' }] },
       });
     }
   }
@@ -252,9 +253,9 @@ async function validateRequest<
     const result = validateWithSchema(config.validateQuery, query);
 
     if (!result.success) {
-      throw new HTTPException(HttpStatusCodes.UNPROCESSABLE_ENTITY, {
+      throw HTTPExceptionFactory.unprocessableEntity({
         message: 'Query parameter validation failed',
-        cause: { validationErrors: result.errors },
+        details: { validationErrors: result.errors },
       });
     }
 
@@ -267,9 +268,9 @@ async function validateRequest<
     const result = validateWithSchema(config.validateParams, params);
 
     if (!result.success) {
-      throw new HTTPException(HttpStatusCodes.UNPROCESSABLE_ENTITY, {
+      throw HTTPExceptionFactory.unprocessableEntity({
         message: 'Path parameter validation failed',
-        cause: { validationErrors: result.errors },
+        details: { validationErrors: result.errors },
       });
     }
 
@@ -352,10 +353,18 @@ export function createHandler<
 
       if (error instanceof HTTPException) {
         // Handle validation errors with our unified system
-        if (error.status === HttpStatusCodes.UNPROCESSABLE_ENTITY && error.cause) {
-          const cause = error.cause as { validationErrors?: Array<{ field: string; message: string; code?: string }> };
-          if (cause.validationErrors) {
-            return Responses.validationError(c, cause.validationErrors, error.message);
+        if (error.status === HttpStatusCodes.UNPROCESSABLE_ENTITY) {
+          // Check for EnhancedHTTPException with details
+          if ('details' in error && error.details && typeof error.details === 'object') {
+            const details = error.details as { validationErrors?: Array<{ field: string; message: string; code?: string }> };
+            if (details.validationErrors) {
+              return Responses.validationError(c, details.validationErrors, error.message);
+            }
+          } else if (error.cause && typeof error.cause === 'object') {
+            const cause = error.cause as { validationErrors?: Array<{ field: string; message: string; code?: string }> };
+            if (cause.validationErrors) {
+              return Responses.validationError(c, cause.validationErrors, error.message);
+            }
           }
         }
         throw error;
@@ -441,10 +450,18 @@ export function createHandlerWithTransaction<
 
       if (error instanceof HTTPException) {
         // Handle validation errors with our unified system
-        if (error.status === HttpStatusCodes.UNPROCESSABLE_ENTITY && error.cause) {
-          const cause = error.cause as { validationErrors?: Array<{ field: string; message: string; code?: string }> };
-          if (cause.validationErrors) {
-            return Responses.validationError(c, cause.validationErrors, error.message);
+        if (error.status === HttpStatusCodes.UNPROCESSABLE_ENTITY) {
+          // Check for EnhancedHTTPException with details
+          if ('details' in error && error.details && typeof error.details === 'object') {
+            const details = error.details as { validationErrors?: Array<{ field: string; message: string; code?: string }> };
+            if (details.validationErrors) {
+              return Responses.validationError(c, details.validationErrors, error.message);
+            }
+          } else if (error.cause && typeof error.cause === 'object') {
+            const cause = error.cause as { validationErrors?: Array<{ field: string; message: string; code?: string }> };
+            if (cause.validationErrors) {
+              return Responses.validationError(c, cause.validationErrors, error.message);
+            }
           }
         }
         throw error;

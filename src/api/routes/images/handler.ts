@@ -15,7 +15,7 @@ import type {
   uploadCompanyImageRoute,
   uploadUserAvatarRoute,
 } from './route';
-import { GetImagesQuerySchema, IMAGE_TYPES, ImageKeyParamsSchema } from './schema';
+import { GetImagesQuerySchema, IMAGE_TYPES, ImageKeyParamsSchema, ImageTypeParamsSchema } from './schema';
 
 export const uploadUserAvatarHandler: RouteHandler<typeof uploadUserAvatarRoute, ApiEnv> = createHandler(
   {
@@ -112,7 +112,7 @@ export const uploadUserAvatarHandler: RouteHandler<typeof uploadUserAvatarRoute,
 export const uploadCompanyImageHandler: RouteHandler<typeof uploadCompanyImageRoute, ApiEnv> = createHandler(
   {
     auth: 'session',
-    validateParams: ImageKeyParamsSchema,
+    validateParams: ImageTypeParamsSchema,
     operationName: 'uploadCompanyImage',
   },
   async (c) => {

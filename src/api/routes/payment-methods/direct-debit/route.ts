@@ -14,8 +14,8 @@ import {
   VerifyDirectDebitContractResponseSchema,
 } from './schema';
 
-// Temporary inline error responses - will be replaced with unified system
-const tempErrorResponses = {
+// Standard error responses following unified system patterns
+const StandardErrorResponses = {
   [HttpStatusCodes.BAD_REQUEST]: { description: 'Bad Request' },
   [HttpStatusCodes.UNAUTHORIZED]: { description: 'Unauthorized' },
   [HttpStatusCodes.UNPROCESSABLE_ENTITY]: { description: 'Validation Error' },
@@ -23,8 +23,8 @@ const tempErrorResponses = {
 };
 
 const CommonErrorResponses = {
-  auth: tempErrorResponses,
-  validation: tempErrorResponses,
+  auth: StandardErrorResponses,
+  validation: StandardErrorResponses,
 };
 
 // ============================================================================

@@ -4,13 +4,13 @@ import * as HttpStatusPhrases from 'stoker/http-status-phrases';
 
 // Shared Error schema used in OpenAPI responses and validation hooks
 // Simple error schema for compatibility
-export const ErrorSchema = z.object({
+const ErrorSchema = z.object({
   code: z.number().openapi({ example: HttpStatusCodes.BAD_REQUEST }),
   message: z.string().openapi({ example: HttpStatusPhrases.BAD_REQUEST }),
 }).openapi('Error');
 
 // Current error response schema matching createErrorResponse format
-export const ErrorResponseDataSchema = z.object({
+const _ErrorResponseDataSchema = z.object({
   error: z.string().openapi({ example: 'validation_failed' }),
   message: z.string().openapi({ example: HttpStatusPhrases.BAD_REQUEST }),
   details: z.unknown().optional(),
@@ -19,7 +19,7 @@ export const ErrorResponseDataSchema = z.object({
 }).openapi('ErrorResponse');
 
 export type ErrorResponse = z.infer<typeof ErrorSchema>;
-export type ErrorResponseData = z.infer<typeof ErrorResponseDataSchema>;
+export type ErrorResponseData = z.infer<typeof _ErrorResponseDataSchema>;
 
 // Generic API response envelope
 export function ApiResponseSchema<T extends z.ZodTypeAny>(dataSchema: T) {

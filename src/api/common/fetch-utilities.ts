@@ -5,12 +5,15 @@
  * Integrates with existing service factory and error handling patterns
  */
 
-import { HTTPException } from 'hono/http-exception';
 import * as HttpStatusCodes from 'stoker/http-status-codes';
 import type { z } from 'zod';
 
+import type { EnhancedHTTPException } from '@/api/core/http-exceptions';
+import { HTTPExceptionFactory } from '@/api/core/http-exceptions';
 // CloudflareEnv is globally available from cloudflare-env.d.ts
-import { apiLogger } from '../middleware/hono-logger';
+// Import logger from the correct path based on codebase structure
+import { apiLogger } from '@/api/middleware/hono-logger';
+
 import { createError } from './error-handling';
 
 // ============================================================================
@@ -56,6 +59,13 @@ export type FetchResult<T> = {
  */
 export type ParsedResponse<T> =
   | { success: true; data: T; contentType: string }
+  | { success: false; error: string; contentType: string };
+
+/**
+ * Response parsing result for unvalidated data
+ */
+export type UnvalidatedParseResult =
+  | { success: true; data: unknown; contentType: string }
   | { success: false; error: string; contentType: string };
 
 // ============================================================================
@@ -183,6 +193,7 @@ export async function fetchWithRetry<T = unknown>(
   url: string,
   init: RequestInit = {},
   config: FetchConfig = {},
+  schema?: z.ZodSchema<T>,
 ): Promise<FetchResult<T>> {
   const startTime = Date.now();
   const correlationId = config.correlationId || crypto.randomUUID();
@@ -258,7 +269,10 @@ export async function fetchWithRetry<T = unknown>(
         updateCircuitBreakerState(url, true, fetchConfig);
 
         // Parse response based on content type with ZERO CASTING
-        const parseResult = await parseResponseSafely<T>(response);
+        // Use schema if provided for type safety
+        const parseResult = schema
+          ? await parseResponseSafely(response, schema)
+          : await parseResponseSafely(response);
         if (!parseResult.success) {
           updateCircuitBreakerState(url, false, fetchConfig);
           const duration = Date.now() - startTime;
@@ -281,7 +295,11 @@ export async function fetchWithRetry<T = unknown>(
           };
         }
 
-        const data = parseResult.data;
+        // Type handling based on schema presence:
+        // - With schema: parseResult.data is validated T (no casting needed)
+        // - Without schema: parseResult.data is unknown, consumer assumes responsibility for type T
+        // This approach balances type safety with backward compatibility
+        const data = parseResult.data as T;
 
         const duration = Date.now() - startTime;
 
@@ -396,6 +414,7 @@ export async function fetchWithRetry<T = unknown>(
 export async function fetchJSON<T = unknown>(
   url: string,
   config: FetchConfig = {},
+  schema?: z.ZodSchema<T>,
 ): Promise<FetchResult<T>> {
   return fetchWithRetry<T>(url, {
     method: 'GET',
@@ -403,7 +422,7 @@ export async function fetchJSON<T = unknown>(
       'Accept': 'application/json',
       'User-Agent': 'DeadPixel-BillingDashboard/1.0',
     },
-  }, config);
+  }, config, schema);
 }
 
 /**
@@ -414,6 +433,7 @@ export async function postJSON<T = unknown>(
   body: unknown,
   config: FetchConfig = {},
   headers: Record<string, string> = {},
+  schema?: z.ZodSchema<T>,
 ): Promise<FetchResult<T>> {
   return fetchWithRetry<T>(url, {
     method: 'POST',
@@ -424,17 +444,17 @@ export async function postJSON<T = unknown>(
       ...headers, // Custom headers override defaults
     },
     body: JSON.stringify(body),
-  }, config);
+  }, config, schema);
 }
 
 /**
  * Create HTTPException from fetch result for consistent error handling
- * Integrates with existing Hono error patterns
+ * Uses type-safe HTTPExceptionFactory instead of casting
  */
 export function createHTTPExceptionFromFetchResult(
   result: FetchResult<unknown>,
   operation: string,
-): HTTPException {
+): EnhancedHTTPException {
   if (result.success) {
     throw new Error('Cannot create exception from successful result');
   }
@@ -442,40 +462,34 @@ export function createHTTPExceptionFromFetchResult(
   const status = result.response?.status || HttpStatusCodes.SERVICE_UNAVAILABLE;
   const message = `${operation} failed: ${result.error}`;
 
-  // Map status codes to valid HTTPException status codes
-  const statusCodeMap: Record<number, typeof HttpStatusCodes.BAD_REQUEST | typeof HttpStatusCodes.UNAUTHORIZED | typeof HttpStatusCodes.FORBIDDEN | typeof HttpStatusCodes.NOT_FOUND | typeof HttpStatusCodes.METHOD_NOT_ALLOWED | typeof HttpStatusCodes.REQUEST_TIMEOUT | typeof HttpStatusCodes.CONFLICT | typeof HttpStatusCodes.UNPROCESSABLE_ENTITY | typeof HttpStatusCodes.TOO_MANY_REQUESTS | typeof HttpStatusCodes.INTERNAL_SERVER_ERROR | typeof HttpStatusCodes.BAD_GATEWAY | typeof HttpStatusCodes.SERVICE_UNAVAILABLE | typeof HttpStatusCodes.GATEWAY_TIMEOUT> = {
-    400: HttpStatusCodes.BAD_REQUEST,
-    401: HttpStatusCodes.UNAUTHORIZED,
-    403: HttpStatusCodes.FORBIDDEN,
-    404: HttpStatusCodes.NOT_FOUND,
-    405: HttpStatusCodes.METHOD_NOT_ALLOWED,
-    408: HttpStatusCodes.REQUEST_TIMEOUT,
-    409: HttpStatusCodes.CONFLICT,
-    422: HttpStatusCodes.UNPROCESSABLE_ENTITY,
-    429: HttpStatusCodes.TOO_MANY_REQUESTS,
-    500: HttpStatusCodes.INTERNAL_SERVER_ERROR,
-    502: HttpStatusCodes.BAD_GATEWAY,
-    503: HttpStatusCodes.SERVICE_UNAVAILABLE,
-    504: HttpStatusCodes.GATEWAY_TIMEOUT,
-  };
-
-  const mappedStatus = statusCodeMap[status];
-  if (mappedStatus) {
-    return new HTTPException(mappedStatus, { message });
-  }
-
-  // Default to 503 for non-HTTP errors
-  return new HTTPException(HttpStatusCodes.SERVICE_UNAVAILABLE, { message });
+  return HTTPExceptionFactory.fromNumber(status, {
+    message,
+    correlationId: result.response?.headers.get('x-correlation-id') || undefined,
+    details: {
+      operation,
+      originalStatus: status,
+      errorDetails: result.error,
+      attempts: result.attempts,
+      duration: result.duration,
+    },
+  });
 }
 
 /**
  * Parse response content safely with ZERO CASTING
- * Returns discriminated union for type safety
+ * Function overloads for type safety without casting
  */
-export async function parseResponseSafely<T>(
+async function parseResponseSafely<T>(
+  response: Response,
+  schema: z.ZodSchema<T>,
+): Promise<ParsedResponse<T>>;
+async function parseResponseSafely(
+  response: Response,
+): Promise<UnvalidatedParseResult>;
+async function parseResponseSafely<T>(
   response: Response,
   schema?: z.ZodSchema<T>,
-): Promise<ParsedResponse<T>> {
+): Promise<ParsedResponse<T> | UnvalidatedParseResult> {
   const contentType = response.headers.get('content-type') || '';
 
   try {
@@ -494,9 +508,9 @@ export async function parseResponseSafely<T>(
         return { success: true, data: parseResult.data, contentType };
       }
 
-      // If no schema provided, return the raw JSON data
-      // This is still type-safe since T should match the expected JSON structure
-      return { success: true, data: jsonData as T, contentType };
+      // If no schema provided, return the raw JSON data as unknown
+      // Consumers must handle type validation themselves
+      return { success: true, data: jsonData, contentType };
     }
 
     if (contentType.includes('text/')) {
@@ -514,8 +528,8 @@ export async function parseResponseSafely<T>(
         return { success: true, data: parseResult.data, contentType };
       }
 
-      // For text responses without schema, T should be string-compatible
-      return { success: true, data: textData as T, contentType };
+      // For text responses without schema, return as unknown
+      return { success: true, data: textData, contentType };
     }
 
     // Binary data (ArrayBuffer)
@@ -533,8 +547,8 @@ export async function parseResponseSafely<T>(
       return { success: true, data: parseResult.data, contentType };
     }
 
-    // For binary responses without schema, T should be ArrayBuffer-compatible
-    return { success: true, data: bufferData as T, contentType };
+    // For binary responses without schema, return as unknown
+    return { success: true, data: bufferData, contentType };
   } catch (error) {
     return {
       success: false,

@@ -1,5 +1,5 @@
 /**
- * Shakewell Wallet API - Hono Zod OpenAPI Implementation
+ * zarinpal API - Hono Zod OpenAPI Implementation
  *
  * This file follows the EXACT pattern from the official Hono Zod OpenAPI documentation.
  * It provides full type safety and automatic RPC client type inference.
@@ -155,8 +155,8 @@ app.use('*', (c, next) => {
 
 // CSRF protection
 app.use('*', (c, next) => {
-  const allowed = c.env?.NEXT_PUBLIC_APP_URL as string | undefined;
-  const origin = allowed ? new URL(allowed).origin : undefined;
+  const allowedUrl = c.env?.NEXT_PUBLIC_APP_URL;
+  const origin = allowedUrl ? new URL(allowedUrl).origin : undefined;
   const middleware = origin ? csrf({ origin }) : csrf();
   return middleware(c, next);
 });
@@ -196,8 +196,6 @@ app.use('/subscriptions/*', requireSession);
 app.use('/payment-methods/*', requireSession);
 app.use('/webhooks/events', requireSession);
 app.use('/webhooks/test', requireSession);
-app.use('/passes/*', RateLimiterFactory.create('api'));
-app.use('/passes/*', requireSession);
 // Admin routes require master key authentication
 app.use('/admin/*', requireMasterKey);
 
@@ -263,7 +261,7 @@ appRoutes.doc('/doc', c => ({
     version: '1.0.0',
     title: 'Subscription Management API',
     description: 'API for subscription billing and direct debit automation. Built with Hono, Zod, and OpenAPI.',
-    contact: { name: 'Shakewell', url: 'https://shakewell.app' },
+    contact: { name: 'zarinpal', url: 'https://zarinpal.app' },
     license: { name: 'Proprietary' },
   },
   tags: [
@@ -274,7 +272,6 @@ appRoutes.doc('/doc', c => ({
     { name: 'payment-methods', description: 'Subscription payment methods and direct debit automation' },
     { name: 'webhooks', description: 'Subscription webhooks and billing notifications' },
     { name: 'images', description: 'Image upload and management' },
-    { name: 'passes', description: 'Pass generation and management' },
     { name: 'admin', description: 'Platform administration and external API access (master key required)' },
   ],
   servers: [
@@ -312,12 +309,12 @@ appRoutes.get('/scalar', Scalar({
 
 // Cache health endpoints
 appRoutes.get('/health', cache({
-  cacheName: 'shakewell-api',
+  cacheName: 'zarinpal-api',
   cacheControl: 'max-age=60',
 }));
 
 appRoutes.get('/health/*', cache({
-  cacheName: 'shakewell-api',
+  cacheName: 'zarinpal-api',
   cacheControl: 'max-age=60',
 }));
 
