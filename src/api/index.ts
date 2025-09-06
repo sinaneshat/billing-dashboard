@@ -132,7 +132,7 @@ app.use('*', trimTrailingSlash());
 
 // Core middleware
 app.use('*', contextStorage());
-app.use('*', secureHeaders());
+app.use('*', secureHeaders()); // Use default secure headers - much simpler
 app.use('*', requestId());
 app.use('*', compress());
 app.use('*', timing());
@@ -253,9 +253,10 @@ const appRoutes = app
 export type AppType = typeof appRoutes;
 
 // ============================================================================
-// Step 6: OpenAPI documentation endpoint
+// Step 6: OpenAPI documentation endpoints
 // ============================================================================
 
+// OpenAPI specification document endpoint
 appRoutes.doc('/doc', c => ({
   openapi: '3.0.0',
   info: {
@@ -294,6 +295,12 @@ appRoutes.doc('/doc', c => ({
   security: [{ ApiKeyAuth: [] }],
 }));
 
+// OpenAPI JSON endpoint (redirect to the doc endpoint)
+appRoutes.get('/openapi.json', async (c) => {
+  // Redirect to the existing doc endpoint which contains the full OpenAPI spec
+  return c.redirect('/api/v1/doc');
+});
+
 // ============================================================================
 // Step 7: Additional endpoints (Scalar UI, LLMs, etc.)
 // ============================================================================
@@ -301,8 +308,6 @@ appRoutes.doc('/doc', c => ({
 // Scalar API documentation UI
 appRoutes.get('/scalar', Scalar({
   url: '/api/v1/doc',
-  pageTitle: 'Subscription Management API',
-  theme: 'purple',
 }));
 
 // Cache health endpoints

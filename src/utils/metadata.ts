@@ -18,7 +18,7 @@ export type CreateMetadataProps = {
 export function createMetadata({
   title = BRAND.fullName,
   description = BRAND.description,
-  image = '/static/logo.svg',
+  image = '/static/logo.png',
   url = '/',
   type = 'website',
   siteName = BRAND.fullName,

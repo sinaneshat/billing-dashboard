@@ -1,6 +1,8 @@
 import type { StoragePurpose } from '@/api/common/storage-keys';
 import type { Session, User } from '@/lib/auth/types';
 
+// CloudflareEnv is globally available from cloudflare-env.d.ts
+
 export type ApiEnv = {
   Bindings: CloudflareEnv;
   Variables: {

@@ -315,9 +315,13 @@ export class FileValidator {
       companyBanner: 'images/banner',
     } as const;
 
-    for (const [type, pathPrefix] of Object.entries(pathPrefixes)) {
+    // Use type-safe lookup instead of casting
+    const imageTypes: ImageType[] = ['userAvatar', 'companyLogo', 'companyBanner'];
+
+    for (const type of imageTypes) {
+      const pathPrefix = pathPrefixes[type];
       if (key.startsWith(`${pathPrefix}/`)) {
-        return type as ImageType;
+        return type; // This is already properly typed
       }
     }
     return null;

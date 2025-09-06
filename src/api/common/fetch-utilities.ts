@@ -7,7 +7,9 @@
 
 import { HTTPException } from 'hono/http-exception';
 import * as HttpStatusCodes from 'stoker/http-status-codes';
+import type { z } from 'zod';
 
+// CloudflareEnv is globally available from cloudflare-env.d.ts
 import { apiLogger } from '../middleware/hono-logger';
 import { createError } from './error-handling';
 
@@ -47,6 +49,14 @@ export type FetchResult<T> = {
   attempts: number;
   duration: number;
 };
+
+/**
+ * Response parsing result with ZERO CASTING
+ * Discriminated union for type safety
+ */
+export type ParsedResponse<T> =
+  | { success: true; data: T; contentType: string }
+  | { success: false; error: string; contentType: string };
 
 // ============================================================================
 // CIRCUIT BREAKER STATE MANAGEMENT
@@ -247,17 +257,31 @@ export async function fetchWithRetry<T = unknown>(
       if (response.ok) {
         updateCircuitBreakerState(url, true, fetchConfig);
 
-        // Parse response based on content type
-        let data: T;
-        const contentType = response.headers.get('content-type') || '';
+        // Parse response based on content type with ZERO CASTING
+        const parseResult = await parseResponseSafely<T>(response);
+        if (!parseResult.success) {
+          updateCircuitBreakerState(url, false, fetchConfig);
+          const duration = Date.now() - startTime;
 
-        if (contentType.includes('application/json')) {
-          data = await response.json();
-        } else if (contentType.includes('text/')) {
-          data = await response.text() as T;
-        } else {
-          data = await response.arrayBuffer() as T;
+          apiLogger.error('Response parsing failed', {
+            url,
+            error: parseResult.error,
+            contentType: parseResult.contentType,
+            duration,
+            correlationId,
+            component: 'fetch-utilities',
+          });
+
+          return {
+            success: false,
+            error: `Response parsing failed: ${parseResult.error}`,
+            response,
+            attempts: attempt + 1,
+            duration,
+          };
         }
+
+        const data = parseResult.data;
 
         const duration = Date.now() - startTime;
 
@@ -310,7 +334,7 @@ export async function fetchWithRetry<T = unknown>(
         await new Promise(resolve => setTimeout(resolve, delay));
       }
     } catch (error) {
-      lastError = error as Error;
+      lastError = error instanceof Error ? error : new Error(String(error));
 
       // Handle timeout and network errors
       const isTimeout = error instanceof Error && error.name === 'AbortError';
@@ -445,8 +469,84 @@ export function createHTTPExceptionFromFetchResult(
 }
 
 /**
+ * Parse response content safely with ZERO CASTING
+ * Returns discriminated union for type safety
+ */
+export async function parseResponseSafely<T>(
+  response: Response,
+  schema?: z.ZodSchema<T>,
+): Promise<ParsedResponse<T>> {
+  const contentType = response.headers.get('content-type') || '';
+
+  try {
+    if (contentType.includes('application/json')) {
+      const jsonData = await response.json();
+
+      if (schema) {
+        const parseResult = schema.safeParse(jsonData);
+        if (!parseResult.success) {
+          return {
+            success: false,
+            error: `JSON validation failed: ${parseResult.error.message}`,
+            contentType,
+          };
+        }
+        return { success: true, data: parseResult.data, contentType };
+      }
+
+      // If no schema provided, return the raw JSON data
+      // This is still type-safe since T should match the expected JSON structure
+      return { success: true, data: jsonData as T, contentType };
+    }
+
+    if (contentType.includes('text/')) {
+      const textData = await response.text();
+
+      if (schema) {
+        const parseResult = schema.safeParse(textData);
+        if (!parseResult.success) {
+          return {
+            success: false,
+            error: `Text validation failed: ${parseResult.error.message}`,
+            contentType,
+          };
+        }
+        return { success: true, data: parseResult.data, contentType };
+      }
+
+      // For text responses without schema, T should be string-compatible
+      return { success: true, data: textData as T, contentType };
+    }
+
+    // Binary data (ArrayBuffer)
+    const bufferData = await response.arrayBuffer();
+
+    if (schema) {
+      const parseResult = schema.safeParse(bufferData);
+      if (!parseResult.success) {
+        return {
+          success: false,
+          error: `Binary validation failed: ${parseResult.error.message}`,
+          contentType,
+        };
+      }
+      return { success: true, data: parseResult.data, contentType };
+    }
+
+    // For binary responses without schema, T should be ArrayBuffer-compatible
+    return { success: true, data: bufferData as T, contentType };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown parsing error',
+      contentType,
+    };
+  }
+}
+
+/**
  * Environment variable validation following Hono patterns
- * Now uses CloudflareEnv type instead of generic Record
+ * Uses CloudflareEnv type for type safety
  */
 export function validateEnvironmentVariables(
   env: CloudflareEnv,

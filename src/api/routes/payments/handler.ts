@@ -7,8 +7,8 @@
  */
 
 import type { RouteHandler } from '@hono/zod-openapi';
-import type { z } from 'zod';
 
+// z type removed - using proper Zod inference without casting
 import { createError } from '@/api/common/error-handling';
 import { createHandler, createHandlerWithTransaction, Responses } from '@/api/core';
 import { billingRepositories } from '@/api/repositories/billing-repositories';
@@ -98,7 +98,7 @@ export const paymentCallbackHandler: RouteHandler<typeof paymentCallbackRoute, A
     operationName: 'paymentCallback',
   },
   async (c, tx) => {
-    const { Authority, Status } = c.validated.query as z.infer<typeof PaymentCallbackRequestSchema>;
+    const { Authority, Status } = c.validated.query;
 
     c.logger.info('Processing payment callback', { logType: 'operation', operationName: 'paymentCallback', resource: Authority });
 
@@ -283,7 +283,7 @@ export const verifyPaymentHandler: RouteHandler<typeof verifyPaymentRoute, ApiEn
   },
   async (c, tx) => {
     const user = c.get('user')!;
-    const { authority } = c.validated.body as z.infer<typeof VerifyPaymentRequestSchema>;
+    const { authority } = c.validated.body;
 
     c.logger.info('Manual payment verification requested', {
       logType: 'operation',
@@ -400,8 +400,8 @@ export const generateInvoiceHandler: RouteHandler<typeof generateInvoiceRoute, A
   },
   async (c) => {
     const user = c.get('user')!;
-    const { id: paymentId } = c.validated.params as z.infer<typeof PaymentParamsSchema>;
-    const { format, language, includeDetails } = c.validated.body as z.infer<typeof GenerateInvoiceRequestSchema>;
+    const { id: paymentId } = c.validated.params;
+    const { format, language, includeDetails } = c.validated.body;
 
     c.logger.info('Invoice generation requested', {
       logType: 'operation',

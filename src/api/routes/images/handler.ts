@@ -1,12 +1,10 @@
 import type { R2ListOptions } from '@cloudflare/workers-types';
 import type { RouteHandler } from '@hono/zod-openapi';
-import { HTTPException } from 'hono/http-exception';
-import * as HttpStatusCodes from 'stoker/http-status-codes';
 
+import { createError } from '@/api/common/error-handling';
 import type { ImageType } from '@/api/common/file-validation';
 import { FileValidator } from '@/api/common/file-validation';
 import { extractFile, extractOptionalString } from '@/api/common/form-utils';
-import { getStringFromObject } from '@/api/common/type-utils';
 import { createHandler, Responses } from '@/api/core';
 import type { ApiEnv } from '@/api/types';
 
@@ -17,7 +15,7 @@ import type {
   uploadCompanyImageRoute,
   uploadUserAvatarRoute,
 } from './route';
-import { IMAGE_TYPES } from './schema';
+import { GetImagesQuerySchema, IMAGE_TYPES, ImageKeyParamsSchema } from './schema';
 
 export const uploadUserAvatarHandler: RouteHandler<typeof uploadUserAvatarRoute, ApiEnv> = createHandler(
   {
@@ -35,9 +33,12 @@ export const uploadUserAvatarHandler: RouteHandler<typeof uploadUserAvatarRoute,
     // Validate image
     const validation = await FileValidator.validateWithPreset(file, 'userAvatar');
     if (!validation.isValid) {
-      throw new HTTPException(HttpStatusCodes.BAD_REQUEST, {
-        message: validation.error,
+      const errorMessage = validation.error || 'Invalid image file';
+      c.logger.warn('User avatar validation failed', {
+        logType: 'validation',
+        validationErrors: [{ field: 'file', message: errorMessage }],
       });
+      throw createError.internal(errorMessage);
     }
 
     // Generate key for the new avatar
@@ -111,10 +112,11 @@ export const uploadUserAvatarHandler: RouteHandler<typeof uploadUserAvatarRoute,
 export const uploadCompanyImageHandler: RouteHandler<typeof uploadCompanyImageRoute, ApiEnv> = createHandler(
   {
     auth: 'session',
+    validateParams: ImageKeyParamsSchema,
     operationName: 'uploadCompanyImage',
   },
   async (c) => {
-    const routeType = getStringFromObject(c.req.param(), 'type', 'banner');
+    const routeType = c.validated.params?.type || 'banner';
     const currentUser = c.get('user')!;
     const bucket = c.env.UPLOADS_R2_BUCKET;
 
@@ -127,9 +129,12 @@ export const uploadCompanyImageHandler: RouteHandler<typeof uploadCompanyImageRo
     const imageType: ImageType = type === 'logo' ? 'companyLogo' : 'companyBanner';
     const validation = await FileValidator.validateWithPreset(file, imageType);
     if (!validation.isValid) {
-      throw new HTTPException(HttpStatusCodes.BAD_REQUEST, {
-        message: validation.error,
+      const errorMessage = validation.error || 'Invalid image file';
+      c.logger.warn('Company image validation failed', {
+        logType: 'validation',
+        validationErrors: [{ field: 'file', message: errorMessage }],
       });
+      throw createError.internal(errorMessage);
     }
 
     // Generate key for the new image
@@ -190,10 +195,11 @@ export const uploadCompanyImageHandler: RouteHandler<typeof uploadCompanyImageRo
 export const getImagesHandler: RouteHandler<typeof getImagesRoute, ApiEnv> = createHandler(
   {
     auth: 'session',
+    validateQuery: GetImagesQuerySchema,
     operationName: 'getImages',
   },
   async (c) => {
-    const { type, userId, limit } = c.req.query();
+    const { type, userId, limit } = c.validated.query;
     const currentUser = c.get('user')!;
     const bucket = c.env.UPLOADS_R2_BUCKET;
 
@@ -258,18 +264,22 @@ export const getImagesHandler: RouteHandler<typeof getImagesRoute, ApiEnv> = cre
 export const getImageMetadataHandler: RouteHandler<typeof getImageMetadataRoute, ApiEnv> = createHandler(
   {
     auth: 'session',
+    validateParams: ImageKeyParamsSchema,
     operationName: 'getImageMetadata',
   },
   async (c) => {
-    const key = c.req.param('key');
+    const { key } = c.validated.params;
     const currentUser = c.get('user')!;
     const bucket = c.env.UPLOADS_R2_BUCKET;
 
     const object = await bucket.head(key!);
     if (!object) {
-      throw new HTTPException(HttpStatusCodes.NOT_FOUND, {
-        message: 'Image not found',
+      c.logger.warn('Image not found for metadata request', {
+        logType: 'operation',
+        operationName: 'getImageMetadata',
+        resource: key,
       });
+      throw createError.notFound('Image');
     }
 
     const metadata = object.customMetadata || {};
@@ -278,9 +288,12 @@ export const getImageMetadataHandler: RouteHandler<typeof getImageMetadataRoute,
     const isOwnAvatar = metadata.type === IMAGE_TYPES.AVATAR && metadata.userId === currentUser?.id;
 
     if (!isOwnAvatar) {
-      throw new HTTPException(HttpStatusCodes.FORBIDDEN, {
-        message: 'Not authorized to access this image',
+      c.logger.warn('Unauthorized image access attempt', {
+        logType: 'auth',
+        mode: 'session',
+        userId: currentUser.id,
       });
+      throw createError.unauthorized('Not authorized to access this image');
     }
 
     const imageUrl = `${c.req.url.split('/api')[0]}/api/v1/storage/${key}`;
@@ -305,19 +318,23 @@ export const getImageMetadataHandler: RouteHandler<typeof getImageMetadataRoute,
 export const deleteImageHandler: RouteHandler<typeof deleteImageRoute, ApiEnv> = createHandler(
   {
     auth: 'session',
+    validateParams: ImageKeyParamsSchema,
     operationName: 'deleteImage',
   },
   async (c) => {
-    const key = c.req.param('key');
+    const { key } = c.validated.params;
     const currentUser = c.get('user')!;
     const bucket = c.env.UPLOADS_R2_BUCKET;
 
     // Get object metadata to check permissions
     const object = await bucket.head(key!);
     if (!object) {
-      throw new HTTPException(HttpStatusCodes.NOT_FOUND, {
-        message: 'Image not found',
+      c.logger.warn('Image not found for deletion', {
+        logType: 'operation',
+        operationName: 'deleteImage',
+        resource: key,
       });
+      throw createError.notFound('Image');
     }
 
     const metadata = object.customMetadata || {};
@@ -326,9 +343,12 @@ export const deleteImageHandler: RouteHandler<typeof deleteImageRoute, ApiEnv> =
     const isOwnAvatar = metadata.type === IMAGE_TYPES.AVATAR && metadata.userId === currentUser?.id;
 
     if (!isOwnAvatar) {
-      throw new HTTPException(HttpStatusCodes.FORBIDDEN, {
-        message: 'Not authorized to delete this image',
+      c.logger.warn('Unauthorized image deletion attempt', {
+        logType: 'auth',
+        mode: 'session',
+        userId: currentUser.id,
       });
+      throw createError.unauthorized('Not authorized to delete this image');
     }
 
     // Delete from R2

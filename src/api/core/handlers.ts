@@ -42,14 +42,19 @@ import { validateWithSchema } from './validation';
 
 export type AuthMode = 'session' | 'api-key' | 'session-optional' | 'public';
 
-export type HandlerConfig<_TRoute extends RouteConfig> = {
+export type HandlerConfig<
+  _TRoute extends RouteConfig,
+  TBody extends z.ZodSchema = never,
+  TQuery extends z.ZodSchema = never,
+  TParams extends z.ZodSchema = never,
+> = {
   // Authentication
   auth?: AuthMode;
 
   // Validation schemas
-  validateBody?: z.ZodSchema;
-  validateQuery?: z.ZodSchema;
-  validateParams?: z.ZodSchema;
+  validateBody?: TBody;
+  validateQuery?: TQuery;
+  validateParams?: TParams;
 
   // Database
   useTransaction?: boolean;
@@ -64,11 +69,16 @@ export type HandlerConfig<_TRoute extends RouteConfig> = {
 };
 
 // Enhanced context with validated data and logger
-export type HandlerContext<TEnv extends Env = ApiEnv> = Context<TEnv> & {
+export type HandlerContext<
+  TEnv extends Env = ApiEnv,
+  TBody extends z.ZodSchema = never,
+  TQuery extends z.ZodSchema = never,
+  TParams extends z.ZodSchema = never,
+> = Context<TEnv> & {
   validated: {
-    body?: unknown;
-    query?: unknown;
-    params?: unknown;
+    body: [TBody] extends [never] ? undefined : z.infer<TBody>;
+    query: [TQuery] extends [never] ? undefined : z.infer<TQuery>;
+    params: [TParams] extends [never] ? undefined : z.infer<TParams>;
   };
   logger: {
     debug: (message: string, data?: LoggerData) => void;
@@ -84,12 +94,24 @@ export type HandlerContext<TEnv extends Env = ApiEnv> = Context<TEnv> & {
 };
 
 // Handler function types
-export type RegularHandler<_TRoute extends RouteConfig, TEnv extends Env = ApiEnv> = (
-  c: HandlerContext<TEnv>
+export type RegularHandler<
+  _TRoute extends RouteConfig,
+  TEnv extends Env = ApiEnv,
+  TBody extends z.ZodSchema = never,
+  TQuery extends z.ZodSchema = never,
+  TParams extends z.ZodSchema = never,
+> = (
+  c: HandlerContext<TEnv, TBody, TQuery, TParams>
 ) => Promise<Response>;
 
-export type TransactionHandler<_TRoute extends RouteConfig, TEnv extends Env = ApiEnv> = (
-  c: HandlerContext<TEnv>,
+export type TransactionHandler<
+  _TRoute extends RouteConfig,
+  TEnv extends Env = ApiEnv,
+  TBody extends z.ZodSchema = never,
+  TQuery extends z.ZodSchema = never,
+  TParams extends z.ZodSchema = never,
+> = (
+  c: HandlerContext<TEnv, TBody, TQuery, TParams>,
   tx: Parameters<Parameters<typeof db.transaction>[0]>[0]
 ) => Promise<Response>;
 
@@ -180,11 +202,23 @@ async function applyAuthentication(c: Context, authMode: AuthMode): Promise<void
 /**
  * Validate request data using our unified validation system
  */
-async function validateRequest(
+async function validateRequest<
+  TBody extends z.ZodSchema,
+  TQuery extends z.ZodSchema,
+  TParams extends z.ZodSchema,
+>(
   c: Context,
-  config: Pick<HandlerConfig<RouteConfig>, 'validateBody' | 'validateQuery' | 'validateParams'>,
-): Promise<{ body?: unknown; query?: unknown; params?: unknown }> {
-  const validated: { body?: unknown; query?: unknown; params?: unknown } = {};
+  config: Pick<HandlerConfig<RouteConfig, TBody, TQuery, TParams>, 'validateBody' | 'validateQuery' | 'validateParams'>,
+): Promise<{
+    body: [TBody] extends [never] ? undefined : z.infer<TBody>;
+    query: [TQuery] extends [never] ? undefined : z.infer<TQuery>;
+    params: [TParams] extends [never] ? undefined : z.infer<TParams>;
+  }> {
+  const validated: {
+    body?: [TBody] extends [never] ? undefined : z.infer<TBody>;
+    query?: [TQuery] extends [never] ? undefined : z.infer<TQuery>;
+    params?: [TParams] extends [never] ? undefined : z.infer<TParams>;
+  } = {};
 
   // Validate body for POST/PUT/PATCH requests
   if (config.validateBody && ['POST', 'PUT', 'PATCH'].includes(c.req.method)) {
@@ -199,7 +233,7 @@ async function validateRequest(
         });
       }
 
-      validated.body = result.data;
+      validated.body = result.data as [TBody] extends [never] ? undefined : z.infer<TBody>;
     } catch (error) {
       if (error instanceof HTTPException)
         throw error;
@@ -224,7 +258,7 @@ async function validateRequest(
       });
     }
 
-    validated.query = result.data;
+    validated.query = result.data as [TQuery] extends [never] ? undefined : z.infer<TQuery>;
   }
 
   // Validate path parameters
@@ -239,10 +273,14 @@ async function validateRequest(
       });
     }
 
-    validated.params = result.data;
+    validated.params = result.data as [TParams] extends [never] ? undefined : z.infer<TParams>;
   }
 
-  return validated;
+  return validated as {
+    body: [TBody] extends [never] ? undefined : z.infer<TBody>;
+    query: [TQuery] extends [never] ? undefined : z.infer<TQuery>;
+    params: [TParams] extends [never] ? undefined : z.infer<TParams>;
+  };
 }
 
 // ============================================================================
@@ -252,9 +290,15 @@ async function validateRequest(
 /**
  * Create a route handler without database transactions
  */
-export function createHandler<TRoute extends RouteConfig, TEnv extends Env = ApiEnv>(
-  config: HandlerConfig<TRoute>,
-  implementation: RegularHandler<TRoute, TEnv>,
+export function createHandler<
+  TRoute extends RouteConfig,
+  TEnv extends Env = ApiEnv,
+  TBody extends z.ZodSchema = never,
+  TQuery extends z.ZodSchema = never,
+  TParams extends z.ZodSchema = never,
+>(
+  config: HandlerConfig<TRoute, TBody, TQuery, TParams>,
+  implementation: RegularHandler<TRoute, TEnv, TBody, TQuery, TParams>,
 ): RouteHandler<TRoute, TEnv> {
   const handler = async (c: Context<TEnv>) => {
     const operationName = config.operationName || `${c.req.method} ${c.req.path}`;
@@ -278,7 +322,7 @@ export function createHandler<TRoute extends RouteConfig, TEnv extends Env = Api
       // Validate request
       performance.markTime('validation_start');
       logger.debug('Validating request');
-      const validated = await validateRequest(c, config);
+      const validated = await validateRequest<TBody, TQuery, TParams>(c, config);
       performance.markTime('validation_complete');
 
       // Create enhanced context
@@ -286,7 +330,7 @@ export function createHandler<TRoute extends RouteConfig, TEnv extends Env = Api
         validated,
         logger,
         performance,
-      }) as HandlerContext<TEnv>;
+      }) as HandlerContext<TEnv, TBody, TQuery, TParams>;
 
       // Execute handler implementation
       performance.markTime('implementation_start');
@@ -328,9 +372,15 @@ export function createHandler<TRoute extends RouteConfig, TEnv extends Env = Api
 /**
  * Create a route handler with database transaction
  */
-export function createHandlerWithTransaction<TRoute extends RouteConfig, TEnv extends Env = ApiEnv>(
-  config: HandlerConfig<TRoute>,
-  implementation: TransactionHandler<TRoute, TEnv>,
+export function createHandlerWithTransaction<
+  TRoute extends RouteConfig,
+  TEnv extends Env = ApiEnv,
+  TBody extends z.ZodSchema = never,
+  TQuery extends z.ZodSchema = never,
+  TParams extends z.ZodSchema = never,
+>(
+  config: HandlerConfig<TRoute, TBody, TQuery, TParams>,
+  implementation: TransactionHandler<TRoute, TEnv, TBody, TQuery, TParams>,
 ): RouteHandler<TRoute, TEnv> {
   const handler = async (c: Context<TEnv>) => {
     const operationName = config.operationName || `${c.req.method} ${c.req.path}`;
@@ -354,7 +404,7 @@ export function createHandlerWithTransaction<TRoute extends RouteConfig, TEnv ex
       // Validate request
       performance.markTime('validation_start');
       logger.debug('Validating request');
-      const validated = await validateRequest(c, config);
+      const validated = await validateRequest<TBody, TQuery, TParams>(c, config);
       performance.markTime('validation_complete');
 
       // Create enhanced context
@@ -362,7 +412,7 @@ export function createHandlerWithTransaction<TRoute extends RouteConfig, TEnv ex
         validated,
         logger,
         performance,
-      }) as HandlerContext<TEnv>;
+      }) as HandlerContext<TEnv, TBody, TQuery, TParams>;
 
       // Execute with transaction
       performance.markTime('transaction_start');

@@ -1,17 +1,18 @@
 import { createRoute } from '@hono/zod-openapi';
 import * as HttpStatusCodes from 'stoker/http-status-codes';
 
-// import { Responses } from '@/api/core'; // Commented out as unused
+import { createApiResponseSchema } from '@/api/core/schemas';
+
 import {
   CancelSubscriptionRequestSchema,
-  CancelSubscriptionResponseSchema,
+  CancelSubscriptionResponseDataSchema,
   ChangePlanRequestSchema,
-  ChangePlanResponseSchema,
+  ChangePlanResponseDataSchema,
   CreateSubscriptionRequestSchema,
-  CreateSubscriptionResponseSchema,
-  GetSubscriptionResponseSchema,
-  GetSubscriptionsResponseSchema,
-  ResubscribeResponseSchema,
+  CreateSubscriptionResponseDataSchema,
+  GetSubscriptionResponseDataSchema,
+  GetSubscriptionsResponseDataSchema,
+  ResubscribeResponseDataSchema,
   SubscriptionParamsSchema,
 } from './schema';
 
@@ -25,7 +26,7 @@ export const getSubscriptionsRoute = createRoute({
     [HttpStatusCodes.OK]: {
       description: 'User subscriptions retrieved successfully',
       content: {
-        'application/json': { schema: GetSubscriptionsResponseSchema },
+        'application/json': { schema: createApiResponseSchema(GetSubscriptionsResponseDataSchema) },
       },
     },
     [HttpStatusCodes.BAD_REQUEST]: { description: 'Bad Request' },
@@ -47,7 +48,7 @@ export const getSubscriptionRoute = createRoute({
     [HttpStatusCodes.OK]: {
       description: 'Subscription retrieved successfully',
       content: {
-        'application/json': { schema: GetSubscriptionResponseSchema },
+        'application/json': { schema: createApiResponseSchema(GetSubscriptionResponseDataSchema) },
       },
     },
     [HttpStatusCodes.BAD_REQUEST]: { description: 'Bad Request' },
@@ -73,7 +74,7 @@ export const createSubscriptionRoute = createRoute({
     [HttpStatusCodes.CREATED]: {
       description: 'Subscription created and payment initiated',
       content: {
-        'application/json': { schema: CreateSubscriptionResponseSchema },
+        'application/json': { schema: createApiResponseSchema(CreateSubscriptionResponseDataSchema) },
       },
     },
     [HttpStatusCodes.BAD_REQUEST]: { description: 'Bad Request' },
@@ -101,7 +102,7 @@ export const cancelSubscriptionRoute = createRoute({
     [HttpStatusCodes.OK]: {
       description: 'Subscription canceled successfully',
       content: {
-        'application/json': { schema: CancelSubscriptionResponseSchema },
+        'application/json': { schema: createApiResponseSchema(CancelSubscriptionResponseDataSchema) },
       },
     },
     [HttpStatusCodes.BAD_REQUEST]: { description: 'Bad Request' },
@@ -131,7 +132,7 @@ export const resubscribeRoute = createRoute({
     [HttpStatusCodes.OK]: {
       description: 'Resubscription initiated successfully',
       content: {
-        'application/json': { schema: ResubscribeResponseSchema },
+        'application/json': { schema: createApiResponseSchema(ResubscribeResponseDataSchema) },
       },
     },
     [HttpStatusCodes.BAD_REQUEST]: { description: 'Bad Request' },
@@ -159,7 +160,7 @@ export const changePlanRoute = createRoute({
     [HttpStatusCodes.OK]: {
       description: 'Plan changed successfully',
       content: {
-        'application/json': { schema: ChangePlanResponseSchema },
+        'application/json': { schema: createApiResponseSchema(ChangePlanResponseDataSchema) },
       },
     },
     [HttpStatusCodes.BAD_REQUEST]: { description: 'Bad Request' },

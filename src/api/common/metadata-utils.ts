@@ -58,15 +58,47 @@ export function isValidMetadata(value: unknown): value is TypedMetadata {
 }
 
 /**
- * Safely parse metadata with fallback and type validation
- * Better than casting - provides runtime safety
+ * Safely parse metadata with ZERO CASTING
+ * Returns success/failure discriminated union
  */
-export function parseMetadata<T extends TypedMetadata = TypedMetadata>(
+export function parseMetadata(
   metadata: unknown,
-  fallback: T = { type: 'generic', data: {} } as T,
-): T {
+): { success: true; data: TypedMetadata } | { success: false; error: string; validationErrors: z.ZodIssue[] } {
   const result = MetadataSchema.safeParse(metadata);
-  return result.success ? result.data as T : fallback;
+  if (!result.success) {
+    return {
+      success: false,
+      error: result.error.message,
+      validationErrors: result.error.issues,
+    };
+  }
+  return { success: true, data: result.data };
+}
+
+/**
+ * Parse metadata with specific type constraint
+ * Returns discriminated union for type safety
+ */
+export function parseMetadataOfType<T extends TypedMetadata['type']>(
+  metadata: unknown,
+  expectedType: T,
+): { success: true; data: Extract<TypedMetadata, { type: T }> } | { success: false; error: string } {
+  const parseResult = parseMetadata(metadata);
+  if (!parseResult.success) {
+    return parseResult;
+  }
+
+  if (parseResult.data.type !== expectedType) {
+    return {
+      success: false,
+      error: `Expected metadata type '${expectedType}', got '${parseResult.data.type}'`,
+    };
+  }
+
+  return {
+    success: true,
+    data: parseResult.data as Extract<TypedMetadata, { type: T }>,
+  };
 }
 
 /**
@@ -95,28 +127,55 @@ export function parsePlanChangeHistory(metadata: unknown): PlanChangeHistoryItem
 }
 
 /**
- * Merge metadata objects safely using Zod validation
- * Better than spreading with casting
+ * Merge metadata objects safely using Zod validation with ZERO CASTING
+ * Returns success/failure discriminated union
  */
-export function mergeMetadata<T extends TypedMetadata>(
+export function mergeMetadata(
   existing: unknown,
-  updates: Partial<T>,
-): T {
-  const existingMeta = parseMetadata<T>(existing);
-  const merged = { ...existingMeta, ...updates };
+  updates: Partial<TypedMetadata>,
+): { success: true; data: TypedMetadata } | { success: false; error: string; validationErrors?: z.ZodIssue[] } {
+  const existingResult = parseMetadata(existing);
+  if (!existingResult.success) {
+    return existingResult;
+  }
+
+  const merged = { ...existingResult.data, ...updates };
   const validation = MetadataSchema.safeParse(merged);
-  return validation.success ? validation.data as T : existingMeta;
+
+  if (!validation.success) {
+    return {
+      success: false,
+      error: validation.error.message,
+      validationErrors: validation.error.issues,
+    };
+  }
+
+  return { success: true, data: validation.data };
 }
 
 /**
- * Update specific metadata field safely with validation
+ * Update specific metadata field safely with validation and ZERO CASTING
+ * Returns success/failure discriminated union
  */
-export function updateMetadataField<T extends TypedMetadata>(
+export function updateMetadataField(
   metadata: unknown,
-  updates: Partial<T>,
-): T {
-  const parsed = parseMetadata<T>(metadata);
-  const updated = { ...parsed, ...updates };
+  updates: Partial<TypedMetadata>,
+): { success: true; data: TypedMetadata } | { success: false; error: string; validationErrors?: z.ZodIssue[] } {
+  const parseResult = parseMetadata(metadata);
+  if (!parseResult.success) {
+    return parseResult;
+  }
+
+  const updated = { ...parseResult.data, ...updates };
   const validation = MetadataSchema.safeParse(updated);
-  return validation.success ? validation.data as T : parsed;
+
+  if (!validation.success) {
+    return {
+      success: false,
+      error: validation.error.message,
+      validationErrors: validation.error.issues,
+    };
+  }
+
+  return { success: true, data: validation.data };
 }

@@ -1,6 +1,6 @@
 import type { RouteHandler } from '@hono/zod-openapi';
-import * as HttpStatusCodes from 'stoker/http-status-codes';
 
+import { createHandler, Responses } from '@/api/core';
 import type { ApiEnv } from '@/api/types';
 
 import type { secureMeRoute } from './route';
@@ -8,18 +8,34 @@ import type { secureMeRoute } from './route';
 /**
  * Handler for secure /auth/me endpoint
  * Returns current authenticated user information
- * Following proper Hono OpenAPI pattern with direct response handling
+ * ✅ Refactored: Now uses unified factory pattern with consistent responses
  */
-export const secureMeHandler: RouteHandler<typeof secureMeRoute, ApiEnv> = (c) => {
-  const session = c.get('session');
-  const user = c.get('user');
-  const payload = {
-    userId: user?.id ?? session?.userId ?? 'unknown',
-    email: user?.email ?? null,
-  } as const;
+export const secureMeHandler: RouteHandler<typeof secureMeRoute, ApiEnv> = createHandler(
+  {
+    auth: 'session',
+    operationName: 'getMe',
+  },
+  async (c) => {
+    const user = c.get('user')!; // Guaranteed by auth: 'session'
+    const session = c.get('session');
 
-  return c.json({
-    success: true,
-    data: payload,
-  }, HttpStatusCodes.OK);
-};
+    c.logger.info('Fetching current user information', {
+      logType: 'operation',
+      operationName: 'getMe',
+      userId: user.id,
+    });
+
+    const payload = {
+      userId: user.id ?? session?.userId ?? 'unknown',
+      email: user.email ?? null,
+    } as const;
+
+    c.logger.info('User information retrieved successfully', {
+      logType: 'operation',
+      operationName: 'getMe',
+      resource: user.id,
+    });
+
+    return Responses.ok(c, payload);
+  },
+);

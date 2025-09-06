@@ -1,9 +1,11 @@
 /**
- * Billing Domain Repositories
+ * Billing Domain Repositories - Gradual Schema-First Migration
  *
  * Type-safe repository implementations for all billing entities.
- * Provides consistent patterns for database access with audit trails,
- * pagination, filtering, and specialized business logic.
+ * Transitioning to schema-first approach with Zod validation while maintaining
+ * compatibility with existing Drizzle inference patterns.
+ *
+ * 🔄 Migration in progress: Using both Drizzle inference and Zod schemas
  */
 
 import type { InferInsertModel, InferSelectModel } from 'drizzle-orm';
@@ -26,9 +28,11 @@ import {
 type DrizzleTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 // ============================================================================
-// TYPE DEFINITIONS
+// TYPE DEFINITIONS (Gradual Migration)
 // ============================================================================
 
+// 🔄 Using Drizzle inference for now to maintain compatibility
+// TODO: Gradually migrate to schema-first types from billing-schemas.ts
 export type ProductSelect = InferSelectModel<typeof product>;
 export type ProductInsert = InferInsertModel<typeof product>;
 export type ProductUpdate = Partial<ProductInsert>;
@@ -69,6 +73,7 @@ export class ProductRepository extends BaseRepository<
       hasSoftDelete: false,
       hasAuditFields: true,
     });
+    // TODO: Add Zod schemas for validation when BaseRepository fully supports schema-first
   }
 
   /**
@@ -134,6 +139,7 @@ export class PaymentMethodRepository extends BaseRepository<
       hasSoftDelete: false,
       hasAuditFields: true,
     });
+    // TODO: Add Zod schemas for validation when BaseRepository fully supports schema-first
   }
 
   /**
@@ -258,6 +264,7 @@ export class SubscriptionRepository extends BaseRepository<
       hasSoftDelete: false,
       hasAuditFields: true,
     });
+    // TODO: Add Zod schemas for validation when BaseRepository fully supports schema-first
   }
 
   /**
@@ -381,6 +388,7 @@ export class PaymentRepository extends BaseRepository<
       hasSoftDelete: false,
       hasAuditFields: true,
     });
+    // TODO: Add Zod schemas for validation when BaseRepository fully supports schema-first
   }
 
   /**
@@ -532,6 +540,7 @@ export class BillingEventRepository extends BaseRepository<
       hasSoftDelete: false,
       hasAuditFields: true,
     });
+    // TODO: Add Zod schemas for validation when BaseRepository fully supports schema-first
   }
 
   /**
@@ -621,6 +630,7 @@ export class WebhookEventRepository extends BaseRepository<
       hasSoftDelete: false,
       hasAuditFields: true,
     });
+    // TODO: Add Zod schemas for validation when BaseRepository fully supports schema-first
   }
 
   /**

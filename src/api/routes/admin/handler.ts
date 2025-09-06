@@ -5,7 +5,6 @@
 
 import type { RouteHandler } from '@hono/zod-openapi';
 import { desc, like } from 'drizzle-orm';
-import type { z } from 'zod';
 
 import { createHandler, Responses } from '@/api/core';
 import { billingRepositories } from '@/api/repositories/billing-repositories';
@@ -33,7 +32,12 @@ export const adminStatsHandler: RouteHandler<typeof adminStatsRoute, ApiEnv> = c
     operationName: 'getAdminStats',
   },
   async (c) => {
-    // Use repository pattern for data access
+    c.logger.info('Fetching admin statistics', {
+      logType: 'operation',
+      operationName: 'getAdminStats',
+    });
+
+    // Use repository pattern for data access with proper type safety
     const [users, subscriptionsResult, paymentsResult] = await Promise.all([
       db.select().from(user),
       billingRepositories.subscriptions.findMany(),
@@ -43,25 +47,32 @@ export const adminStatsHandler: RouteHandler<typeof adminStatsRoute, ApiEnv> = c
     const subscriptions = subscriptionsResult.items;
     const payments = paymentsResult.items;
 
+    // Enhanced type safety with proper filtering
     const stats = {
       users: {
         total: users.length,
-        verified: users.filter((u: typeof users[0]) => u.emailVerified).length,
+        verified: users.filter(u => Boolean(u.emailVerified)).length,
       },
       subscriptions: {
         total: subscriptions.length,
-        active: subscriptions.filter((s: typeof subscriptions[0]) => s.status === 'active').length,
-        canceled: subscriptions.filter((s: typeof subscriptions[0]) => s.status === 'canceled').length,
+        active: subscriptions.filter(s => s.status === 'active').length,
+        canceled: subscriptions.filter(s => s.status === 'canceled').length,
       },
       payments: {
         total: payments.length,
-        successful: payments.filter((p: typeof payments[0]) => p.status === 'completed').length,
+        successful: payments.filter(p => p.status === 'completed').length,
         totalAmount: payments
-          .filter((p: typeof payments[0]) => p.status === 'completed')
-          .reduce((sum: number, p: typeof payments[0]) => sum + p.amount, 0),
+          .filter(p => p.status === 'completed')
+          .reduce((sum, p) => sum + p.amount, 0),
         currency: 'IRR' as const,
       },
-    };
+    } as const;
+
+    c.logger.info('Admin statistics retrieved successfully', {
+      logType: 'operation',
+      operationName: 'getAdminStats',
+      resource: `stats[users:${stats.users.total},subs:${stats.subscriptions.total},payments:${stats.payments.total}]`,
+    });
 
     return Responses.ok(c, stats);
   },
@@ -74,36 +85,70 @@ export const adminUsersHandler: RouteHandler<typeof adminUsersRoute, ApiEnv> = c
     operationName: 'getAdminUsers',
   },
   async (c) => {
-    const { page, limit, search } = c.validated.query as z.infer<typeof AdminUsersQuerySchema>;
+    const { page, limit, search } = c.validated.query;
     const offset = (page - 1) * limit;
 
-    // Simplified query approach to avoid TypeScript complex type issues
-    const userData = search
-      ? await db.select().from(user).where(like(user.email, `%${search}%`)).orderBy(desc(user.createdAt)).limit(limit).offset(offset)
-      : await db.select().from(user).orderBy(desc(user.createdAt)).limit(limit).offset(offset);
-
-    // Get total count for pagination
-    const allUsers = search
-      ? await db.select().from(user).where(like(user.email, `%${search}%`))
-      : await db.select().from(user);
-
-    const totalUsers = allUsers.length;
-
-    return Responses.ok(c, {
-      data: userData.map(u => ({
-        id: u.id,
-        name: u.name,
-        email: u.email,
-        emailVerified: u.emailVerified,
-        createdAt: u.createdAt.toISOString(),
-      })),
-      pagination: {
-        page,
-        limit,
-        total: totalUsers,
-        pages: Math.ceil(totalUsers / limit),
-      },
+    c.logger.info('Fetching admin users list', {
+      logType: 'operation',
+      operationName: 'getAdminUsers',
+      resource: `page:${page},limit:${limit}${search ? `,search:${search}` : ''}`,
     });
+
+    try {
+      // Build search condition if provided
+      const searchCondition = search ? like(user.email, `%${search}%`) : undefined;
+
+      // Get users with pagination and proper type safety
+      const [userData, totalCount] = await Promise.all([
+        // Get paginated results
+        db.select()
+          .from(user)
+          .where(searchCondition)
+          .orderBy(desc(user.createdAt))
+          .limit(limit)
+          .offset(offset),
+
+        // Get total count for pagination (more efficient than selecting all)
+        db.select()
+          .from(user)
+          .where(searchCondition)
+          .then(results => results.length),
+      ]);
+
+      // Transform data with proper type safety
+      const transformedData = userData.map(u => ({
+        id: u.id,
+        name: u.name ?? '',
+        email: u.email,
+        emailVerified: Boolean(u.emailVerified),
+        createdAt: u.createdAt.toISOString(),
+      }));
+
+      const responseData = {
+        data: transformedData,
+        pagination: {
+          page,
+          limit,
+          total: totalCount,
+          pages: Math.ceil(totalCount / limit),
+        },
+      };
+
+      c.logger.info('Admin users retrieved successfully', {
+        logType: 'operation',
+        operationName: 'getAdminUsers',
+        resource: `users[${transformedData.length}]`,
+      });
+
+      return Responses.ok(c, responseData);
+    } catch (error) {
+      c.logger.error('Failed to fetch admin users', error as Error, {
+        logType: 'operation',
+        operationName: 'getAdminUsers',
+        resource: 'users',
+      });
+      throw error;
+    }
   },
 );
 
@@ -114,49 +159,103 @@ export const adminTestWebhookHandler: RouteHandler<typeof adminTestWebhookRoute,
     operationName: 'adminTestWebhook',
   },
   async (c) => {
-    const { event_type, test_data } = c.validated.body as z.infer<typeof AdminWebhookTestRequestSchema>;
+    const { event_type, test_data } = c.validated.body;
     const webhookUrl = c.env?.EXTERNAL_WEBHOOK_URL;
 
+    c.logger.info('Admin webhook test requested', {
+      logType: 'operation',
+      operationName: 'adminTestWebhook',
+      resource: webhookUrl || 'none',
+    });
+
     if (!webhookUrl) {
+      c.logger.warn('External webhook URL not configured', {
+        logType: 'operation',
+        operationName: 'adminTestWebhook',
+        resource: 'config',
+      });
+
       const responseData = {
         success: false,
         message: 'External webhook URL not configured. Set EXTERNAL_WEBHOOK_URL environment variable.',
         webhook_url: undefined,
-      };
+      } as const;
+
       return Responses.ok(c, responseData);
     }
 
-    // Use existing webhook infrastructure - leverage the database webhook event system
-    const testEvent = {
-      id: `test_${Date.now()}`,
-      type: event_type,
-      created: Math.floor(Date.now() / 1000),
-      data: test_data || {
-        test: true,
-        timestamp: new Date().toISOString(),
-        message: 'Test webhook from admin panel',
-      },
-      livemode: c.env?.NODE_ENV === 'production',
-    };
+    try {
+      // Build test event with proper type safety
+      const testEvent = {
+        id: `test_${Date.now()}`,
+        type: event_type,
+        created: Math.floor(Date.now() / 1000),
+        data: test_data ?? {
+          test: true,
+          timestamp: new Date().toISOString(),
+          message: 'Test webhook from admin panel',
+          source: 'admin-test',
+        },
+        livemode: c.env?.NODE_ENV === 'production',
+      } as const;
 
-    // Send webhook using existing fetch pattern from webhook handler
-    const response = await fetch(webhookUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'User-Agent': 'DeadPixel-Admin-Test/1.0',
-      },
-      body: JSON.stringify(testEvent),
-    });
+      c.logger.info('Sending test webhook', {
+        logType: 'operation',
+        operationName: 'adminTestWebhook',
+        resource: `${event_type}@${webhookUrl}`,
+      });
 
-    const success = response.ok;
+      // Send webhook with timeout and proper error handling
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
 
-    return Responses.ok(c, {
-      success,
-      message: success
-        ? `Test webhook sent successfully to ${webhookUrl}`
-        : `Failed to send webhook: ${response.status} ${response.statusText}`,
-      webhook_url: webhookUrl,
-    });
+      const response = await fetch(webhookUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'User-Agent': 'DeadPixel-Admin-Test/1.0',
+          'X-Admin-Test': 'true',
+        },
+        body: JSON.stringify(testEvent),
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeoutId);
+
+      const success = response.ok;
+      const statusText = response.statusText || 'Unknown';
+
+      const responseData = {
+        success,
+        message: success
+          ? `Test webhook sent successfully to ${webhookUrl}`
+          : `Failed to send webhook: ${response.status} ${statusText}`,
+        webhook_url: webhookUrl,
+      } as const;
+
+      c.logger.info('Test webhook completed', {
+        logType: 'operation',
+        operationName: 'adminTestWebhook',
+        resource: `${response.status}:${statusText}`,
+      });
+
+      return Responses.ok(c, responseData);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+
+      c.logger.error('Test webhook failed', error as Error, {
+        logType: 'operation',
+        operationName: 'adminTestWebhook',
+        resource: webhookUrl,
+      });
+
+      const responseData = {
+        success: false,
+        message: `Failed to send webhook: ${errorMessage}`,
+        webhook_url: webhookUrl,
+      } as const;
+
+      return Responses.ok(c, responseData);
+    }
   },
 );

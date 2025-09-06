@@ -19,7 +19,7 @@ import type {
   getPaymentMethodsRoute,
   setDefaultPaymentMethodRoute,
 } from './route';
-import type { PaymentMethodParams } from './schema';
+// PaymentMethodParams type removed - using proper Zod inference instead
 import {
   CreatePaymentMethodRequestSchema,
   PaymentMethodParamsSchema,
@@ -89,7 +89,7 @@ export const deletePaymentMethodHandler: RouteHandler<typeof deletePaymentMethod
   },
   async (c, tx) => {
     const user = c.get('user')!;
-    const { id } = c.validated.params as PaymentMethodParams;
+    const { id } = c.validated.params;
 
     c.logger.info('Deleting payment method', {
       logType: 'operation',
@@ -179,7 +179,7 @@ export const setDefaultPaymentMethodHandler: RouteHandler<typeof setDefaultPayme
   },
   async (c, tx) => {
     const user = c.get('user')!;
-    const { id } = c.validated.params as PaymentMethodParams;
+    const { id } = c.validated.params;
 
     c.logger.info('Setting primary payment method', {
       logType: 'operation',
