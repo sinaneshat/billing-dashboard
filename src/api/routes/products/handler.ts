@@ -3,9 +3,9 @@ import type { RouteHandler } from '@hono/zod-openapi';
 // import * as HttpStatusCodes from 'stoker/http-status-codes'; // Unused
 import { createHandler, Responses } from '@/api/core';
 import { billingRepositories } from '@/api/repositories/billing-repositories';
+import { createCurrencyExchangeService } from '@/api/services/currency-exchange';
 import type { ApiEnv } from '@/api/types';
 import type { ProductMetadata } from '@/api/types/metadata';
-import { tetherCurrencyConverter } from '@/lib/services/tether-currency-converter';
 
 import type { getProductsRoute } from './route';
 
@@ -20,6 +20,9 @@ export const getProductsHandler: RouteHandler<typeof getProductsRoute, ApiEnv> =
     operationName: 'getProducts',
   },
   async (c) => {
+    // Create currency exchange service instance
+    const currencyService = createCurrencyExchangeService(c.env);
+
     // Get raw products from database (stored in USD) using repository
     const rawProducts = await billingRepositories.products.findActive();
 
@@ -29,32 +32,17 @@ export const getProductsHandler: RouteHandler<typeof getProductsRoute, ApiEnv> =
         const metadata = prod.metadata as ProductMetadata;
         const usdPrice = prod.price; // Database stores USD prices
 
-        let pricingInfo;
+        // Get fresh USD to IRR conversion for accurate pricing
+        const conversion = await currencyService.convertUsdToToman(usdPrice);
 
-        if (usdPrice === 0) {
-          // Free product
-          pricingInfo = {
-            usdPrice: 0,
-            rialPrice: 0,
-            tomanPrice: 0,
-            formattedPrice: 'Free',
-            lastUpdated: new Date().toISOString(),
-          };
-        } else {
-          // Get fresh USD to IRR conversion for accurate pricing
-          const conversion = await tetherCurrencyConverter.convertUsdToToman(usdPrice);
-          // Convert from Toman to Rials (1 Toman = 10 Rials) for ZarinPal
-          const rialPrice = conversion.tomanPrice * 10;
-
-          pricingInfo = {
-            usdPrice,
-            rialPrice, // For ZarinPal payments
-            tomanPrice: conversion.tomanPrice, // For display to users
-            formattedPrice: `${conversion.tomanPrice.toLocaleString('en-US')} Toman`,
-            exchangeRate: conversion.exchangeRate,
-            lastUpdated: conversion.lastUpdated,
-          };
-        }
+        const pricingInfo = {
+          usdPrice: conversion.usdPrice,
+          rialPrice: conversion.rialPrice, // For ZarinPal payments
+          tomanPrice: conversion.tomanPrice, // For display to users
+          formattedPrice: conversion.formattedPrice,
+          exchangeRate: conversion.exchangeRate,
+          lastUpdated: conversion.lastUpdated,
+        };
 
         return {
           ...prod,
