@@ -49,13 +49,23 @@ export {
   createHandlerWithTransaction,
   type HandlerConfig,
   type HandlerContext,
-  // Handler response helpers
-  HandlerResponses,
-  // Common handler schemas
-  HandlerSchemas,
   type RegularHandler,
   type TransactionHandler,
 } from './handlers';
+export {
+  // Migration utilities for existing code
+  createHTTPException,
+  // Enhanced HTTP Exception System
+  EnhancedHTTPException,
+  HTTPExceptionFactory,
+  type HTTPExceptionFactoryOptions,
+  HttpExceptions,
+  // Type-safe mapping utilities
+  isContentfulStatusCode,
+  isValidContentfulStatusCode,
+  mapStatusCode,
+  STOKER_TO_HONO_STATUS_MAP,
+} from './http-exceptions';
 export {
   accepted,
   authenticationError,
@@ -181,36 +191,6 @@ export const CommonResponses = {
   validationError,
   notFound,
   internalError: internalServerError,
-} as const;
-
-// ============================================================================
-// MIGRATION HELPERS
-// ============================================================================
-
-/**
- * Migration utilities to help transition from old patterns
- * @deprecated Use the new unified systems above
- */
-export const DEPRECATED = {
-  /**
-   * @deprecated Use ErrorContextSchema discriminated union instead
-   */
-  RecordStringUnknown: 'Use ErrorContextSchema or RequestMetadataSchema discriminated unions',
-
-  /**
-   * @deprecated Use CoreSchemas.* instead
-   */
-  OldValidationUtils: 'Use ValidationUtils and Validators from this module',
-
-  /**
-   * @deprecated Use createHandler or createHandlerWithTransaction
-   */
-  OldRouteHandlerFactory: 'Use createHandler or createHandlerWithTransaction',
-
-  /**
-   * @deprecated Use Responses.* instead
-   */
-  OldResponseBuilders: 'Use Responses object or individual response functions',
 } as const;
 
 export {

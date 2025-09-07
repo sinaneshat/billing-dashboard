@@ -16,13 +16,13 @@ export const userInsertSchema = createInsertSchema(user, {
   email: schema => schema.email(),
   username: schema => schema.min(STRING_LIMITS.USERNAME_MIN).max(STRING_LIMITS.USERNAME_MAX).regex(REGEX_PATTERNS.USERNAME),
   phone: schema => schema.regex(REGEX_PATTERNS.PHONE).optional(),
-  image: schema => schema.url().optional(),
+  image: () => z.string().url().optional(),
 });
 export const userUpdateSchema = createUpdateSchema(user, {
   email: schema => schema.email().optional(),
   username: schema => schema.min(STRING_LIMITS.USERNAME_MIN).max(STRING_LIMITS.USERNAME_MAX).regex(REGEX_PATTERNS.USERNAME).optional(),
   phone: schema => schema.regex(REGEX_PATTERNS.PHONE).optional(),
-  image: schema => schema.url().optional(),
+  image: () => z.string().url().optional(),
 });
 
 // Auth form schemas derived from DB constraints where applicable

@@ -16,7 +16,6 @@
 
 // Using Stoker's HttpStatusCodes for maximum reusability
 import * as HttpStatusCodes from 'stoker/http-status-codes';
-import type { z } from 'zod';
 
 // Import our unified type-safe error context instead of generic Record
 import type { ErrorContext } from '@/api/core';
@@ -28,7 +27,7 @@ import type { ErrorContext } from '@/api/core';
 /**
  * Standard error codes used throughout the application
  */
-export const ERROR_CODES = {
+const ERROR_CODES = {
   // Authentication & Authorization
   UNAUTHENTICATED: 'UNAUTHENTICATED',
   UNAUTHORIZED: 'UNAUTHORIZED',
@@ -81,7 +80,7 @@ export type ErrorCode = typeof ERROR_CODES[keyof typeof ERROR_CODES];
 /**
  * Error severity levels for logging and monitoring
  */
-export const ERROR_SEVERITY = {
+const ERROR_SEVERITY = {
   LOW: 'low',
   MEDIUM: 'medium',
   HIGH: 'high',
@@ -181,86 +180,6 @@ class AppError extends Error {
       default:
         return this.context;
     }
-  }
-}
-
-/**
- * Validation error class for input validation failures
- */
-class ValidationError extends AppError {
-  public readonly validationErrors: Array<{ field: string; message: string }>;
-
-  constructor({
-    message = 'Validation failed',
-    validationErrors,
-    context,
-    correlationId,
-  }: {
-    message?: string;
-    validationErrors: Array<{ field: string; message: string }>;
-    context?: ErrorContext;
-    correlationId?: string;
-  }) {
-    super({
-      message,
-      code: ERROR_CODES.VALIDATION_ERROR,
-      statusCode: HttpStatusCodes.UNPROCESSABLE_ENTITY,
-      severity: ERROR_SEVERITY.LOW,
-      details: { validationErrors },
-      context,
-      correlationId,
-    });
-
-    this.validationErrors = validationErrors;
-  }
-
-  static fromZodError(
-    error: z.ZodError,
-    context?: ErrorContext,
-    correlationId?: string,
-  ): ValidationError {
-    const fieldErrors = error.issues.map(issue => ({
-      field: issue.path.join('.') || 'root',
-      message: issue.message,
-      code: issue.code,
-    }));
-
-    return new ValidationError({
-      validationErrors: fieldErrors,
-      context,
-      correlationId,
-    });
-  }
-}
-
-/**
- * Business logic error class for domain-specific errors
- */
-class BusinessLogicError extends AppError {
-  constructor({
-    message,
-    code,
-    severity = ERROR_SEVERITY.MEDIUM,
-    details,
-    context,
-    correlationId,
-  }: {
-    message: string;
-    code: ErrorCode;
-    severity?: ErrorSeverity;
-    details?: unknown;
-    context?: ErrorContext;
-    correlationId?: string;
-  }) {
-    super({
-      message,
-      code,
-      statusCode: HttpStatusCodes.BAD_REQUEST,
-      severity,
-      details,
-      context,
-      correlationId,
-    });
   }
 }
 
@@ -382,27 +301,30 @@ export const createError = {
    * Payment errors
    */
   paymentFailed: (message = 'Payment processing failed', context?: ErrorContext, correlationId?: string) =>
-    new BusinessLogicError({
+    new AppError({
       message,
       code: ERROR_CODES.PAYMENT_FAILED,
+      statusCode: HttpStatusCodes.CONFLICT,
       severity: ERROR_SEVERITY.HIGH,
       context,
       correlationId,
     }),
 
   insufficientFunds: (message = 'Insufficient funds for transaction', context?: ErrorContext, correlationId?: string) =>
-    new BusinessLogicError({
+    new AppError({
       message,
       code: ERROR_CODES.INSUFFICIENT_FUNDS,
+      statusCode: HttpStatusCodes.CONFLICT,
       severity: ERROR_SEVERITY.MEDIUM,
       context,
       correlationId,
     }),
 
   paymentMethodInvalid: (message = 'Payment method is invalid or inactive', context?: ErrorContext, correlationId?: string) =>
-    new BusinessLogicError({
+    new AppError({
       message,
       code: ERROR_CODES.PAYMENT_METHOD_INVALID,
+      statusCode: HttpStatusCodes.CONFLICT,
       severity: ERROR_SEVERITY.MEDIUM,
       context,
       correlationId,
@@ -471,15 +393,11 @@ export const createError = {
 
 export {
   AppError,
-  BusinessLogicError,
+  ERROR_CODES,
+  ERROR_SEVERITY,
   ExternalServiceError,
-  ValidationError,
 };
 
 // ErrorCode and ErrorSeverity are already exported above where they are defined
 
-export default {
-  ERROR_CODES,
-  HttpStatusCodes,
-  createError,
-};
+export default createError;

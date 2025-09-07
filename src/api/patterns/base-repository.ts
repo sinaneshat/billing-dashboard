@@ -96,38 +96,71 @@ export const AuditFieldDataSchema = z.discriminatedUnion('auditType', [
 export type AuditFieldData = z.infer<typeof AuditFieldDataSchema>;
 
 /**
- * Generic function to safely parse database query results
- * Eliminates need for 'as Type' casting
+ * Database query result parsing with discriminated union
+ * ZERO CASTING: Either validates successfully or throws/returns error state
  */
-export function parseQueryResult<T>(result: unknown[], schema?: z.ZodSchema<T>): T[] {
-  if (!schema) {
-    return result as T[];
-  }
+export const QueryResultSchema = z.discriminatedUnion('success', [
+  z.object({
+    success: z.literal(true),
+    data: z.unknown(),
+  }),
+  z.object({
+    success: z.literal(false),
+    error: z.string(),
+    validationErrors: z.array(z.object({
+      path: z.array(z.union([z.string(), z.number()])),
+      message: z.string(),
+      code: z.string(),
+    })).optional(),
+  }),
+]);
 
-  return result.map((row) => {
+export type QueryResult<T> =
+  | { success: true; data: T }
+  | { success: false; error: string; validationErrors?: z.ZodIssue[] };
+
+/**
+ * Parse database query results with ZERO CASTING
+ * Either validates successfully or returns error state
+ */
+export function parseQueryResult<T>(result: unknown[], schema: z.ZodSchema<T>): QueryResult<T[]> {
+  const validatedResults: T[] = [];
+  const errors: string[] = [];
+
+  for (const [index, row] of result.entries()) {
     const parseResult = schema.safeParse(row);
     if (!parseResult.success) {
       apiLogger.warn('Query result validation failed', {
+        index,
         validationErrors: parseResult.error.issues,
         data: row,
       });
-      // Return the raw data as fallback but log the issue
-      return row as T;
+      errors.push(`Row ${index}: ${parseResult.error.message}`);
+    } else {
+      validatedResults.push(parseResult.data);
     }
-    return parseResult.data;
-  });
+  }
+
+  if (errors.length > 0) {
+    return {
+      success: false,
+      error: `Validation failed for ${errors.length} rows: ${errors.join('; ')}`,
+      validationErrors: result.map(row => schema.safeParse(row))
+        .filter(r => !r.success)
+        .flatMap(r => r.error.issues),
+    };
+  }
+
+  return { success: true, data: validatedResults };
 }
 
 /**
- * Generic function to safely parse single database query result
+ * Parse single database query result with ZERO CASTING
+ * Either validates successfully or returns error state
  */
-export function parseSingleResult<T>(result: unknown, schema?: z.ZodSchema<T>): T | null {
+export function parseSingleResult<T>(result: unknown, schema: z.ZodSchema<T>): QueryResult<T | null> {
   if (!result) {
-    return null;
-  }
-
-  if (!schema) {
-    return result as T;
+    return { success: true, data: null };
   }
 
   const parseResult = schema.safeParse(result);
@@ -136,10 +169,13 @@ export function parseSingleResult<T>(result: unknown, schema?: z.ZodSchema<T>): 
       validationErrors: parseResult.error.issues,
       data: result,
     });
-    // Return the raw data as fallback but log the issue
-    return result as T;
+    return {
+      success: false,
+      error: parseResult.error.message,
+      validationErrors: parseResult.error.issues,
+    };
   }
-  return parseResult.data;
+  return { success: true, data: parseResult.data };
 }
 
 // ============================================================================
@@ -251,7 +287,26 @@ export abstract class BaseRepository<
         .where(and(...conditions))
         .limit(1);
 
-      return parseSingleResult(result[0], this.selectSchema);
+      if (!this.selectSchema) {
+        throw new Error(`Select schema required for ${this.config.tableName} repository`);
+      }
+
+      const parseResult = parseSingleResult(result[0], this.selectSchema);
+      if (!parseResult.success) {
+        throw createError.database(
+          `Data validation failed for ${this.config.tableName}`,
+          {
+            errorType: 'validation' as const,
+            fieldErrors: [{
+              field: this.config.tableName,
+              message: parseResult.error,
+            }],
+            schemaName: `${this.config.tableName}SelectSchema`,
+          },
+        );
+      }
+
+      return parseResult.data;
     } catch (error) {
       apiLogger.error('Repository findById failed', {
         table: this.config.tableName,
@@ -402,7 +457,22 @@ export abstract class BaseRepository<
         id: result[0][this.config.primaryKey],
       });
 
-      return parseSingleResult(result[0], this.selectSchema) as TSelect;
+      if (!this.selectSchema) {
+        throw new Error(`Select schema required for ${this.config.tableName} repository`);
+      }
+
+      const parseResult = parseSingleResult(result[0], this.selectSchema);
+      if (!parseResult.success) {
+        throw createError.database(
+          `Failed to parse created ${this.config.tableName}: ${parseResult.error}`,
+          {
+            errorType: 'database' as const,
+            operation: 'insert' as const,
+            table: this.config.tableName,
+          },
+        );
+      }
+      return parseResult.data as TSelect;
     } catch (error) {
       apiLogger.error('Repository create failed', {
         table: this.config.tableName,
@@ -487,7 +557,22 @@ export abstract class BaseRepository<
         id,
       });
 
-      return parseSingleResult(result[0], this.selectSchema) as TSelect;
+      if (!this.selectSchema) {
+        throw new Error(`Select schema required for ${this.config.tableName} repository`);
+      }
+
+      const parseResult = parseSingleResult(result[0], this.selectSchema);
+      if (!parseResult.success) {
+        throw createError.database(
+          `Failed to parse updated ${this.config.tableName}: ${parseResult.error}`,
+          {
+            errorType: 'database' as const,
+            operation: 'update' as const,
+            table: this.config.tableName,
+          },
+        );
+      }
+      return parseResult.data as TSelect;
     } catch (error) {
       apiLogger.error('Repository update failed', {
         table: this.config.tableName,
@@ -675,7 +760,22 @@ export abstract class BaseRepository<
         id,
       });
 
-      return parseSingleResult(result[0], this.selectSchema) as TSelect;
+      if (!this.selectSchema) {
+        throw new Error(`Select schema required for ${this.config.tableName} repository`);
+      }
+
+      const parseResult = parseSingleResult(result[0], this.selectSchema);
+      if (!parseResult.success) {
+        throw createError.database(
+          `Failed to parse restored ${this.config.tableName}: ${parseResult.error}`,
+          {
+            errorType: 'database' as const,
+            operation: 'update' as const,
+            table: this.config.tableName,
+          },
+        );
+      }
+      return parseResult.data as TSelect;
     } catch (error) {
       apiLogger.error('Repository restore failed', {
         table: this.config.tableName,
@@ -767,9 +867,27 @@ export abstract class BaseRepository<
     }
 
     const queryResult = await query;
-    const items = parseQueryResult(queryResult, this.selectSchema);
 
-    return { items, total };
+    if (!this.selectSchema) {
+      throw new Error(`Select schema required for ${this.config.tableName} repository`);
+    }
+
+    const parseResult = parseQueryResult(queryResult, this.selectSchema);
+    if (!parseResult.success) {
+      throw createError.database(
+        `Data validation failed for ${this.config.tableName} list`,
+        {
+          errorType: 'validation' as const,
+          fieldErrors: [{
+            field: this.config.tableName,
+            message: parseResult.error,
+          }],
+          schemaName: `${this.config.tableName}SelectSchema`,
+        },
+      );
+    }
+
+    return { items: parseResult.data, total };
   }
 
   /**

@@ -5,7 +5,7 @@
 
 import { z } from '@hono/zod-openapi';
 
-import { ApiResponseSchema, CommonFieldSchemas } from '@/api/common/schemas';
+import { CoreSchemas, createApiResponseSchema } from '@/api/core/schemas';
 
 // =============================================================================
 // Admin Stats Schemas
@@ -25,22 +25,22 @@ export const AdminStatsDataSchema = z.object({
     total: z.number().openapi({ example: 1800 }),
     successful: z.number().openapi({ example: 1650 }),
     totalAmount: z.number().openapi({ example: 125000000 }),
-    currency: CommonFieldSchemas.currency(),
+    currency: CoreSchemas.currency(),
   }),
 });
 
-export const AdminStatsResponseSchema = ApiResponseSchema(AdminStatsDataSchema);
+export const AdminStatsResponseSchema = createApiResponseSchema(AdminStatsDataSchema);
 
 // =============================================================================
 // Admin Users Schemas
 // =============================================================================
 
 export const AdminUserSchema = z.object({
-  id: CommonFieldSchemas.uuid(),
+  id: CoreSchemas.uuid(),
   name: z.string().openapi({ example: 'John Doe' }),
-  email: CommonFieldSchemas.email(),
+  email: CoreSchemas.email(),
   emailVerified: z.boolean().openapi({ example: true }),
-  createdAt: CommonFieldSchemas.timestamp(),
+  createdAt: CoreSchemas.timestamp(),
 });
 
 export const AdminUsersDataSchema = z.object({
@@ -53,12 +53,15 @@ export const AdminUsersDataSchema = z.object({
   }),
 });
 
-export const AdminUsersResponseSchema = ApiResponseSchema(AdminUsersDataSchema);
+export const AdminUsersResponseSchema = createApiResponseSchema(AdminUsersDataSchema);
 
 export const AdminUsersQuerySchema = z.object({
-  limit: CommonFieldSchemas.limit(),
-  page: CommonFieldSchemas.page(),
-  search: CommonFieldSchemas.search().optional(),
+  limit: CoreSchemas.limit(),
+  page: CoreSchemas.page(),
+  search: z.string().min(1).optional().openapi({
+    example: 'search term',
+    description: 'Search query string',
+  }),
 });
 
 // =============================================================================
@@ -86,4 +89,4 @@ export const AdminWebhookTestDataSchema = z.object({
   }),
 });
 
-export const AdminWebhookTestResponseSchema = ApiResponseSchema(AdminWebhookTestDataSchema);
+export const AdminWebhookTestResponseSchema = createApiResponseSchema(AdminWebhookTestDataSchema);

@@ -1,6 +1,6 @@
 import { z } from '@hono/zod-openapi';
 
-import { ApiResponseSchema } from '@/api/common/schemas';
+import { CoreSchemas } from '@/api/core/schemas';
 import { productSelectSchema, subscriptionSelectSchema } from '@/db/validation/billing';
 
 // ✅ Single source of truth - use drizzle-zod schemas with OpenAPI metadata
@@ -70,54 +70,67 @@ export const CancelSubscriptionRequestSchema = z.object({
   }),
 }).openapi('CancelSubscriptionRequest');
 
-// Response schemas
-export const GetSubscriptionsResponseSchema = ApiResponseSchema(
-  z.array(SubscriptionWithProductSchema),
-).openapi('GetSubscriptionsResponse');
+// ✅ Refactored: Direct data schemas, response wrapper handled by Responses.* methods
+export const GetSubscriptionsResponseDataSchema = z.array(SubscriptionWithProductSchema).openapi('GetSubscriptionsData');
 
-export const GetSubscriptionResponseSchema = ApiResponseSchema(
-  SubscriptionWithProductSchema,
-).openapi('GetSubscriptionResponse');
+export const GetSubscriptionResponseDataSchema = SubscriptionWithProductSchema.openapi('GetSubscriptionData');
 
-export const CreateSubscriptionResponseSchema = ApiResponseSchema(
-  z.object({
-    subscriptionId: z.string().openapi({ example: 'sub_123' }),
-    paymentMethod: z.string().openapi({ example: 'direct-debit-contract' }),
-    contractId: z.string().optional().openapi({
-      example: 'contract_abc123',
-      description: 'Direct debit contract ID used for this subscription',
-    }),
-    autoRenewalEnabled: z.boolean().openapi({
-      example: true,
-      description: 'Whether automatic renewal is enabled via direct debit contract',
-    }),
-    // ZarinPal compatibility fields
-    paymentUrl: z.string().url().optional().openapi({
-      example: 'https://www.zarinpal.com/pg/StartPay/A00000000000000000000000000123456789',
-      description: 'ZarinPal payment gateway URL (only for legacy zarinpal-oneoff)',
-    }),
-    authority: z.string().optional().openapi({
-      example: 'A00000000000000000000000000123456789',
-      description: 'ZarinPal payment authority (only for legacy zarinpal-oneoff)',
-    }),
+export const CreateSubscriptionResponseDataSchema = z.object({
+  subscriptionId: CoreSchemas.id().openapi({
+    example: 'sub_123',
+    description: 'Created subscription ID',
   }),
-).openapi('CreateSubscriptionResponse');
-
-export const CancelSubscriptionResponseSchema = ApiResponseSchema(
-  z.object({
-    subscriptionId: z.string(),
-    status: z.enum(['canceled']),
-    canceledAt: z.string().datetime(),
+  paymentMethod: z.string().openapi({
+    example: 'direct-debit-contract',
+    description: 'Payment method used for subscription',
   }),
-).openapi('CancelSubscriptionResponse');
-
-export const ResubscribeResponseSchema = ApiResponseSchema(
-  z.object({
-    subscriptionId: z.string(),
-    paymentUrl: z.string().url(),
-    authority: z.string(),
+  contractId: CoreSchemas.id().optional().openapi({
+    example: 'contract_abc123',
+    description: 'Direct debit contract ID used for this subscription',
   }),
-).openapi('ResubscribeResponse');
+  autoRenewalEnabled: z.boolean().openapi({
+    example: true,
+    description: 'Whether automatic renewal is enabled via direct debit contract',
+  }),
+  // ZarinPal compatibility fields
+  paymentUrl: CoreSchemas.url().optional().openapi({
+    example: 'https://www.zarinpal.com/pg/StartPay/A00000000000000000000000000123456789',
+    description: 'ZarinPal payment gateway URL (only for legacy zarinpal-oneoff)',
+  }),
+  authority: z.string().optional().openapi({
+    example: 'A00000000000000000000000000123456789',
+    description: 'ZarinPal payment authority (only for legacy zarinpal-oneoff)',
+  }),
+}).openapi('CreateSubscriptionData');
+
+export const CancelSubscriptionResponseDataSchema = z.object({
+  subscriptionId: CoreSchemas.id().openapi({
+    example: 'sub_123',
+    description: 'Canceled subscription ID',
+  }),
+  status: z.enum(['canceled']).openapi({
+    example: 'canceled',
+    description: 'Subscription status after cancellation',
+  }),
+  canceledAt: CoreSchemas.timestamp().openapi({
+    description: 'Timestamp when subscription was canceled',
+  }),
+}).openapi('CancelSubscriptionData');
+
+export const ResubscribeResponseDataSchema = z.object({
+  subscriptionId: CoreSchemas.id().openapi({
+    example: 'sub_123',
+    description: 'Resubscribed subscription ID',
+  }),
+  paymentUrl: CoreSchemas.url().openapi({
+    example: 'https://www.zarinpal.com/pg/StartPay/A00000000000000000000000000123456789',
+    description: 'ZarinPal payment URL for completing resubscription',
+  }),
+  authority: z.string().openapi({
+    example: 'A00000000000000000000000000123456789',
+    description: 'ZarinPal payment authority',
+  }),
+}).openapi('ResubscribeData');
 
 // Plan change schemas
 export const ChangePlanRequestSchema = z.object({
@@ -135,26 +148,39 @@ export const ChangePlanRequestSchema = z.object({
   }),
 }).openapi('ChangePlanRequest');
 
-export const ChangePlanResponseSchema = ApiResponseSchema(
-  z.object({
-    subscriptionId: z.string(),
-    oldProductId: z.string(),
-    newProductId: z.string(),
-    effectiveDate: z.string().datetime(),
-    paymentUrl: z.string().url().nullable().openapi({
-      description: 'Payment URL if additional payment is required (for upgrades)',
-    }),
-    authority: z.string().nullable().openapi({
-      description: 'ZarinPal authority if payment is required',
-    }),
-    priceDifference: z.number().openapi({
-      description: 'Price difference (positive for upgrade, negative for downgrade)',
-    }),
-    prorationAmount: z.number().nullable().openapi({
-      description: 'Prorated amount for immediate plan changes',
-    }),
+export const ChangePlanResponseDataSchema = z.object({
+  subscriptionId: CoreSchemas.id().openapi({
+    example: 'sub_123',
+    description: 'Modified subscription ID',
   }),
-).openapi('ChangePlanResponse');
+  oldProductId: CoreSchemas.id().openapi({
+    example: 'prod_basic',
+    description: 'Previous product ID',
+  }),
+  newProductId: CoreSchemas.id().openapi({
+    example: 'prod_premium',
+    description: 'New product ID',
+  }),
+  effectiveDate: CoreSchemas.timestamp().openapi({
+    description: 'When the plan change takes effect',
+  }),
+  paymentUrl: CoreSchemas.url().nullable().openapi({
+    example: 'https://www.zarinpal.com/pg/StartPay/A00000000000000000000000000123456789',
+    description: 'Payment URL if additional payment is required (for upgrades)',
+  }),
+  authority: z.string().nullable().openapi({
+    example: 'A00000000000000000000000000123456789',
+    description: 'ZarinPal authority if payment is required',
+  }),
+  priceDifference: CoreSchemas.amount().openapi({
+    example: 50000,
+    description: 'Price difference (positive for upgrade, negative for downgrade)',
+  }),
+  prorationAmount: CoreSchemas.amount().nullable().openapi({
+    example: 25000,
+    description: 'Prorated amount for immediate plan changes',
+  }),
+}).openapi('ChangePlanData');
 
 // Path parameter schemas
 export const SubscriptionParamsSchema = z.object({
@@ -165,9 +191,17 @@ export const SubscriptionParamsSchema = z.object({
   }),
 });
 
-// ✅ Export types - now consistent with database schema
+// ✅ Export types - now consistent with database schema and unified response system
 export type Subscription = z.infer<typeof SubscriptionSchema>;
 export type SubscriptionWithProduct = z.infer<typeof SubscriptionWithProductSchema>;
 export type CreateSubscriptionRequest = z.infer<typeof CreateSubscriptionRequestSchema>;
 export type CancelSubscriptionRequest = z.infer<typeof CancelSubscriptionRequestSchema>;
 export type SubscriptionParams = z.infer<typeof SubscriptionParamsSchema>;
+
+// Response data types for handlers
+export type GetSubscriptionsResponseData = z.infer<typeof GetSubscriptionsResponseDataSchema>;
+export type GetSubscriptionResponseData = z.infer<typeof GetSubscriptionResponseDataSchema>;
+export type CreateSubscriptionResponseData = z.infer<typeof CreateSubscriptionResponseDataSchema>;
+export type CancelSubscriptionResponseData = z.infer<typeof CancelSubscriptionResponseDataSchema>;
+export type ResubscribeResponseData = z.infer<typeof ResubscribeResponseDataSchema>;
+export type ChangePlanResponseData = z.infer<typeof ChangePlanResponseDataSchema>;

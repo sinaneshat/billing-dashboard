@@ -5,6 +5,7 @@ import { createMiddleware } from 'hono/factory';
 import { HTTPException } from 'hono/http-exception';
 import * as HttpStatusCodes from 'stoker/http-status-codes';
 
+import { mapStatusCode } from '@/api/core/http-exceptions';
 import type { ApiEnv } from '@/api/types';
 
 /**
@@ -43,7 +44,7 @@ export const requireMasterKey = createMiddleware<ApiEnv>(async (c, next) => {
         'WWW-Authenticate': 'ApiKey',
       },
     });
-    throw new HTTPException(HttpStatusCodes.UNAUTHORIZED, { res });
+    throw new HTTPException(mapStatusCode(HttpStatusCodes.UNAUTHORIZED), { res });
   }
 
   if (!masterKey) {
@@ -56,7 +57,7 @@ export const requireMasterKey = createMiddleware<ApiEnv>(async (c, next) => {
         'Content-Type': 'application/json',
       },
     });
-    throw new HTTPException(HttpStatusCodes.INTERNAL_SERVER_ERROR, { res });
+    throw new HTTPException(mapStatusCode(HttpStatusCodes.INTERNAL_SERVER_ERROR), { res });
   }
 
   if (!safeStringCompare(apiKey, masterKey)) {
@@ -70,7 +71,7 @@ export const requireMasterKey = createMiddleware<ApiEnv>(async (c, next) => {
         'WWW-Authenticate': 'ApiKey',
       },
     });
-    throw new HTTPException(HttpStatusCodes.UNAUTHORIZED, { res });
+    throw new HTTPException(mapStatusCode(HttpStatusCodes.UNAUTHORIZED), { res });
   }
 
   c.set('apiKey', apiKey);
@@ -108,7 +109,7 @@ export const requireSession = createMiddleware<ApiEnv>(async (c, next) => {
           'WWW-Authenticate': 'Session',
         },
       });
-      throw new HTTPException(HttpStatusCodes.UNAUTHORIZED, { res });
+      throw new HTTPException(mapStatusCode(HttpStatusCodes.UNAUTHORIZED), { res });
     }
 
     c.set('session', result.session);
@@ -122,6 +123,6 @@ export const requireSession = createMiddleware<ApiEnv>(async (c, next) => {
         'WWW-Authenticate': 'Session',
       },
     });
-    throw new HTTPException(HttpStatusCodes.UNAUTHORIZED, { res, cause: e });
+    throw new HTTPException(mapStatusCode(HttpStatusCodes.UNAUTHORIZED), { res, cause: e });
   }
 });

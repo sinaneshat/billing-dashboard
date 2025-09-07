@@ -1,6 +1,6 @@
 import { z } from '@hono/zod-openapi';
 
-import { ApiResponseSchema } from '@/api/common/schemas';
+import { createApiResponseSchema } from '@/api/core/schemas';
 import { webhookEventSelectSchema } from '@/db/validation/billing';
 
 // ZarinPal webhook payload schema
@@ -58,7 +58,7 @@ const WebhookEventSchema = webhookEventSelectSchema.omit({
 });
 
 // Response schemas
-export const WebhookReceiveResponseSchema = ApiResponseSchema(
+export const WebhookReceiveResponseSchema = createApiResponseSchema(
   z.object({
     received: z.boolean(),
     eventId: z.string(),
@@ -67,7 +67,7 @@ export const WebhookReceiveResponseSchema = ApiResponseSchema(
   }),
 ).openapi('WebhookReceiveResponse');
 
-export const GetWebhookEventsResponseSchema = ApiResponseSchema(
+export const GetWebhookEventsResponseSchema = createApiResponseSchema(
   z.array(WebhookEventSchema),
 ).openapi('GetWebhookEventsResponse');
 
@@ -103,7 +103,7 @@ export const TestWebhookRequestSchema = z.object({
   }),
 }).openapi('TestWebhookRequest');
 
-export const TestWebhookResponseSchema = ApiResponseSchema(
+export const TestWebhookResponseSchema = createApiResponseSchema(
   z.object({
     success: z.boolean(),
     statusCode: z.number(),

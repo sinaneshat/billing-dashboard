@@ -7,7 +7,6 @@ import { z } from '@hono/zod-openapi';
 import { HTTPException } from 'hono/http-exception';
 import * as HttpStatusCodes from 'stoker/http-status-codes';
 
-// ServiceConfig import removed as it's now defined in Zod schema
 import { BaseService } from '@/api/patterns/service-factory';
 
 // =============================================================================

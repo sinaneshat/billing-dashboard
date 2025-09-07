@@ -4,6 +4,7 @@ import * as React from 'react'
 import { CheckCircle, Clock, AlertCircle, X, Shield, User } from 'lucide-react'
 import { cva } from 'class-variance-authority'
 import { z } from 'zod'
+import { useTranslations } from 'next-intl'
 
 import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib'
@@ -101,33 +102,33 @@ const statusIcons = {
   primary: CheckCircle,
 } as const
 
-// Status type mapping for context-aware labels
-const statusLabels = {
+// Translation key mapping for context-aware labels
+const statusLabelKeys = {
   subscription: {
-    active: "Active Subscription",
-    canceled: "Canceled Subscription",
-    expired: "Expired Subscription",
-    pending: "Pending Subscription",
-    inactive: "Inactive Subscription",
+    active: 'status.subscription.active',
+    canceled: 'status.subscription.canceled',
+    expired: 'status.subscription.expired',
+    pending: 'status.subscription.pending',
+    inactive: 'status.subscription.inactive',
   },
   payment: {
-    completed: "Payment Completed",
-    failed: "Payment Failed",
-    pending: "Payment Pending",
-    processing: "Payment Processing",
-    canceled: "Payment Canceled",
+    completed: 'status.payment.completed',
+    failed: 'status.payment.failed',
+    pending: 'status.payment.pending',
+    processing: 'status.payment.processing',
+    canceled: 'status.payment.canceled',
   },
   contract: {
-    signed: "Contract Signed",
-    pending: "Contract Pending",
-    expired: "Contract Expired",
-    rejected: "Contract Rejected",
-    draft: "Contract Draft",
+    signed: 'status.contract.signed',
+    pending: 'status.contract.pending',
+    expired: 'status.contract.expired',
+    rejected: 'status.contract.rejected',
+    draft: 'status.contract.draft',
   },
   default: {
-    primary: "Primary",
-    active: "Active",
-    inactive: "Inactive",
+    primary: 'status.default.primary',
+    active: 'status.default.active',
+    inactive: 'status.default.inactive',
   },
 } as const
 
@@ -168,11 +169,15 @@ export function StatusBadge({
   children,
   ...props
 }: StatusBadgeProps) {
+  const t = useTranslations()
   const normalizedStatus = status.toLowerCase() as keyof typeof statusIcons
   const IconComponent = icon || statusIcons[normalizedStatus] || AlertCircle
-  const statusLabel = statusLabels[type]?.[normalizedStatus as keyof typeof statusLabels[typeof type]] 
-    || children 
-    || status.charAt(0).toUpperCase() + status.slice(1)
+  
+  // Get translation key and translate it
+  const translationKey = statusLabelKeys[type]?.[normalizedStatus as keyof typeof statusLabelKeys[typeof type]]
+  const statusLabel = children || 
+    (translationKey ? t(translationKey as any) : undefined) ||
+    status.charAt(0).toUpperCase() + status.slice(1)
   
   const iconSizeClass = {
     sm: 'h-3 w-3',
@@ -259,6 +264,8 @@ export function DefaultBadge({
 }: { 
   isPrimary?: boolean 
 } & Omit<StatusBadgeProps, 'status' | 'type'>) {
+  const t = useTranslations()
+  
   if (isPrimary) {
     return (
       <StatusBadge 
@@ -268,7 +275,7 @@ export function DefaultBadge({
         className={cn("bg-primary/10 text-primary border-primary/20", className)}
         {...props}
       >
-        {children || 'Default'}
+        {children || t('billing.default')}
       </StatusBadge>
     )
   }
@@ -276,7 +283,7 @@ export function DefaultBadge({
   return (
     <span 
       className="text-sm text-muted-foreground" 
-      aria-label="Not set as default"
+      aria-label={t('accessibility.notSetAsDefault')}
     >
       —
     </span>
@@ -290,6 +297,7 @@ export function PriorityBadge({
 }: { 
   priority: 'low' | 'medium' | 'high' | 'critical' 
 } & Omit<StatusBadgeProps, 'status' | 'type'>) {
+  const t = useTranslations()
   const priorityConfig = {
     low: { status: 'inactive' as const, className: "bg-muted text-muted-foreground" },
     medium: { status: 'pending' as const, className: "bg-yellow-50 text-yellow-700 dark:bg-yellow-950/20 dark:text-yellow-400" },
@@ -305,7 +313,7 @@ export function PriorityBadge({
       className={cn(config.className, props.className)}
       {...props}
     >
-      {priority.charAt(0).toUpperCase() + priority.slice(1)}
+      {t(`priority.${priority}`, { default: priority.charAt(0).toUpperCase() + priority.slice(1) })}
     </StatusBadge>
   )
 }
@@ -316,6 +324,7 @@ export function UserRoleBadge({
 }: { 
   role: 'admin' | 'user' | 'guest' | 'moderator'
 } & Omit<StatusBadgeProps, 'status' | 'type'>) {
+  const t = useTranslations()
   const roleConfig = {
     admin: { status: 'primary' as const, icon: Shield },
     moderator: { status: 'active' as const, icon: User },
@@ -331,7 +340,7 @@ export function UserRoleBadge({
       icon={config.icon}
       {...props}
     >
-      {role.charAt(0).toUpperCase() + role.slice(1)}
+      {t(`roles.${role}`, { default: role.charAt(0).toUpperCase() + role.slice(1) })}
     </StatusBadge>
   )
 }

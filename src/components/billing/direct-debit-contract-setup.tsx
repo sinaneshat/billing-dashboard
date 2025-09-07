@@ -104,7 +104,7 @@ export function DirectDebitContractSetup({
       if (result.success && result.data) {
         setContractResult(result.data);
         setStep('bank-selection');
-        showSuccessToast('Contract setup initiated! Please select your bank.');
+        showSuccessToast(t('directDebit.successMessages.contractInitiated'));
         // Call success handler with contract ID
         handleContractSuccess(result.data.contractId);
       } else {
@@ -140,7 +140,7 @@ export function DirectDebitContractSetup({
     }));
 
     setStep('redirect');
-    showSuccessToast(`Redirecting to ${selectedBank.name} for contract signing...`);
+    showSuccessToast(t('directDebit.successMessages.redirectingToBank', { bankName: selectedBank.name }));
 
     // Redirect to bank contract signing
     const signingUrl = contractResult.contractSigningUrl
@@ -184,7 +184,7 @@ export function DirectDebitContractSetup({
         {children || (
           <Button className={className}>
             <CreditCard className="h-4 w-4 me-2" />
-            Setup Direct Debit
+            {t('directDebit.setupDirectDebit')}
           </Button>
         )}
       </DialogTrigger>
@@ -192,10 +192,10 @@ export function DirectDebitContractSetup({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Shield className="h-5 w-5" />
-            Direct Debit Contract Setup
+            {t('directDebit.contractSetup')}
           </DialogTitle>
           <DialogDescription>
-            Set up automatic billing with ZarinPal's secure direct debit system
+            {t('directDebit.setupDescription')}
           </DialogDescription>
         </DialogHeader>
 
@@ -203,10 +203,9 @@ export function DirectDebitContractSetup({
           <div className="space-y-6">
             <Alert>
               <Shield className="h-4 w-4" />
-              <AlertTitle>Secure Direct Debit</AlertTitle>
+              <AlertTitle>{t('directDebit.secureTitle')}</AlertTitle>
               <AlertDescription>
-                This process creates a secure contract with ZarinPal that allows automatic billing for your subscriptions.
-                Your banking information is handled directly by your bank and ZarinPal.
+                {t('directDebit.secureDescription')}
               </AlertDescription>
             </Alert>
 
@@ -221,7 +220,7 @@ export function DirectDebitContractSetup({
                   maxLength={13} // Formatted length
                 />
                 <p className="text-sm text-muted-foreground mt-1">
-                  Iranian mobile number (required for contract signing)
+                  {t('directDebit.mobileHelperText')}
                 </p>
               </div>
 
@@ -235,34 +234,46 @@ export function DirectDebitContractSetup({
                   maxLength={10}
                 />
                 <p className="text-sm text-muted-foreground mt-1">
-                  Optional but recommended for enhanced security
+                  {t('directDebit.nationalIdHelperText')}
                 </p>
               </div>
             </div>
 
             <Card>
               <CardHeader>
-                <CardTitle className="text-base">Contract Terms</CardTitle>
+                <CardTitle className="text-base">{t('directDebit.contractTermsTitle')}</CardTitle>
               </CardHeader>
               <CardContent className="space-y-2 text-sm">
                 <div className="flex justify-between">
-                  <span>Duration:</span>
-                  <span>1 Year (renewable)</span>
+                  <span>
+                    {t('directDebit.duration')}
+                    :
+                  </span>
+                  <span>{t('directDebit.durationValue')}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span>Daily Transaction Limit:</span>
-                  <span>10 transactions</span>
+                  <span>
+                    {t('directDebit.dailyTransactionLimit')}
+                    :
+                  </span>
+                  <span>{t('directDebit.dailyTransactionValue')}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span>Monthly Transaction Limit:</span>
-                  <span>100 transactions</span>
+                  <span>
+                    {t('directDebit.monthlyTransactionLimit')}
+                    :
+                  </span>
+                  <span>{t('directDebit.monthlyTransactionValue')}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span>Maximum Amount:</span>
+                  <span>
+                    {t('directDebit.maximumAmount')}
+                    :
+                  </span>
                   <span>
                     {formatTomanCurrency(50000000)}
                     {' '}
-                    per transaction
+                    {t('directDebit.perTransaction')}
                   </span>
                 </div>
               </CardContent>
@@ -270,7 +281,7 @@ export function DirectDebitContractSetup({
 
             <DialogFooter>
               <Button variant="outline" onClick={() => setOpen(false)}>
-                Cancel
+                {t('actions.cancel')}
               </Button>
               <Button
                 onClick={handleInitiateContract}
@@ -280,7 +291,7 @@ export function DirectDebitContractSetup({
                 startIcon={!mutationUI.showPending ? <CreditCard className="h-4 w-4" /> : undefined}
                 aria-label={mutationUI.showPending ? 'Setting up contract...' : 'Setup direct debit contract'}
               >
-                Setup Contract
+                {t('directDebit.setupContract')}
               </Button>
             </DialogFooter>
           </div>
@@ -290,14 +301,14 @@ export function DirectDebitContractSetup({
           <div className="space-y-6">
             <Alert>
               <CheckCircle className="h-4 w-4" />
-              <AlertTitle>Contract Created Successfully</AlertTitle>
+              <AlertTitle>{t('directDebit.contractCreatedSuccess')}</AlertTitle>
               <AlertDescription>
-                Please select your bank to sign the direct debit contract. You'll be redirected to your bank's secure website.
+                {t('directDebit.bankSelectionDescription')}
               </AlertDescription>
             </Alert>
 
             <div>
-              <Label htmlFor="bank-select">Select Your Bank</Label>
+              <Label htmlFor="bank-select">{t('directDebit.selectBank')}</Label>
               <Select value={selectedBankCode} onValueChange={setSelectedBankCode}>
                 <SelectTrigger>
                   <SelectValue placeholder={t('directDebit.placeholders.chooseBank')} />
@@ -325,7 +336,7 @@ export function DirectDebitContractSetup({
 
             <DialogFooter>
               <Button variant="outline" onClick={handleReset}>
-                Back
+                {t('actions.back')}
               </Button>
               <Button
                 onClick={handleBankSelection}
@@ -333,7 +344,7 @@ export function DirectDebitContractSetup({
                 startIcon={<BanknoteIcon className="h-4 w-4" />}
                 aria-label="Continue to bank for contract signing"
               >
-                Continue to Bank
+                {t('directDebit.continueToBank')}
               </Button>
             </DialogFooter>
           </div>
@@ -345,9 +356,9 @@ export function DirectDebitContractSetup({
               <LoadingSpinner className="h-8 w-8" />
             </div>
             <div>
-              <h3 className="text-lg font-semibold">Redirecting to Bank</h3>
+              <h3 className="text-lg font-semibold">{t('directDebit.redirectingTitle')}</h3>
               <p className="text-muted-foreground">
-                Please wait while we redirect you to your bank's secure website to sign the contract.
+                {t('directDebit.redirectingDescription')}
               </p>
             </div>
           </div>

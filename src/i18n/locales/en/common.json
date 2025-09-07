@@ -101,7 +101,33 @@
     "premium": "Premium",
     "basic": "Basic",
     "pro": "Pro",
-    "enterprise": "Enterprise"
+    "enterprise": "Enterprise",
+    "subscription": {
+      "active": "Active Subscription",
+      "canceled": "Canceled Subscription",
+      "expired": "Expired Subscription",
+      "pending": "Pending Subscription",
+      "inactive": "Inactive Subscription"
+    },
+    "payment": {
+      "completed": "Payment Completed",
+      "failed": "Payment Failed",
+      "pending": "Payment Pending",
+      "processing": "Payment Processing",
+      "canceled": "Payment Canceled"
+    },
+    "contract": {
+      "signed": "Contract Signed",
+      "pending": "Contract Pending",
+      "expired": "Contract Expired",
+      "rejected": "Contract Rejected",
+      "draft": "Contract Draft"
+    },
+    "default": {
+      "primary": "Primary",
+      "active": "Active",
+      "inactive": "Inactive"
+    }
   },
   "language": {
     "language": "Language",
@@ -125,6 +151,7 @@
     "description": "Customize your dashboard preferences and account settings",
     "theme": {
       "title": "Theme",
+      "mode": "Theme mode",
       "darkMode": "Dark mode",
       "description": "Toggle between light and dark themes"
     },
@@ -299,6 +326,7 @@
   "billing": {
     "title": "Billing",
     "subtitle": "Manage your subscription and billing information",
+    "paymentSuccess": "Payment Success Rate",
     "currentPlan": "Current Plan",
     "nextBilling": "Next Billing Date",
     "paymentMethod": "Payment Method",
@@ -328,7 +356,7 @@
     "paymentHistoryEmptyDescription": "Your payment transactions will appear here once you make your first purchase",
     "upcomingBillsEmpty": "No upcoming bills",
     "upcomingBillsEmptyDescription": "All payments are up to date",
-    "paymentSuccess": "Payment Success",
+    "paymentSuccessful": "Payment Success",
     "subscriptionBilling": "Subscription Billing",
     "subscriptionBillingDescription": "View your subscription billing history and automated charges",
     "subscriptionsTitle": "Subscriptions",
@@ -635,6 +663,37 @@
     "title": "Direct Debit Setup",
     "subtitle": "Set up automatic payments with ZarinPal",
     "contractSetup": "Direct Debit Contract Setup",
+    "setupDirectDebit": "Setup Direct Debit",
+    "setupDescription": "Set up automatic billing with ZarinPal's secure direct debit system",
+    "secureTitle": "Secure Direct Debit",
+    "secureDescription": "This process creates a secure contract with ZarinPal that allows automatic billing for your subscriptions. Your banking information is handled directly by your bank and ZarinPal.",
+    "settingUp": "Setting up...",
+    "contractCreatedSuccess": "Contract Created Successfully",
+    "selectBank": "Select Your Bank",
+    "continueToBank": "Continue to Bank",
+    "redirectingToBank": "Redirecting to Bank",
+    "redirectingTitle": "Redirecting to Bank",
+    "redirectingDescription": "Please wait while we redirect you to your bank's secure website to sign the contract.",
+    "redirectingMessage": "Please wait while we redirect you to your bank's secure website to complete the contract signing process.",
+    "mobileHelperText": "Iranian mobile number (required for contract signing)",
+    "nationalIdHelperText": "Optional but recommended for enhanced security",
+    "contractTermsTitle": "Contract Terms",
+    "duration": "Duration",
+    "durationValue": "1 Year (renewable)",
+    "dailyTransactionLimit": "Daily Transaction Limit",
+    "dailyTransactionValue": "10 transactions",
+    "monthlyTransactionLimit": "Monthly Transaction Limit",
+    "monthlyTransactionValue": "100 transactions",
+    "maximumAmount": "Maximum Amount",
+    "perTransaction": "per transaction",
+    "setupContract": "Setup Contract",
+    "bankSelectionDescription": "Please select your bank to sign the direct debit contract. You'll be redirected to your bank's secure website.",
+    "successMessages": {
+      "contractInitiated": "Contract setup initiated! Please select your bank.",
+      "redirectingToBank": "Redirecting to {bankName} for contract signing..."
+    },
+    "mobileNumberLabel": "Mobile Number",
+    "nationalIdLabel": "National ID",
     "bankAccount": "Bank Account",
     "accountNumber": "Account Number",
     "accountHolderName": "Account Holder Name",
@@ -646,7 +705,6 @@
     "description": "Payment Description",
     "terms": "Terms and Conditions",
     "agreeToTerms": "I agree to the direct debit terms and conditions",
-    "setupContract": "Setup Contract",
     "initiateContract": "Initiate Direct Debit",
     "contractStatus": "Contract Status",
     "contractId": "Contract ID",
@@ -681,7 +739,7 @@
         "description": "Your subscriptions will automatically renew using the secure signed contract"
       }
     },
-    "contractTermsTitle": "Contract Terms & Limits",
+    "contractTermsAndLimits": "Contract Terms & Limits",
     "contractTerms": {
       "contractDuration": "Contract Duration",
       "contractDurationValue": "1 Year (auto-renewable)",
@@ -837,14 +895,15 @@
       "please_wait": "Please wait while we fetch your data...",
       "upcoming_bills": "Loading upcoming bills...",
       "payment_history": "Loading payment history...",
-      "payment_methods": "Loading payment methods..."
+      "payment_methods": "Loading payment methods...",
+      "paymentHistory": "Loading payment history..."
     },
     "empty": {
       "default": "No data found",
       "description": "There is no data to display at the moment.",
       "subscriptions": "No subscriptions found",
       "subscriptionsDescription": "You don't have any active subscriptions yet. Browse our plans to get started.",
-      "payments": "No payment history",
+      "payments": "No payment history found",
       "paymentsDescription": "Your payment transactions will appear here once you make your first purchase.",
       "plans": "No plans available",
       "plansDescription": "No subscription plans are currently available. Please check back later.",
@@ -874,10 +933,13 @@
       "serverErrorDescription": "An internal server error occurred. Please try again later.",
       "boundary": "Something went wrong",
       "boundaryDescription": "An unexpected error occurred while loading this content.",
-      "retry": "Retry"
+      "retry": "Retry",
+      "loadPaymentHistory": "Failed to load payment history",
+      "loadPaymentHistoryDescription": "There was an error loading your billing history. Please try again."
     },
     "success": {
       "default": "Success",
+      "description": "Your action has been completed successfully",
       "saved": "Saved successfully",
       "updated": "Updated successfully",
       "deleted": "Deleted successfully",
@@ -927,15 +989,20 @@
     "pagination": "pagination",
     "previousPage": "Go to previous page",
     "nextPage": "Go to next page",
+    "morePages": "More pages",
     "selectAll": "Select all",
     "selectRow": "Select row",
-    "selectAllRows": "Select all rows",
     "toggleSidebar": "Toggle Sidebar",
     "openFiltersMenu": "Open filters menu",
     "notSetAsDefault": "Not set as default",
     "continueToBankSigning": "Continue to bank for contract signing",
     "settingUpContract": "Setting up contract...",
     "setupDirectDebitContract": "Setup direct debit contract"
+  },
+  "networkStatus": {
+    "offline": "Offline",
+    "timeout": "Timeout",
+    "connectionError": "Connection Error"
   },
   "dataTable": {
     "noDataFound": "No data found",

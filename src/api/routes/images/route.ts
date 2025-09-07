@@ -6,7 +6,8 @@ import {
   GetImageMetadataResponseSchema,
   GetImagesQuerySchema,
   GetImagesResponseSchema,
-  ImageKeyParamsSchema,
+  ImageParamsSchema,
+  ImageTypeParamsSchema,
   UploadCompanyImageResponseSchema,
   UploadUserAvatarResponseSchema,
 } from './schema';
@@ -34,7 +35,7 @@ export const uploadCompanyImageRoute = createRoute({
   path: '/images/company/:type',
   tags: ['images'],
   request: {
-    params: ImageKeyParamsSchema,
+    params: ImageTypeParamsSchema,
   },
   responses: {
     [HttpStatusCodes.OK]: {
@@ -73,7 +74,7 @@ export const getImageMetadataRoute = createRoute({
   path: '/images/:key',
   tags: ['images'],
   request: {
-    params: ImageKeyParamsSchema,
+    params: ImageParamsSchema,
   },
   responses: {
     [HttpStatusCodes.OK]: {
@@ -91,7 +92,7 @@ export const deleteImageRoute = createRoute({
   path: '/images/:key',
   tags: ['images'],
   request: {
-    params: ImageKeyParamsSchema,
+    params: ImageParamsSchema,
   },
   responses: {
     [HttpStatusCodes.OK]: {

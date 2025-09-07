@@ -7,7 +7,6 @@
  */
 
 import type { RouteHandler } from '@hono/zod-openapi';
-import type { z } from 'zod';
 
 import { createError } from '@/api/common/error-handling';
 import { createHandler, createHandlerWithTransaction, Responses } from '@/api/core';
@@ -92,7 +91,7 @@ export const getSubscriptionHandler: RouteHandler<typeof getSubscriptionRoute, A
   },
   async (c) => {
     const user = c.get('user')!;
-    const { id } = c.validated.params as z.infer<typeof SubscriptionParamsSchema>;
+    const { id } = c.validated.params;
 
     c.logger.info('Fetching subscription', { logType: 'operation', operationName: 'getSubscription', userId: user.id, resource: id });
 
@@ -136,7 +135,7 @@ export const createSubscriptionHandler: RouteHandler<typeof createSubscriptionRo
   },
   async (c, tx) => {
     const user = c.get('user')!;
-    const { productId, paymentMethod, contractId, enableAutoRenew, callbackUrl } = c.validated.body as z.infer<typeof CreateSubscriptionRequestSchema>;
+    const { productId, paymentMethod, contractId, enableAutoRenew, callbackUrl } = c.validated.body;
 
     c.logger.info('Creating subscription', {
       logType: 'operation',
@@ -355,8 +354,8 @@ export const cancelSubscriptionHandler: RouteHandler<typeof cancelSubscriptionRo
   },
   async (c, tx) => {
     const user = c.get('user')!;
-    const { id } = c.validated.params as z.infer<typeof SubscriptionParamsSchema>;
-    const { reason } = c.validated.body as z.infer<typeof CancelSubscriptionRequestSchema>;
+    const { id } = c.validated.params;
+    const { reason } = c.validated.body;
 
     c.logger.info('Canceling subscription', {
       logType: 'operation',
@@ -433,8 +432,8 @@ export const resubscribeHandler: RouteHandler<typeof resubscribeRoute, ApiEnv> =
   },
   async (c, tx) => {
     const user = c.get('user')!;
-    const { id } = c.validated.params as z.infer<typeof SubscriptionParamsSchema>;
-    const { callbackUrl } = c.validated.body as z.infer<typeof CreateSubscriptionRequestSchema>;
+    const { id } = c.validated.params;
+    const { callbackUrl } = c.validated.body;
 
     c.logger.info('Resubscribing to subscription', {
       logType: 'operation',
@@ -580,8 +579,8 @@ export const changePlanHandler: RouteHandler<typeof changePlanRoute, ApiEnv> = c
   },
   async (c, tx) => {
     const user = c.get('user')!;
-    const { id } = c.validated.params as z.infer<typeof SubscriptionParamsSchema>;
-    const { newProductId, callbackUrl, effectiveDate } = c.validated.body as z.infer<typeof ChangePlanRequestSchema>;
+    const { id } = c.validated.params;
+    const { newProductId, callbackUrl, effectiveDate } = c.validated.body;
 
     c.logger.info('Changing subscription plan', {
       logType: 'operation',

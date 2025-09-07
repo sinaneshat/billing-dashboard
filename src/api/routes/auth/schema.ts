@@ -1,10 +1,18 @@
 import { z } from '@hono/zod-openapi';
 
-import { ApiResponseSchema } from '@/api/common/schemas';
+import { CoreSchemas } from '@/api/core/schemas';
 
-const SecureMePayloadSchema = z.object({
-  userId: z.string().openapi({ example: 'user_123' }),
-  email: z.string().email().nullable().openapi({ example: 'user@example.com' }),
-});
+// ✅ Refactored: Direct data schema, response wrapper handled by Responses.ok()
+export const SecureMePayloadSchema = z.object({
+  userId: CoreSchemas.id().openapi({
+    example: 'user_123',
+    description: 'User identifier',
+  }),
+  email: CoreSchemas.email().nullable().openapi({
+    example: 'user@example.com',
+    description: 'User email address (null if not available)',
+  }),
+}).openapi('SecureMePayload');
 
-export const SecureMeResponseSchema = ApiResponseSchema(SecureMePayloadSchema).openapi('SecureMeResponse');
+// Export for handler type inference
+export type SecureMePayload = z.infer<typeof SecureMePayloadSchema>;

@@ -3,6 +3,8 @@ import type { NextConfig } from 'next';
 import createNextIntlPlugin from 'next-intl/plugin';
 
 const nextConfig: NextConfig = {
+  // Required for OpenNext deployment
+  output: 'standalone',
 
   // Compiler optimizations
   compiler: {
@@ -39,6 +41,14 @@ const nextConfig: NextConfig = {
             key: 'X-Cache-Type',
             value: 'optimized-image',
           },
+          {
+            key: 'Referrer-Policy',
+            value: 'no-referrer-when-downgrade',
+          },
+          {
+            key: 'Cross-Origin-Resource-Policy',
+            value: 'cross-origin',
+          },
         ],
       },
       {
@@ -72,48 +82,33 @@ const nextConfig: NextConfig = {
         ],
       },
       {
-        // Comprehensive security headers for all routes
+        // Basic security headers for all routes
         source: '/(.*)',
         headers: [
           {
-            key: 'X-DNS-Prefetch-Control',
-            value: 'on',
-          },
-          {
             key: 'X-Content-Type-Options',
             value: 'nosniff',
-          },
-          {
-            key: 'Referrer-Policy',
-            value: 'origin-when-cross-origin',
           },
           {
             key: 'X-Frame-Options',
             value: 'DENY',
           },
           {
-            key: 'Strict-Transport-Security',
-            value: 'max-age=31536000; includeSubDomains; preload',
-          },
-          {
-            key: 'Permissions-Policy',
-            value: 'camera=(), microphone=(), geolocation=(), payment=(), usb=(), interest-cohort=()',
+            key: 'Referrer-Policy',
+            value: 'origin-when-cross-origin',
           },
           {
             key: 'Content-Security-Policy',
-            value: 'default-src \'self\'; script-src \'self\' \'unsafe-inline\' \'unsafe-eval\' challenges.cloudflare.com; style-src \'self\' \'unsafe-inline\'; img-src \'self\' data: https:; font-src \'self\'; connect-src \'self\' https://api.zarinpal.com; frame-src \'none\'; object-src \'none\'; base-uri \'self\'; form-action \'self\';',
-          },
-          {
-            key: 'Cross-Origin-Embedder-Policy',
-            value: 'require-corp',
-          },
-          {
-            key: 'Cross-Origin-Opener-Policy',
-            value: 'same-origin',
-          },
-          {
-            key: 'Cross-Origin-Resource-Policy',
-            value: 'same-origin',
+            value: [
+              'default-src \'self\'',
+              'script-src \'self\' \'unsafe-inline\' \'unsafe-eval\'',
+              'style-src \'self\' \'unsafe-inline\'',
+              'img-src \'self\' data: https://lh3.googleusercontent.com https://lh4.googleusercontent.com https://lh5.googleusercontent.com https://lh6.googleusercontent.com https://googleusercontent.com',
+              'connect-src \'self\' https://api.zarinpal.com',
+              'frame-ancestors \'none\'',
+              'base-uri \'self\'',
+              'form-action \'self\'',
+            ].join('; '),
           },
         ],
       },
@@ -141,7 +136,23 @@ const nextConfig: NextConfig = {
       },
       {
         protocol: 'https',
-        hostname: '**',
+        hostname: 'lh3.googleusercontent.com',
+      },
+      {
+        protocol: 'https',
+        hostname: 'lh4.googleusercontent.com',
+      },
+      {
+        protocol: 'https',
+        hostname: 'lh5.googleusercontent.com',
+      },
+      {
+        protocol: 'https',
+        hostname: 'lh6.googleusercontent.com',
+      },
+      {
+        protocol: 'https',
+        hostname: 'googleusercontent.com',
       },
     ],
   },

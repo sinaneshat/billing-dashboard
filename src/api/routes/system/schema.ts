@@ -1,6 +1,6 @@
 import { z } from '@hono/zod-openapi';
 
-import { ApiResponseSchema } from '@/api/common/schemas';
+import { createApiResponseSchema } from '@/api/core/schemas';
 
 const HealthPayloadSchema = z.object({
   ok: z.boolean().openapi({ example: true }),
@@ -8,7 +8,7 @@ const HealthPayloadSchema = z.object({
   timestamp: z.string().datetime().openapi({ example: new Date().toISOString() }),
 });
 
-export const HealthResponseSchema = ApiResponseSchema(HealthPayloadSchema).openapi('HealthResponse');
+export const HealthResponseSchema = createApiResponseSchema(HealthPayloadSchema).openapi('HealthResponse');
 
 const HealthCheckResultSchema = z.object({
   status: z.enum(['healthy', 'degraded', 'unhealthy']),
@@ -41,4 +41,4 @@ const DetailedHealthPayloadSchema = z.object({
   }),
 });
 
-export const DetailedHealthResponseSchema = ApiResponseSchema(DetailedHealthPayloadSchema).openapi('DetailedHealthResponse');
+export const DetailedHealthResponseSchema = createApiResponseSchema(DetailedHealthPayloadSchema).openapi('DetailedHealthResponse');

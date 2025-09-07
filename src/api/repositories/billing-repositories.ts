@@ -2,8 +2,7 @@
  * Billing Domain Repositories
  *
  * Type-safe repository implementations for all billing entities.
- * Provides consistent patterns for database access with audit trails,
- * pagination, filtering, and specialized business logic.
+ * Uses Drizzle ORM with proper type inference and BaseRepository patterns.
  */
 
 import type { InferInsertModel, InferSelectModel } from 'drizzle-orm';
@@ -29,6 +28,7 @@ type DrizzleTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
 // TYPE DEFINITIONS
 // ============================================================================
 
+// Using Drizzle ORM type inference
 export type ProductSelect = InferSelectModel<typeof product>;
 export type ProductInsert = InferInsertModel<typeof product>;
 export type ProductUpdate = Partial<ProductInsert>;

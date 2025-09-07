@@ -210,8 +210,8 @@ export function AuthForm({ isSignUp = false, returnUrl: _returnUrl, invitationId
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <FormProvider methods={form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+          <FormProvider methods={form} onSubmit={form.handleSubmit(onSubmit)}>
+            <div className="space-y-4">
               {isSignUp && (
                 <RHFShadcnTextField
                   name="name"
@@ -233,7 +233,7 @@ export function AuthForm({ isSignUp = false, returnUrl: _returnUrl, invitationId
               >
                 {isSignUp ? t('auth.form.createAccount') : t('auth.form.signIn')}
               </Button>
-            </form>
+            </div>
           </FormProvider>
 
           <div className="mt-6">

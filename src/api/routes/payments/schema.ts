@@ -1,6 +1,6 @@
 import { z } from '@hono/zod-openapi';
 
-import { ApiResponseSchema } from '@/api/common/schemas';
+import { createApiResponseSchema } from '@/api/core/schemas';
 import { paymentSelectSchema, productSelectSchema, subscriptionSelectSchema } from '@/db/validation/billing';
 
 // ✅ Single source of truth - use drizzle-zod schemas with OpenAPI metadata
@@ -67,11 +67,11 @@ export const VerifyPaymentRequestSchema = z.object({
 }).openapi('VerifyPaymentRequest');
 
 // Response schemas
-export const GetPaymentsResponseSchema = ApiResponseSchema(
+export const GetPaymentsResponseSchema = createApiResponseSchema(
   z.array(PaymentWithDetailsSchema),
 ).openapi('GetPaymentsResponse');
 
-export const PaymentCallbackResponseSchema = ApiResponseSchema(
+export const PaymentCallbackResponseSchema = createApiResponseSchema(
   z.object({
     success: z.boolean(),
     paymentId: z.string(),
@@ -81,7 +81,7 @@ export const PaymentCallbackResponseSchema = ApiResponseSchema(
   }),
 ).openapi('PaymentCallbackResponse');
 
-export const VerifyPaymentResponseSchema = ApiResponseSchema(
+export const VerifyPaymentResponseSchema = createApiResponseSchema(
   z.object({
     verified: z.boolean(),
     paymentId: z.string(),
@@ -107,7 +107,7 @@ export const GenerateInvoiceRequestSchema = z.object({
 }).openapi('GenerateInvoiceRequest');
 
 // Invoice generation response
-export const GenerateInvoiceResponseSchema = ApiResponseSchema(
+export const GenerateInvoiceResponseSchema = createApiResponseSchema(
   z.object({
     invoiceId: z.string(),
     downloadUrl: z.string(),

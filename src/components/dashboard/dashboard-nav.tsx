@@ -120,7 +120,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                 <div className="flex aspect-square size-8 items-center justify-center">
                   {/* Roundtable Logo */}
                   <Image
-                    src="/static/logo.svg"
+                    src="/static/logo.png"
                     alt="Roundtable Logo"
                     width={32}
                     height={32}

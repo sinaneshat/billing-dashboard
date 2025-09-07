@@ -18,8 +18,8 @@ export function useUploadAvatarMutation() {
       const uploadResult = await uploadUserAvatarService(args);
 
       // Update Better Auth profile with new image URL
-      if ('data' in uploadResult && uploadResult.data) {
-        const imageUrl = uploadResult.data.url;
+      if ('data' in uploadResult && uploadResult.data && 'url' in uploadResult.data) {
+        const imageUrl = uploadResult.data.url as string;
         await authClient.updateUser({ image: imageUrl });
       }
 

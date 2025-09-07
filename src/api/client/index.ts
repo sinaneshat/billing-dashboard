@@ -1,5 +1,5 @@
 /**
- * Hono RPC Client for Shakewell Wallet API
+ * Hono RPC Client for zarinpal API
  *
  * This client provides type-safe access to the backend API using Hono's RPC functionality.
  * It serves as the single source of truth for API communication and enables end-to-end

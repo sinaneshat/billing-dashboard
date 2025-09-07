@@ -468,6 +468,27 @@ export function internalServerError(
   return c.json(response, HttpStatusCodes.INTERNAL_SERVER_ERROR);
 }
 
+/**
+ * Create a service unavailable error response
+ */
+export function serviceUnavailable<T>(
+  c: Context,
+  data: T,
+  message = 'Service temporarily unavailable',
+): Response {
+  const response = {
+    success: true as const,
+    data,
+    error: {
+      code: 'SERVICE_UNAVAILABLE',
+      message,
+    },
+    meta: extractResponseMetadata(c),
+  };
+
+  return c.json(response, HttpStatusCodes.SERVICE_UNAVAILABLE);
+}
+
 // ============================================================================
 // RESPONSE SCHEMA VALIDATORS
 // ============================================================================
@@ -577,6 +598,7 @@ export const Responses = {
   databaseError,
   badRequest,
   internalServerError,
+  serviceUnavailable,
 
   // Utilities
   customResponse,

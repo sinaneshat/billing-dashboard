@@ -21,18 +21,18 @@ export const BRAND = {
     foreground: '#1e293b', // Dark text
   },
 
-  // Logo paths
+  // Logo paths - Real assets from Roundtable website
   logos: {
-    light: '/static/logo.svg',
-    dark: '/static/logo.svg',
-    iconLight: '/static/logo.svg',
-    iconDark: '/static/logo.svg',
-    round: '/static/logo.svg',
-    roundWhite: '/static/logo.svg',
-    roundBlack: '/static/logo.svg',
-    animation: '/static/logo.svg',
-    main: '/static/logo.svg',
-    mainBlack: '/static/logo.svg',
+    light: '/static/logo.png',
+    dark: '/static/logo.png',
+    iconLight: '/apple-touch-icon.png',
+    iconDark: '/apple-touch-icon.png',
+    round: '/apple-touch-icon.png',
+    roundWhite: '/apple-touch-icon.png',
+    roundBlack: '/static/logo.png',
+    animation: '/static/logo.png',
+    main: '/static/logo.png',
+    mainBlack: '/static/logo.png',
   },
 
   // Typography (Modern tech fonts)

@@ -85,9 +85,9 @@ export type SizeValidationResult = {
  */
 function calculateHeadersSize(headers: Headers): number {
   let totalSize = 0;
-  for (const [name, value] of headers.entries()) {
+  headers.forEach((value, name) => {
     totalSize += name.length + value.length + 4; // +4 for ": " and "\r\n"
-  }
+  });
   return totalSize;
 }
 
@@ -173,7 +173,7 @@ export function validateRequestSize(
     }
 
     // 3. Validate individual header sizes
-    for (const [name, value] of headers.entries()) {
+    headers.forEach((value, name) => {
       const headerSize = name.length + value.length;
       if (headerSize > limits.singleHeader!) {
         violations.push({
@@ -183,7 +183,7 @@ export function validateRequestSize(
           message: `Header '${name}' too large: ${formatBytes(headerSize)} exceeds limit of ${formatBytes(limits.singleHeader!)}`,
         });
       }
-    }
+    });
 
     // 4. Check for warning thresholds (80% of limit)
     const warningThreshold = 0.8;

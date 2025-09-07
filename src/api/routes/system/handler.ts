@@ -4,6 +4,7 @@ import { z } from 'zod';
 
 import type { FetchConfig } from '@/api/common/fetch-utilities';
 import { fetchJSON, fetchWithRetry } from '@/api/common/fetch-utilities';
+import { createHandler, Responses } from '@/api/core';
 import { getEnvironmentHealthStatus } from '@/api/middleware/environment-validation';
 import type { ApiEnv } from '@/api/types';
 
@@ -75,90 +76,96 @@ type HealthCheckResult = {
 
 /**
  * Handler for basic health check endpoint
- * Following proper Hono OpenAPI pattern with direct response handling
+ * ✅ Refactored: Uses unified factory pattern
  */
-export const healthHandler: RouteHandler<typeof healthRoute, ApiEnv> = (c) => {
-  return c.json({
-    success: true,
-    data: {
+export const healthHandler: RouteHandler<typeof healthRoute, ApiEnv> = createHandler(
+  {
+    auth: 'public',
+    operationName: 'healthCheck',
+  },
+  async (c) => {
+    return Responses.ok(c, {
       ok: true,
       status: 'healthy',
       timestamp: new Date().toISOString(),
-    },
-  }, HttpStatusCodes.OK);
-};
+    });
+  },
+);
 
 /**
  * Handler for detailed health check endpoint with comprehensive external dependency monitoring
- * Following proper Hono OpenAPI pattern with direct response handling
+ * ✅ Refactored: Uses unified factory pattern
  */
-export const detailedHealthHandler: RouteHandler<typeof detailedHealthRoute, ApiEnv> = async (c) => {
-  const healthStart = Date.now();
-  const healthChecks: Record<string, HealthCheckResult> = {};
+export const detailedHealthHandler: RouteHandler<typeof detailedHealthRoute, ApiEnv> = createHandler(
+  {
+    auth: 'public',
+    operationName: 'detailedHealthCheck',
+  },
+  async (c) => {
+    const healthStart = Date.now();
+    const healthChecks: Record<string, HealthCheckResult> = {};
 
-  // 1. Database connectivity check
-  healthChecks.database = await checkDatabaseHealth(c.env?.DB);
+    // 1. Database connectivity check
+    healthChecks.database = await checkDatabaseHealth(c.env?.DB);
 
-  // 2. Environment configuration check
-  healthChecks.environment = checkEnvironmentHealth(c.env);
+    // 2. Environment configuration check
+    healthChecks.environment = checkEnvironmentHealth(c.env);
 
-  // 3. Storage (R2) accessibility check
-  healthChecks.storage = await checkStorageHealth(c.env?.UPLOADS_R2_BUCKET);
+    // 3. Storage (R2) accessibility check
+    healthChecks.storage = await checkStorageHealth(c.env?.UPLOADS_R2_BUCKET);
 
-  // 4. ZarinPal payment gateway connectivity check
-  healthChecks.zarinpal = await checkZarinPalHealth(c.env);
+    // 4. ZarinPal payment gateway connectivity check
+    healthChecks.zarinpal = await checkZarinPalHealth(c.env);
 
-  // 5. External webhook endpoint check (if configured)
-  healthChecks.externalWebhook = await checkExternalWebhookHealth(c.env?.EXTERNAL_WEBHOOK_URL);
+    // 5. External webhook endpoint check (if configured)
+    healthChecks.externalWebhook = await checkExternalWebhookHealth(c.env?.EXTERNAL_WEBHOOK_URL);
 
-  // 6. KV store check
-  healthChecks.kvStore = await checkKVHealth(c.env?.KV);
+    // 6. KV store check
+    healthChecks.kvStore = await checkKVHealth(c.env?.KV);
 
-  const healthDuration = Date.now() - healthStart;
+    const healthDuration = Date.now() - healthStart;
 
-  // Determine overall health status
-  const criticalServices = ['database', 'environment'];
-  const hasCriticalFailures = criticalServices.some(
-    service => healthChecks[service]?.status === 'unhealthy',
-  );
-  const hasWarnings = Object.values(healthChecks).some(
-    (check: HealthCheckResult) => check.status === 'degraded',
-  );
+    // Determine overall health status
+    const criticalServices = ['database', 'environment'];
+    const hasCriticalFailures = criticalServices.some(
+      service => healthChecks[service]?.status === 'unhealthy',
+    );
+    const hasWarnings = Object.values(healthChecks).some(
+      (check: HealthCheckResult) => check.status === 'degraded',
+    );
 
-  const overallStatus = hasCriticalFailures
-    ? 'unhealthy'
-    : hasWarnings
-      ? 'degraded'
-      : 'healthy';
+    const overallStatus = hasCriticalFailures
+      ? 'unhealthy'
+      : hasWarnings
+        ? 'degraded'
+        : 'healthy';
 
-  const responseData = {
-    ok: overallStatus === 'healthy',
-    status: overallStatus,
-    timestamp: new Date().toISOString(),
-    duration: healthDuration,
-    env: {
-      runtime: typeof globalThis.navigator !== 'undefined' ? 'cloudflare-workers' : 'node',
-      version: typeof process !== 'undefined' ? process.version : 'workers-runtime',
-      nodeEnv: c.env?.NODE_ENV || 'unknown',
-    },
-    dependencies: healthChecks,
-    summary: {
-      total: Object.keys(healthChecks).length,
-      healthy: Object.values(healthChecks).filter((check: HealthCheckResult) => check.status === 'healthy').length,
-      degraded: Object.values(healthChecks).filter((check: HealthCheckResult) => check.status === 'degraded').length,
-      unhealthy: Object.values(healthChecks).filter((check: HealthCheckResult) => check.status === 'unhealthy').length,
-    },
-  };
+    const responseData = {
+      ok: overallStatus === 'healthy',
+      status: overallStatus,
+      timestamp: new Date().toISOString(),
+      duration: healthDuration,
+      env: {
+        runtime: typeof globalThis.navigator !== 'undefined' ? 'cloudflare-workers' : 'node',
+        version: typeof process !== 'undefined' ? process.version : 'workers-runtime',
+        nodeEnv: c.env?.NODE_ENV || 'unknown',
+      },
+      dependencies: healthChecks,
+      summary: {
+        total: Object.keys(healthChecks).length,
+        healthy: Object.values(healthChecks).filter((check: HealthCheckResult) => check.status === 'healthy').length,
+        degraded: Object.values(healthChecks).filter((check: HealthCheckResult) => check.status === 'degraded').length,
+        unhealthy: Object.values(healthChecks).filter((check: HealthCheckResult) => check.status === 'unhealthy').length,
+      },
+    };
 
-  const httpStatus = overallStatus === 'unhealthy'
-    ? HttpStatusCodes.SERVICE_UNAVAILABLE
-    : HttpStatusCodes.OK;
-
-  return c.json({
-    success: true,
-    data: responseData,
-  }, httpStatus);
-};
+    // Return with appropriate status code based on health status
+    if (overallStatus === 'unhealthy') {
+      return Responses.serviceUnavailable(c, responseData, 'System health check failed');
+    }
+    return Responses.ok(c, responseData);
+  },
+);
 
 // ============================================================================
 // INDIVIDUAL HEALTH CHECK FUNCTIONS

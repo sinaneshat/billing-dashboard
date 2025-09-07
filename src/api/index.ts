@@ -1,5 +1,5 @@
 /**
- * Shakewell Wallet API - Hono Zod OpenAPI Implementation
+ * zarinpal API - Hono Zod OpenAPI Implementation
  *
  * This file follows the EXACT pattern from the official Hono Zod OpenAPI documentation.
  * It provides full type safety and automatic RPC client type inference.
@@ -132,7 +132,7 @@ app.use('*', trimTrailingSlash());
 
 // Core middleware
 app.use('*', contextStorage());
-app.use('*', secureHeaders());
+app.use('*', secureHeaders()); // Use default secure headers - much simpler
 app.use('*', requestId());
 app.use('*', compress());
 app.use('*', timing());
@@ -155,8 +155,8 @@ app.use('*', (c, next) => {
 
 // CSRF protection
 app.use('*', (c, next) => {
-  const allowed = c.env?.NEXT_PUBLIC_APP_URL as string | undefined;
-  const origin = allowed ? new URL(allowed).origin : undefined;
+  const allowedUrl = c.env?.NEXT_PUBLIC_APP_URL;
+  const origin = allowedUrl ? new URL(allowedUrl).origin : undefined;
   const middleware = origin ? csrf({ origin }) : csrf();
   return middleware(c, next);
 });
@@ -191,13 +191,10 @@ app.use('/auth/*', requireSession);
 app.use('/images/*', requireSession);
 // Subscriptions require authentication
 app.use('/subscriptions/*', requireSession);
-// Payments middleware removed - subscription platform only
 // Payment methods require authentication
 app.use('/payment-methods/*', requireSession);
 app.use('/webhooks/events', requireSession);
 app.use('/webhooks/test', requireSession);
-app.use('/passes/*', RateLimiterFactory.create('api'));
-app.use('/passes/*', requireSession);
 // Admin routes require master key authentication
 app.use('/admin/*', requireMasterKey);
 
@@ -217,7 +214,6 @@ const appRoutes = app
   .openapi(cancelSubscriptionRoute, cancelSubscriptionHandler)
   .openapi(resubscribeRoute, resubscribeHandler)
   .openapi(changePlanRoute, changePlanHandler)
-  // Payments routes removed - subscription platform only
   // Payment methods routes
   .openapi(getPaymentMethodsRoute, getPaymentMethodsHandler)
   .openapi(createPaymentMethodRoute, createPaymentMethodHandler)
@@ -253,16 +249,17 @@ const appRoutes = app
 export type AppType = typeof appRoutes;
 
 // ============================================================================
-// Step 6: OpenAPI documentation endpoint
+// Step 6: OpenAPI documentation endpoints
 // ============================================================================
 
+// OpenAPI specification document endpoint
 appRoutes.doc('/doc', c => ({
   openapi: '3.0.0',
   info: {
     version: '1.0.0',
     title: 'Subscription Management API',
     description: 'API for subscription billing and direct debit automation. Built with Hono, Zod, and OpenAPI.',
-    contact: { name: 'Shakewell', url: 'https://shakewell.app' },
+    contact: { name: 'zarinpal', url: 'https://zarinpal.app' },
     license: { name: 'Proprietary' },
   },
   tags: [
@@ -273,7 +270,6 @@ appRoutes.doc('/doc', c => ({
     { name: 'payment-methods', description: 'Subscription payment methods and direct debit automation' },
     { name: 'webhooks', description: 'Subscription webhooks and billing notifications' },
     { name: 'images', description: 'Image upload and management' },
-    { name: 'passes', description: 'Pass generation and management' },
     { name: 'admin', description: 'Platform administration and external API access (master key required)' },
   ],
   servers: [
@@ -294,6 +290,12 @@ appRoutes.doc('/doc', c => ({
   security: [{ ApiKeyAuth: [] }],
 }));
 
+// OpenAPI JSON endpoint (redirect to the doc endpoint)
+appRoutes.get('/openapi.json', async (c) => {
+  // Redirect to the existing doc endpoint which contains the full OpenAPI spec
+  return c.redirect('/api/v1/doc');
+});
+
 // ============================================================================
 // Step 7: Additional endpoints (Scalar UI, LLMs, etc.)
 // ============================================================================
@@ -301,18 +303,16 @@ appRoutes.doc('/doc', c => ({
 // Scalar API documentation UI
 appRoutes.get('/scalar', Scalar({
   url: '/api/v1/doc',
-  pageTitle: 'Subscription Management API',
-  theme: 'purple',
 }));
 
 // Cache health endpoints
 appRoutes.get('/health', cache({
-  cacheName: 'shakewell-api',
+  cacheName: 'zarinpal-api',
   cacheControl: 'max-age=60',
 }));
 
 appRoutes.get('/health/*', cache({
-  cacheName: 'shakewell-api',
+  cacheName: 'zarinpal-api',
   cacheControl: 'max-age=60',
 }));
 
