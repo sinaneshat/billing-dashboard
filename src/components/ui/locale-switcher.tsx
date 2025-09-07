@@ -1,26 +1,26 @@
 'use client';
 
-// Imports commented out - language is forced to Persian (fa)
-// import { Languages, Loader2 } from 'lucide-react';
-// import { useLocale } from 'next-intl';
-// import React, { useTransition } from 'react';
+import { Languages, Loader2 } from 'lucide-react';
+import { useLocale } from 'next-intl';
+import React, { useTransition } from 'react';
 
-// import { setUserLocale } from '@/lib/locale';
-// import { type Locale } from '@/i18n/routing';
-// import { Button } from '@/components/ui/button';
-// import {
-//   DropdownMenu,
-//   DropdownMenuContent,
-//   DropdownMenuItem,
-//   DropdownMenuTrigger,
-// } from '@/components/ui/dropdown-menu';
-// import { cn } from '@/lib/utils';
+import { setUserLocale } from '@/lib/locale';
+import { type Locale } from '@/i18n/routing';
+import { locales } from '@/i18n/routing';
+import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { cn } from '@/lib/utils';
 
-// Language display names - kept for future use
-// const languageNames: Record<Locale, { native: string; english: string }> = {
-//   en: { native: 'English', english: 'English' },
-//   fa: { native: 'فارسی', english: 'Persian' },
-// };
+// Language display names
+const languageNames: Record<Locale, { native: string; english: string }> = {
+  en: { native: 'English', english: 'English' },
+  fa: { native: 'فارسی', english: 'Persian' },
+};
 
 interface LocaleSwitcherProps {
   className?: string;
@@ -33,19 +33,11 @@ interface LocaleSwitcherProps {
 // This avoids conflicts with next-themes' class management
 
 export function LocaleSwitcher({
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   className,
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   variant = 'ghost',
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   size = 'default',
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   showLabel = true,
 }: LocaleSwitcherProps) {
-  // HIDDEN: Language is forced to Persian (fa) - user control disabled
-  return null;
-
-  /* USER CONTROL DISABLED - Language switching commented out
   const currentLocale = useLocale() as Locale;
   const [isPending, startTransition] = useTransition();
   
@@ -119,18 +111,12 @@ export function LocaleSwitcher({
       </DropdownMenuContent>
     </DropdownMenu>
   );
-  */
 }
 
 // Simplified version for specific use cases
 export function SimpleLocaleSwitcher({ 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   className 
 }: { className?: string }) {
-  // HIDDEN: Language is forced to Persian (fa) - user control disabled
-  return null;
-
-  /* USER CONTROL DISABLED - Language switching commented out
   const currentLocale = useLocale() as Locale;
   const [isPending, startTransition] = useTransition();
 
@@ -164,5 +150,4 @@ export function SimpleLocaleSwitcher({
       <span>{languageNames[otherLocale].native}</span>
     </Button>
   );
-  */
 }

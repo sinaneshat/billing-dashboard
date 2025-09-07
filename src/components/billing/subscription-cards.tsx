@@ -86,7 +86,7 @@ export const SubscriptionCards = memo(({
   }, [downloadInvoiceMutation, t]);
 
   const handleCancelSubscription = useCallback(async (subscriptionId: string) => {
-    const reason = 'User requested cancellation'; // In real app, this would come from a modal/form
+    const reason = t('subscription.userCancellationReason'); // In real app, this would come from a modal/form
     try {
       await cancelSubscriptionMutation.mutateAsync({
         param: { id: subscriptionId },

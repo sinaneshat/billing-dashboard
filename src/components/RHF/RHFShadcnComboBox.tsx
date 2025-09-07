@@ -1,5 +1,6 @@
 // components/TextInput.tsx
 import { Check, ChevronsUpDown, Loader2 } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { useFormContext } from 'react-hook-form';
 
 import { cn } from '@/lib';
@@ -38,6 +39,7 @@ function RHFShadcnComboBox({
   options,
 }: Props) {
   const { control, setValue } = useFormContext();
+  const t = useTranslations();
 
   return (
     <FormField
@@ -60,19 +62,16 @@ function RHFShadcnComboBox({
                   {field.value
                     ? options.find(option => option.value === field.value)
                       ?.label
-                    : `Select ${title}`}
+                    : t('forms.selectOption', { option: title })}
                   <ChevronsUpDown className="ms-2 size-4 shrink-0 opacity-50" />
                 </Button>
               </FormControl>
             </PopoverTrigger>
             <PopoverContent className="w-full p-0">
               <Command>
-                <CommandInput placeholder={`Search ${title}...`} />
+                <CommandInput placeholder={t('forms.searchPlaceholder', { field: title })} />
                 <CommandEmpty>
-                  No
-                  {title}
-                  {' '}
-                  found.
+                  {t('forms.noResultsFound', { item: title })}
                 </CommandEmpty>
                 <CommandGroup>
                   <CommandList>
@@ -101,13 +100,13 @@ function RHFShadcnComboBox({
                     {!loading && !options.length && (
                       <CommandItem value="empty" disabled>
                         <Check className={cn('me-2 h-4 w-4')} />
-                        No options exist
+                        {t('forms.noOptionsAvailable')}
                       </CommandItem>
                     )}
                     {loading && (
                       <CommandItem value="loading" disabled>
                         <Loader2 className={cn('me-2 h-4 w-4 animate-spin')} />
-                        Loading...
+                        {t('forms.loading')}
                       </CommandItem>
                     )}
                   </CommandList>

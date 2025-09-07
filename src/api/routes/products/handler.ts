@@ -5,7 +5,7 @@ import { createHandler, Responses } from '@/api/core';
 import { billingRepositories } from '@/api/repositories/billing-repositories';
 import type { ApiEnv } from '@/api/types';
 import type { ProductMetadata } from '@/api/types/metadata';
-import { currencyConverter } from '@/lib/services/currency-converter';
+import { tetherCurrencyConverter } from '@/lib/services/tether-currency-converter';
 
 import type { getProductsRoute } from './route';
 
@@ -42,7 +42,7 @@ export const getProductsHandler: RouteHandler<typeof getProductsRoute, ApiEnv> =
           };
         } else {
           // Get fresh USD to IRR conversion for accurate pricing
-          const conversion = await currencyConverter.convertUsdToToman(usdPrice);
+          const conversion = await tetherCurrencyConverter.convertUsdToToman(usdPrice);
           // Convert from Toman to Rials (1 Toman = 10 Rials) for ZarinPal
           const rialPrice = conversion.tomanPrice * 10;
 

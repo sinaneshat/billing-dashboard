@@ -6,11 +6,10 @@
  */
 
 // Environment configuration
-export const baseUrl = process.env.VERCEL_URL
-  ? `https://${process.env.VERCEL_URL}`
-  : process.env.NODE_ENV === 'development'
-    ? 'http://localhost:3000'
-    : 'https://example.com';
+export const baseUrl = process.env.NEXT_PUBLIC_APP_URL
+  || (process.env.VERCEL_URL
+    ? `https://${process.env.VERCEL_URL}`
+    : process.env.NODE_ENV === 'development' ? 'http://localhost:3000' : 'https://billing-dashboard-production.firstexhotic.workers.dev');
 
 // Brand Colors - Aligned with design system light mode
 export const colors = {

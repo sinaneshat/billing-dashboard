@@ -1,6 +1,7 @@
 'use client';
 
 import { Receipt } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { memo, useMemo } from 'react';
 
 import { Card, CardContent } from '@/components/ui/card';
@@ -11,6 +12,7 @@ import { useSubscriptionsQuery } from '@/hooks/queries/subscriptions';
 import { PaymentHistoryCards } from './payment-history-cards';
 
 export const SubscriptionBillingHistoryCoherent = memo(() => {
+  const t = useTranslations();
   const { data: subscriptionsData, isLoading, error } = useSubscriptionsQuery();
 
   // Memoize the expensive payment transformation and sorting
@@ -36,7 +38,7 @@ export const SubscriptionBillingHistoryCoherent = memo(() => {
       if (sub.status === 'active' && sub.startDate) {
         entries.push({
           id: `${sub.id}-current`,
-          productName: sub.product?.name || 'Unknown Product',
+          productName: sub.product?.name || t('products.unknownProduct'),
           amount: sub.currentPrice,
           status: 'completed',
           paymentMethod: sub.directDebitContractId ? 'direct-debit-contract' : 'zarinpal',
@@ -50,7 +52,7 @@ export const SubscriptionBillingHistoryCoherent = memo(() => {
       if (sub.status === 'active' && sub.nextBillingDate) {
         entries.push({
           id: `${sub.id}-upcoming`,
-          productName: sub.product?.name || 'Unknown Product',
+          productName: sub.product?.name || t('products.unknownProduct'),
           amount: sub.currentPrice,
           status: 'pending',
           paymentMethod: sub.directDebitContractId ? 'direct-debit-contract' : 'zarinpal',
@@ -65,7 +67,7 @@ export const SubscriptionBillingHistoryCoherent = memo(() => {
 
     // Sort by date (newest first)
     return paymentEntries.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-  }, [subscriptionsData?.data]);
+  }, [subscriptionsData?.data, t]);
 
   if (isLoading) {
     return (

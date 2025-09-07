@@ -6,7 +6,8 @@ import { createAuthClient } from 'better-auth/react';
  * No organizations, just basic user auth
  */
 export const authClient = createAuthClient({
-  baseURL: process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000',
+  baseURL: process.env.NEXT_PUBLIC_APP_URL
+    || (typeof window !== 'undefined' ? `${window.location.protocol}//${window.location.host}` : 'http://localhost:3000'),
 
   plugins: [
     magicLinkClient(),

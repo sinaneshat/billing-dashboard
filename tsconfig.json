@@ -56,6 +56,10 @@
   "exclude": [
     "node_modules",
     "scripts",
-    "open-next.config.ts"
+    "open-next.config.ts",
+    ".open-next/**/*",
+    ".next/**/*",
+    "out/**/*",
+    "dist/**/*"
   ]
 }

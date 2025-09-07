@@ -43,7 +43,7 @@ export const auth = betterAuth({
   // Trusted origins
   trustedOrigins: [
     getBaseUrl(),
-    'http://localhost:3000',
+    ...(process.env.NODE_ENV === 'development' ? ['http://localhost:3000'] : []),
   ],
 
   user: {

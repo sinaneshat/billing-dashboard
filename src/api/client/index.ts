@@ -24,8 +24,11 @@ function getBaseUrl() {
 
   // Fallback logic
   if (typeof window === 'undefined') {
-    // Server-side: use localhost for development
-    return 'http://localhost:3000/api/v1';
+    // Server-side: use environment-specific URL
+    if (process.env.NEXT_PUBLIC_APP_URL) {
+      return `${process.env.NEXT_PUBLIC_APP_URL}/api/v1`;
+    }
+    return process.env.NODE_ENV === 'development' ? 'http://localhost:3000/api/v1' : 'https://billing-dashboard-production.firstexhotic.workers.dev/api/v1';
   }
 
   // Client-side: use same origin
