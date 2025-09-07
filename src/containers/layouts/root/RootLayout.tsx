@@ -14,7 +14,6 @@ type RootLayoutProps = {
   modal: React.ReactNode;
   locale: string;
   translations: Record<string, unknown>;
-  theme?: string;
   env: {
     NEXT_PUBLIC_WEBAPP_ENV?: string;
     NEXT_PUBLIC_MAINTENANCE?: string;
@@ -26,10 +25,10 @@ export function RootLayout({
   modal,
   locale,
   translations,
-  theme,
   env,
 }: RootLayoutProps) {
   const direction = locale === 'fa' ? 'rtl' : 'ltr';
+
   return (
     <div
       className="min-h-screen bg-background font-sans antialiased"
@@ -37,9 +36,11 @@ export function RootLayout({
     >
       <ThemeProvider
         attribute="class"
-        defaultTheme={theme || 'system'}
-        enableSystem={true}
+        defaultTheme="dark"
+        forcedTheme="dark"
+        enableSystem={false}
         disableTransitionOnChange
+        storageKey="theme"
       >
         <QueryClientProvider>
           <>

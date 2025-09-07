@@ -71,9 +71,9 @@ export type NavItem = {
 export const aiHistoryStatusSchema = z.enum(['aborted', 'success', 'error']);
 export type AIHistoryStatus = z.infer<typeof aiHistoryStatusSchema>;
 
-// ✅ Use common error schema from @/api/common/schemas instead
-// import { ErrorSchema } from '@/api/common/schemas';
-// For backward compatibility, kept minimal here but prefer common schema
+// ✅ UPDATED: Use core schemas from @/api/core/schemas for API-related types
+// Frontend types are kept separate from API schemas for clear separation of concerns
+// API error types should import from @/api/core/schemas when needed
 
 export type ServiceConfig = {
   basePath?: string;

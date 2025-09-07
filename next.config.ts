@@ -3,6 +3,9 @@ import type { NextConfig } from 'next';
 import createNextIntlPlugin from 'next-intl/plugin';
 
 const nextConfig: NextConfig = {
+  // Required for OpenNext deployment
+  output: 'standalone',
+
   // Compiler optimizations
   compiler: {
     // Remove console in production
@@ -94,6 +97,19 @@ const nextConfig: NextConfig = {
             key: 'Referrer-Policy',
             value: 'origin-when-cross-origin',
           },
+          {
+            key: 'Content-Security-Policy',
+            value: [
+              'default-src \'self\'',
+              'script-src \'self\' \'unsafe-inline\' \'unsafe-eval\'',
+              'style-src \'self\' \'unsafe-inline\'',
+              'img-src \'self\' data: https://lh3.googleusercontent.com https://lh4.googleusercontent.com https://lh5.googleusercontent.com https://lh6.googleusercontent.com https://googleusercontent.com',
+              'connect-src \'self\' https://api.zarinpal.com',
+              'frame-ancestors \'none\'',
+              'base-uri \'self\'',
+              'form-action \'self\'',
+            ].join('; '),
+          },
         ],
       },
     ];
@@ -137,10 +153,6 @@ const nextConfig: NextConfig = {
       {
         protocol: 'https',
         hostname: 'googleusercontent.com',
-      },
-      {
-        protocol: 'https',
-        hostname: '**',
       },
     ],
   },

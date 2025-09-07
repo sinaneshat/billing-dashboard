@@ -1,6 +1,6 @@
 import { z } from '@hono/zod-openapi';
 
-import { ApiResponseSchema } from '@/api/common/schemas';
+import { createApiResponseSchema } from '@/api/core/schemas';
 
 // Step 1: Initiate Direct Debit Contract Setup Request Schema
 export const InitiateDirectDebitRequestSchema = z.object({
@@ -77,7 +77,7 @@ const BankSchema = z.object({
 });
 
 // Step 1: Response Schema
-export const InitiateDirectDebitResponseSchema = ApiResponseSchema(z.object({
+export const InitiateDirectDebitResponseSchema = createApiResponseSchema(z.object({
   paymanAuthority: z.string().openapi({
     example: 'payman_6moa',
     description: 'Contract authority from ZarinPal (store securely)',
@@ -120,7 +120,7 @@ const ContractErrorSchema = z.object({
 });
 
 // Step 2: Response Schema
-export const VerifyDirectDebitContractResponseSchema = ApiResponseSchema(z.object({
+export const VerifyDirectDebitContractResponseSchema = createApiResponseSchema(z.object({
   contractVerified: z.boolean().openapi({
     example: true,
     description: 'Whether contract was successfully signed and verified',

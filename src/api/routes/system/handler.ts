@@ -2,7 +2,6 @@ import type { RouteHandler } from '@hono/zod-openapi';
 import * as HttpStatusCodes from 'stoker/http-status-codes';
 import { z } from 'zod';
 
-// Note: createError import removed as it's not used in this file
 import type { FetchConfig } from '@/api/common/fetch-utilities';
 import { fetchJSON, fetchWithRetry } from '@/api/common/fetch-utilities';
 import { createHandler, Responses } from '@/api/core';
@@ -162,7 +161,7 @@ export const detailedHealthHandler: RouteHandler<typeof detailedHealthRoute, Api
 
     // Return with appropriate status code based on health status
     if (overallStatus === 'unhealthy') {
-      return c.json({ success: true, data: responseData }, HttpStatusCodes.SERVICE_UNAVAILABLE);
+      return Responses.serviceUnavailable(c, responseData, 'System health check failed');
     }
     return Responses.ok(c, responseData);
   },

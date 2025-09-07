@@ -1,20 +1,25 @@
 'use client';
 
-import { Moon, Sun, Monitor } from 'lucide-react';
-import { useTranslations } from 'next-intl';
-import { useTheme } from 'next-themes';
+// Imports commented out - theme is forced to dark
+// import { Moon, Sun, Monitor } from 'lucide-react';
+// import { useTranslations } from 'next-intl';
+// import { useTheme } from 'next-themes';
 import { memo } from 'react';
 
-import { Button } from '@/components/ui/button';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import { Switch } from '@/components/ui/switch';
+// import { Button } from '@/components/ui/button';
+// import {
+//   DropdownMenu,
+//   DropdownMenuContent,
+//   DropdownMenuItem,
+//   DropdownMenuTrigger,
+// } from '@/components/ui/dropdown-menu';
+// import { Switch } from '@/components/ui/switch';
 
 export const ThemeToggle = memo(() => {
+  // HIDDEN: Theme is forced to dark - user control disabled
+  return null;
+
+  /* USER CONTROL DISABLED - Theme switching commented out
   const { setTheme } = useTheme();
   const t = useTranslations();
 
@@ -48,9 +53,14 @@ export const ThemeToggle = memo(() => {
       </DropdownMenuContent>
     </DropdownMenu>
   );
+  */
 });
 
 export const SimpleThemeSwitch = memo(() => {
+  // HIDDEN: Theme is forced to dark - user control disabled
+  return null;
+
+  /* USER CONTROL DISABLED - Theme switching commented out
   const { setTheme, theme } = useTheme();
   const t = useTranslations();
   
@@ -67,6 +77,7 @@ export const SimpleThemeSwitch = memo(() => {
       <Moon className="h-4 w-4" />
     </div>
   );
+  */
 });
 
 ThemeToggle.displayName = 'ThemeToggle';

@@ -2,6 +2,7 @@
 
 import { type ReactNode } from 'react';
 import { CheckCircle, ArrowRight } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 
@@ -16,13 +17,15 @@ type DashboardSuccessProps = {
 };
 
 export function DashboardSuccess({
-  title = "Success!",
-  description = "Your action has been completed successfully.",
+  title,
+  description,
   action,
-  actionText = "Continue",
+  actionText,
   actionHref = "/dashboard",
   className = ''
 }: DashboardSuccessProps) {
+  const t = useTranslations()
+  
   return (
     <Card className={`border-0 shadow-lg ${className}`}>
       <CardContent className="pt-6">
@@ -33,11 +36,11 @@ export function DashboardSuccess({
             </div>
           </div>
           <div>
-            <h3 className="text-2xl font-bold mb-2">{title}</h3>
-            <p className="text-muted-foreground mb-6">{description}</p>
+            <h3 className="text-2xl font-bold mb-2">{title || t('states.success.default')}</h3>
+            <p className="text-muted-foreground mb-6">{description || t('states.success.description', { default: 'Your action has been completed successfully.' })}</p>
             {action || (
               <Button onClick={() => window.location.href = actionHref}>
-                {actionText}
+                {actionText || t('actions.continue')}
                 <ArrowRight className="h-4 w-4 ms-2" />
               </Button>
             )}

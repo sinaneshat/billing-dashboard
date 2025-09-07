@@ -5,7 +5,7 @@
 
 import { z } from '@hono/zod-openapi';
 
-import { CommonFieldSchemas } from './schemas';
+import { CoreSchemas } from '../core/schemas';
 
 // =============================================================================
 // ZarinPal Error Response Schemas
@@ -125,7 +125,7 @@ export const DirectDebitContractRequestSchema = z.object({
       example: '1234567890',
       description: 'Iranian national ID (optional)',
     }),
-  callbackUrl: CommonFieldSchemas.url().openapi({
+  callbackUrl: CoreSchemas.url().openapi({
     example: 'https://example.com/payment/callback',
     description: 'Callback URL after contract signing',
   }),
@@ -156,7 +156,7 @@ export const DirectDebitContractRequestSchema = z.object({
       example: 100,
       description: 'Maximum monthly transaction count',
     }),
-  maxAmount: CommonFieldSchemas.amount().openapi({
+  maxAmount: CoreSchemas.amount().openapi({
     example: 50000000,
     description: 'Maximum transaction amount in IRR',
   }),
@@ -183,7 +183,7 @@ export const DirectDebitContractResponseSchema = z.object({
     example: 'https://www.zarinpal.com/pg/StartPayman/{PAYMAN_AUTHORITY}/{BANK_CODE}',
     description: 'URL template for contract signing',
   }),
-  contractId: CommonFieldSchemas.uuid().openapi({
+  contractId: CoreSchemas.uuid().openapi({
     description: 'Unique contract ID for tracking',
   }),
 }).openapi('DirectDebitContractResponse');
@@ -202,7 +202,7 @@ export const VerifyDirectDebitContractRequestSchema = z.object({
     example: 'OK',
     description: 'Contract signing status from ZarinPal callback',
   }),
-  contractId: CommonFieldSchemas.uuid().openapi({
+  contractId: CoreSchemas.uuid().openapi({
     description: 'Contract ID from initial setup',
   }),
 }).openapi('VerifyDirectDebitContractRequest');
@@ -221,7 +221,7 @@ export const VerifyDirectDebitContractResponseSchema = z.object({
     example: 'signature_data_from_zarinpal',
     description: 'Contract signature (when verified)',
   }),
-  paymentMethodId: CommonFieldSchemas.uuid().optional().openapi({
+  paymentMethodId: CoreSchemas.uuid().optional().openapi({
     description: 'Created payment method ID (when verified)',
   }),
   error: z.object({

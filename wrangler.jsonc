@@ -2,7 +2,7 @@
   "$schema": "node_modules/wrangler/config-schema.json",
   "main": ".open-next/worker.js",
   "name": "billing-dashboard",
-  "compatibility_date": "2024-12-30",
+  "compatibility_date": "2025-03-25",
   "triggers": {
     "crons": ["0 0 1 * *", "0 2 * * *"]
   },

@@ -42,7 +42,7 @@
     ]
   },
   "types": [
-    "@cloudflare/workers-types/2024-12-30"
+    "@cloudflare/workers-types/2025-03-25"
   ],
   "include": [
     "next-env.d.ts",
@@ -55,6 +55,7 @@
   ],
   "exclude": [
     "node_modules",
-    "scripts"
+    "scripts",
+    "open-next.config.ts"
   ]
 }

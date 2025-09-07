@@ -1,7 +1,6 @@
 import { z } from '@hono/zod-openapi';
 
-import { CommonFieldSchemas } from '@/api/common/schemas';
-import { createApiResponseSchema } from '@/api/core/schemas';
+import { CoreSchemas, createApiResponseSchema } from '@/api/core/schemas';
 
 // Image type constants
 export const IMAGE_TYPES = {
@@ -10,22 +9,29 @@ export const IMAGE_TYPES = {
   BANNER: 'banner',
 } as const;
 
-// Schema for image key parameters (for specific image operations)
-export const ImageKeyParamsSchema = z.object({
-  key: z.string().min(1).openapi({ example: 'user_avatar_abc123.jpg' }),
+// Path parameter schemas - following standard naming convention
+export const ImageParamsSchema = z.object({
+  key: z.string().min(1).openapi({
+    param: { name: 'key', in: 'path' },
+    example: 'user_avatar_abc123.jpg',
+    description: 'Image key identifier',
+  }),
 });
 
-// Schema for image type parameters (for company uploads)
 export const ImageTypeParamsSchema = z.object({
-  type: z.enum(['logo', 'banner']).openapi({ example: 'logo' }),
+  type: z.enum(['logo', 'banner']).openapi({
+    param: { name: 'type', in: 'path' },
+    example: 'logo',
+    description: 'Image type for company uploads',
+  }),
 });
 
 // Schema for get images query parameters
 export const GetImagesQuerySchema = z.object({
   type: z.enum(['avatar', 'logo', 'banner', 'all']).optional().openapi({ example: 'avatar' }),
   userId: z.string().optional().openapi({ example: 'user_123' }),
-  page: CommonFieldSchemas.page(),
-  limit: CommonFieldSchemas.limit(),
+  page: CoreSchemas.page(),
+  limit: CoreSchemas.limit(),
 });
 
 // Data schema for upload responses (to be wrapped in ApiResponse)

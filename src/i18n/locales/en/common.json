@@ -101,7 +101,33 @@
     "premium": "Premium",
     "basic": "Basic",
     "pro": "Pro",
-    "enterprise": "Enterprise"
+    "enterprise": "Enterprise",
+    "subscription": {
+      "active": "Active Subscription",
+      "canceled": "Canceled Subscription",
+      "expired": "Expired Subscription",
+      "pending": "Pending Subscription",
+      "inactive": "Inactive Subscription"
+    },
+    "payment": {
+      "completed": "Payment Completed",
+      "failed": "Payment Failed",
+      "pending": "Payment Pending",
+      "processing": "Payment Processing",
+      "canceled": "Payment Canceled"
+    },
+    "contract": {
+      "signed": "Contract Signed",
+      "pending": "Contract Pending",
+      "expired": "Contract Expired",
+      "rejected": "Contract Rejected",
+      "draft": "Contract Draft"
+    },
+    "default": {
+      "primary": "Primary",
+      "active": "Active",
+      "inactive": "Inactive"
+    }
   },
   "language": {
     "language": "Language",
@@ -125,6 +151,7 @@
     "description": "Customize your dashboard preferences and account settings",
     "theme": {
       "title": "Theme",
+      "mode": "Theme mode",
       "darkMode": "Dark mode",
       "description": "Toggle between light and dark themes"
     },
@@ -912,6 +939,7 @@
     },
     "success": {
       "default": "Success",
+      "description": "Your action has been completed successfully",
       "saved": "Saved successfully",
       "updated": "Updated successfully",
       "deleted": "Deleted successfully",
@@ -961,6 +989,7 @@
     "pagination": "pagination",
     "previousPage": "Go to previous page",
     "nextPage": "Go to next page",
+    "morePages": "More pages",
     "selectAll": "Select all",
     "selectRow": "Select row",
     "toggleSidebar": "Toggle Sidebar",

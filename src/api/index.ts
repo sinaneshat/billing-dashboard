@@ -191,7 +191,6 @@ app.use('/auth/*', requireSession);
 app.use('/images/*', requireSession);
 // Subscriptions require authentication
 app.use('/subscriptions/*', requireSession);
-// Payments middleware removed - subscription platform only
 // Payment methods require authentication
 app.use('/payment-methods/*', requireSession);
 app.use('/webhooks/events', requireSession);
@@ -215,7 +214,6 @@ const appRoutes = app
   .openapi(cancelSubscriptionRoute, cancelSubscriptionHandler)
   .openapi(resubscribeRoute, resubscribeHandler)
   .openapi(changePlanRoute, changePlanHandler)
-  // Payments routes removed - subscription platform only
   // Payment methods routes
   .openapi(getPaymentMethodsRoute, getPaymentMethodsHandler)
   .openapi(createPaymentMethodRoute, createPaymentMethodHandler)

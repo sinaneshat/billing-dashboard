@@ -19,7 +19,6 @@ import type {
   getPaymentMethodsRoute,
   setDefaultPaymentMethodRoute,
 } from './route';
-// PaymentMethodParams type removed - using proper Zod inference instead
 import {
   CreatePaymentMethodRequestSchema,
   PaymentMethodParamsSchema,

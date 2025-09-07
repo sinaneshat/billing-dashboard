@@ -1,7 +1,6 @@
 import { createRoute } from '@hono/zod-openapi';
 import * as HttpStatusCodes from 'stoker/http-status-codes';
 
-// import { Responses } from '@/api/core'; // Commented out as unused
 import {
   GenerateInvoiceRequestSchema,
   GenerateInvoiceResponseSchema,

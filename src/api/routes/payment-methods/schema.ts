@@ -1,6 +1,6 @@
 import { z } from '@hono/zod-openapi';
 
-import { ApiResponseSchema } from '@/api/common/schemas';
+import { createApiResponseSchema } from '@/api/core/schemas';
 import { paymentMethodSelectSchema } from '@/db/validation/billing';
 
 // ✅ Single source of truth - use drizzle-zod schema with OpenAPI metadata
@@ -23,7 +23,7 @@ const PaymentMethodSchema = paymentMethodSelectSchema.openapi({
 });
 
 // GET /payment-methods response
-export const GetPaymentMethodsResponseSchema = ApiResponseSchema(
+export const GetPaymentMethodsResponseSchema = createApiResponseSchema(
   z.array(PaymentMethodSchema),
 );
 
@@ -52,12 +52,12 @@ export const CreatePaymentMethodRequestSchema = z.object({
 });
 
 // POST /payment-methods response
-export const CreatePaymentMethodResponseSchema = ApiResponseSchema(
+export const CreatePaymentMethodResponseSchema = createApiResponseSchema(
   PaymentMethodSchema,
 );
 
 // DELETE /payment-methods/:id response
-export const DeletePaymentMethodResponseSchema = ApiResponseSchema(
+export const DeletePaymentMethodResponseSchema = createApiResponseSchema(
   z.object({
     id: z.string(),
     deleted: z.boolean(),
@@ -66,7 +66,7 @@ export const DeletePaymentMethodResponseSchema = ApiResponseSchema(
 );
 
 // PATCH /payment-methods/:id/default response
-export const SetDefaultPaymentMethodResponseSchema = ApiResponseSchema(
+export const SetDefaultPaymentMethodResponseSchema = createApiResponseSchema(
   z.object({
     id: z.string(),
     isPrimary: z.boolean(),

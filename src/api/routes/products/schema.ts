@@ -1,6 +1,6 @@
 import { z } from '@hono/zod-openapi';
 
-import { ApiResponseSchema } from '@/api/common/schemas';
+import { createApiResponseSchema } from '@/api/core/schemas';
 import { productSelectSchema } from '@/db/validation/billing';
 
 // ✅ Single source of truth - use drizzle-zod schema with OpenAPI metadata
@@ -19,7 +19,7 @@ const ProductSchema = productSelectSchema.openapi({
 
 const ProductsArraySchema = z.array(ProductSchema);
 
-export const GetProductsResponseSchema = ApiResponseSchema(ProductsArraySchema).openapi('GetProductsResponse');
+export const GetProductsResponseSchema = createApiResponseSchema(ProductsArraySchema).openapi('GetProductsResponse');
 
 // ✅ Export types - now consistent with database schema
 export type Product = z.infer<typeof ProductSchema>;

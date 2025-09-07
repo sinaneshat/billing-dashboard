@@ -8,7 +8,6 @@
 
 import type { RouteHandler } from '@hono/zod-openapi';
 
-// z type removed - using proper Zod inference without casting
 import { createError } from '@/api/common/error-handling';
 import { createHandler, createHandlerWithTransaction, Responses } from '@/api/core';
 import { billingRepositories } from '@/api/repositories/billing-repositories';
