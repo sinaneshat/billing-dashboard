@@ -67,7 +67,7 @@ export class CurrencyExchangeService extends BaseService<CurrencyExchangeConfig>
    * Get service configuration from environment
    */
   static getConfig(_env: CloudflareEnv): CurrencyExchangeConfig {
-    return CurrencyExchangeConfigSchema.parse({
+    const configData = {
       serviceName: 'currency-exchange',
       baseUrl: 'https://services.chatqt.com/public',
       timeout: 5000, // 5 seconds
@@ -77,7 +77,13 @@ export class CurrencyExchangeService extends BaseService<CurrencyExchangeConfig>
         resetTimeout: 30000, // 30 seconds
       },
       cacheDuration: 10 * 60 * 1000, // 10 minutes
-    });
+    };
+
+    const result = CurrencyExchangeConfigSchema.safeParse(configData);
+    if (!result.success) {
+      throw new Error(`Currency exchange config validation failed: ${result.error.message}`);
+    }
+    return result.data;
   }
 
   /**
@@ -113,9 +119,9 @@ export class CurrencyExchangeService extends BaseService<CurrencyExchangeConfig>
       this.lastFetch = now;
 
       return rate;
-    } catch (error) {
+    } catch {
       // Log the error but use fallback rate
-      console.warn('Exchange rate API failed, using fallback:', error);
+      // TODO: Replace with structured logging when context is available
 
       // Cache the fallback rate to avoid repeated API calls
       this.cachedRate = this.FALLBACK_RATE;

@@ -207,7 +207,8 @@ export function validationError(
   // Validate response format
   const validation = ApiErrorResponseSchema.safeParse(response);
   if (!validation.success) {
-    console.error('Invalid error response format:', validation.error);
+    // TODO: Use c.logger when available - this is a critical formatting error
+    // For now, return internal server error to prevent malformed responses
     return internalServerError(c, 'Error response formatting failed');
   }
 

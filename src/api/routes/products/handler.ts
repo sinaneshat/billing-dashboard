@@ -1,11 +1,13 @@
 import type { RouteHandler } from '@hono/zod-openapi';
+import { eq } from 'drizzle-orm';
 
 // import * as HttpStatusCodes from 'stoker/http-status-codes'; // Unused
 import { createHandler, Responses } from '@/api/core';
-import { billingRepositories } from '@/api/repositories/billing-repositories';
 import { createCurrencyExchangeService } from '@/api/services/currency-exchange';
 import type { ApiEnv } from '@/api/types';
 import type { ProductMetadata } from '@/api/types/metadata';
+import { db } from '@/db';
+import { product } from '@/db/tables/billing';
 
 import type { getProductsRoute } from './route';
 
@@ -23,8 +25,8 @@ export const getProductsHandler: RouteHandler<typeof getProductsRoute, ApiEnv> =
     // Create currency exchange service instance
     const currencyService = createCurrencyExchangeService(c.env);
 
-    // Get raw products from database (stored in USD) using repository
-    const rawProducts = await billingRepositories.products.findActive();
+    // Get raw products from database (stored in USD) using direct DB access
+    const rawProducts = await db.select().from(product).where(eq(product.isActive, true));
 
     // Convert USD prices to Iranian Rials for ZarinPal compatibility
     const enhancedProducts = await Promise.all(

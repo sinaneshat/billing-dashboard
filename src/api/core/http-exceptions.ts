@@ -87,8 +87,8 @@ function mapStatusCode(stokerStatus: number): ContentfulStatusCode {
     return stokerStatus as ContentfulStatusCode;
   }
 
-  // Log unmapped status code for debugging
-  console.warn(`[HTTPExceptionFactory] Unmapped status code: ${stokerStatus}, falling back to 500`);
+  // TODO: Add structured logging when logger context is available
+  // Unmapped status code: falling back to 500 for safety
 
   // Default fallback for unmapped status codes
   return 500 as const; // INTERNAL_SERVER_ERROR

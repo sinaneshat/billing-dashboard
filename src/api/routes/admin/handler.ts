@@ -7,10 +7,10 @@ import type { RouteHandler } from '@hono/zod-openapi';
 import { desc, like } from 'drizzle-orm';
 
 import { createHandler, Responses } from '@/api/core';
-import { billingRepositories } from '@/api/repositories/billing-repositories';
 import type { ApiEnv } from '@/api/types';
 import { db } from '@/db';
 import { user } from '@/db/schema';
+import { payment, subscription } from '@/db/tables/billing';
 
 import type {
   adminStatsRoute,
@@ -37,15 +37,16 @@ export const adminStatsHandler: RouteHandler<typeof adminStatsRoute, ApiEnv> = c
       operationName: 'getAdminStats',
     });
 
-    // Use repository pattern for data access with proper type safety
-    const [users, subscriptionsResult, paymentsResult] = await Promise.all([
+    // Use direct database access for all data operations
+    const [users, subscriptionsData, paymentsData] = await Promise.all([
       db.select().from(user),
-      billingRepositories.subscriptions.findMany(),
-      billingRepositories.payments.findMany(),
+      db.select().from(subscription),
+      db.select().from(payment),
     ]);
 
-    const subscriptions = subscriptionsResult.items;
-    const payments = paymentsResult.items;
+    // Direct DB results are already in the correct format
+    const subscriptions = subscriptionsData;
+    const payments = paymentsData;
 
     // Enhanced type safety with proper filtering
     const stats = {

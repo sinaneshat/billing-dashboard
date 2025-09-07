@@ -75,19 +75,35 @@ export type TypedMetadata =
 
 // Validation functions
 export function validateProductMetadata(data: unknown): ProductMetadata {
-  return ProductMetadataSchema.parse(data);
+  const result = ProductMetadataSchema.safeParse(data);
+  if (!result.success) {
+    throw new Error(`Product metadata validation failed: ${result.error.message}`);
+  }
+  return result.data;
 }
 
 export function validatePaymentMetadata(data: unknown): PaymentMetadata {
-  return PaymentMetadataSchema.parse(data);
+  const result = PaymentMetadataSchema.safeParse(data);
+  if (!result.success) {
+    throw new Error(`Payment metadata validation failed: ${result.error.message}`);
+  }
+  return result.data;
 }
 
 export function validateSubscriptionMetadata(data: unknown): SubscriptionMetadata {
-  return SubscriptionMetadataSchema.parse(data);
+  const result = SubscriptionMetadataSchema.safeParse(data);
+  if (!result.success) {
+    throw new Error(`Subscription metadata validation failed: ${result.error.message}`);
+  }
+  return result.data;
 }
 
 export function validateUserMetadata(data: unknown): UserMetadata {
-  return UserMetadataSchema.parse(data);
+  const result = UserMetadataSchema.safeParse(data);
+  if (!result.success) {
+    throw new Error(`User metadata validation failed: ${result.error.message}`);
+  }
+  return result.data;
 }
 
 // Safe metadata parsing with fallback
@@ -95,9 +111,6 @@ export function parseTypedMetadata<T extends TypedMetadata>(
   data: unknown,
   schema: z.ZodSchema<T>,
 ): T | null {
-  try {
-    return schema.parse(data);
-  } catch {
-    return null;
-  }
+  const result = schema.safeParse(data);
+  return result.success ? result.data : null;
 }

@@ -44,13 +44,19 @@ export function LocaleSwitcher({
   // Note: translations are available but not used in this component
   // const t = useTranslations('language');
 
-  const handleLocaleChange = (newLocale: Locale) => {
+  const handleLocaleChange = async (newLocale: Locale) => {
     if (newLocale === currentLocale) return;
     
-    // OFFICIAL PATTERN: Server Action handles cookie + redirect
-    // This follows the exact pattern from next-intl official docs
-    startTransition(() => {
-      setUserLocale(newLocale);
+    // OFFICIAL PATTERN: Server Action sets cookie, client handles refresh
+    // This preserves theme state and prevents UI flash
+    startTransition(async () => {
+      try {
+        await setUserLocale(newLocale);
+        // Gentle refresh that preserves theme and other state
+        window.location.reload();
+      } catch (error) {
+        console.error('Failed to change locale:', error);
+      }
     });
   };
 
@@ -123,10 +129,16 @@ export function SimpleLocaleSwitcher({
   const otherLocale = currentLocale === 'en' ? 'fa' : 'en';
   const isLoading = isPending;
 
-  const handleToggle = () => {
-    // OFFICIAL PATTERN: Server Action handles cookie + redirect
-    startTransition(() => {
-      setUserLocale(otherLocale);
+  const handleToggle = async () => {
+    // OFFICIAL PATTERN: Server Action sets cookie, client handles refresh
+    startTransition(async () => {
+      try {
+        await setUserLocale(otherLocale);
+        // Gentle refresh that preserves theme and other state
+        window.location.reload();
+      } catch (error) {
+        console.error('Failed to change locale:', error);
+      }
     });
   };
 

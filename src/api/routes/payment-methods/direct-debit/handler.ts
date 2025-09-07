@@ -288,7 +288,7 @@ export const verifyDirectDebitContractHandler: RouteHandler<
       );
 
       if (existingSignature) {
-      // Remove the temporary contract record
+        // Remove the temporary contract record
         await db.delete(paymentMethod).where(eq(paymentMethod.id, contractId));
 
         return Responses.ok(c, {
