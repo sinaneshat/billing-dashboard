@@ -11,8 +11,8 @@ import {
 import { useLocale, useTranslations } from 'next-intl';
 import { memo, useCallback } from 'react';
 
+import { EmptyCard, LoadingCard, StatusCard } from '@/components/dashboard/dashboard-cards';
 import { Button } from '@/components/ui/button';
-import { EmptyCard, LoadingCard, StatusCard } from '@/components/ui/dashboard-cards';
 import {
   DropdownMenu,
   DropdownMenuContent,

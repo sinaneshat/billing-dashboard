@@ -19,7 +19,7 @@ import {
 } from '../ui/form';
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
 
-function RHFShadcnDatePicker({
+function RHFDatePicker({
   title,
   name,
   description,
@@ -97,4 +97,4 @@ function RHFShadcnDatePicker({
   );
 }
 
-export default RHFShadcnDatePicker;
+export default RHFDatePicker;

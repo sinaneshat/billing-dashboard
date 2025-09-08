@@ -11,7 +11,7 @@ import { useSubscriptionsQuery } from '@/hooks/queries/subscriptions';
 
 import { PaymentHistoryCards } from './payment-history-cards';
 
-export const SubscriptionBillingHistoryCoherent = memo(() => {
+export const BillingHistory = memo(() => {
   const t = useTranslations();
   const { data: subscriptionsData, isLoading, error } = useSubscriptionsQuery();
 

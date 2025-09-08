@@ -17,7 +17,7 @@ type Props = {
   fieldType?: 'number' | 'text' | 'email' | 'password';
 } & GeneralFormProps;
 
-function RHFShadcnTextField({
+function RHFTextField({
   name,
   title,
   description,
@@ -71,4 +71,4 @@ function RHFShadcnTextField({
   );
 }
 
-export default RHFShadcnTextField;
+export default RHFTextField;

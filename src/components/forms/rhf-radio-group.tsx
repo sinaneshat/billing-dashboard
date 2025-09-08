@@ -16,7 +16,7 @@ import { RadioGroup, RadioGroupItem } from '../ui/radio-group';
 type Props = {
   options: FormOptions;
 } & GeneralFormProps;
-function RHFShadcnRadioGroup({
+function RHFRadioGroup({
   name,
   options,
   title,
@@ -68,4 +68,4 @@ function RHFShadcnRadioGroup({
   );
 }
 
-export default RHFShadcnRadioGroup;
+export default RHFRadioGroup;

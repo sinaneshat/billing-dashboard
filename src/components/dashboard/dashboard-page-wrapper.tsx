@@ -1,11 +1,11 @@
 'use client';
 
-import { type ReactNode } from 'react';
+import type { ReactNode } from 'react';
 
 import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
 
-interface DashboardPageWrapperProps {
+type DashboardPageWrapperProps = {
   children: ReactNode;
   title: string;
   description?: string;
@@ -13,7 +13,7 @@ interface DashboardPageWrapperProps {
   headerClassName?: string;
   actions?: ReactNode;
   showSeparator?: boolean;
-}
+};
 
 /**
  * Reusable dashboard page wrapper with consistent title, description, and underline
@@ -49,7 +49,7 @@ export function DashboardPageWrapper({
             </div>
           )}
         </div>
-        
+
         {/* Separator (underline) following shadcn/ui patterns */}
         {showSeparator && (
           <Separator className="bg-border" data-slot="separator" />
@@ -64,13 +64,13 @@ export function DashboardPageWrapper({
   );
 }
 
-interface DashboardPageHeaderOnlyProps {
+type DashboardPageHeaderOnlyProps = {
   title: string;
   description?: string;
   actions?: ReactNode;
   className?: string;
   showSeparator?: boolean;
-}
+};
 
 /**
  * Standalone dashboard page header component
@@ -102,7 +102,7 @@ export function DashboardPageHeader({
           </div>
         )}
       </div>
-      
+
       {showSeparator && (
         <Separator className="bg-border" data-slot="separator" />
       )}
@@ -110,12 +110,12 @@ export function DashboardPageHeader({
   );
 }
 
-interface DashboardSectionHeaderProps {
+type DashboardSectionHeaderProps = {
   title: string;
   description?: string;
   actions?: ReactNode;
   className?: string;
-}
+};
 
 /**
  * Section header for dashboard content areas
@@ -148,12 +148,12 @@ export function DashboardSectionHeader({
   );
 }
 
-interface DashboardSubsectionHeaderProps {
+type DashboardSubsectionHeaderProps = {
   title: string;
   description?: string;
   actions?: ReactNode;
   className?: string;
-}
+};
 
 /**
  * Subsection header for smaller content areas

@@ -1,8 +1,9 @@
 'use client';
 
-import { type ReactNode } from 'react';
-import { CheckCircle, ArrowRight } from 'lucide-react';
+import { ArrowRight, CheckCircle } from 'lucide-react';
 import { useTranslations } from 'next-intl';
+import type { ReactNode } from 'react';
+
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 
@@ -21,11 +22,11 @@ export function DashboardSuccess({
   description,
   action,
   actionText,
-  actionHref = "/dashboard",
-  className = ''
+  actionHref = '/dashboard',
+  className = '',
 }: DashboardSuccessProps) {
-  const t = useTranslations()
-  
+  const t = useTranslations();
+
   return (
     <Card className={`border-0 shadow-lg ${className}`}>
       <CardContent className="pt-6">
@@ -70,27 +71,29 @@ export function WorkflowTabs({ currentStep, onStepChange, steps, className = '' 
         {steps.map((step, index) => (
           <button
             key={step.id}
+            type="button"
             onClick={() => !step.disabled && onStepChange(step.id)}
             disabled={step.disabled}
             className={`
               flex items-center justify-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors
-              ${currentStep === step.id 
-                ? 'bg-background text-foreground shadow-sm' 
-                : step.disabled 
-                  ? 'text-muted-foreground cursor-not-allowed'
-                  : 'text-muted-foreground hover:text-foreground hover:bg-background/50'
-              }
+              ${currentStep === step.id
+            ? 'bg-background text-foreground shadow-sm'
+            : step.disabled
+              ? 'text-muted-foreground cursor-not-allowed'
+              : 'text-muted-foreground hover:text-foreground hover:bg-background/50'
+          }
             `}
           >
             <span className={`
               w-5 h-5 rounded-full text-xs flex items-center justify-center border
-              ${currentStep === step.id 
-                ? 'bg-primary text-primary-foreground border-primary'
-                : step.disabled
-                  ? 'border-muted-foreground/30'
-                  : 'border-muted-foreground'
-              }
-            `}>
+              ${currentStep === step.id
+            ? 'bg-primary text-primary-foreground border-primary'
+            : step.disabled
+              ? 'border-muted-foreground/30'
+              : 'border-muted-foreground'
+          }
+            `}
+            >
               {index + 1}
             </span>
             {step.label}

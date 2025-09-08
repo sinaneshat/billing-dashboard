@@ -14,12 +14,29 @@ export const product = sqliteTable('product', {
     enum: ['one_time', 'monthly'],
   }).notNull().default('one_time'),
   isActive: integer('is_active', { mode: 'boolean' }).notNull().default(true),
+
+  // Roundtable integration fields
+  roundtableId: text('roundtable_id').unique(), // UUID from Roundtable system for mapping
+  messageQuota: integer('message_quota'), // Monthly message quota from Roundtable
+  conversationLimit: integer('conversation_limit'), // Monthly conversation limit
+  modelLimit: integer('model_limit'), // Number of AI models available
+  features: text('features', { mode: 'json' }), // JSON: allowed_models, premium features, etc.
+  stripeProductId: text('stripe_product_id'), // Stripe product ID for regular payments
+  stripePriceId: text('stripe_price_id'), // Stripe price ID for regular payments
+  usageType: text('usage_type'), // Usage type from Roundtable
+  systemPromptId: text('system_prompt_id'), // System prompt ID from Roundtable
+
   metadata: text('metadata', { mode: 'json' }), // For additional product data
   ...timestamps,
 }, table => [
   index('product_name_idx').on(table.name),
   index('product_billing_period_idx').on(table.billingPeriod),
   index('product_is_active_idx').on(table.isActive),
+  index('product_roundtable_id_idx').on(table.roundtableId),
+  index('product_stripe_product_id_idx').on(table.stripeProductId),
+  index('product_stripe_price_id_idx').on(table.stripePriceId),
+  index('product_message_quota_idx').on(table.messageQuota),
+  index('product_model_limit_idx').on(table.modelLimit),
   // Composite index for active products by billing period
   index('product_active_billing_idx').on(table.isActive, table.billingPeriod),
 ]);

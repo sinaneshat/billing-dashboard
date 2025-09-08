@@ -24,7 +24,7 @@ type Props = {
   options: FormOptions;
 } & GeneralFormProps;
 
-function RHFShadcnSelect({
+function RHFSelect({
   name,
   options,
   placeholder,
@@ -85,4 +85,4 @@ function RHFShadcnSelect({
   );
 }
 
-export default RHFShadcnSelect;
+export default RHFSelect;

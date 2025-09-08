@@ -4,8 +4,8 @@ import { AlertTriangle, Calendar, Clock } from 'lucide-react';
 import { useLocale, useTranslations } from 'next-intl';
 import { memo } from 'react';
 
+import { DashboardCard, EmptyCard, LoadingCard } from '@/components/dashboard/dashboard-cards';
 import { Badge } from '@/components/ui/badge';
-import { DashboardCard, EmptyCard, LoadingCard } from '@/components/ui/dashboard-cards';
 import { FadeIn } from '@/components/ui/motion';
 import { formatTomanCurrency } from '@/lib';
 

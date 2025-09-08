@@ -17,6 +17,13 @@ import { useLocale, useTranslations } from 'next-intl';
 import { memo, useMemo } from 'react';
 
 import { UpcomingBills } from '@/components/billing/upcoming-bills';
+import { MetricCard } from '@/components/dashboard/dashboard-cards';
+import {
+  DashboardContentGrid,
+  DashboardMetricGrid,
+  DashboardSection,
+  DashboardThreeColumnGrid,
+} from '@/components/dashboard/dashboard-layout';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -25,13 +32,6 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import { MetricCard } from '@/components/ui/dashboard-cards';
-import {
-  DashboardContentGrid,
-  DashboardMetricGrid,
-  DashboardSection,
-  DashboardThreeColumnGrid,
-} from '@/components/ui/dashboard-layout';
 import { FadeIn } from '@/components/ui/motion';
 import { Skeleton } from '@/components/ui/skeleton';
 import { PaymentStatusBadge, SubscriptionStatusBadge } from '@/components/ui/status-badge';

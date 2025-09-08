@@ -1,12 +1,23 @@
 'use client';
 
-import { ProductionSubscriptionPlans } from '@/components/billing/subscription-plans-production';
-import { DashboardPage } from '@/components/ui/dashboard-states';
+import { SubscriptionPlans } from '@/components/billing/subscription-plans';
+import { DashboardPage } from '@/components/dashboard/dashboard-states';
 
-export default function SubscriptionPlansScreen() {
+type SSOFlowData = {
+  initialStep: string;
+  selectedProductId: string | null;
+  billingMethod?: string;
+  priceId?: string;
+};
+
+type SubscriptionPlansScreenProps = {
+  ssoFlowData?: SSOFlowData;
+};
+
+export default function SubscriptionPlansScreen({ ssoFlowData }: SubscriptionPlansScreenProps) {
   return (
     <DashboardPage>
-      <ProductionSubscriptionPlans />
+      <SubscriptionPlans ssoFlowData={ssoFlowData} />
     </DashboardPage>
   );
 }

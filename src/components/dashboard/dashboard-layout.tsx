@@ -1,14 +1,14 @@
 'use client';
 
-import { type ReactNode } from 'react';
+import type { ReactNode } from 'react';
 
 import { cn } from '@/lib/utils';
 
 // Following shadcn/ui dashboard-01 block official spacing patterns
-interface DashboardContainerProps {
+type DashboardContainerProps = {
   children: ReactNode;
   className?: string;
-}
+};
 
 /**
  * Main dashboard container following shadcn/ui dashboard-01 block pattern
@@ -22,24 +22,24 @@ export function DashboardContainer({ children, className }: DashboardContainerPr
   );
 }
 
-interface DashboardSectionProps {
+type DashboardSectionProps = {
   children: ReactNode;
   className?: string;
   spacing?: 'compact' | 'default' | 'spacious';
-}
+};
 
 /**
  * Dashboard section with consistent spacing following official patterns
  * Provides standardized spacing between dashboard sections
  */
-export function DashboardSection({ 
-  children, 
+export function DashboardSection({
+  children,
   className,
-  spacing = 'default'
+  spacing = 'default',
 }: DashboardSectionProps) {
   const spacingClasses = {
     compact: 'space-y-3 md:space-y-4',
-    default: 'space-y-4 md:space-y-6', 
+    default: 'space-y-4 md:space-y-6',
     spacious: 'space-y-6 md:space-y-8',
   };
 
@@ -50,7 +50,7 @@ export function DashboardSection({
   );
 }
 
-interface DashboardGridProps {
+type DashboardGridProps = {
   children: ReactNode;
   columns?: {
     default?: number;
@@ -61,17 +61,19 @@ interface DashboardGridProps {
   };
   gap?: 'compact' | 'default' | 'spacious';
   className?: string;
-}
+};
+
+const DEFAULT_GRID_COLUMNS = { default: 1, md: 2, lg: 3 };
 
 /**
  * Responsive dashboard grid following Tailwind best practices
  * No minimum widths, proper responsive breakpoints, consistent spacing
  */
-export function DashboardGrid({ 
-  children, 
-  columns = { default: 1, md: 2, lg: 3 },
+export function DashboardGrid({
+  children,
+  columns = DEFAULT_GRID_COLUMNS,
   gap = 'default',
-  className 
+  className,
 }: DashboardGridProps) {
   const gapClasses = {
     compact: 'gap-3 md:gap-4',
@@ -94,29 +96,30 @@ export function DashboardGrid({
       columnClasses,
       gapClasses[gap],
       'w-full max-w-none min-w-0', // Ensure full width utilization and prevent overflow
-      className
-    )}>
+      className,
+    )}
+    >
       {children}
     </div>
   );
 }
 
-interface DashboardCardSectionProps {
+type DashboardCardSectionProps = {
   children: ReactNode;
   title?: string;
   description?: string;
   className?: string;
-}
+};
 
 /**
  * Standardized card section for dashboard content
  * Ensures consistent card heights and no minimum width constraints
  */
-export function DashboardCardSection({ 
-  children, 
+export function DashboardCardSection({
+  children,
   title,
   description,
-  className 
+  className,
 }: DashboardCardSectionProps) {
   return (
     <div className={cn('space-y-4 md:space-y-6', className)}>
@@ -135,10 +138,10 @@ export function DashboardCardSection({
   );
 }
 
-interface DashboardMetricGridProps {
+type DashboardMetricGridProps = {
   children: ReactNode;
   className?: string;
-}
+};
 
 /**
  * Specialized grid for metric cards following shadcn/ui dashboard-01 block
@@ -151,35 +154,36 @@ export function DashboardMetricGrid({ children, className }: DashboardMetricGrid
       'grid grid-cols-1 gap-4 w-full min-w-0',
       // Responsive columns following official pattern
       'sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-4',
-      // Card styling using data attributes for consistency  
+      // Card styling using data attributes for consistency
       '*:data-[slot=card]:from-primary/5 *:data-[slot=card]:to-card',
       '*:data-[slot=card]:bg-gradient-to-t *:data-[slot=card]:shadow-xs',
       'dark:*:data-[slot=card]:bg-card',
-      className
-    )}>
+      className,
+    )}
+    >
       {children}
     </div>
   );
 }
 
-interface DashboardContentGridProps {
+type DashboardContentGridProps = {
   children: ReactNode;
   layout?: 'equal' | 'sidebar' | 'main-sidebar' | 'three-column';
   className?: string;
-}
+};
 
 /**
  * Content grid for main dashboard layouts
  * Provides common layout patterns without minimum widths
  */
-export function DashboardContentGrid({ 
-  children, 
+export function DashboardContentGrid({
+  children,
   layout = 'equal',
-  className 
+  className,
 }: DashboardContentGridProps) {
   const layoutClasses = {
-    equal: 'grid-cols-1 md:grid-cols-2',
-    sidebar: 'grid-cols-1 lg:grid-cols-[250px_1fr]',
+    'equal': 'grid-cols-1 md:grid-cols-2',
+    'sidebar': 'grid-cols-1 lg:grid-cols-[250px_1fr]',
     'main-sidebar': 'grid-cols-1 lg:grid-cols-[1fr_300px]',
     'three-column': 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3',
   };
@@ -188,8 +192,9 @@ export function DashboardContentGrid({
     <div className={cn(
       'grid gap-4 md:gap-6 w-full min-w-0',
       layoutClasses[layout],
-      className
-    )}>
+      className,
+    )}
+    >
       {children}
     </div>
   );

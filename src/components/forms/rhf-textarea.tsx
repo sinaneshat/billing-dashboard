@@ -19,7 +19,7 @@ type Props = {
   rows?: number;
 } & GeneralFormProps;
 
-function RHFShadcnTextarea({
+function RHFTextarea({
   name,
   title,
   description,
@@ -67,4 +67,4 @@ function RHFShadcnTextarea({
   );
 }
 
-export default RHFShadcnTextarea;
+export default RHFTextarea;

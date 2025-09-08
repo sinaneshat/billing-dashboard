@@ -1,15 +1,15 @@
 'use client';
 
 import { useTranslations } from 'next-intl';
-import { useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 
 import { DirectDebitContractSetup } from '@/components/billing/direct-debit-contract-setup';
-import { CompactProductionPricing } from '@/components/pricing/compact-production-pricing';
+import { DashboardPageHeader } from '@/components/dashboard/dashboard-header';
+import { DashboardSection, EmptyState, ErrorState } from '@/components/dashboard/dashboard-states';
+import { DashboardSuccess } from '@/components/dashboard/dashboard-success';
+import { PricingCards } from '@/components/pricing/pricing-cards';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { DashboardPageHeader } from '@/components/ui/dashboard-header';
-import { DashboardSection, EmptyState, ErrorState } from '@/components/ui/dashboard-states';
-import { DashboardSuccess } from '@/components/ui/dashboard-success';
 import { LoadingSpinner } from '@/components/ui/loading-spinner';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useCreateSubscriptionMutation } from '@/hooks/mutations/subscriptions';
@@ -18,24 +18,60 @@ import { formatTomanCurrency } from '@/lib';
 
 import { toast } from '../ui/use-toast';
 
-export function ProductionSubscriptionPlans() {
+type SSOFlowData = {
+  initialStep: string;
+  selectedProductId: string | null;
+  billingMethod?: string;
+  priceId?: string;
+};
+
+type SubscriptionPlansProps = {
+  ssoFlowData?: SSOFlowData;
+};
+
+// Database-driven translation key extraction from product name
+function getProductTranslationKey(productName: string): string {
+  // Use product name from database to determine translation key
+  const normalizedName = productName.toLowerCase().trim();
+
+  // Map database product names to translation keys
+  if (normalizedName.includes('free'))
+    return 'free';
+  if (normalizedName.includes('starter'))
+    return 'starter';
+  if (normalizedName.includes('pro'))
+    return 'pro';
+  if (normalizedName.includes('power'))
+    return 'power';
+
+  // Fallback to starter if no match found
+  return 'starter';
+}
+
+export function SubscriptionPlans({ ssoFlowData }: SubscriptionPlansProps) {
   const t = useTranslations();
   const { data: products, isLoading, error, refetch } = useProductsQuery();
   const createSubscriptionMutation = useCreateSubscriptionMutation();
-  const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState('plans');
+
+  // Initialize state from server-provided SSO flow data
+  const [selectedProductId, setSelectedProductId] = useState<string | null>(
+    ssoFlowData?.selectedProductId || null,
+  );
+  const [activeTab, setActiveTab] = useState(ssoFlowData?.initialStep || 'plans');
   const [contractId, setContractId] = useState<string | null>(null);
 
-  const productList = products?.success && Array.isArray(products.data)
-    ? products.data.filter(product => product.isActive)
-    : [];
+  const productList = useMemo(() => {
+    return products?.success && Array.isArray(products.data)
+      ? products.data.filter(product => product.isActive)
+      : [];
+  }, [products]);
 
   // Products are already in the correct format from the API
   // API returns products with metadata.pricing containing USD/Toman/Rial prices
 
   const selectedProduct = productList.find(p => p.id === selectedProductId);
 
-  const handleDirectSubscription = async (productId: string) => {
+  const handleDirectSubscription = useCallback(async (productId: string) => {
     try {
       const result = await createSubscriptionMutation.mutateAsync({
         json: {
@@ -53,7 +89,7 @@ export function ProductionSubscriptionPlans() {
       toast({ title: t('subscription.activationError') });
       console.error('Free subscription error:', error);
     }
-  };
+  }, [createSubscriptionMutation, t]);
 
   const handlePlanSelect = (planId: string) => {
     const product = productList.find(p => p.id === planId);
@@ -100,6 +136,18 @@ export function ProductionSubscriptionPlans() {
       console.error('Paid subscription error:', error);
     }
   };
+
+  // Server-side SSO flow handling - auto-subscribe to free plans if pre-selected
+  React.useEffect(() => {
+    if (ssoFlowData?.selectedProductId && productList.length > 0) {
+      const targetProduct = productList.find(p => p.id === ssoFlowData.selectedProductId);
+
+      // For free plans coming from SSO, automatically subscribe
+      if (targetProduct && targetProduct.price === 0 && ssoFlowData.initialStep === 'payment') {
+        void handleDirectSubscription(ssoFlowData.selectedProductId);
+      }
+    }
+  }, [productList, ssoFlowData, handleDirectSubscription]);
 
   // Return early states without wrappers (parent screen handles structure)
   if (error) {
@@ -190,7 +238,7 @@ export function ProductionSubscriptionPlans() {
               </p>
             </div>
 
-            <CompactProductionPricing
+            <PricingCards
               products={productList}
               onPlanSelect={handlePlanSelect}
               className="space-y-6"
@@ -207,7 +255,9 @@ export function ProductionSubscriptionPlans() {
                   <CardContent>
                     <div className="space-y-4">
                       <div className="flex justify-between items-center">
-                        <span className="font-medium">{selectedProduct.name}</span>
+                        <span className="font-medium">
+                          {t(`plans.pricing.${getProductTranslationKey(selectedProduct.name)}.name`)}
+                        </span>
                         <div className="text-start">
                           <div className="font-bold text-lg">
                             {formatTomanCurrency(selectedProduct.price)}
@@ -218,7 +268,7 @@ export function ProductionSubscriptionPlans() {
                         </div>
                       </div>
                       <p className="text-sm text-muted-foreground">
-                        {selectedProduct.description}
+                        {t(`plans.pricing.${getProductTranslationKey(selectedProduct.name)}.description`)}
                       </p>
                     </div>
                   </CardContent>

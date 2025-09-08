@@ -1,8 +1,8 @@
 'use client';
 
-import { type ReactNode } from 'react';
 import { usePathname } from 'next/navigation';
 import { useTranslations } from 'next-intl';
+import type { ReactNode } from 'react';
 
 import {
   Breadcrumb,
@@ -14,8 +14,9 @@ import {
 } from '@/components/ui/breadcrumb';
 import { Separator } from '@/components/ui/separator';
 import { SidebarTrigger } from '@/components/ui/sidebar';
-import { DashboardSection } from './dashboard-states';
 import { cn } from '@/lib';
+
+import { DashboardSection } from './dashboard-states';
 
 // =============================================================================
 // UNIFIED HEADER SYSTEM FOR DASHBOARD
@@ -45,9 +46,10 @@ export function NavigationHeader({ className }: NavigationHeaderProps = {}) {
 
   return (
     <header className={cn(
-      "flex h-16 shrink-0 items-center gap-2 transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12",
-      className
-    )}>
+      'flex h-16 shrink-0 items-center gap-2 transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12',
+      className,
+    )}
+    >
       <div className="flex items-center gap-2 px-4">
         <SidebarTrigger className="-ms-1" />
         <Separator orientation="vertical" className="me-2 h-4" />
@@ -86,31 +88,31 @@ type PageHeaderProps = {
   className?: string;
 };
 
-export function PageHeader({ 
-  title, 
-  description, 
-  action, 
+export function PageHeader({
+  title,
+  description,
+  action,
   children,
   showSeparator = true,
   size = 'md',
-  className 
+  className,
 }: PageHeaderProps) {
   const sizeConfig = {
     sm: {
       title: 'text-lg font-semibold tracking-tight',
       description: 'text-xs text-muted-foreground',
-      spacing: 'space-y-3'
+      spacing: 'space-y-3',
     },
     md: {
       title: 'text-2xl font-semibold tracking-tight',
       description: 'text-sm text-muted-foreground',
-      spacing: 'space-y-6'
+      spacing: 'space-y-6',
     },
     lg: {
       title: 'text-3xl font-bold tracking-tight',
       description: 'text-base text-muted-foreground',
-      spacing: 'space-y-8'
-    }
+      spacing: 'space-y-8',
+    },
   };
 
   const config = sizeConfig[size];
@@ -141,12 +143,12 @@ type DashboardPageHeaderProps = {
   className?: string;
 };
 
-export function DashboardPageHeader({ 
-  title, 
-  description, 
+export function DashboardPageHeader({
+  title,
+  description,
   action,
   size = 'md',
-  className 
+  className,
 }: DashboardPageHeaderProps) {
   return (
     <DashboardSection className={className}>
@@ -171,4 +173,3 @@ export function DashboardPageHeader({
 export function PageHeaderAction({ children }: { children: ReactNode }) {
   return <div className="flex items-center space-x-2">{children}</div>;
 }
-

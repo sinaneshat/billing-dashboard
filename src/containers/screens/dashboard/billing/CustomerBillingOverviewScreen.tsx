@@ -4,8 +4,8 @@ import { useTranslations } from 'next-intl';
 import { useMemo } from 'react';
 
 import { CustomerBillingOverview } from '@/components/billing/customer-billing-overview';
-import { DashboardPageHeader } from '@/components/ui/dashboard-header';
-import { DashboardPage, DashboardSection } from '@/components/ui/dashboard-states';
+import { DashboardPageHeader } from '@/components/dashboard/dashboard-header';
+import { DashboardPage, DashboardSection } from '@/components/dashboard/dashboard-states';
 import { usePaymentMethodsQuery } from '@/hooks/queries/payment-methods';
 import { usePaymentsQuery } from '@/hooks/queries/payments';
 import { useCurrentSubscriptionQuery } from '@/hooks/queries/subscriptions';

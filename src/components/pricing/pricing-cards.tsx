@@ -24,7 +24,7 @@ type ProductCardProps = {
   className?: string;
 };
 
-type CompactProductionPricingProps = {
+type PricingCardsProps = {
   products: Product[];
   onPlanSelect: (productId: string) => void;
   className?: string;
@@ -214,11 +214,11 @@ function CompactProductCard({
   );
 }
 
-export function CompactProductionPricing({
+export function PricingCards({
   products,
   onPlanSelect,
   className,
-}: CompactProductionPricingProps) {
+}: PricingCardsProps) {
   const t = useTranslations();
   // Sort products: free first, then by price, with popular plans getting priority
   const sortedProducts = React.useMemo(() => {

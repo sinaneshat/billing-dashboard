@@ -1,7 +1,7 @@
 'use client';
 
-import { type ReactNode } from 'react';
 import { TrendingDown, TrendingUp } from 'lucide-react';
+import type { ReactNode } from 'react';
 
 import {
   Card,
@@ -31,7 +31,6 @@ type DashboardCardProps = {
   footer?: ReactNode;
   icon?: ReactNode;
   variant?: 'default' | 'elevated' | 'bordered';
-  shadow?: 'sm' | 'lg' | 'none'; // For backwards compatibility
 };
 
 export function DashboardCard({
@@ -44,7 +43,6 @@ export function DashboardCard({
   footer,
   icon,
   variant = 'default',
-  shadow,
 }: DashboardCardProps) {
   const finalAction = action || headerAction;
   return (
@@ -52,8 +50,9 @@ export function DashboardCard({
       'h-full',
       variant === 'elevated' && 'hover:shadow-md transition-shadow duration-200',
       variant === 'bordered' && 'border-2',
-      className
-    )}>
+      className,
+    )}
+    >
       {(title || description || action || icon) && (
         <CardHeader>
           <div className="flex items-start justify-between">
@@ -90,7 +89,7 @@ type MetricCardProps = {
     value: number | string;
     label?: string;
     direction?: 'up' | 'down' | 'neutral';
-    icon?: any; // Allow any React component type
+    icon?: React.ComponentType<React.SVGProps<SVGSVGElement>> | React.ReactElement; // Allow any React component type
   };
   badge?: ReactNode | {
     variant?: 'default' | 'destructive' | 'outline' | 'secondary';
@@ -112,7 +111,7 @@ export function MetricCard({
   action,
   footer,
 }: MetricCardProps) {
-  const trendValue = typeof trend?.value === 'string' ? parseFloat(trend.value) || 0 : trend?.value || 0;
+  const trendValue = typeof trend?.value === 'string' ? Number.parseFloat(trend.value) || 0 : trend?.value || 0;
   const isPositiveTrend = trend && (trend.direction === 'up' || (trend.direction !== 'down' && trend.direction !== 'neutral' && trendValue > 0));
   const isNegativeTrend = trend && (trend.direction === 'down' || (trend.direction !== 'up' && trend.direction !== 'neutral' && trendValue < 0));
 
@@ -132,19 +131,25 @@ export function MetricCard({
         </div>
         {badge && (
           <div className="pt-2">
-            {typeof badge === 'object' && badge !== null && 'variant' in badge ? (
-              <div className={cn(
-                'inline-flex items-center px-2 py-1 rounded-full text-xs font-medium',
-                badge.variant === 'outline' ? 'border border-border bg-transparent' :
-                badge.variant === 'secondary' ? 'bg-secondary text-secondary-foreground' :
-                badge.variant === 'destructive' ? 'bg-destructive text-destructive-foreground' :
-                'bg-primary text-primary-foreground'
-              )}>
-                {(badge as { label: string }).label}
-              </div>
-            ) : (
-              <>{badge}</>
-            )}
+            {typeof badge === 'object' && badge !== null && 'variant' in badge
+              ? (
+                  <div className={cn(
+                    'inline-flex items-center px-2 py-1 rounded-full text-xs font-medium',
+                    badge.variant === 'outline'
+                      ? 'border border-border bg-transparent'
+                      : badge.variant === 'secondary'
+                        ? 'bg-secondary text-secondary-foreground'
+                        : badge.variant === 'destructive'
+                          ? 'bg-destructive text-destructive-foreground'
+                          : 'bg-primary text-primary-foreground',
+                  )}
+                  >
+                    {(badge as { label: string }).label}
+                  </div>
+                )
+              : (
+                  <>{badge}</>
+                )}
           </div>
         )}
       </CardHeader>
@@ -164,9 +169,11 @@ export function MetricCard({
                   <span className={cn(
                     'font-medium',
                     isPositiveTrend && 'text-emerald-600',
-                    isNegativeTrend && 'text-red-600'
-                  )}>
-                    {trendValue > 0 ? '+' : ''}{typeof trend.value === 'string' ? trend.value : `${trend.value}%`}
+                    isNegativeTrend && 'text-red-600',
+                  )}
+                  >
+                    {trendValue > 0 ? '+' : ''}
+                    {typeof trend.value === 'string' ? trend.value : `${trend.value}%`}
                   </span>
                   {trend.label && <span>{trend.label}</span>}
                 </div>
@@ -300,8 +307,9 @@ export function ContentCard({
     <Card className={cn(
       'h-full',
       variant === 'elevated' && 'hover:shadow-md transition-shadow duration-200',
-      className
-    )}>
+      className,
+    )}
+    >
       <CardHeader>
         <div className="flex items-start justify-between">
           <div className="flex items-center gap-3 flex-1">
@@ -399,22 +407,24 @@ export function LoadingCard({
         </CardHeader>
       )}
       <CardContent>
-        {variant === 'metric' ? (
-          <div className="space-y-3">
-            <div className="h-4 w-24 animate-pulse rounded bg-muted" />
-            <div className="h-8 w-32 animate-pulse rounded bg-muted" />
-            <div className="h-3 w-16 animate-pulse rounded bg-muted" />
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {Array.from({ length: rows }, (_, i) => (
-              <div key={i} className="flex items-center justify-between">
+        {variant === 'metric'
+          ? (
+              <div className="space-y-3">
                 <div className="h-4 w-24 animate-pulse rounded bg-muted" />
-                <div className="h-4 w-16 animate-pulse rounded bg-muted" />
+                <div className="h-8 w-32 animate-pulse rounded bg-muted" />
+                <div className="h-3 w-16 animate-pulse rounded bg-muted" />
               </div>
-            ))}
-          </div>
-        )}
+            )
+          : (
+              <div className="space-y-3">
+                {Array.from({ length: rows }, (_, i) => (
+                  <div key={i} className="flex items-center justify-between">
+                    <div className="h-4 w-24 animate-pulse rounded bg-muted" />
+                    <div className="h-4 w-16 animate-pulse rounded bg-muted" />
+                  </div>
+                ))}
+              </div>
+            )}
       </CardContent>
     </Card>
   );

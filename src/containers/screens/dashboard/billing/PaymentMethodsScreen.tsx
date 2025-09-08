@@ -4,11 +4,11 @@ import { BanknoteIcon, CheckCircle, Clock, CreditCard, Plus, Shield, Star, Trash
 import { useTranslations } from 'next-intl';
 
 import { DirectDebitContractSetup } from '@/components/billing/direct-debit-contract-setup';
+import { ContentCard, DashboardCard, DashboardDataCard } from '@/components/dashboard/dashboard-cards';
+import { DashboardPageHeader } from '@/components/dashboard/dashboard-header';
+import { DashboardPage, DashboardSection, EmptyState, ErrorState, LoadingState } from '@/components/dashboard/dashboard-states';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { ContentCard, DashboardCard, DashboardDataCard } from '@/components/ui/dashboard-cards';
-import { DashboardPageHeader } from '@/components/ui/dashboard-header';
-import { DashboardPage, DashboardSection, EmptyState, ErrorState, LoadingState } from '@/components/ui/dashboard-states';
 import { useDeletePaymentMethodMutation, useSetDefaultPaymentMethodMutation } from '@/hooks/mutations/payment-methods';
 import { usePaymentMethodsQuery } from '@/hooks/queries/payment-methods';
 import { staleWhileRevalidate, useOptimisticMutationWithFeedback, useQueryUIState } from '@/hooks/utils/query-helpers';
@@ -200,7 +200,6 @@ export default function PaymentMethodsScreen() {
         <DashboardCard
           title={t('directDebit.contractSetup')}
           description={t('directDebit.subtitle')}
-          shadow="sm"
         >
           <div className="space-y-8">
             <div className="grid gap-8 md:grid-cols-3">

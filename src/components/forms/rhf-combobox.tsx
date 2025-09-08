@@ -30,7 +30,7 @@ type Props = {
   loading?: boolean;
 } & GeneralFormProps;
 
-function RHFShadcnComboBox({
+function RHFComboBox({
   name,
   title,
   description,
@@ -122,4 +122,4 @@ function RHFShadcnComboBox({
   );
 }
 
-export default RHFShadcnComboBox;
+export default RHFComboBox;

@@ -2,9 +2,9 @@
 
 import { useTranslations } from 'next-intl';
 
-import { SubscriptionBillingHistoryCoherent } from '@/components/billing/subscription-billing-history-coherent';
-import { DashboardPageHeader } from '@/components/ui/dashboard-header';
-import { DashboardPage, DashboardSection } from '@/components/ui/dashboard-states';
+import { BillingHistory } from '@/components/billing/billing-history';
+import { DashboardPageHeader } from '@/components/dashboard/dashboard-header';
+import { DashboardPage, DashboardSection } from '@/components/dashboard/dashboard-states';
 
 export default function SubscriptionBillingScreen() {
   const t = useTranslations();
@@ -15,7 +15,7 @@ export default function SubscriptionBillingScreen() {
         description={t('billing.subscriptionBillingDescription')}
       />
       <DashboardSection delay={0.1}>
-        <SubscriptionBillingHistoryCoherent />
+        <BillingHistory />
       </DashboardSection>
     </DashboardPage>
   );

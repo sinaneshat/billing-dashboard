@@ -1,5 +1,8 @@
-import React from 'react';
+// components/TextInput.tsx
 import { useFormContext } from 'react-hook-form';
+
+import { cn } from '@/lib';
+import type { GeneralFormProps } from '@/types/general';
 
 import {
   FormControl,
@@ -7,19 +10,24 @@ import {
   FormField,
   FormItem,
   FormLabel,
-} from '@/components/ui/form';
-import type { GeneralFormProps } from '@/types/general';
+} from '../ui/form';
+import { Switch } from '../ui/switch';
 
-import { Checkbox } from '../ui/checkbox';
+type Props = {
+  className?: string;
+} & GeneralFormProps;
 
-function RHFShadcnCheckbox({
+function RHFSwitch({
   name,
   title,
   description,
   value: externalValue,
-  required,
   onChange: externalOnChange,
-}: GeneralFormProps) {
+  className,
+  required,
+
+  disabled = false,
+}: Props) {
   const { control } = useFormContext();
 
   return (
@@ -27,11 +35,18 @@ function RHFShadcnCheckbox({
       control={control}
       name={name}
       render={({ field }) => (
-        <FormItem className="flex w-full flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
+        <FormItem
+          className={`${cn('flex flex-row items-center justify-between rounded-lg border p-4', className)}`}
+        >
+          <div className="space-y-0.5">
+            <FormLabel className="text-base">{title}</FormLabel>
+            {description && <FormDescription>{description}</FormDescription>}
+          </div>
           <FormControl>
-            <Checkbox
+            <Switch
               required={required}
               data-testid={field.name}
+              disabled={disabled}
               onCheckedChange={(e) => {
                 if (externalOnChange) {
                   return externalOnChange?.({ target: { value: e } });
@@ -41,14 +56,10 @@ function RHFShadcnCheckbox({
               checked={field.value !== undefined ? field.value : externalValue}
             />
           </FormControl>
-          <div className="space-y-1 leading-none">
-            <FormLabel>{title}</FormLabel>
-            {description && <FormDescription>{description}</FormDescription>}
-          </div>
         </FormItem>
       )}
     />
   );
 }
 
-export default RHFShadcnCheckbox;
+export default RHFSwitch;

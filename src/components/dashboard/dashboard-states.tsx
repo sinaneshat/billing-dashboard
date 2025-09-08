@@ -1,21 +1,21 @@
 'use client';
 
-import { type ReactNode } from 'react';
-import { useTranslations } from 'next-intl';
-import { 
-  AlertCircle, 
-  Package, 
-  RefreshCw, 
-  CheckCircle, 
-  Info, 
+import {
+  AlertCircle,
   AlertTriangle,
-  XCircle,
+  CheckCircle,
   Clock,
+  CreditCard,
+  FileText,
+  Info,
+  Package,
+  RefreshCw,
   Wifi,
   WifiOff,
-  CreditCard,
-  FileText
+  XCircle,
 } from 'lucide-react';
+import { useTranslations } from 'next-intl';
+import type { ReactNode } from 'react';
 
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
@@ -39,23 +39,23 @@ type LoadingStateProps = {
   className?: string;
 };
 
-export function LoadingState({ 
+export function LoadingState({
   title,
   message,
   variant = 'page',
-  className
+  className,
 }: LoadingStateProps) {
   const t = useTranslations();
-  
+
   const defaultTitle = title || t('states.loading.default');
   const defaultMessage = message || t('states.loading.please_wait');
   if (variant === 'spinner') {
-    return <LoadingSpinner className={cn("h-6 w-6", className)} />;
+    return <LoadingSpinner className={cn('h-6 w-6', className)} />;
   }
 
   if (variant === 'inline') {
     return (
-      <div className={cn("flex items-center gap-2 text-sm text-muted-foreground", className)}>
+      <div className={cn('flex items-center gap-2 text-sm text-muted-foreground', className)}>
         <LoadingSpinner className="h-4 w-4" />
         <span>{defaultTitle}</span>
       </div>
@@ -99,10 +99,10 @@ export function ErrorState({
   severity = 'error',
   networkType = 'connection',
   className,
-  icon
+  icon,
 }: ErrorStateProps) {
   const t = useTranslations();
-  
+
   const defaultRetryLabel = retryLabel || t('actions.tryAgain');
   // Network error configuration
   const networkConfig = {
@@ -111,22 +111,22 @@ export function ErrorState({
       title: t('states.error.offline'),
       description: t('states.error.offlineDescription'),
       badge: t('networkStatus.offline'),
-      badgeVariant: 'destructive' as const
+      badgeVariant: 'destructive' as const,
     },
     timeout: {
       icon: Clock,
       title: t('states.error.timeout'),
       description: t('states.error.timeoutDescription'),
       badge: t('networkStatus.timeout'),
-      badgeVariant: 'secondary' as const
+      badgeVariant: 'secondary' as const,
     },
     connection: {
       icon: Wifi,
       title: t('states.error.network'),
       description: t('states.error.networkDescription'),
       badge: t('networkStatus.connectionError'),
-      badgeVariant: 'destructive' as const
-    }
+      badgeVariant: 'destructive' as const,
+    },
   };
 
   // Severity configuration
@@ -136,22 +136,22 @@ export function ErrorState({
       title: t('states.error.default'),
       description: t('states.error.description'),
       alertVariant: 'destructive' as const,
-      iconColor: 'text-destructive'
+      iconColor: 'text-destructive',
     },
     warning: {
       icon: AlertTriangle,
       title: t('status.warning'),
       description: t('states.error.description'),
       alertVariant: 'default' as const,
-      iconColor: 'text-yellow-600 dark:text-yellow-400'
+      iconColor: 'text-yellow-600 dark:text-yellow-400',
     },
     info: {
       icon: Info,
       title: t('status.info'),
       description: t('states.error.description'),
       alertVariant: 'default' as const,
-      iconColor: 'text-primary'
-    }
+      iconColor: 'text-primary',
+    },
   };
 
   if (variant === 'network') {
@@ -159,7 +159,7 @@ export function ErrorState({
     const Icon = config.icon;
 
     return (
-      <Alert variant="destructive" className={cn("border-dashed", className)}>
+      <Alert variant="destructive" className={cn('border-dashed', className)}>
         <Icon className="h-4 w-4" />
         <div className="flex items-center justify-between w-full">
           <div className="space-y-1">
@@ -193,7 +193,7 @@ export function ErrorState({
 
     return (
       <Alert variant={config.alertVariant} className={className}>
-        <IconComponent className={cn("h-4 w-4", config.iconColor)} />
+        <IconComponent className={cn('h-4 w-4', config.iconColor)} />
         <AlertTitle>{title || config.title}</AlertTitle>
         <AlertDescription>
           {description || config.description}
@@ -213,7 +213,7 @@ export function ErrorState({
 
   if (variant === 'boundary') {
     return (
-      <Card className={cn("border-destructive/50", className)}>
+      <Card className={cn('border-destructive/50', className)}>
         <CardContent className="text-center py-12 space-y-6">
           <div className="w-16 h-16 rounded-full bg-destructive/10 flex items-center justify-center mx-auto">
             <XCircle className="h-8 w-8 text-destructive" />
@@ -239,7 +239,7 @@ export function ErrorState({
 
   // Default card variant
   const Icon = icon || AlertCircle;
-  
+
   return (
     <PageTransition>
       <FadeIn delay={0.05} className={className}>
@@ -283,7 +283,7 @@ type EmptyStateProps = {
 
 // Note: emptyStateConfig moved inside component to access t() function
 
-export function EmptyState({ 
+export function EmptyState({
   title,
   description,
   action,
@@ -291,43 +291,43 @@ export function EmptyState({
   size = 'md',
   style = 'default',
   className,
-  icon
+  icon,
 }: EmptyStateProps) {
   const t = useTranslations();
-  
+
   const emptyStateConfig = {
     subscriptions: {
       icon: Package,
       title: t('states.empty.subscriptions'),
-      description: t('states.empty.subscriptionsDescription')
+      description: t('states.empty.subscriptionsDescription'),
     },
     payments: {
       icon: CreditCard,
       title: t('states.empty.payments'),
-      description: t('states.empty.paymentsDescription')
+      description: t('states.empty.paymentsDescription'),
     },
     plans: {
       icon: FileText,
       title: t('states.empty.plans'),
-      description: t('states.empty.plansDescription')
+      description: t('states.empty.plansDescription'),
     },
     methods: {
       icon: CreditCard,
       title: t('states.empty.methods'),
-      description: t('states.empty.methodsDescription')
+      description: t('states.empty.methodsDescription'),
     },
     general: {
       icon: Package,
       title: t('states.empty.default'),
-      description: t('states.empty.description')
+      description: t('states.empty.description'),
     },
     custom: {
       icon: AlertCircle,
       title: t('states.empty.default'),
-      description: t('states.empty.description')
-    }
+      description: t('states.empty.description'),
+    },
   };
-  
+
   const config = emptyStateConfig[variant];
   const Icon = icon || config.icon;
 
@@ -337,28 +337,28 @@ export function EmptyState({
       iconContainer: 'w-12 h-12',
       iconSize: 'h-6 w-6',
       title: 'text-base font-semibold',
-      description: 'text-sm'
+      description: 'text-sm',
     },
     md: {
       container: 'py-8',
       iconContainer: 'w-16 h-16',
       iconSize: 'h-8 w-8',
       title: 'text-lg font-semibold',
-      description: 'text-sm'
+      description: 'text-sm',
     },
     lg: {
       container: 'py-12',
       iconContainer: 'w-24 h-24',
       iconSize: 'h-12 w-12',
       title: 'text-2xl font-bold',
-      description: 'text-base'
-    }
+      description: 'text-base',
+    },
   };
 
   const styleConfig = {
-    default: "border bg-card",
-    dashed: "border-2 border-dashed border-border/50 bg-gradient-to-br from-muted/30 to-background",
-    gradient: "border bg-gradient-to-br from-card to-card/50 shadow-lg"
+    default: 'border bg-card',
+    dashed: 'border-2 border-dashed border-border/50 bg-gradient-to-br from-muted/30 to-background',
+    gradient: 'border bg-gradient-to-br from-card to-card/50 shadow-lg',
   };
 
   const sizeSettings = sizeConfig[size];
@@ -369,15 +369,19 @@ export function EmptyState({
         <div className="text-center space-y-6">
           <div className={cn(
             sizeSettings.iconContainer,
-            "bg-muted rounded-full flex items-center justify-center mx-auto",
-            size === 'lg' && "rounded-2xl bg-gradient-to-br from-primary/10 to-primary/5 border-2 border-dashed border-primary/20"
-          )}>
-            {typeof Icon === 'function' ? (
-              <Icon className={cn(
-                sizeSettings.iconSize, 
-                size === 'lg' ? 'text-primary/60' : 'text-muted-foreground'
-              )} />
-            ) : Icon}
+            'bg-muted rounded-full flex items-center justify-center mx-auto',
+            size === 'lg' && 'rounded-2xl bg-gradient-to-br from-primary/10 to-primary/5 border-2 border-dashed border-primary/20',
+          )}
+          >
+            {typeof Icon === 'function'
+              ? (
+                  <Icon className={cn(
+                    sizeSettings.iconSize,
+                    size === 'lg' ? 'text-primary/60' : 'text-muted-foreground',
+                  )}
+                  />
+                )
+              : Icon}
           </div>
           <div className="space-y-3">
             <h3 className={sizeSettings.title}>
@@ -385,9 +389,10 @@ export function EmptyState({
             </h3>
             <p className={cn(
               sizeSettings.description,
-              "text-muted-foreground max-w-md mx-auto",
-              size === 'lg' && "max-w-lg leading-relaxed"
-            )}>
+              'text-muted-foreground max-w-md mx-auto',
+              size === 'lg' && 'max-w-lg leading-relaxed',
+            )}
+            >
               {description || config.description}
             </p>
           </div>
@@ -411,16 +416,16 @@ type SuccessStateProps = {
   className?: string;
 };
 
-export function SuccessState({ 
-  title, 
-  description, 
-  action, 
+export function SuccessState({
+  title,
+  description,
+  action,
   variant = 'alert',
-  className 
+  className,
 }: SuccessStateProps) {
   if (variant === 'card') {
     return (
-      <Card className={cn("border-emerald-200 bg-emerald-50/50 dark:border-emerald-800 dark:bg-emerald-900/10", className)}>
+      <Card className={cn('border-emerald-200 bg-emerald-50/50 dark:border-emerald-800 dark:bg-emerald-900/10', className)}>
         <CardContent className="text-center py-8 space-y-4">
           <div className="w-16 h-16 bg-emerald-50 dark:bg-emerald-950/20 rounded-full flex items-center justify-center mx-auto">
             <CheckCircle className="h-8 w-8 text-emerald-600 dark:text-emerald-400" />
@@ -438,7 +443,7 @@ export function SuccessState({
   }
 
   return (
-    <Alert className={cn("border-emerald-200 bg-emerald-50/50 dark:border-emerald-800 dark:bg-emerald-900/10", className)}>
+    <Alert className={cn('border-emerald-200 bg-emerald-50/50 dark:border-emerald-800 dark:bg-emerald-900/10', className)}>
       <CheckCircle className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
       <AlertTitle className="text-emerald-800 dark:text-emerald-400">{title}</AlertTitle>
       {description && (
@@ -460,7 +465,7 @@ type DashboardPageProps = {
 export function DashboardPage({ children, className }: DashboardPageProps) {
   return (
     <PageTransition>
-      <div className={cn("space-y-6", className)}>
+      <div className={cn('space-y-6', className)}>
         {children}
       </div>
     </PageTransition>
@@ -474,16 +479,16 @@ type DashboardSectionProps = {
   className?: string;
 };
 
-export function DashboardSection({ 
-  children, 
-  delay = 0.05, 
+export function DashboardSection({
+  children,
+  delay = 0.05,
   spacing = 'default',
-  className 
+  className,
 }: DashboardSectionProps) {
   const spacingConfig = {
     tight: 'space-y-4',
     default: 'space-y-6',
-    loose: 'space-y-8'
+    loose: 'space-y-8',
   };
 
   return (
@@ -492,4 +497,3 @@ export function DashboardSection({
     </FadeIn>
   );
 }
-

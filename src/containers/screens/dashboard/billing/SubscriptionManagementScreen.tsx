@@ -3,8 +3,8 @@
 import { useTranslations } from 'next-intl';
 
 import { SubscriptionCards } from '@/components/billing/subscription-cards';
-import { DashboardPageHeader } from '@/components/ui/dashboard-header';
-import { DashboardPage, DashboardSection } from '@/components/ui/dashboard-states';
+import { DashboardPageHeader } from '@/components/dashboard/dashboard-header';
+import { DashboardPage, DashboardSection } from '@/components/dashboard/dashboard-states';
 import { useSubscriptionsQuery } from '@/hooks/queries/subscriptions';
 import { useQueryUIState } from '@/hooks/utils/query-helpers';
 

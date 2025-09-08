@@ -671,54 +671,49 @@
     "pricing": {
       "free": {
         "name": "رایگان",
-        "description": "برای کاوش شخصی و شروع کار.",
+        "description": "شروع کار با امکانات پایه",
         "buttonText": "شروع کنید",
         "features": {
-          "requestsPerDay": "۱۰۰ درخواست در روز",
-          "basicAccess": "دسترسی به ویژگی‌های پایه",
-          "communitySupport": "پشتیبانی جامعه",
-          "limitedApi": "دسترسی محدود API",
-          "prioritySupport": "پشتیبانی اولویت‌دار",
-          "advancedAnalytics": "تحلیل‌های پیشرفته"
+          "messagesPerMonth": "۲۰ پیام در ماه",
+          "aiModels": "تا ۵ مدل هوش مصنوعی",
+          "conversationsPerMonth": "۲ مکالمه در ماه",
+          "basicSupport": "پشتیبانی پایه"
         }
       },
       "starter": {
         "name": "شروع",
-        "description": "مناسب برای پروژه‌های کوچک و توسعه‌دهندگان فردی.",
+        "description": "ورودی مقرون‌به‌صرفه برای خالقان و متفکران.",
         "buttonText": "انتخاب طرح",
         "features": {
-          "requestsPerDay": "۱٬۰۰۰ درخواست در روز",
-          "standardAccess": "دسترسی به ویژگی‌های استاندارد",
+          "messagesPerMonth": "۱۵۰ پیام در ماه",
+          "aiModels": "تا ۵ مدل هوش مصنوعی",
+          "conversationsPerMonth": "۳۰ مکالمه در ماه",
           "emailSupport": "پشتیبانی ایمیل",
-          "apiAccess": "دسترسی API",
-          "basicAnalytics": "تحلیل‌های پایه",
-          "customIntegrations": "یکپارچه‌سازی‌های سفارشی"
+          "premiumModels": "مدل‌های هوش مصنوعی پریمیوم"
         }
       },
-      "premium": {
-        "name": "پریمیوم",
-        "description": "مناسب برای متخصصان و کسب‌وکارهای در حال رشد.",
-        "buttonText": "محبوب‌ترین",
+      "pro": {
+        "name": "حرفه‌ای",
+        "description": "برای آن‌هایی که بزرگ فکر می‌کنند و اغلب.",
+        "buttonText": "انتخاب طرح",
         "features": {
-          "unlimitedGeneration": "تولید نامحدود هوش مصنوعی",
-          "fullAccess": "دسترسی کامل به ویژگی‌ها",
+          "messagesPerMonth": "۴۰۰ پیام در ماه",
+          "aiModels": "تا ۷ مدل هوش مصنوعی",
+          "conversationsPerMonth": "۷۵ مکالمه در ماه",
           "prioritySupport": "پشتیبانی اولویت‌دار",
-          "advancedAnalytics": "تحلیل‌های پیشرفته",
-          "fullApi": "دسترسی کامل API",
-          "basicIntegrations": "یکپارچه‌سازی‌های پایه"
+          "premiumModels": "مدل‌های هوش مصنوعی پریمیوم"
         }
       },
-      "enterprise": {
-        "name": "سازمانی",
-        "description": "برای سازمان‌های بزرگی که به پشتیبانی تخصصی نیاز دارند.",
-        "buttonText": "تماس با فروش",
+      "power": {
+        "name": "قدرتمند",
+        "description": "حداکثر قدرت، حداقل محدودیت.",
+        "buttonText": "انتخاب طرح",
         "features": {
-          "customDeployment": "استقرار سفارشی",
-          "comprehensiveAnalytics": "تحلیل‌های جامع",
-          "specializedTraining": "آموزش تخصصی مدل",
-          "dedicatedSupport": "پشتیبانی اختصاصی ۲۴/۷",
-          "customIntegrations": "یکپارچه‌سازی‌های سفارشی",
-          "slaGuarantees": "تضمین‌های SLA"
+          "messagesPerMonth": "۱۸۰۰ پیام در ماه",
+          "aiModels": "تا ۱۵ مدل هوش مصنوعی",
+          "conversationsPerMonth": "۳۰۰ مکالمه در ماه",
+          "prioritySupport": "پشتیبانی اولویت‌دار ۲۴/۷",
+          "premiumModels": "مدل‌های هوش مصنوعی پریمیوم"
         }
       }
     }

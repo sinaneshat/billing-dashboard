@@ -658,54 +658,49 @@
     "pricing": {
       "free": {
         "name": "Free",
-        "description": "For personal exploration and getting started.",
+        "description": "Get started with basic features",
         "buttonText": "Get started",
         "features": {
-          "requestsPerDay": "100 requests per day",
-          "basicAccess": "Basic features access",
-          "communitySupport": "Community support",
-          "limitedApi": "Limited API access",
-          "prioritySupport": "Priority support",
-          "advancedAnalytics": "Advanced analytics"
+          "messagesPerMonth": "20 messages per month",
+          "aiModels": "Up to 5 AI models",
+          "conversationsPerMonth": "2 conversations per month",
+          "basicSupport": "Basic support"
         }
       },
       "starter": {
         "name": "Starter",
-        "description": "Perfect for small projects and individual developers.",
+        "description": "Affordable entry for creators and thinkers.",
         "buttonText": "Choose plan",
         "features": {
-          "requestsPerDay": "1,000 requests per day",
-          "standardAccess": "Standard features access",
+          "messagesPerMonth": "150 messages per month",
+          "aiModels": "Up to 5 AI models",
+          "conversationsPerMonth": "30 conversations per month",
           "emailSupport": "Email support",
-          "apiAccess": "API access",
-          "basicAnalytics": "Basic analytics",
-          "customIntegrations": "Custom integrations"
+          "premiumModels": "Premium AI models"
         }
       },
-      "premium": {
-        "name": "Premium",
-        "description": "Perfect for professionals and growing businesses.",
-        "buttonText": "Most popular",
+      "pro": {
+        "name": "Pro",
+        "description": "For those who think big and often.",
+        "buttonText": "Choose plan",
         "features": {
-          "unlimitedGeneration": "Unlimited AI generation",
-          "fullAccess": "Full features access",
+          "messagesPerMonth": "400 messages per month",
+          "aiModels": "Up to 7 AI models",
+          "conversationsPerMonth": "75 conversations per month",
           "prioritySupport": "Priority support",
-          "advancedAnalytics": "Advanced analytics",
-          "fullApi": "Full API access",
-          "basicIntegrations": "Basic integrations"
+          "premiumModels": "Premium AI models"
         }
       },
-      "enterprise": {
-        "name": "Enterprise",
-        "description": "For large organizations requiring specialized support.",
-        "buttonText": "Contact sales",
+      "power": {
+        "name": "Power",
+        "description": "Maximum power, minimal limits.",
+        "buttonText": "Choose plan",
         "features": {
-          "customDeployment": "Custom deployment",
-          "comprehensiveAnalytics": "Comprehensive analytics",
-          "specializedTraining": "Specialized model training",
-          "dedicatedSupport": "24/7 dedicated support",
-          "customIntegrations": "Custom integrations",
-          "slaGuarantees": "SLA guarantees"
+          "messagesPerMonth": "1800 messages per month",
+          "aiModels": "Up to 15 AI models",
+          "conversationsPerMonth": "300 conversations per month",
+          "prioritySupport": "24/7 priority support",
+          "premiumModels": "Premium AI models"
         }
       }
     }
