@@ -19,11 +19,11 @@ import type { FetchConfig } from '@/api/common/fetch-utilities';
 import { postJSON } from '@/api/common/fetch-utilities';
 import { createHandler, createHandlerWithTransaction, Responses } from '@/api/core';
 import { apiLogger } from '@/api/middleware/hono-logger';
-import { billingRepositories } from '@/api/repositories/billing-repositories';
+import { RoundtableIntegrationService } from '@/api/services/roundtable-integration';
 import { ZarinPalService } from '@/api/services/zarinpal';
 import type { ApiEnv } from '@/api/types';
 import { db } from '@/db';
-import { webhookEvent } from '@/db/tables/billing';
+import { payment, product, subscription, webhookEvent } from '@/db/tables/billing';
 
 import type {
   getWebhookEventsRoute,
@@ -492,7 +492,12 @@ export const zarinPalWebhookHandler: RouteHandler<typeof zarinPalWebhookRoute, A
     };
 
     try {
-      await billingRepositories.webhookEvents.createEvent(eventRecord);
+      await db.insert(webhookEvent).values({
+        ...eventRecord,
+        id: crypto.randomUUID(),
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
     } catch (error) {
       apiLogger.error('Failed to create webhook event record', { error });
     }
@@ -503,12 +508,14 @@ export const zarinPalWebhookHandler: RouteHandler<typeof zarinPalWebhookRoute, A
 
     // Find payment by authority
     if (webhookPayload.authority) {
-      paymentRecord = await billingRepositories.payments.findByZarinpalAuthority(webhookPayload.authority);
+      const paymentResults = await db.select().from(payment).where(eq(payment.zarinpalAuthority, webhookPayload.authority)).limit(1);
+      paymentRecord = paymentResults[0];
 
       if (paymentRecord) {
       // Get subscription if exists
         if (paymentRecord.subscriptionId) {
-          subscriptionRecord = await billingRepositories.subscriptions.findById(paymentRecord.subscriptionId);
+          const subscriptionResults = await db.select().from(subscription).where(eq(subscription.id, paymentRecord.subscriptionId)).limit(1);
+          subscriptionRecord = subscriptionResults[0];
         }
 
         // Process payment based on webhook status
@@ -522,16 +529,23 @@ export const zarinPalWebhookHandler: RouteHandler<typeof zarinPalWebhookRoute, A
             });
 
             if (verification.data?.code === 100 || verification.data?.code === 101) {
-            // Update payment record
-              const updatedPayment = await billingRepositories.payments.updateStatus(
-                paymentRecord.id,
-                'completed',
-                {
+            // Update payment record using direct DB access
+              await db.update(payment)
+                .set({
+                  status: 'completed',
                   zarinpalRefId: verification.data?.ref_id?.toString() || webhookPayload.ref_id,
                   zarinpalCardHash: verification.data?.card_hash || webhookPayload.card_hash,
                   paidAt: new Date(),
-                },
-              );
+                  updatedAt: new Date(),
+                })
+                .where(eq(payment.id, paymentRecord.id));
+
+              // Get updated payment record
+              const updatedPaymentResults = await db.select().from(payment).where(eq(payment.id, paymentRecord.id)).limit(1);
+              const updatedPayment = updatedPaymentResults[0];
+              if (!updatedPayment) {
+                throw new Error('Payment record not found after update');
+              }
 
               // 🎯 DISPATCH WEBHOOK EVENT: Payment succeeded
               const paymentEvent = WebhookEventBuilders.createPaymentSucceededEvent(
@@ -549,12 +563,22 @@ export const zarinPalWebhookHandler: RouteHandler<typeof zarinPalWebhookRoute, A
                     ? new Date(startDate.getTime() + 30 * 24 * 60 * 60 * 1000)
                     : null;
 
-                  const updatedSubscription = await billingRepositories.subscriptions.update(subscriptionRecord.id, {
-                    status: 'active',
-                    startDate,
-                    nextBillingDate,
-                    directDebitContractId: verification.data?.card_hash || webhookPayload.card_hash,
-                  });
+                  await db.update(subscription)
+                    .set({
+                      status: 'active',
+                      startDate,
+                      nextBillingDate,
+                      directDebitContractId: verification.data?.card_hash || webhookPayload.card_hash,
+                      updatedAt: new Date(),
+                    })
+                    .where(eq(subscription.id, subscriptionRecord.id));
+
+                  // Get updated subscription record
+                  const updatedSubscriptionResults = await db.select().from(subscription).where(eq(subscription.id, subscriptionRecord.id)).limit(1);
+                  const updatedSubscription = updatedSubscriptionResults[0];
+                  if (!updatedSubscription) {
+                    throw new Error('Subscription record not found after update');
+                  }
 
                   // 🎯 DISPATCH WEBHOOK EVENT: Subscription activated
                   const subscriptionEvent = WebhookEventBuilders.createSubscriptionUpdatedEvent(
@@ -568,6 +592,64 @@ export const zarinPalWebhookHandler: RouteHandler<typeof zarinPalWebhookRoute, A
                 }
               }
 
+              // 🔗 ROUNDTABLE1 INTEGRATION: Update user subscription in Roundtable1 database
+              try {
+                if (c.env?.ROUNDTABLE_SUPABASE_URL && c.env?.ROUNDTABLE_SUPABASE_SERVICE_KEY) {
+                  const roundtableService = RoundtableIntegrationService.create(c.env);
+
+                  // Get product information for plan mapping
+                  const productResults = await db.select().from(product).where(eq(product.id, paymentRecord.productId)).limit(1);
+                  const productRecord = productResults[0];
+
+                  if (productRecord) {
+                    // Calculate subscription end date based on billing period
+                    let endsAt: string | undefined;
+                    const startsAt = new Date().toISOString();
+
+                    if (productRecord.billingPeriod === 'monthly') {
+                      const endDate = new Date();
+                      endDate.setMonth(endDate.getMonth() + 1);
+                      endsAt = endDate.toISOString();
+                    }
+                    // For lifetime plans, leave endsAt as undefined
+
+                    await roundtableService.updateUserSubscription({
+                      userId: paymentRecord.userId,
+                      planId: productRecord.id, // Use product ID directly (same IDs in both projects now)
+                      subscriptionId: paymentRecord.subscriptionId || crypto.randomUUID(),
+                      paymentId: paymentRecord.id,
+                      amount: paymentRecord.amount,
+                      currency: 'IRR',
+                      isActive: true,
+                      startsAt,
+                      endsAt,
+                    });
+
+                    c.logger.info('Roundtable1 user subscription updated successfully', {
+                      logType: 'operation',
+                      operationName: 'roundtableIntegration',
+                      userId: paymentRecord.userId,
+                      resource: paymentRecord.id,
+                    });
+                  }
+                } else {
+                  c.logger.warn('Roundtable1 integration skipped - environment variables not configured', {
+                    logType: 'operation',
+                    operationName: 'roundtableIntegration',
+                    resource: paymentRecord.id,
+                  });
+                }
+              } catch (roundtableError) {
+                c.logger.error('Failed to update Roundtable1 subscription', roundtableError as Error, {
+                  logType: 'operation',
+                  operationName: 'roundtableIntegration',
+                  userId: paymentRecord.userId,
+                  resource: paymentRecord.id,
+                });
+                // Don't fail the whole payment process if roundtable update fails
+                // Just log the error and continue
+              }
+
               apiLogger.info('Payment verified and webhook events dispatched', {
                 operation: 'payment_verification_success',
                 paymentId: paymentRecord.id,
@@ -579,14 +661,21 @@ export const zarinPalWebhookHandler: RouteHandler<typeof zarinPalWebhookRoute, A
               processed = true;
             } else {
             // Verification failed
-              const updatedPayment = await billingRepositories.payments.updateStatus(
-                paymentRecord.id,
-                'failed',
-                {
+              await db.update(payment)
+                .set({
+                  status: 'failed',
                   failureReason: `Verification failed: ${verification.data?.message || 'Unknown error'}`,
                   failedAt: new Date(),
-                },
-              );
+                  updatedAt: new Date(),
+                })
+                .where(eq(payment.id, paymentRecord.id));
+
+              // Get updated payment record
+              const updatedPaymentResults = await db.select().from(payment).where(eq(payment.id, paymentRecord.id)).limit(1);
+              const updatedPayment = updatedPaymentResults[0];
+              if (!updatedPayment) {
+                throw new Error('Payment record not found after update');
+              }
 
               // 🎯 DISPATCH WEBHOOK EVENT: Payment failed
               const paymentEvent = WebhookEventBuilders.createPaymentFailedEvent(
@@ -612,14 +701,21 @@ export const zarinPalWebhookHandler: RouteHandler<typeof zarinPalWebhookRoute, A
               paymentId: paymentRecord.id,
             });
 
-            const updatedPayment = await billingRepositories.payments.updateStatus(
-              paymentRecord.id,
-              'failed',
-              {
+            await db.update(payment)
+              .set({
+                status: 'failed',
                 failureReason: `Verification error: ${verificationError instanceof Error ? verificationError.message : 'Unknown error'}`,
                 failedAt: new Date(),
-              },
-            );
+                updatedAt: new Date(),
+              })
+              .where(eq(payment.id, paymentRecord.id));
+
+            // Get updated payment record
+            const updatedPaymentResults = await db.select().from(payment).where(eq(payment.id, paymentRecord.id)).limit(1);
+            const updatedPayment = updatedPaymentResults[0];
+            if (!updatedPayment) {
+              throw new Error('Payment record not found after update');
+            }
 
             // 🎯 DISPATCH WEBHOOK EVENT: Payment failed due to error
             const paymentEvent = WebhookEventBuilders.createPaymentFailedEvent(
@@ -634,14 +730,21 @@ export const zarinPalWebhookHandler: RouteHandler<typeof zarinPalWebhookRoute, A
           }
         } else {
         // Payment failed from ZarinPal
-          const updatedPayment = await billingRepositories.payments.updateStatus(
-            paymentRecord.id,
-            'failed',
-            {
-              failureReason: 'Payment failed (webhook notification)',
+          await db.update(payment)
+            .set({
+              status: 'failed',
+              failureReason: 'Payment was canceled or failed by user',
               failedAt: new Date(),
-            },
-          );
+              updatedAt: new Date(),
+            })
+            .where(eq(payment.id, paymentRecord.id));
+
+          // Get updated payment record
+          const updatedPaymentResults = await db.select().from(payment).where(eq(payment.id, paymentRecord.id)).limit(1);
+          const updatedPayment = updatedPaymentResults[0];
+          if (!updatedPayment) {
+            throw new Error('Payment record not found after update');
+          }
 
           // 🎯 DISPATCH WEBHOOK EVENT: Payment failed
           const paymentEvent = WebhookEventBuilders.createPaymentFailedEvent(

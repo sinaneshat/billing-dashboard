@@ -7,12 +7,15 @@
  */
 
 import type { RouteHandler } from '@hono/zod-openapi';
+import { eq } from 'drizzle-orm';
 
 import { createError } from '@/api/common/error-handling';
 import { createHandler, createHandlerWithTransaction, Responses } from '@/api/core';
-import { billingRepositories } from '@/api/repositories/billing-repositories';
+import { RoundtableIntegrationService } from '@/api/services/roundtable-integration';
 import { ZarinPalService } from '@/api/services/zarinpal';
 import type { ApiEnv } from '@/api/types';
+import { db } from '@/db';
+import { billingEvent, payment, product, subscription } from '@/db/tables/billing';
 
 import type {
   getPaymentsRoute,
@@ -28,7 +31,7 @@ import {
 
 /**
  * GET /payments - Get user payment history
- * ✅ Refactored: Uses factory pattern + repositories
+ * ✅ Refactored: Uses factory pattern + direct database access
  */
 export const getPaymentsHandler: RouteHandler<typeof getPaymentsRoute, ApiEnv> = createHandler(
   {
@@ -39,32 +42,35 @@ export const getPaymentsHandler: RouteHandler<typeof getPaymentsRoute, ApiEnv> =
     const user = c.get('user')!; // Guaranteed by auth: 'session'
     c.logger.info('Fetching payments for user', { logType: 'operation', operationName: 'getPayments', userId: user.id });
 
-    // Use repository instead of direct DB query
-    const payments = await billingRepositories.payments.findPaymentsByUserId(user.id);
+    // Direct database access for payments
+    const payments = await db.select().from(payment).where(eq(payment.userId, user.id));
 
     // Transform to match response schema with related data
     const paymentsWithDetails = await Promise.all(
       payments.map(async (payment) => {
-        const [product, subscription] = await Promise.all([
-          billingRepositories.products.findById(payment.productId),
+        const [productResult, subscriptionResult] = await Promise.all([
+          db.select().from(product).where(eq(product.id, payment.productId)).limit(1),
           payment.subscriptionId
-            ? billingRepositories.subscriptions.findById(payment.subscriptionId)
+            ? db.select().from(subscription).where(eq(subscription.id, payment.subscriptionId)).limit(1)
             : null,
         ]);
 
+        const productRecord = productResult[0];
+        const subscriptionRecord = subscriptionResult?.[0];
+
         return {
           ...payment,
-          product: product
+          product: productRecord
             ? {
-                id: product.id,
-                name: product.name,
-                description: product.description,
+                id: productRecord.id,
+                name: productRecord.name,
+                description: productRecord.description,
               }
             : null,
-          subscription: subscription
+          subscription: subscriptionRecord
             ? {
-                id: subscription.id,
-                status: subscription.status,
+                id: subscriptionRecord.id,
+                status: subscriptionRecord.status,
               }
             : null,
         };
@@ -83,7 +89,7 @@ export const getPaymentsHandler: RouteHandler<typeof getPaymentsRoute, ApiEnv> =
 
 /**
  * GET /payments/callback - Handle ZarinPal payment callback
- * ✅ Refactored: Uses factory pattern + repositories + transaction
+ * ✅ Refactored: Uses factory pattern + direct database access + transaction
  */
 export const paymentCallbackHandler: RouteHandler<typeof paymentCallbackRoute, ApiEnv> = createHandlerWithTransaction(
   {
@@ -96,8 +102,9 @@ export const paymentCallbackHandler: RouteHandler<typeof paymentCallbackRoute, A
 
     c.logger.info('Processing payment callback', { logType: 'operation', operationName: 'paymentCallback', resource: Authority });
 
-    // Find payment using repository
-    const paymentRecord = await billingRepositories.payments.findByZarinpalAuthority(Authority);
+    // Find payment using direct DB access
+    const paymentResults = await db.select().from(payment).where(eq(payment.zarinpalAuthority, Authority)).limit(1);
+    const paymentRecord = paymentResults[0];
 
     if (!paymentRecord) {
       c.logger.warn('Payment not found for callback', { logType: 'operation', operationName: 'paymentCallback', resource: Authority });
@@ -115,15 +122,18 @@ export const paymentCallbackHandler: RouteHandler<typeof paymentCallbackRoute, A
     if (Status === 'NOK') {
       c.logger.warn('Payment canceled by user', { logType: 'operation', operationName: 'paymentCallback', resource: paymentRecord.id });
 
-      await billingRepositories.payments.updateStatus(
-        paymentRecord.id,
-        'failed',
-        { failureReason: 'Payment canceled by user' },
-        tx,
-      );
+      await tx.update(payment)
+        .set({
+          status: 'failed',
+          failureReason: 'Payment canceled by user',
+          failedAt: new Date(),
+          updatedAt: new Date(),
+        })
+        .where(eq(payment.id, paymentRecord.id));
 
-      // Log billing event
-      await billingRepositories.billingEvents.logEvent({
+      // Log billing event using direct DB access
+      await tx.insert(billingEvent).values({
+        id: crypto.randomUUID(),
         userId: paymentRecord.userId,
         subscriptionId: paymentRecord.subscriptionId,
         paymentId: paymentRecord.id,
@@ -135,7 +145,8 @@ export const paymentCallbackHandler: RouteHandler<typeof paymentCallbackRoute, A
           authority: Authority,
         },
         severity: 'warning',
-      }, tx);
+        createdAt: new Date(),
+      });
 
       return Responses.ok(c, {
         success: false,
@@ -160,40 +171,42 @@ export const paymentCallbackHandler: RouteHandler<typeof paymentCallbackRoute, A
         resource: paymentRecord.id,
       });
 
-      // Update payment status
-      await billingRepositories.payments.updateStatus(
-        paymentRecord.id,
-        'completed',
-        {
+      // Update payment status using direct DB access
+      await tx.update(payment)
+        .set({
+          status: 'completed',
           zarinpalRefId: verification.data?.ref_id?.toString(),
           zarinpalCardHash: verification.data?.card_hash,
-        },
-        tx,
-      );
+          paidAt: new Date(),
+          updatedAt: new Date(),
+        })
+        .where(eq(payment.id, paymentRecord.id));
 
       // Handle subscription activation if needed
       if (paymentRecord.subscriptionId) {
-        const subscription = await billingRepositories.subscriptions.findById(
-          paymentRecord.subscriptionId,
-        );
-        const product = await billingRepositories.products.findById(paymentRecord.productId);
+        const [subscriptionResults, productResults] = await Promise.all([
+          db.select().from(subscription).where(eq(subscription.id, paymentRecord.subscriptionId)).limit(1),
+          db.select().from(product).where(eq(product.id, paymentRecord.productId)).limit(1),
+        ]);
 
-        if (subscription && product && subscription.status === 'pending') {
+        const subscriptionRecord = subscriptionResults[0];
+        const productRecord = productResults[0];
+
+        if (subscriptionRecord && productRecord && subscriptionRecord.status === 'pending') {
           const startDate = new Date();
-          const nextBillingDate = product.billingPeriod === 'monthly'
+          const nextBillingDate = productRecord.billingPeriod === 'monthly'
             ? new Date(startDate.getTime() + 30 * 24 * 60 * 60 * 1000)
             : null;
 
-          await billingRepositories.subscriptions.update(
-            paymentRecord.subscriptionId,
-            {
+          await tx.update(subscription)
+            .set({
               status: 'active',
               startDate,
               nextBillingDate,
-              currentPrice: product.price,
-            },
-            { tx },
-          );
+              currentPrice: productRecord.price,
+              updatedAt: new Date(),
+            })
+            .where(eq(subscription.id, paymentRecord.subscriptionId));
 
           c.logger.info('Subscription activated', {
             logType: 'operation',
@@ -203,8 +216,67 @@ export const paymentCallbackHandler: RouteHandler<typeof paymentCallbackRoute, A
         }
       }
 
-      // Log successful payment event
-      await billingRepositories.billingEvents.logEvent({
+      // 🔗 ROUNDTABLE1 INTEGRATION: Update user subscription in Roundtable1 database
+      try {
+        if (c.env?.ROUNDTABLE_SUPABASE_URL && c.env?.ROUNDTABLE_SUPABASE_SERVICE_KEY) {
+          const roundtableService = RoundtableIntegrationService.create(c.env);
+
+          // Get product information for plan mapping
+          const productResults = await db.select().from(product).where(eq(product.id, paymentRecord.productId)).limit(1);
+          const productRecord = productResults[0];
+
+          if (productRecord) {
+            // Calculate subscription end date based on billing period
+            let endsAt: string | undefined;
+            const startsAt = new Date().toISOString();
+
+            if (productRecord.billingPeriod === 'monthly') {
+              const endDate = new Date();
+              endDate.setMonth(endDate.getMonth() + 1);
+              endsAt = endDate.toISOString();
+            }
+            // For lifetime plans, leave endsAt as undefined
+
+            await roundtableService.updateUserSubscription({
+              userId: paymentRecord.userId,
+              planId: productRecord.id, // Use product ID directly (same IDs in both projects now)
+              subscriptionId: paymentRecord.subscriptionId || crypto.randomUUID(),
+              paymentId: paymentRecord.id,
+              amount: paymentRecord.amount,
+              currency: 'IRR',
+              isActive: true,
+              startsAt,
+              endsAt,
+            });
+
+            c.logger.info('Roundtable1 user subscription updated successfully via callback', {
+              logType: 'operation',
+              operationName: 'roundtableIntegrationCallback',
+              userId: paymentRecord.userId,
+              resource: paymentRecord.id,
+            });
+          }
+        } else {
+          c.logger.warn('Roundtable1 integration skipped via callback - environment variables not configured', {
+            logType: 'operation',
+            operationName: 'roundtableIntegrationCallback',
+            resource: paymentRecord.id,
+          });
+        }
+      } catch (roundtableError) {
+        c.logger.error('Failed to update Roundtable1 subscription via callback', roundtableError as Error, {
+          logType: 'operation',
+          operationName: 'roundtableIntegrationCallback',
+          userId: paymentRecord.userId,
+          resource: paymentRecord.id,
+        });
+        // Don't fail the whole payment process if roundtable update fails
+        // Just log the error and continue
+      }
+
+      // Log successful payment event using direct DB access
+      await tx.insert(billingEvent).values({
+        id: crypto.randomUUID(),
         userId: paymentRecord.userId,
         subscriptionId: paymentRecord.subscriptionId,
         paymentId: paymentRecord.id,
@@ -217,13 +289,19 @@ export const paymentCallbackHandler: RouteHandler<typeof paymentCallbackRoute, A
           paymentType: 'zarinpal_standard',
         },
         severity: 'info',
-      }, tx);
+        createdAt: new Date(),
+      });
+
+      // Extract referrer from payment metadata for redirect back to roundtable
+      const paymentMetadata = paymentRecord.metadata as { referrer?: string } | null;
+      const referrerUrl = paymentMetadata?.referrer;
 
       return Responses.ok(c, {
         success: true,
         paymentId: paymentRecord.id,
         subscriptionId: paymentRecord.subscriptionId,
         refId: verification.data?.ref_id?.toString(),
+        ...(referrerUrl && { redirectUrl: referrerUrl }),
       });
     } else {
       c.logger.warn('Payment verification failed', {
@@ -232,16 +310,19 @@ export const paymentCallbackHandler: RouteHandler<typeof paymentCallbackRoute, A
         resource: paymentRecord.id,
       });
 
-      // Update payment as failed
-      await billingRepositories.payments.updateStatus(
-        paymentRecord.id,
-        'failed',
-        { failureReason: `ZarinPal verification failed: ${verification.data?.message}` },
-        tx,
-      );
+      // Update payment as failed using direct DB access
+      await tx.update(payment)
+        .set({
+          status: 'failed',
+          failureReason: `ZarinPal verification failed: ${verification.data?.message}`,
+          failedAt: new Date(),
+          updatedAt: new Date(),
+        })
+        .where(eq(payment.id, paymentRecord.id));
 
-      // Log failed payment event
-      await billingRepositories.billingEvents.logEvent({
+      // Log failed payment event using direct DB access
+      await tx.insert(billingEvent).values({
+        id: crypto.randomUUID(),
         userId: paymentRecord.userId,
         subscriptionId: paymentRecord.subscriptionId,
         paymentId: paymentRecord.id,
@@ -254,7 +335,8 @@ export const paymentCallbackHandler: RouteHandler<typeof paymentCallbackRoute, A
           authority: Authority,
         },
         severity: 'error',
-      }, tx);
+        createdAt: new Date(),
+      });
 
       return Responses.ok(c, {
         success: false,

@@ -2,6 +2,7 @@
 
 import { AlertCircle } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import React from 'react';
 
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -18,20 +19,24 @@ type ErrorMessageProps = {
 };
 
 export function ErrorMessage({
-  title = 'Something went wrong',
-  description = 'An error occurred. Please try again later.',
+  title,
+  description,
   showRetry = false,
   onRetry,
   className,
   fullPage = false,
 }: ErrorMessageProps) {
   const router = useRouter();
+  const t = useTranslations();
+  
+  const defaultTitle = title || t('states.error.default');
+  const defaultDescription = description || t('states.error.description');
   const ErrorContent = (
     <Alert variant="destructive" className={className}>
       <AlertCircle className="size-4" />
-      <AlertTitle>{title}</AlertTitle>
+      <AlertTitle>{defaultTitle}</AlertTitle>
       <AlertDescription className="flex flex-col gap-3">
-        {description}
+        {defaultDescription}
         {showRetry && (
           <Button
             variant="outline"
@@ -45,7 +50,7 @@ export function ErrorMessage({
             }}
             className="w-fit"
           >
-            Try again
+            {t('actions.tryAgain')}
           </Button>
         )}
       </AlertDescription>

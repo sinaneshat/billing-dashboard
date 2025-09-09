@@ -1,5 +1,6 @@
 'use client';
 
+import { useTranslations } from 'next-intl';
 import * as React from 'react';
 
 import { cn } from '@/lib/utils';
@@ -25,6 +26,7 @@ export function ShadcnPricingTable({
   onPlanSelect,
   className,
 }: ShadcnPricingTableProps) {
+  const t = useTranslations();
   // Sort products by price (USD) - free first, then ascending
   const sortedProducts = [...products].sort((a, b) => {
     const metaA = a.metadata as { pricing?: { usdPrice: number } } | null;
@@ -38,10 +40,10 @@ export function ShadcnPricingTable({
     return (
       <div className={cn('text-center py-12', className)}>
         <h3 className="text-xl font-semibold text-muted-foreground mb-4">
-          No Plans Available
+          {t('plans.noPlansAvailable')}
         </h3>
         <p className="text-muted-foreground">
-          Please check back later for available subscription plans.
+          {t('plans.checkBackLater')}
         </p>
       </div>
     );
@@ -51,9 +53,9 @@ export function ShadcnPricingTable({
     <div className={cn('space-y-8', className)}>
       {/* Header */}
       <div className="text-center space-y-4">
-        <h2 className="text-3xl font-bold">Choose Your Plan</h2>
+        <h2 className="text-3xl font-bold">{t('plans.choosePlanTitle')}</h2>
         <p className="text-muted-foreground max-w-2xl mx-auto">
-          Select the perfect plan for your needs. All prices are calculated with live exchange rates.
+          {t('plans.selectPerfectPlanDescription')}
         </p>
       </div>
 
@@ -77,10 +79,10 @@ export function ShadcnPricingTable({
       {/* Additional Info */}
       <div className="text-center space-y-2">
         <p className="text-sm text-muted-foreground">
-          All plans include our core features and 24/7 customer support.
+          {t('plans.allPlansInclude')}
         </p>
         <p className="text-xs text-muted-foreground">
-          Prices shown in Toman. ZarinPal payments processed in Iranian Rials.
+          {t('plans.pricesInToman')}
         </p>
       </div>
     </div>

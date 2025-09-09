@@ -17,6 +17,13 @@ import { useLocale, useTranslations } from 'next-intl';
 import { memo, useMemo } from 'react';
 
 import { UpcomingBills } from '@/components/billing/upcoming-bills';
+import { MetricCard } from '@/components/dashboard/dashboard-cards';
+import {
+  DashboardContentGrid,
+  DashboardMetricGrid,
+  DashboardSection,
+  DashboardThreeColumnGrid,
+} from '@/components/dashboard/dashboard-layout';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -25,13 +32,6 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import { MetricCard } from '@/components/ui/dashboard-cards';
-import {
-  DashboardContentGrid,
-  DashboardMetricGrid,
-  DashboardSection,
-  DashboardThreeColumnGrid,
-} from '@/components/ui/dashboard-layout';
 import { FadeIn } from '@/components/ui/motion';
 import { Skeleton } from '@/components/ui/skeleton';
 import { PaymentStatusBadge, SubscriptionStatusBadge } from '@/components/ui/status-badge';
@@ -182,11 +182,11 @@ function BillingSummaryCards({ subscription, recentPayments, paymentMethods: _pa
     const diffDays = Math.ceil((date.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
 
     if (diffDays <= 0)
-      return t('status.overdue');
+      return t('overdue');
     if (diffDays === 1)
-      return t('time.tomorrow');
+      return t('tomorrow');
     if (diffDays <= 7)
-      return `${diffDays} days`;
+      return diffDays === 1 ? `1 day` : `${diffDays} days`;
     return date.toLocaleDateString(locale, { month: 'short', day: 'numeric' });
   }, [subscription?.nextBillingDate, locale, t]);
 
@@ -224,8 +224,8 @@ function BillingSummaryCards({ subscription, recentPayments, paymentMethods: _pa
       value: nextBilling || t('billing.notScheduled'),
       subtitle: undefined,
       icon: Calendar,
-      color: nextBilling === 'Overdue' ? 'text-destructive' : nextBilling === 'Tomorrow' ? 'text-orange-600 dark:text-orange-400' : 'text-purple-600 dark:text-purple-400',
-      bgColor: nextBilling === 'Overdue' ? 'bg-destructive/10' : nextBilling === 'Tomorrow' ? 'bg-orange-50 dark:bg-orange-950/20' : 'bg-purple-50 dark:bg-purple-950/20',
+      color: nextBilling === t('status.overdue') ? 'text-destructive' : nextBilling === t('time.tomorrow') ? 'text-orange-600 dark:text-orange-400' : 'text-purple-600 dark:text-purple-400',
+      bgColor: nextBilling === t('status.overdue') ? 'bg-destructive/10' : nextBilling === t('time.tomorrow') ? 'bg-orange-50 dark:bg-orange-950/20' : 'bg-purple-50 dark:bg-purple-950/20',
     },
     {
       title: t('billing.paymentSuccess'),

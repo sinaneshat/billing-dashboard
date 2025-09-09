@@ -1,17 +1,19 @@
 /**
- * Payment Methods Route Handlers - Refactored
+ * Payment Methods Route Handlers - Direct Database Access
  *
  * Uses the factory pattern for consistent authentication, validation,
- * transaction management, and error handling. Leverages the repository
- * pattern for clean data access.
+ * transaction management, and error handling. Uses direct database
+ * access for all operations following unified backend pattern.
  */
 
 import type { RouteHandler } from '@hono/zod-openapi';
+import { and, eq } from 'drizzle-orm';
 
 import { createError } from '@/api/common/error-handling';
 import { createHandler, createHandlerWithTransaction, Responses } from '@/api/core';
-import { billingRepositories } from '@/api/repositories/billing-repositories';
 import type { ApiEnv } from '@/api/types';
+import { db } from '@/db';
+import { billingEvent, paymentMethod, subscription } from '@/db/tables/billing';
 
 import type {
   createPaymentMethodRoute,
@@ -21,16 +23,10 @@ import type {
 } from './route';
 import {
   CreatePaymentMethodRequestSchema,
-  PaymentMethodParamsSchema,
 } from './schema';
 
-// ============================================================================
-// PAYMENT METHOD HANDLERS
-// ============================================================================
-
 /**
- * GET /payment-methods - Get user payment methods
- * ✅ Refactored: Uses factory pattern + repositories
+ * Get all payment methods for the authenticated user
  */
 export const getPaymentMethodsHandler: RouteHandler<typeof getPaymentMethodsRoute, ApiEnv> = createHandler(
   {
@@ -41,13 +37,17 @@ export const getPaymentMethodsHandler: RouteHandler<typeof getPaymentMethodsRout
     const user = c.get('user')!; // Guaranteed by auth: 'session'
     c.logger.info('Fetching payment methods for user', { logType: 'operation', operationName: 'getPaymentMethods', userId: user.id });
 
-    // Use repository instead of direct DB query
-    const paymentMethods = await billingRepositories.paymentMethods.findPaymentMethodsByUserId(user.id);
+    // Direct database access for payment methods
+    const paymentMethods = await db.select().from(paymentMethod).where(and(
+      eq(paymentMethod.userId, user.id),
+      eq(paymentMethod.isActive, true),
+    ));
 
     c.logger.info('Payment methods retrieved successfully', {
       logType: 'operation',
       operationName: 'getPaymentMethods',
-      resource: `paymentMethods[${paymentMethods.length}]`,
+      userId: user.id,
+      resource: `methods[${paymentMethods.length}]`,
     });
 
     return Responses.ok(c, paymentMethods);
@@ -55,40 +55,108 @@ export const getPaymentMethodsHandler: RouteHandler<typeof getPaymentMethodsRout
 );
 
 /**
- * POST /payment-methods - Create new payment method
- * ✅ Refactored: Uses factory pattern + repositories + transaction
- * Note: This is currently not supported as payment methods are created through direct debit contract setup
+ * Create a new payment method
  */
-export const createPaymentMethodHandler: RouteHandler<typeof createPaymentMethodRoute, ApiEnv> = createHandler(
+export const createPaymentMethodHandler: RouteHandler<typeof createPaymentMethodRoute, ApiEnv> = createHandlerWithTransaction(
   {
     auth: 'session',
     validateBody: CreatePaymentMethodRequestSchema,
     operationName: 'createPaymentMethod',
   },
-  async (c) => {
+  async (c, tx) => {
     const user = c.get('user')!;
+    const { zarinpalCardHash, cardMask, cardType, expiresAt, setPrimary } = c.validated.body;
 
-    c.logger.warn('Direct payment method creation attempted', { logType: 'operation', operationName: 'createPaymentMethod', userId: user.id });
+    c.logger.info('Creating payment method from tokenized card', {
+      logType: 'operation',
+      operationName: 'createPaymentMethod',
+      userId: user.id,
+    });
 
-    // Payment methods are created through direct debit contract setup process
-    // This maintains the existing business logic but with proper factory patterns
-    throw createError.internal('Direct payment method creation is not supported. Use the direct debit contract setup process.');
+    // Check if card hash already exists
+    const existingMethod = await db.select().from(paymentMethod).where(eq(paymentMethod.contractSignature, zarinpalCardHash)).limit(1);
+
+    if (existingMethod.length > 0) {
+      throw createError.conflict('Payment method with this card already exists');
+    }
+
+    // If setting as primary, remove primary from other methods first
+    if (setPrimary) {
+      await tx.update(paymentMethod)
+        .set({ isPrimary: false, updatedAt: new Date() })
+        .where(and(
+          eq(paymentMethod.userId, user.id),
+          eq(paymentMethod.isActive, true),
+        ));
+    }
+
+    // Create new payment method from tokenized card
+    const newPaymentMethod = {
+      id: crypto.randomUUID(),
+      userId: user.id,
+      contractType: 'direct_debit_contract' as const,
+      contractSignature: zarinpalCardHash, // Store card hash as signature
+      contractStatus: 'active' as const,
+      contractDisplayName: `Card ending in ${cardMask.slice(-4)}`,
+      contractMobile: null, // Not provided for tokenized cards
+      isPrimary: setPrimary,
+      isActive: true,
+      contractExpiresAt: expiresAt ? new Date(expiresAt) : null,
+      metadata: {
+        cardMask,
+        cardType,
+        source: 'zarinpal_tokenization',
+      },
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+
+    await tx.insert(paymentMethod).values(newPaymentMethod);
+
+    // Log creation event
+    await tx.insert(billingEvent).values({
+      id: crypto.randomUUID(),
+      userId: user.id,
+      subscriptionId: null,
+      paymentId: null,
+      paymentMethodId: newPaymentMethod.id,
+      eventType: 'payment_method_created',
+      eventData: {
+        cardMask,
+        cardType,
+        source: 'zarinpal_tokenization',
+        isPrimary: setPrimary,
+        createdAt: newPaymentMethod.createdAt.toISOString(),
+      },
+      createdAt: new Date(),
+    });
+
+    c.logger.info('Payment method created successfully from tokenized card', {
+      logType: 'operation',
+      operationName: 'createPaymentMethod',
+      userId: user.id,
+      resource: newPaymentMethod.id,
+    });
+
+    return Responses.created(c, newPaymentMethod);
   },
 );
 
 /**
- * DELETE /payment-methods/{id} - Delete payment method
- * ✅ Refactored: Uses factory pattern + repositories + transaction
+ * Delete (soft delete) a payment method
  */
 export const deletePaymentMethodHandler: RouteHandler<typeof deletePaymentMethodRoute, ApiEnv> = createHandlerWithTransaction(
   {
     auth: 'session',
-    validateParams: PaymentMethodParamsSchema,
     operationName: 'deletePaymentMethod',
   },
   async (c, tx) => {
+    const { id } = c.req.param();
     const user = c.get('user')!;
-    const { id } = c.validated.params;
+
+    if (!id) {
+      throw createError.notFound('Payment method ID is required');
+    }
 
     c.logger.info('Deleting payment method', {
       logType: 'operation',
@@ -97,8 +165,12 @@ export const deletePaymentMethodHandler: RouteHandler<typeof deletePaymentMethod
       resource: id,
     });
 
-    // Find payment method using repository
-    const paymentMethodRecord = await billingRepositories.paymentMethods.findById(id);
+    // Find payment method using direct DB access
+    const paymentMethodResults = await db.select().from(paymentMethod).where(and(
+      eq(paymentMethod.id, id),
+      eq(paymentMethod.isActive, true),
+    )).limit(1);
+    const paymentMethodRecord = paymentMethodResults[0];
 
     if (!paymentMethodRecord || paymentMethodRecord.userId !== user.id || !paymentMethodRecord.isActive) {
       c.logger.warn('Payment method not found for deletion', {
@@ -107,41 +179,39 @@ export const deletePaymentMethodHandler: RouteHandler<typeof deletePaymentMethod
         userId: user.id,
         resource: id,
       });
-      throw createError.notFound('Payment method');
+      throw createError.notFound('Payment method not found or already deleted');
     }
 
-    // Check if payment method is being used by any active subscriptions
-    const activeSubscriptions = await billingRepositories.subscriptions.findSubscriptionsByUserId(
-      user.id,
-      { status: 'active' },
+    // Check if payment method is used by active subscriptions
+    const activeSubscriptions = await db.select().from(subscription).where(and(
+      eq(subscription.userId, user.id),
+      eq(subscription.status, 'active'),
+    ));
+
+    const hasActiveSubscriptions = activeSubscriptions.some(sub =>
+      sub.paymentMethodId === id,
     );
 
-    const isUsedBySubscription = activeSubscriptions.some(sub => sub.paymentMethodId === id);
-
-    if (isUsedBySubscription) {
-      c.logger.warn('Cannot delete payment method in use by active subscription', {
-        logType: 'operation',
-        operationName: 'deletePaymentMethod',
-        resource: id,
-      });
-      throw createError.conflict('Cannot delete payment method that is used by active subscriptions');
+    if (hasActiveSubscriptions) {
+      throw createError.conflict(
+        'Cannot delete payment method: it is currently used by active subscriptions. Please cancel subscriptions first.',
+      );
     }
 
     const deletedAt = new Date();
 
-    // Soft delete the payment method
-    await billingRepositories.paymentMethods.update(
-      id,
-      {
+    // Soft delete the payment method using direct DB access
+    await tx.update(paymentMethod)
+      .set({
         isActive: false,
         isPrimary: false, // Remove primary status when deleting
         updatedAt: deletedAt,
-      },
-      { tx },
-    );
+      })
+      .where(eq(paymentMethod.id, id));
 
-    // Log deletion event
-    await billingRepositories.billingEvents.logEvent({
+    // Log deletion event using direct DB access
+    await tx.insert(billingEvent).values({
+      id: crypto.randomUUID(),
       userId: user.id,
       subscriptionId: null,
       paymentId: null,
@@ -153,32 +223,35 @@ export const deletePaymentMethodHandler: RouteHandler<typeof deletePaymentMethod
         wasPrimary: paymentMethodRecord.isPrimary,
         deletedAt: deletedAt.toISOString(),
       },
-      severity: 'info',
-    }, tx);
-
-    c.logger.info('Payment method deleted successfully', { logType: 'operation', operationName: 'deletePaymentMethod', resource: id });
-
-    return Responses.ok(c, {
-      id,
-      deleted: true,
-      deletedAt: deletedAt.toISOString(),
+      createdAt: new Date(),
     });
+
+    c.logger.info('Payment method deleted successfully', {
+      logType: 'operation',
+      operationName: 'deletePaymentMethod',
+      userId: user.id,
+      resource: id,
+    });
+
+    return Responses.ok(c, { deleted: true });
   },
 );
 
 /**
- * PATCH /payment-methods/{id}/default - Set primary payment method
- * ✅ Refactored: Uses factory pattern + repositories + transaction
+ * Set a payment method as the default (primary) payment method
  */
 export const setDefaultPaymentMethodHandler: RouteHandler<typeof setDefaultPaymentMethodRoute, ApiEnv> = createHandlerWithTransaction(
   {
     auth: 'session',
-    validateParams: PaymentMethodParamsSchema,
     operationName: 'setDefaultPaymentMethod',
   },
   async (c, tx) => {
+    const { id } = c.req.param();
     const user = c.get('user')!;
-    const { id } = c.validated.params;
+
+    if (!id) {
+      throw createError.notFound('Payment method ID is required');
+    }
 
     c.logger.info('Setting primary payment method', {
       logType: 'operation',
@@ -187,8 +260,12 @@ export const setDefaultPaymentMethodHandler: RouteHandler<typeof setDefaultPayme
       resource: id,
     });
 
-    // Find payment method using repository
-    const paymentMethodRecord = await billingRepositories.paymentMethods.findById(id);
+    // Find payment method using direct DB access
+    const paymentMethodResults = await db.select().from(paymentMethod).where(and(
+      eq(paymentMethod.id, id),
+      eq(paymentMethod.isActive, true),
+    )).limit(1);
+    const paymentMethodRecord = paymentMethodResults[0];
 
     if (!paymentMethodRecord || paymentMethodRecord.userId !== user.id || !paymentMethodRecord.isActive) {
       c.logger.warn('Payment method not found for primary setting', {
@@ -197,23 +274,35 @@ export const setDefaultPaymentMethodHandler: RouteHandler<typeof setDefaultPayme
         userId: user.id,
         resource: id,
       });
-      throw createError.notFound('Payment method');
+      throw createError.notFound('Payment method not found');
     }
 
-    if (paymentMethodRecord.contractStatus !== 'active') {
-      c.logger.warn('Cannot set inactive contract as primary', {
-        logType: 'operation',
-        operationName: 'setPrimaryPaymentMethod',
-        resource: id,
-      });
-      throw createError.internal('Cannot set inactive payment contract as primary');
-    }
+    // Remove primary status from all other payment methods for this user
+    await tx.update(paymentMethod)
+      .set({
+        isPrimary: false,
+        updatedAt: new Date(),
+      })
+      .where(and(
+        eq(paymentMethod.userId, user.id),
+        eq(paymentMethod.isActive, true),
+      ));
 
-    // Use repository method to set primary (handles removing primary from others)
-    const updatedPaymentMethod = await billingRepositories.paymentMethods.setPrimary(id, user.id, tx);
+    // Set this payment method as primary
+    await tx.update(paymentMethod)
+      .set({
+        isPrimary: true,
+        updatedAt: new Date(),
+      })
+      .where(eq(paymentMethod.id, id));
 
-    // Log primary change event
-    await billingRepositories.billingEvents.logEvent({
+    // Get updated payment method
+    const updatedResults = await tx.select().from(paymentMethod).where(eq(paymentMethod.id, id)).limit(1);
+    const updatedPaymentMethod = updatedResults[0];
+
+    // Log primary change event using direct DB access
+    await tx.insert(billingEvent).values({
+      id: crypto.randomUUID(),
       userId: user.id,
       subscriptionId: null,
       paymentId: null,
@@ -222,17 +311,19 @@ export const setDefaultPaymentMethodHandler: RouteHandler<typeof setDefaultPayme
       eventData: {
         contractSignature: paymentMethodRecord.contractSignature,
         contractType: paymentMethodRecord.contractType,
-        updatedAt: updatedPaymentMethod.updatedAt,
+        wasPreviouslyPrimary: paymentMethodRecord.isPrimary,
+        setAt: new Date().toISOString(),
       },
-      severity: 'info',
-    }, tx);
-
-    c.logger.info('Primary payment method set successfully', { logType: 'operation', operationName: 'setPrimaryPaymentMethod', resource: id });
-
-    return Responses.ok(c, {
-      id,
-      isPrimary: true,
-      updatedAt: updatedPaymentMethod.updatedAt.toISOString(),
+      createdAt: new Date(),
     });
+
+    c.logger.info('Payment method set as primary successfully', {
+      logType: 'operation',
+      operationName: 'setPrimaryPaymentMethod',
+      userId: user.id,
+      resource: id,
+    });
+
+    return Responses.ok(c, updatedPaymentMethod);
   },
 );

@@ -211,7 +211,7 @@ export function DirectDebitContractSetup({
 
             <div className="space-y-4">
               <div>
-                <Label htmlFor="mobile">Mobile Number *</Label>
+                <Label htmlFor="mobile">{t('directDebit.mobileNumberLabel')}</Label>
                 <Input
                   id="mobile"
                   value={mobile}
@@ -225,7 +225,7 @@ export function DirectDebitContractSetup({
               </div>
 
               <div>
-                <Label htmlFor="ssn">National ID</Label>
+                <Label htmlFor="ssn">{t('directDebit.nationalIdLabel')}</Label>
                 <Input
                   id="ssn"
                   value={ssn}
@@ -287,9 +287,9 @@ export function DirectDebitContractSetup({
                 onClick={handleInitiateContract}
                 disabled={!mutationUI.canSubmit || !mobile.trim()}
                 loading={mutationUI.showPending}
-                loadingText="Setting up..."
+                loadingText={t('directDebit.settingUp')}
                 startIcon={!mutationUI.showPending ? <CreditCard className="h-4 w-4" /> : undefined}
-                aria-label={mutationUI.showPending ? 'Setting up contract...' : 'Setup direct debit contract'}
+                aria-label={mutationUI.showPending ? t('directDebit.settingUp') : t('directDebit.setupContract')}
               >
                 {t('directDebit.setupContract')}
               </Button>
@@ -321,7 +321,7 @@ export function DirectDebitContractSetup({
                         <div>
                           <div className="font-medium">{bank.name}</div>
                           <div className="text-xs text-muted-foreground">
-                            Daily limit:
+                            {t('directDebit.dailyLimitLabel')}
                             {' '}
                             {formatTomanCurrency(bank.maxDailyAmount)}
                             {bank.maxDailyCount && ` • ${bank.maxDailyCount} transactions`}
@@ -342,7 +342,7 @@ export function DirectDebitContractSetup({
                 onClick={handleBankSelection}
                 disabled={!selectedBankCode}
                 startIcon={<BanknoteIcon className="h-4 w-4" />}
-                aria-label="Continue to bank for contract signing"
+                aria-label={t('directDebit.continueToSigningAriaLabel')}
               >
                 {t('directDebit.continueToBank')}
               </Button>

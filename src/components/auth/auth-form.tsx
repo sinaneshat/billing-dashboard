@@ -10,7 +10,7 @@ import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import type { z } from 'zod';
 
-import { FormProvider, RHFShadcnTextField } from '@/components/RHF';
+import { FormProvider, RHFTextField } from '@/components/forms';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -213,13 +213,13 @@ export function AuthForm({ isSignUp = false, returnUrl: _returnUrl, invitationId
           <FormProvider methods={form} onSubmit={form.handleSubmit(onSubmit)}>
             <div className="space-y-4">
               {isSignUp && (
-                <RHFShadcnTextField
+                <RHFTextField
                   name="name"
                   title={t('auth.form.fullName')}
                   placeholder={t('auth.form.fullNamePlaceholder')}
                 />
               )}
-              <RHFShadcnTextField
+              <RHFTextField
                 name="email"
                 title={t('auth.form.email')}
                 fieldType="email"

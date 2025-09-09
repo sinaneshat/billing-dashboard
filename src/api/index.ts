@@ -43,6 +43,8 @@ import {
 // Import routes and handlers directly for proper RPC type inference
 import { secureMeHandler } from './routes/auth/handler';
 import { secureMeRoute } from './routes/auth/route';
+import { ssoHandler } from './routes/auth/sso/handler';
+import { ssoRoute } from './routes/auth/sso/route';
 import {
   deleteImageHandler,
   getImageMetadataHandler,
@@ -205,6 +207,7 @@ const appRoutes = app
   .openapi(detailedHealthRoute, detailedHealthHandler)
   // Auth routes
   .openapi(secureMeRoute, secureMeHandler)
+  .openapi(ssoRoute, ssoHandler)
   // Products routes
   .openapi(getProductsRoute, getProductsHandler)
   // Subscriptions routes

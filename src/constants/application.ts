@@ -18,8 +18,9 @@ export const APPLICATION = {
   VERSION: '1.0.0',
   AUTHOR: 'Roundtable Team',
 
-  // URLs and endpoints
-  BASE_URL: process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000',
+  // URLs and endpoints - dynamically determined based on environment
+  BASE_URL: process.env.NEXT_PUBLIC_APP_URL
+    || (typeof window !== 'undefined' ? `${window.location.protocol}//${window.location.host}` : 'http://localhost:3000'),
   API_BASE_PATH: '/api',
   API_VERSION: 'v1',
 

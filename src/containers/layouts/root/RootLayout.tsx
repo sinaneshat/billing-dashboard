@@ -37,8 +37,7 @@ export function RootLayout({
       <ThemeProvider
         attribute="class"
         defaultTheme="dark"
-        forcedTheme="dark"
-        enableSystem={false}
+        enableSystem={true}
         disableTransitionOnChange
         storageKey="theme"
       >

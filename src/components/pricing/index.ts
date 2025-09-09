@@ -1,5 +1,5 @@
 // Production-ready pricing components
-export { CompactProductionPricing } from './compact-production-pricing';
+export { PricingCards } from './pricing-cards';
 // Pricing data and utilities
 export { calculateAnnualSavings, calculateSavingsPercentage, getPlanById, pricingPlans } from './pricing-data';
 // Type definitions

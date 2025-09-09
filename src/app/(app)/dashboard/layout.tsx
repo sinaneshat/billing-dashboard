@@ -1,7 +1,7 @@
 import type React from 'react';
 
+import { NavigationHeader } from '@/components/dashboard/dashboard-header';
 import { AppSidebar } from '@/components/dashboard/dashboard-nav';
-import { NavigationHeader } from '@/components/ui/dashboard-header';
 import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar';
 
 export default async function DashboardLayout({

@@ -121,7 +121,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                   {/* Roundtable Logo */}
                   <Image
                     src="/static/logo.png"
-                    alt="Roundtable Logo"
+                    alt={t('brand.logoAlt')}
                     width={32}
                     height={32}
                     className="h-8 w-8 object-contain"

@@ -1,19 +1,23 @@
 /**
- * Subscriptions Route Handlers - Refactored
+ * Subscriptions Route Handlers - Direct Database Access
  *
- * Uses the factory pattern for consistent authentication, validation,
- * transaction management, and error handling. Leverages the repository
- * pattern for clean data access.
+ * Converted from repository pattern to direct database access for consistent
+ * performance and to eliminate the abstraction layer. Uses the factory pattern
+ * for authentication, validation, transaction management, and error handling.
  */
 
+import crypto from 'node:crypto';
+
 import type { RouteHandler } from '@hono/zod-openapi';
+import { and, eq } from 'drizzle-orm';
 
 import { createError } from '@/api/common/error-handling';
 import { createHandler, createHandlerWithTransaction, Responses } from '@/api/core';
 import type { SubscriptionMetadata } from '@/api/core/schemas';
-import { billingRepositories } from '@/api/repositories/billing-repositories';
 import { ZarinPalService } from '@/api/services/zarinpal';
 import type { ApiEnv } from '@/api/types';
+import { db } from '@/db';
+import { billingEvent, payment, paymentMethod as paymentMethodTable, product, subscription } from '@/db/tables/billing';
 
 import type {
   cancelSubscriptionRoute,
@@ -36,7 +40,7 @@ import {
 
 /**
  * GET /subscriptions - Get user subscriptions
- * ✅ Refactored: Uses factory pattern + repositories
+ * ✅ Refactored: Uses factory pattern + direct database access
  */
 export const getSubscriptionsHandler: RouteHandler<typeof getSubscriptionsRoute, ApiEnv> = createHandler(
   {
@@ -47,22 +51,23 @@ export const getSubscriptionsHandler: RouteHandler<typeof getSubscriptionsRoute,
     const user = c.get('user')!; // Guaranteed by auth: 'session'
     c.logger.info('Fetching subscriptions for user', { logType: 'operation', operationName: 'getSubscriptions', userId: user.id });
 
-    // Use repository instead of direct DB query
-    const subscriptions = await billingRepositories.subscriptions.findSubscriptionsByUserId(user.id);
+    // Direct database access for subscriptions
+    const subscriptions = await db.select().from(subscription).where(eq(subscription.userId, user.id));
 
     // Transform to match response schema with product data
     const subscriptionsWithProduct = await Promise.all(
       subscriptions.map(async (subscription) => {
-        const product = await billingRepositories.products.findById(subscription.productId);
+        const productResults = await db.select().from(product).where(eq(product.id, subscription.productId)).limit(1);
+        const productRecord = productResults[0];
 
         return {
           ...subscription,
-          product: product
+          product: productRecord
             ? {
-                id: product.id,
-                name: product.name,
-                description: product.description,
-                billingPeriod: product.billingPeriod,
+                id: productRecord.id,
+                name: productRecord.name,
+                description: productRecord.description,
+                billingPeriod: productRecord.billingPeriod,
               }
             : null,
         };
@@ -81,7 +86,7 @@ export const getSubscriptionsHandler: RouteHandler<typeof getSubscriptionsRoute,
 
 /**
  * GET /subscriptions/{id} - Get subscription by ID
- * ✅ Refactored: Uses factory pattern + repositories
+ * ✅ Refactored: Uses factory pattern + direct database access
  */
 export const getSubscriptionHandler: RouteHandler<typeof getSubscriptionRoute, ApiEnv> = createHandler(
   {
@@ -95,24 +100,26 @@ export const getSubscriptionHandler: RouteHandler<typeof getSubscriptionRoute, A
 
     c.logger.info('Fetching subscription', { logType: 'operation', operationName: 'getSubscription', userId: user.id, resource: id });
 
-    const subscription = await billingRepositories.subscriptions.findById(id);
+    const subscriptionResults = await db.select().from(subscription).where(eq(subscription.id, id)).limit(1);
+    const subscriptionRecord = subscriptionResults[0];
 
-    if (!subscription || subscription.userId !== user.id) {
+    if (!subscriptionRecord || subscriptionRecord.userId !== user.id) {
       c.logger.warn('Subscription not found', { logType: 'operation', operationName: 'getSubscription', userId: user.id, resource: id });
       throw createError.notFound('Subscription');
     }
 
     // Get product details
-    const product = await billingRepositories.products.findById(subscription.productId);
+    const productResults = await db.select().from(product).where(eq(product.id, subscriptionRecord.productId)).limit(1);
+    const productRecord = productResults[0];
 
     const subscriptionWithProduct = {
-      ...subscription,
-      product: product
+      ...subscriptionRecord,
+      product: productRecord
         ? {
-            id: product.id,
-            name: product.name,
-            description: product.description,
-            billingPeriod: product.billingPeriod,
+            id: productRecord.id,
+            name: productRecord.name,
+            description: productRecord.description,
+            billingPeriod: productRecord.billingPeriod,
           }
         : null,
     };
@@ -125,7 +132,7 @@ export const getSubscriptionHandler: RouteHandler<typeof getSubscriptionRoute, A
 
 /**
  * POST /subscriptions - Create new subscription
- * ✅ Refactored: Uses factory pattern + repositories + transaction
+ * ✅ Refactored: Uses factory pattern + direct database access + transaction
  */
 export const createSubscriptionHandler: RouteHandler<typeof createSubscriptionRoute, ApiEnv> = createHandlerWithTransaction(
   {
@@ -135,7 +142,7 @@ export const createSubscriptionHandler: RouteHandler<typeof createSubscriptionRo
   },
   async (c, tx) => {
     const user = c.get('user')!;
-    const { productId, paymentMethod, contractId, enableAutoRenew, callbackUrl } = c.validated.body;
+    const { productId, paymentMethod, contractId, enableAutoRenew, callbackUrl, referrer } = c.validated.body;
 
     c.logger.info('Creating subscription', {
       logType: 'operation',
@@ -145,30 +152,33 @@ export const createSubscriptionHandler: RouteHandler<typeof createSubscriptionRo
     });
 
     // Validate product exists and is active
-    const product = await billingRepositories.products.findById(productId);
+    const productResults = await db.select().from(product).where(eq(product.id, productId)).limit(1);
+    const productRecord = productResults[0];
 
-    if (!product || !product.isActive) {
+    if (!productRecord || !productRecord.isActive) {
       c.logger.warn('Product not found or inactive', { logType: 'operation', operationName: 'createSubscription', resource: productId });
       throw createError.notFound('Product not found or is not available');
     }
 
     // Check if user already has an active subscription to this product
-    const existingSubscription = await billingRepositories.subscriptions.findActiveByUserAndProduct(
-      user.id,
-      productId,
-    );
+    const existingSubscriptionResults = await db.select().from(subscription).where(and(
+      eq(subscription.userId, user.id),
+      eq(subscription.productId, productId),
+      eq(subscription.status, 'active'),
+    )).limit(1);
+    const existingSubscriptionRecord = existingSubscriptionResults[0];
 
-    if (existingSubscription) {
+    if (existingSubscriptionRecord) {
       c.logger.warn('User already has active subscription', {
         logType: 'operation',
         operationName: 'createSubscription',
         userId: user.id,
-        resource: existingSubscription.id,
+        resource: existingSubscriptionRecord.id,
       });
       throw createError.conflict('You already have an active subscription to this product');
     }
 
-    let paymentMethodRecord = null;
+    let paymentMethodRecord: typeof paymentMethodTable.$inferSelect | null | undefined = null;
 
     // Handle direct debit contract
     if (paymentMethod === 'direct-debit-contract') {
@@ -177,7 +187,8 @@ export const createSubscriptionHandler: RouteHandler<typeof createSubscriptionRo
       }
 
       // Validate contract exists and is active
-      paymentMethodRecord = await billingRepositories.paymentMethods.findByContractSignature(contractId);
+      const paymentMethodResults = await db.select().from(paymentMethodTable).where(eq(paymentMethodTable.contractSignature, contractId)).limit(1);
+      paymentMethodRecord = paymentMethodResults[0];
 
       if (!paymentMethodRecord || paymentMethodRecord.userId !== user.id || paymentMethodRecord.contractStatus !== 'active') {
         c.logger.warn('Invalid or inactive payment contract', { logType: 'operation', operationName: 'createSubscription', userId: user.id, resource: contractId });
@@ -188,48 +199,55 @@ export const createSubscriptionHandler: RouteHandler<typeof createSubscriptionRo
 
       // Create subscription with direct debit
       const subscriptionData = {
+        id: crypto.randomUUID(),
         userId: user.id,
-        productId: product.id,
+        productId: productRecord.id,
         status: 'active' as const,
         startDate: new Date(),
-        nextBillingDate: product.billingPeriod === 'monthly'
+        nextBillingDate: productRecord.billingPeriod === 'monthly'
           ? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
           : null,
-        currentPrice: product.price,
-        billingPeriod: product.billingPeriod,
+        currentPrice: productRecord.price,
+        billingPeriod: productRecord.billingPeriod,
         paymentMethodId: paymentMethodRecord.id,
         directDebitContractId: contractId,
         directDebitSignature: paymentMethodRecord.contractSignature,
+        createdAt: new Date(),
+        updatedAt: new Date(),
       };
 
-      const newSubscription = await billingRepositories.subscriptions.create(subscriptionData, { tx });
+      await tx.insert(subscription).values(subscriptionData);
+      const newSubscriptionId = subscriptionData.id;
 
       // Log subscription creation event
-      await billingRepositories.billingEvents.logEvent({
+      await tx.insert(billingEvent).values({
+        id: crypto.randomUUID(),
         userId: user.id,
-        subscriptionId: newSubscription.id,
+        subscriptionId: newSubscriptionId,
         paymentId: null,
         paymentMethodId: paymentMethodRecord.id,
         eventType: 'subscription_created_direct_debit',
         eventData: {
-          productId: product.id,
-          productName: product.name,
-          price: product.price,
-          billingPeriod: product.billingPeriod,
+          productId: productRecord.id,
+          productName: productRecord.name,
+          price: productRecord.price,
+          billingPeriod: productRecord.billingPeriod,
           contractId,
           autoRenewalEnabled: enableAutoRenew,
         },
         severity: 'info',
-      }, tx);
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
 
       c.logger.info('Direct debit subscription created successfully', {
         logType: 'operation',
         operationName: 'createSubscription',
-        resource: newSubscription.id,
+        resource: newSubscriptionId,
       });
 
       return Responses.created(c, {
-        subscriptionId: newSubscription.id,
+        subscriptionId: newSubscriptionId,
         paymentMethod: 'direct-debit-contract',
         contractId,
         autoRenewalEnabled: enableAutoRenew,
@@ -243,35 +261,44 @@ export const createSubscriptionHandler: RouteHandler<typeof createSubscriptionRo
       c.logger.info('Creating legacy ZarinPal subscription', { logType: 'operation', operationName: 'createSubscription', userId: user.id, resource: productId });
 
       // Convert USD price to Iranian Rials (approximate rate)
-      const amountInRials = Math.round(product.price * 65000); // Rough conversion rate
+      const amountInRials = Math.round(productRecord.price * 65000); // Rough conversion rate
 
       // Create pending subscription first
       const subscriptionData = {
+        id: crypto.randomUUID(),
         userId: user.id,
-        productId: product.id,
+        productId: productRecord.id,
         status: 'pending' as const,
         startDate: new Date(),
         nextBillingDate: null, // Will be set after payment completion
-        currentPrice: product.price,
-        billingPeriod: product.billingPeriod,
+        currentPrice: productRecord.price,
+        billingPeriod: productRecord.billingPeriod,
         paymentMethodId: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
       };
 
-      const newSubscription = await billingRepositories.subscriptions.create(subscriptionData, { tx });
+      await tx.insert(subscription).values(subscriptionData);
+      const newSubscriptionId = subscriptionData.id;
 
       // Create payment record
       const paymentData = {
+        id: crypto.randomUUID(),
         userId: user.id,
-        subscriptionId: newSubscription.id,
-        productId: product.id,
+        subscriptionId: newSubscriptionId,
+        productId: productRecord.id,
         amount: amountInRials,
         currency: 'IRR' as const,
         status: 'pending' as const,
         paymentMethod: 'zarinpal',
         zarinpalDirectDebitUsed: false,
+        metadata: referrer ? { referrer } : null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
       };
 
-      const paymentRecord = await billingRepositories.payments.create(paymentData, { tx });
+      await tx.insert(payment).values(paymentData);
+      const paymentRecordId = paymentData.id;
 
       // Request payment from ZarinPal
       const zarinPal = ZarinPalService.create(c.env);
@@ -281,9 +308,10 @@ export const createSubscriptionHandler: RouteHandler<typeof createSubscriptionRo
         description: `Subscription to ${product.name}`,
         callbackUrl,
         metadata: {
-          subscriptionId: newSubscription.id,
-          paymentId: paymentRecord.id,
+          subscriptionId: newSubscriptionId,
+          paymentId: paymentRecordId,
           userId: user.id,
+          ...(referrer && { referrer }),
         },
       });
 
@@ -291,45 +319,49 @@ export const createSubscriptionHandler: RouteHandler<typeof createSubscriptionRo
         c.logger.error('ZarinPal payment request failed', undefined, {
           logType: 'operation',
           operationName: 'createSubscription',
-          resource: paymentRecord.id,
+          resource: paymentRecordId,
         });
         throw createError.zarinpal('Failed to initiate payment');
       }
 
       // Update payment with ZarinPal authority
-      await billingRepositories.payments.update(
-        paymentRecord.id,
-        { zarinpalAuthority: paymentResponse.data.authority },
-        { tx },
-      );
+      await tx.update(payment)
+        .set({
+          zarinpalAuthority: paymentResponse.data.authority,
+          updatedAt: new Date(),
+        })
+        .where(eq(payment.id, paymentRecordId));
 
       // Log subscription creation event
-      await billingRepositories.billingEvents.logEvent({
+      await tx.insert(billingEvent).values({
+        id: crypto.randomUUID(),
         userId: user.id,
-        subscriptionId: newSubscription.id,
-        paymentId: paymentRecord.id,
+        subscriptionId: newSubscriptionId,
+        paymentId: paymentRecordId,
         paymentMethodId: null,
         eventType: 'subscription_created_zarinpal_legacy',
         eventData: {
-          productId: product.id,
-          productName: product.name,
-          price: product.price,
+          productId: productRecord.id,
+          productName: productRecord.name,
+          price: productRecord.price,
           amount: amountInRials,
           authority: paymentResponse.data.authority,
         },
         severity: 'info',
-      }, tx);
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
 
       const paymentUrl = zarinPal.getPaymentUrl(paymentResponse.data.authority);
 
       c.logger.info('Legacy ZarinPal subscription created successfully', {
         logType: 'operation',
         operationName: 'createSubscription',
-        resource: newSubscription.id,
+        resource: newSubscriptionId,
       });
 
       return Responses.created(c, {
-        subscriptionId: newSubscription.id,
+        subscriptionId: newSubscriptionId,
         paymentMethod: 'zarinpal-oneoff',
         paymentUrl,
         authority: paymentResponse.data.authority,
@@ -343,7 +375,7 @@ export const createSubscriptionHandler: RouteHandler<typeof createSubscriptionRo
 
 /**
  * PATCH /subscriptions/{id}/cancel - Cancel subscription
- * ✅ Refactored: Uses factory pattern + repositories + transaction
+ * ✅ Refactored: Uses factory pattern + direct database access + transaction
  */
 export const cancelSubscriptionHandler: RouteHandler<typeof cancelSubscriptionRoute, ApiEnv> = createHandlerWithTransaction(
   {
@@ -364,14 +396,15 @@ export const cancelSubscriptionHandler: RouteHandler<typeof cancelSubscriptionRo
       resource: id,
     });
 
-    const subscription = await billingRepositories.subscriptions.findById(id);
+    const subscriptionResults = await db.select().from(subscription).where(eq(subscription.id, id)).limit(1);
+    const subscriptionRecord = subscriptionResults[0];
 
-    if (!subscription || subscription.userId !== user.id) {
+    if (!subscriptionRecord || subscriptionRecord.userId !== user.id) {
       c.logger.warn('Subscription not found for cancellation', { logType: 'operation', operationName: 'cancelSubscription', userId: user.id, resource: id });
       throw createError.notFound('Subscription');
     }
 
-    if (subscription.status !== 'active') {
+    if (subscriptionRecord.status !== 'active') {
       c.logger.warn('Subscription not active for cancellation', {
         logType: 'operation',
         operationName: 'cancelSubscription',
@@ -383,31 +416,33 @@ export const cancelSubscriptionHandler: RouteHandler<typeof cancelSubscriptionRo
     const canceledAt = new Date();
 
     // Update subscription status
-    await billingRepositories.subscriptions.update(
-      id,
-      {
+    await tx.update(subscription)
+      .set({
         status: 'canceled',
         endDate: canceledAt,
         cancellationReason: reason,
         nextBillingDate: null, // Stop future billing
-      },
-      { tx },
-    );
+        updatedAt: new Date(),
+      })
+      .where(eq(subscription.id, id));
 
     // Log cancellation event
-    await billingRepositories.billingEvents.logEvent({
+    await tx.insert(billingEvent).values({
+      id: crypto.randomUUID(),
       userId: user.id,
       subscriptionId: id,
       paymentId: null,
-      paymentMethodId: subscription.paymentMethodId,
+      paymentMethodId: subscriptionRecord.paymentMethodId,
       eventType: 'subscription_canceled',
       eventData: {
         reason: reason || 'User requested cancellation',
         canceledAt: canceledAt.toISOString(),
-        previousStatus: subscription.status,
+        previousStatus: subscriptionRecord.status,
       },
       severity: 'info',
-    }, tx);
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
 
     c.logger.info('Subscription canceled successfully', { logType: 'operation', operationName: 'cancelSubscription', resource: id });
 
@@ -421,19 +456,19 @@ export const cancelSubscriptionHandler: RouteHandler<typeof cancelSubscriptionRo
 
 /**
  * POST /subscriptions/{id}/resubscribe - Resubscribe to canceled subscription
- * ✅ Refactored: Uses factory pattern + repositories + transaction
+ * ✅ Refactored: Uses factory pattern + direct database access + transaction
  */
 export const resubscribeHandler: RouteHandler<typeof resubscribeRoute, ApiEnv> = createHandlerWithTransaction(
   {
     auth: 'session',
     validateParams: SubscriptionParamsSchema,
-    validateBody: CreateSubscriptionRequestSchema.pick({ callbackUrl: true }),
+    validateBody: CreateSubscriptionRequestSchema.pick({ callbackUrl: true, referrer: true }),
     operationName: 'resubscribe',
   },
   async (c, tx) => {
     const user = c.get('user')!;
     const { id } = c.validated.params;
-    const { callbackUrl } = c.validated.body;
+    const { callbackUrl, referrer } = c.validated.body;
 
     c.logger.info('Resubscribing to subscription', {
       logType: 'operation',
@@ -442,14 +477,15 @@ export const resubscribeHandler: RouteHandler<typeof resubscribeRoute, ApiEnv> =
       resource: id,
     });
 
-    const subscription = await billingRepositories.subscriptions.findById(id);
+    const subscriptionResults = await db.select().from(subscription).where(eq(subscription.id, id)).limit(1);
+    const subscriptionRecord = subscriptionResults[0];
 
-    if (!subscription || subscription.userId !== user.id) {
+    if (!subscriptionRecord || subscriptionRecord.userId !== user.id) {
       c.logger.warn('Subscription not found for resubscription', { logType: 'operation', operationName: 'resubscribe', userId: user.id, resource: id });
       throw createError.notFound('Subscription');
     }
 
-    if (subscription.status !== 'canceled') {
+    if (subscriptionRecord.status !== 'canceled') {
       c.logger.warn('Subscription not canceled for resubscription', {
         logType: 'operation',
         operationName: 'resubscribe',
@@ -459,33 +495,39 @@ export const resubscribeHandler: RouteHandler<typeof resubscribeRoute, ApiEnv> =
     }
 
     // Get product details
-    const product = await billingRepositories.products.findById(subscription.productId);
+    const productResults = await db.select().from(product).where(eq(product.id, subscriptionRecord.productId)).limit(1);
+    const productRecord = productResults[0];
 
-    if (!product || !product.isActive) {
+    if (!productRecord || !productRecord.isActive) {
       c.logger.warn('Product no longer available for resubscription', {
         logType: 'operation',
         operationName: 'resubscribe',
-        resource: subscription.productId,
+        resource: subscriptionRecord.productId,
       });
       throw createError.internal('This product is no longer available for subscription');
     }
 
     // Convert USD price to Iranian Rials
-    const amountInRials = Math.round(product.price * 65000);
+    const amountInRials = Math.round(productRecord.price * 65000);
 
     // Create payment record for resubscription
     const paymentData = {
+      id: crypto.randomUUID(),
       userId: user.id,
-      subscriptionId: subscription.id,
-      productId: product.id,
+      subscriptionId: subscriptionRecord.id,
+      productId: productRecord.id,
       amount: amountInRials,
       currency: 'IRR' as const,
       status: 'pending' as const,
       paymentMethod: 'zarinpal',
       zarinpalDirectDebitUsed: false,
+      metadata: referrer ? { referrer } : null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
     };
 
-    const paymentRecord = await billingRepositories.payments.create(paymentData, { tx });
+    await tx.insert(payment).values(paymentData);
+    const paymentRecordId = paymentData.id;
 
     // Validate callback URL is provided
     if (!callbackUrl) {
@@ -497,13 +539,14 @@ export const resubscribeHandler: RouteHandler<typeof resubscribeRoute, ApiEnv> =
     const paymentResponse = await zarinPal.requestPayment({
       amount: amountInRials,
       currency: 'IRR',
-      description: `Resubscription to ${product.name}`,
+      description: `Resubscription to ${productRecord.name}`,
       callbackUrl,
       metadata: {
-        subscriptionId: subscription.id,
-        paymentId: paymentRecord.id,
+        subscriptionId: subscriptionRecord.id,
+        paymentId: paymentRecordId,
         userId: user.id,
         isResubscription: true,
+        ...(referrer && { referrer }),
       },
     });
 
@@ -517,38 +560,41 @@ export const resubscribeHandler: RouteHandler<typeof resubscribeRoute, ApiEnv> =
     }
 
     // Update payment with ZarinPal authority
-    await billingRepositories.payments.update(
-      paymentRecord.id,
-      { zarinpalAuthority: paymentResponse.data.authority },
-      { tx },
-    );
+    await tx.update(payment)
+      .set({
+        zarinpalAuthority: paymentResponse.data.authority,
+        updatedAt: new Date(),
+      })
+      .where(eq(payment.id, paymentRecordId));
 
     // Update subscription to pending (will be activated on payment completion)
-    await billingRepositories.subscriptions.update(
-      id,
-      {
+    await tx.update(subscription)
+      .set({
         status: 'pending',
         endDate: null,
         cancellationReason: null,
-      },
-      { tx },
-    );
+        updatedAt: new Date(),
+      })
+      .where(eq(subscription.id, id));
 
     // Log resubscription event
-    await billingRepositories.billingEvents.logEvent({
+    await tx.insert(billingEvent).values({
+      id: crypto.randomUUID(),
       userId: user.id,
       subscriptionId: id,
-      paymentId: paymentRecord.id,
+      paymentId: paymentRecordId,
       paymentMethodId: null,
       eventType: 'subscription_resubscribed',
       eventData: {
-        productId: product.id,
-        productName: product.name,
+        productId: productRecord.id,
+        productName: productRecord.name,
         amount: amountInRials,
         authority: paymentResponse.data.authority,
       },
       severity: 'info',
-    }, tx);
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
 
     const paymentUrl = zarinPal.getPaymentUrl(paymentResponse.data.authority);
 
@@ -568,7 +614,7 @@ export const resubscribeHandler: RouteHandler<typeof resubscribeRoute, ApiEnv> =
 
 /**
  * POST /subscriptions/{id}/change-plan - Change subscription plan
- * ✅ Refactored: Uses factory pattern + repositories + transaction
+ * ✅ Refactored: Uses factory pattern + direct database access + transaction
  */
 export const changePlanHandler: RouteHandler<typeof changePlanRoute, ApiEnv> = createHandlerWithTransaction(
   {
@@ -580,7 +626,7 @@ export const changePlanHandler: RouteHandler<typeof changePlanRoute, ApiEnv> = c
   async (c, tx) => {
     const user = c.get('user')!;
     const { id } = c.validated.params;
-    const { newProductId, callbackUrl, effectiveDate } = c.validated.body;
+    const { newProductId, callbackUrl, effectiveDate, referrer } = c.validated.body;
 
     c.logger.info('Changing subscription plan', {
       logType: 'operation',
@@ -589,14 +635,15 @@ export const changePlanHandler: RouteHandler<typeof changePlanRoute, ApiEnv> = c
       resource: id,
     });
 
-    const subscription = await billingRepositories.subscriptions.findById(id);
+    const subscriptionResults = await db.select().from(subscription).where(eq(subscription.id, id)).limit(1);
+    const subscriptionRecord = subscriptionResults[0];
 
-    if (!subscription || subscription.userId !== user.id) {
+    if (!subscriptionRecord || subscriptionRecord.userId !== user.id) {
       c.logger.warn('Subscription not found for plan change', { logType: 'operation', operationName: 'changePlan', userId: user.id, resource: id });
       throw createError.notFound('Subscription');
     }
 
-    if (subscription.status !== 'active') {
+    if (subscriptionRecord.status !== 'active') {
       c.logger.warn('Subscription not active for plan change', {
         logType: 'operation',
         operationName: 'changePlan',
@@ -606,10 +653,12 @@ export const changePlanHandler: RouteHandler<typeof changePlanRoute, ApiEnv> = c
     }
 
     // Get current and new products
-    const [currentProduct, newProduct] = await Promise.all([
-      billingRepositories.products.findById(subscription.productId),
-      billingRepositories.products.findById(newProductId),
+    const [currentProductResults, newProductResults] = await Promise.all([
+      db.select().from(product).where(eq(product.id, subscriptionRecord.productId)).limit(1),
+      db.select().from(product).where(eq(product.id, newProductId)).limit(1),
     ]);
+    const currentProduct = currentProductResults[0];
+    const newProduct = newProductResults[0];
 
     if (!currentProduct || !newProduct || !newProduct.isActive) {
       c.logger.warn('Products not found for plan change', {
@@ -622,7 +671,7 @@ export const changePlanHandler: RouteHandler<typeof changePlanRoute, ApiEnv> = c
 
     const priceDifference = newProduct.price - currentProduct.price;
     const isUpgrade = priceDifference > 0;
-    const changeDate = effectiveDate === 'immediate' ? new Date() : subscription.nextBillingDate;
+    const changeDate = effectiveDate === 'immediate' ? new Date() : subscriptionRecord.nextBillingDate;
 
     c.logger.info('Plan change analysis', {
       logType: 'operation',
@@ -632,8 +681,8 @@ export const changePlanHandler: RouteHandler<typeof changePlanRoute, ApiEnv> = c
 
     // Calculate proration for immediate changes
     let prorationAmount = null;
-    if (effectiveDate === 'immediate' && subscription.nextBillingDate) {
-      const daysRemaining = Math.max(0, Math.ceil((subscription.nextBillingDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24)),
+    if (effectiveDate === 'immediate' && subscriptionRecord.nextBillingDate) {
+      const daysRemaining = Math.max(0, Math.ceil((subscriptionRecord.nextBillingDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24)),
       );
       const totalDaysInCycle = 30; // Assuming monthly billing
       prorationAmount = (priceDifference * daysRemaining) / totalDaysInCycle;
@@ -649,17 +698,22 @@ export const changePlanHandler: RouteHandler<typeof changePlanRoute, ApiEnv> = c
       if (amountToCharge > 0) {
         // Create payment record
         const paymentData = {
+          id: crypto.randomUUID(),
           userId: user.id,
-          subscriptionId: subscription.id,
+          subscriptionId: subscriptionRecord.id,
           productId: newProduct.id,
           amount: amountToCharge,
           currency: 'IRR' as const,
           status: 'pending' as const,
           paymentMethod: 'zarinpal',
           zarinpalDirectDebitUsed: false,
+          metadata: referrer ? { referrer } : null,
+          createdAt: new Date(),
+          updatedAt: new Date(),
         };
 
-        const paymentRecord = await billingRepositories.payments.create(paymentData, { tx });
+        await tx.insert(payment).values(paymentData);
+        const paymentRecordId = paymentData.id;
 
         // Request payment from ZarinPal
         const zarinPal = ZarinPalService.create(c.env);
@@ -669,12 +723,13 @@ export const changePlanHandler: RouteHandler<typeof changePlanRoute, ApiEnv> = c
           description: `Plan upgrade to ${newProduct.name}`,
           callbackUrl,
           metadata: {
-            subscriptionId: subscription.id,
-            paymentId: paymentRecord.id,
+            subscriptionId: subscriptionRecord.id,
+            paymentId: paymentRecordId,
             userId: user.id,
             planChange: true,
             oldProductId: currentProduct.id,
             newProductId: newProduct.id,
+            ...(referrer && { referrer }),
           },
         });
 
@@ -687,11 +742,12 @@ export const changePlanHandler: RouteHandler<typeof changePlanRoute, ApiEnv> = c
           throw createError.zarinpal('Failed to initiate payment for plan change');
         }
 
-        await billingRepositories.payments.update(
-          paymentRecord.id,
-          { zarinpalAuthority: paymentResponse.data.authority },
-          { tx },
-        );
+        await tx.update(payment)
+          .set({
+            zarinpalAuthority: paymentResponse.data.authority,
+            updatedAt: new Date(),
+          })
+          .where(eq(payment.id, paymentRecordId));
 
         paymentUrl = zarinPal.getPaymentUrl(paymentResponse.data.authority);
         authority = paymentResponse.data.authority;
@@ -706,40 +762,41 @@ export const changePlanHandler: RouteHandler<typeof changePlanRoute, ApiEnv> = c
 
     // Update subscription (either immediately or mark for next billing cycle)
     if (effectiveDate === 'immediate') {
-      await billingRepositories.subscriptions.update(
-        id,
-        {
+      await tx.update(subscription)
+        .set({
           productId: newProduct.id,
           currentPrice: newProduct.price,
           billingPeriod: newProduct.billingPeriod,
           upgradeDowngradeAt: changeDate,
           prorationCredit: prorationAmount && priceDifference < 0 ? Math.abs(prorationAmount) : 0,
-        },
-        { tx },
-      );
+          updatedAt: new Date(),
+        })
+        .where(eq(subscription.id, id));
     } else {
       // Store plan change for next billing cycle
       const planChangeMetadata: SubscriptionMetadata = {
         subscriptionType: 'plan_change_pending',
         newProductId,
-        scheduledFor: subscription.nextBillingDate!.toISOString(),
+        scheduledFor: subscriptionRecord.nextBillingDate!.toISOString(),
         requestedAt: new Date().toISOString(),
         changeType: priceDifference > 0 ? 'upgrade' : priceDifference < 0 ? 'downgrade' : 'lateral',
       };
 
-      await billingRepositories.subscriptions.update(
-        id,
-        { metadata: planChangeMetadata },
-        { tx },
-      );
+      await tx.update(subscription)
+        .set({
+          metadata: planChangeMetadata,
+          updatedAt: new Date(),
+        })
+        .where(eq(subscription.id, id));
     }
 
     // Log plan change event
-    await billingRepositories.billingEvents.logEvent({
+    await tx.insert(billingEvent).values({
+      id: crypto.randomUUID(),
       userId: user.id,
       subscriptionId: id,
       paymentId: null,
-      paymentMethodId: subscription.paymentMethodId,
+      paymentMethodId: subscriptionRecord.paymentMethodId,
       eventType: 'subscription_plan_changed',
       eventData: {
         oldProductId: currentProduct.id,
@@ -752,7 +809,9 @@ export const changePlanHandler: RouteHandler<typeof changePlanRoute, ApiEnv> = c
         requiresPayment: !!paymentUrl,
       },
       severity: 'info',
-    }, tx);
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
 
     c.logger.info('Plan change completed successfully', {
       logType: 'operation',

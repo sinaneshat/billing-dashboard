@@ -295,7 +295,7 @@ export const PaymentMethodsTable = memo(({
 
     // Styling
     'className': 'w-full',
-    'aria-label': 'Payment methods table',
+    'aria-label': t('paymentMethods.table.tableAriaLabel'),
   };
 
   return (

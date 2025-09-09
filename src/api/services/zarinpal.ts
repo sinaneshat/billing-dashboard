@@ -265,7 +265,11 @@ export class ZarinPalService extends BaseService<ZarinPalConfig> {
       );
 
       // Validate response using Zod schema while maintaining backward compatibility
-      const validatedResult = VerifyResponseSchema.parse(rawResult);
+      const responseResult = VerifyResponseSchema.safeParse(rawResult);
+      if (!responseResult.success) {
+        throw new Error(`Verify response validation failed: ${responseResult.error.message}`);
+      }
+      const validatedResult = responseResult.data;
 
       // Validate response structure
       if (!validatedResult.data && (!validatedResult.errors || (Array.isArray(validatedResult.errors) && validatedResult.errors.length === 0))) {

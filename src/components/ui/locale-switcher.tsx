@@ -1,26 +1,26 @@
 'use client';
 
-// Imports commented out - language is forced to Persian (fa)
-// import { Languages, Loader2 } from 'lucide-react';
-// import { useLocale } from 'next-intl';
-// import React, { useTransition } from 'react';
+import { Languages, Loader2 } from 'lucide-react';
+import { useLocale } from 'next-intl';
+import React, { useTransition } from 'react';
 
-// import { setUserLocale } from '@/lib/locale';
-// import { type Locale } from '@/i18n/routing';
-// import { Button } from '@/components/ui/button';
-// import {
-//   DropdownMenu,
-//   DropdownMenuContent,
-//   DropdownMenuItem,
-//   DropdownMenuTrigger,
-// } from '@/components/ui/dropdown-menu';
-// import { cn } from '@/lib/utils';
+import { setUserLocale } from '@/lib/locale';
+import { type Locale } from '@/i18n/routing';
+import { locales } from '@/i18n/routing';
+import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { cn } from '@/lib/utils';
 
-// Language display names - kept for future use
-// const languageNames: Record<Locale, { native: string; english: string }> = {
-//   en: { native: 'English', english: 'English' },
-//   fa: { native: 'فارسی', english: 'Persian' },
-// };
+// Language display names
+const languageNames: Record<Locale, { native: string; english: string }> = {
+  en: { native: 'English', english: 'English' },
+  fa: { native: 'فارسی', english: 'Persian' },
+};
 
 interface LocaleSwitcherProps {
   className?: string;
@@ -33,32 +33,30 @@ interface LocaleSwitcherProps {
 // This avoids conflicts with next-themes' class management
 
 export function LocaleSwitcher({
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   className,
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   variant = 'ghost',
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   size = 'default',
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   showLabel = true,
 }: LocaleSwitcherProps) {
-  // HIDDEN: Language is forced to Persian (fa) - user control disabled
-  return null;
-
-  /* USER CONTROL DISABLED - Language switching commented out
   const currentLocale = useLocale() as Locale;
   const [isPending, startTransition] = useTransition();
   
   // Note: translations are available but not used in this component
   // const t = useTranslations('language');
 
-  const handleLocaleChange = (newLocale: Locale) => {
+  const handleLocaleChange = async (newLocale: Locale) => {
     if (newLocale === currentLocale) return;
     
-    // OFFICIAL PATTERN: Server Action handles cookie + redirect
-    // This follows the exact pattern from next-intl official docs
-    startTransition(() => {
-      setUserLocale(newLocale);
+    // OFFICIAL PATTERN: Server Action sets cookie, client handles refresh
+    // This preserves theme state and prevents UI flash
+    startTransition(async () => {
+      try {
+        await setUserLocale(newLocale);
+        // Gentle refresh that preserves theme and other state
+        window.location.reload();
+      } catch (error) {
+        console.error('Failed to change locale:', error);
+      }
     });
   };
 
@@ -119,28 +117,28 @@ export function LocaleSwitcher({
       </DropdownMenuContent>
     </DropdownMenu>
   );
-  */
 }
 
 // Simplified version for specific use cases
 export function SimpleLocaleSwitcher({ 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   className 
 }: { className?: string }) {
-  // HIDDEN: Language is forced to Persian (fa) - user control disabled
-  return null;
-
-  /* USER CONTROL DISABLED - Language switching commented out
   const currentLocale = useLocale() as Locale;
   const [isPending, startTransition] = useTransition();
 
   const otherLocale = currentLocale === 'en' ? 'fa' : 'en';
   const isLoading = isPending;
 
-  const handleToggle = () => {
-    // OFFICIAL PATTERN: Server Action handles cookie + redirect
-    startTransition(() => {
-      setUserLocale(otherLocale);
+  const handleToggle = async () => {
+    // OFFICIAL PATTERN: Server Action sets cookie, client handles refresh
+    startTransition(async () => {
+      try {
+        await setUserLocale(otherLocale);
+        // Gentle refresh that preserves theme and other state
+        window.location.reload();
+      } catch (error) {
+        console.error('Failed to change locale:', error);
+      }
     });
   };
 
@@ -164,5 +162,4 @@ export function SimpleLocaleSwitcher({
       <span>{languageNames[otherLocale].native}</span>
     </Button>
   );
-  */
 }

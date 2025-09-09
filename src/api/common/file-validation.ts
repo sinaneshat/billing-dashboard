@@ -140,7 +140,8 @@ export class FileValidator {
         }
       } catch {
         // Skip dimension validation if we can't read the image
-        console.warn('Unable to validate image dimensions');
+        // TODO: Add structured logging when context is available
+        // Note: Image dimension validation failed but file is still accepted
       }
     }
 

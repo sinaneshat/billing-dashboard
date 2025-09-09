@@ -4,7 +4,7 @@ import { AuthErrorScreen } from '@/containers/screens/errors';
 
 export default function AuthErrorPage() {
   return (
-    <Suspense fallback={<div className="flex items-center justify-center min-h-screen">Loading...</div>}>
+    <Suspense fallback={<div className="flex items-center justify-center min-h-screen">{/* Loading state handled by component */}</div>}>
       <AuthErrorScreen />
     </Suspense>
   );

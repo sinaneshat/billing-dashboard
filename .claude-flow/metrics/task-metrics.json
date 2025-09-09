@@ -22,5 +22,13 @@
     "duration": 95.95891700000001,
     "timestamp": 1757150216582,
     "metadata": {}
+  },
+  {
+    "id": "cmd-init-1757441739528",
+    "type": "init",
+    "success": true,
+    "duration": 181.47970900000007,
+    "timestamp": 1757441739710,
+    "metadata": {}
   }
 ]

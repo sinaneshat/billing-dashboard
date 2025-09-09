@@ -2,7 +2,9 @@
   "$schema": "node_modules/wrangler/config-schema.json",
   "main": ".open-next/worker.js",
   "name": "billing-dashboard",
+  "account_id": "c21c4d074e34a8b1b9d335a41c2f69e3",
   "compatibility_date": "2025-03-25",
+  "keep_names": false,
   "triggers": {
     "crons": ["0 0 1 * *", "0 2 * * *"]
   },
@@ -25,40 +27,41 @@
   },
   "assets": {
     "directory": ".open-next/assets",
-    "binding": "ASSETS"
+    "binding": "ASSETS",
+    "run_worker_first": true
   },
-  "services": [
-    {
-      "binding": "WORKER_SELF_REFERENCE",
-      "service": "billing-dashboard-local"
-    }
-  ],
   "d1_databases": [
     {
       "binding": "DB",
       "database_name": "billing-dashboard-d1-local",
-      "database_id": "43baa9e7-a06e-48fe-9288-25945347adc9",
+      "database_id": "854922be-22d2-4243-a660-14ea5e52cc28",
       "migrations_dir": "./src/db/migrations",
-      "preview_database_id": "43baa9e7-a06e-48fe-9288-25945347adc9"
+      "preview_database_id": "854922be-22d2-4243-a660-14ea5e52cc28"
     }
   ],
   "kv_namespaces": [
     {
       "binding": "KV",
-      "id": "fa4da7627c5d420780ec45920420391f",
-      "preview_id": "dc64f6f64b9945e8b9d0c0eebfb01b4d"
+      "id": "6787c34724534d1cba2af7c476a49953",
+      "preview_id": "6787c34724534d1cba2af7c476a49953"
     }
   ],
   "r2_buckets": [
     {
       "binding": "NEXT_INC_CACHE_R2_BUCKET",
-      "bucket_name": "billing-dashboard-cache-local",
-      "preview_bucket_name": "billing-dashboard-cache-local"
+      "bucket_name": "billing-dashboard-next-cache-preview",
+      "preview_bucket_name": "billing-dashboard-next-cache-preview"
     },
     {
       "binding": "UPLOADS_R2_BUCKET",
-      "bucket_name": "billing-dashboard-uploads-local",
-      "preview_bucket_name": "billing-dashboard-uploads-local"
+      "bucket_name": "billing-dashboard-uploads-preview",
+      "preview_bucket_name": "billing-dashboard-uploads-preview"
+    }
+  ],
+  "services": [
+    {
+      "binding": "WORKER_SELF_REFERENCE",
+      "service": "billing-dashboard"
     }
   ],
   "vars": {
@@ -67,6 +70,18 @@
     "NEXT_PUBLIC_MAINTENANCE": "false",
     "NEXT_PUBLIC_TURNSTILE_SITE_KEY": "1x00000000000000000000AA",
     "R2_PUBLIC_URL": "http://localhost:3000/uploads",
+    "AWS_SES_REGION": "us-east-1",
+    "FROM_EMAIL": "noreply@localhost",
+    "SES_REPLY_TO_EMAIL": "noreply@localhost",
+    "SES_VERIFIED_EMAIL": "noreply@localhost",
+    "WEBHOOK_URL": "https://webhook.site/your-unique-id",
+    "EXTERNAL_WEBHOOK_URL": "https://webhook.site/your-unique-id",
+    "ZARINPAL_DEFAULT_CONTRACT_DURATION_DAYS": "365",
+    "ZARINPAL_DEFAULT_MAX_DAILY_COUNT": "10",
+    "ZARINPAL_DEFAULT_MAX_MONTHLY_COUNT": "100",
+    "ZARINPAL_DEFAULT_MAX_AMOUNT": "50000000",
+    "CARD_VERIFICATION_AMOUNT": "1000",
+    "CARD_VERIFICATION_DESCRIPTION": "Card verification for direct payment",
     "OPEN_NEXT_DEBUG": "true",
     "NEXTJS_ENV": "development",
     "NODE_VERSION": "22.14.0",
@@ -77,26 +92,20 @@
   "env": {
     "preview": {
       "name": "billing-dashboard-preview",
-      "services": [
-        {
-          "binding": "WORKER_SELF_REFERENCE",
-          "service": "billing-dashboard-preview"
-        }
-      ],
       "d1_databases": [
         {
           "binding": "DB",
           "database_name": "billing-dashboard-d1-preview",
-          "database_id": "b2ca6cda-4089-4a81-b533-9f7f379a1217",
+          "database_id": "b5e503e8-1202-4ee1-85b7-cb088208b85f",
           "migrations_dir": "./src/db/migrations",
-          "preview_database_id": "b2ca6cda-4089-4a81-b533-9f7f379a1217"
+          "preview_database_id": "b5e503e8-1202-4ee1-85b7-cb088208b85f"
         }
       ],
       "kv_namespaces": [
         {
           "binding": "KV",
-          "id": "dc64f6f64b9945e8b9d0c0eebfb01b4d",
-          "preview_id": "dc64f6f64b9945e8b9d0c0eebfb01b4d"
+          "id": "6787c34724534d1cba2af7c476a49953",
+          "preview_id": "6787c34724534d1cba2af7c476a49953"
         }
       ],
       "r2_buckets": [
@@ -111,12 +120,30 @@
           "preview_bucket_name": "billing-dashboard-uploads-preview"
         }
       ],
+      "services": [
+        {
+          "binding": "WORKER_SELF_REFERENCE",
+          "service": "billing-dashboard-preview"
+        }
+      ],
       "vars": {
         "NEXT_PUBLIC_WEBAPP_ENV": "preview",
-        "NEXT_PUBLIC_APP_URL": "https://billing-dashboard-preview.workers.dev",
+        "NEXT_PUBLIC_APP_URL": "https://billing-dashboard-preview.firstexhotic.workers.dev",
         "NEXT_PUBLIC_MAINTENANCE": "false",
         "NEXT_PUBLIC_TURNSTILE_SITE_KEY": "1x00000000000000000000AA",
-        "R2_PUBLIC_URL": "https://billing-dashboard-preview.workers.dev/uploads",
+        "R2_PUBLIC_URL": "https://billing-dashboard-preview.firstexhotic.workers.dev/uploads",
+        "AWS_SES_REGION": "us-east-1",
+        "FROM_EMAIL": "noreply@firstexhotic.workers.dev",
+        "SES_REPLY_TO_EMAIL": "noreply@firstexhotic.workers.dev",
+        "SES_VERIFIED_EMAIL": "noreply@firstexhotic.workers.dev",
+        "WEBHOOK_URL": "https://webhook.site/your-unique-id",
+        "EXTERNAL_WEBHOOK_URL": "https://webhook.site/your-unique-id",
+        "ZARINPAL_DEFAULT_CONTRACT_DURATION_DAYS": "365",
+        "ZARINPAL_DEFAULT_MAX_DAILY_COUNT": "10",
+        "ZARINPAL_DEFAULT_MAX_MONTHLY_COUNT": "100",
+        "ZARINPAL_DEFAULT_MAX_AMOUNT": "50000000",
+        "CARD_VERIFICATION_AMOUNT": "1000",
+        "CARD_VERIFICATION_DESCRIPTION": "Card verification for direct payment",
         "OPEN_NEXT_DEBUG": "false",
         "NEXTJS_ENV": "production",
         "NODE_VERSION": "22.14.0",
@@ -128,26 +155,20 @@
     },
     "production": {
       "name": "billing-dashboard-production",
-      "services": [
-        {
-          "binding": "WORKER_SELF_REFERENCE",
-          "service": "billing-dashboard-production"
-        }
-      ],
       "d1_databases": [
         {
           "binding": "DB",
           "database_name": "billing-dashboard-d1-prod",
-          "database_id": "39adf414-372f-4d03-99dd-357a73a5bc8e",
+          "database_id": "e72893ab-9a78-41c6-a83e-aeb03e70d32f",
           "migrations_dir": "./src/db/migrations",
-          "preview_database_id": "b2ca6cda-4089-4a81-b533-9f7f379a1217"
+          "preview_database_id": "e72893ab-9a78-41c6-a83e-aeb03e70d32f"
         }
       ],
       "kv_namespaces": [
         {
           "binding": "KV",
-          "id": "fa4da7627c5d420780ec45920420391f",
-          "preview_id": "dc64f6f64b9945e8b9d0c0eebfb01b4d"
+          "id": "6787c34724534d1cba2af7c476a49953",
+          "preview_id": "6787c34724534d1cba2af7c476a49953"
         }
       ],
       "r2_buckets": [
@@ -162,12 +183,30 @@
           "preview_bucket_name": "billing-dashboard-uploads-preview"
         }
       ],
+      "services": [
+        {
+          "binding": "WORKER_SELF_REFERENCE",
+          "service": "billing-dashboard-production"
+        }
+      ],
       "vars": {
         "NEXT_PUBLIC_WEBAPP_ENV": "prod",
-        "NEXT_PUBLIC_APP_URL": "https://billing-dashboard-production.workers.dev",
+        "NEXT_PUBLIC_APP_URL": "https://billing-dashboard-production.firstexhotic.workers.dev",
         "NEXT_PUBLIC_MAINTENANCE": "false",
         "NEXT_PUBLIC_TURNSTILE_SITE_KEY": "1x00000000000000000000AA",
-        "R2_PUBLIC_URL": "https://billing-dashboard-production.workers.dev/uploads",
+        "R2_PUBLIC_URL": "https://billing-dashboard-production.firstexhotic.workers.dev/uploads",
+        "AWS_SES_REGION": "us-east-1",
+        "FROM_EMAIL": "noreply@firstexhotic.workers.dev",
+        "SES_REPLY_TO_EMAIL": "noreply@firstexhotic.workers.dev",
+        "SES_VERIFIED_EMAIL": "noreply@firstexhotic.workers.dev",
+        "WEBHOOK_URL": "https://webhook.site/your-unique-id",
+        "EXTERNAL_WEBHOOK_URL": "https://webhook.site/your-unique-id",
+        "ZARINPAL_DEFAULT_CONTRACT_DURATION_DAYS": "365",
+        "ZARINPAL_DEFAULT_MAX_DAILY_COUNT": "10",
+        "ZARINPAL_DEFAULT_MAX_MONTHLY_COUNT": "100",
+        "ZARINPAL_DEFAULT_MAX_AMOUNT": "50000000",
+        "CARD_VERIFICATION_AMOUNT": "1000",
+        "CARD_VERIFICATION_DESCRIPTION": "Card verification for direct payment",
         "OPEN_NEXT_DEBUG": "false",
         "NEXTJS_ENV": "production",
         "NODE_VERSION": "22.14.0",

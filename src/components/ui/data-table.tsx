@@ -178,9 +178,9 @@ export function DataTable<TData extends Record<string, any>>({
   const t = useTranslations()
   
   // Set default translated values
-  const defaultEmptyStateTitle = emptyStateTitle || t('dataTable.noDataFound')
-  const defaultEmptyStateDescription = emptyStateDescription || t('dataTable.noItemsToDisplay')
-  const defaultAriaLabel = ariaLabel || t('dataTable.dataTable')
+  const defaultEmptyStateTitle = emptyStateTitle || t('table.noDataFound')
+  const defaultEmptyStateDescription = emptyStateDescription || t('table.noItemsToDisplay')
+  const defaultAriaLabel = ariaLabel || t('table.dataTable')
   
   const [sorting, setSorting] = React.useState<SortingState>([])
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([])
@@ -272,7 +272,7 @@ export function DataTable<TData extends Record<string, any>>({
           <div className="flex items-center gap-2">
             {searchKey && (
               <Input
-                placeholder={searchPlaceholder || `Search ${searchKey}...`}
+                placeholder={searchPlaceholder || t('table.searchPlaceholder', { field: searchKey })}
                 value={table.getColumn(searchKey)?.getFilterValue() as string ?? ""}
                 onChange={(event) =>
                   table.getColumn(searchKey)?.setFilterValue(event.target.value)
@@ -305,7 +305,7 @@ export function DataTable<TData extends Record<string, any>>({
             ))}
             
             {filters.length > 0 && (
-              <Button variant="outline" size="icon" aria-label={t('dataTable.openFiltersMenu')}>
+              <Button variant="outline" size="icon" aria-label={t('table.openFiltersMenu')}>
                 <ListFilter className="h-4 w-4" />
               </Button>
             )}
@@ -314,7 +314,7 @@ export function DataTable<TData extends Record<string, any>>({
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="outline" className="ms-auto">
-                    {t('dataTable.columns')} <ChevronDown className="ms-2 h-4 w-4" />
+                    {t('table.columns')} <ChevronDown className="ms-2 h-4 w-4" />
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
@@ -351,7 +351,7 @@ export function DataTable<TData extends Record<string, any>>({
                     <Checkbox
                       checked={allCurrentSelected}
                       onCheckedChange={handleSelectAll}
-                      aria-label={t('dataTable.selectAllRows')}
+                      aria-label={t('table.selectAllRows')}
                     />
                   </TableHead>
                 )}
@@ -405,7 +405,7 @@ export function DataTable<TData extends Record<string, any>>({
                                   return newSelection
                                 })
                               }}
-                              aria-label={t('dataTable.selectRow', { id: rowId })}
+                              aria-label={t('table.selectRow', { id: rowId })}
                             />
                           </TableCell>
                         )}
@@ -447,12 +447,12 @@ export function DataTable<TData extends Record<string, any>>({
           <div className="flex items-center gap-2">
             {enableSelection && selectedCount > 0 && (
               <p className="text-sm text-muted-foreground">
-                {t('dataTable.rowsSelected', { selected: selectedCount, total: totalItems || data.length })}
+                {t('table.rowsSelected', { selected: selectedCount, total: totalItems || data.length })}
               </p>
             )}
             {onPageSizeChange && (
               <div className="flex items-center gap-2">
-                <p className="text-sm text-muted-foreground">{t('dataTable.rowsPerPage')}</p>
+                <p className="text-sm text-muted-foreground">{t('table.rowsPerPage')}</p>
                 <Select
                   value={pageSize.toString()}
                   onValueChange={(value) => onPageSizeChange(Number(value))}

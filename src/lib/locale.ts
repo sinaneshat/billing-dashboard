@@ -1,7 +1,6 @@
 'use server';
 
 import { cookies } from 'next/headers';
-import { redirect } from 'next/navigation';
 
 import type { Locale } from '@/i18n/routing';
 import { defaultLocale, locales } from '@/i18n/routing';
@@ -21,6 +20,15 @@ export async function setUserLocale(locale: Locale) {
     throw new Error(`Invalid locale: ${locale}`);
   }
 
-  cookieStore.set(COOKIE_NAME, locale);
-  redirect('/');
+  // Set locale cookie with proper settings for persistence
+  cookieStore.set(COOKIE_NAME, locale, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax',
+    maxAge: 60 * 60 * 24 * 365, // 1 year
+    path: '/',
+  });
+
+  // According to Context7 next-intl docs: Don't redirect, let client handle refresh
+  // This preserves theme state and prevents UI flash
 }

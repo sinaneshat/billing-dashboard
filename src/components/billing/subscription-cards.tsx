@@ -11,8 +11,8 @@ import {
 import { useLocale, useTranslations } from 'next-intl';
 import { memo, useCallback } from 'react';
 
+import { EmptyCard, LoadingCard, StatusCard } from '@/components/dashboard/dashboard-cards';
 import { Button } from '@/components/ui/button';
-import { EmptyCard, LoadingCard, StatusCard } from '@/components/ui/dashboard-cards';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -86,7 +86,7 @@ export const SubscriptionCards = memo(({
   }, [downloadInvoiceMutation, t]);
 
   const handleCancelSubscription = useCallback(async (subscriptionId: string) => {
-    const reason = 'User requested cancellation'; // In real app, this would come from a modal/form
+    const reason = t('subscription.userCancellationReason'); // In real app, this would come from a modal/form
     try {
       await cancelSubscriptionMutation.mutateAsync({
         param: { id: subscriptionId },

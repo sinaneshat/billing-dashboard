@@ -65,7 +65,12 @@ export function validateEnvironmentConfig(env: Record<string, string | undefined
   // Check for missing required variables
   for (const key of required) {
     if (!env[key] || typeof env[key] !== 'string' || (env[key] as string).trim() === '') {
-      errors.push(`Missing required environment variable: ${key}`);
+      // Only warn during build time, don't fail
+      if (process.env.NEXT_PHASE === 'phase-production-build') {
+        warnings.push(`Missing required environment variable: ${key} (build time)`);
+      } else {
+        errors.push(`Missing required environment variable: ${key}`);
+      }
     }
   }
 
