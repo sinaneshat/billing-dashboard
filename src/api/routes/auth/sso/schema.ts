@@ -9,6 +9,7 @@ export const SSOTokenSchema = z.object({
   product: z.string().optional().describe('Product ID for pre-selection'),
   price: z.string().optional().describe('Price ID for pre-selection'),
   billing: z.string().optional().describe('Billing type (ZR for ZarinPal)'),
+  referrer: z.string().url().optional().describe('URL to redirect back to after successful payment'),
 });
 
 /**

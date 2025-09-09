@@ -162,6 +162,7 @@
     "@react-email/render": "^1.1.2",
     "@scalar/hono-api-reference": "^0.9.13",
     "@scalar/openapi-to-markdown": "^0.2.26",
+    "@supabase/supabase-js": "^2.57.4",
     "@tanstack/react-query": "^5.77.0",
     "@tanstack/react-table": "^8.21.3",
     "@types/jsonwebtoken": "^9.0.10",

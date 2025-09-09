@@ -8,6 +8,7 @@ type SSOFlowData = {
   selectedProductId: string | null;
   billingMethod?: string;
   priceId?: string;
+  referrer?: string;
 };
 
 type SubscriptionPlansScreenProps = {

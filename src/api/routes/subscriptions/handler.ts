@@ -142,7 +142,7 @@ export const createSubscriptionHandler: RouteHandler<typeof createSubscriptionRo
   },
   async (c, tx) => {
     const user = c.get('user')!;
-    const { productId, paymentMethod, contractId, enableAutoRenew, callbackUrl } = c.validated.body;
+    const { productId, paymentMethod, contractId, enableAutoRenew, callbackUrl, referrer } = c.validated.body;
 
     c.logger.info('Creating subscription', {
       logType: 'operation',
@@ -292,6 +292,7 @@ export const createSubscriptionHandler: RouteHandler<typeof createSubscriptionRo
         status: 'pending' as const,
         paymentMethod: 'zarinpal',
         zarinpalDirectDebitUsed: false,
+        metadata: referrer ? { referrer } : null,
         createdAt: new Date(),
         updatedAt: new Date(),
       };
@@ -310,6 +311,7 @@ export const createSubscriptionHandler: RouteHandler<typeof createSubscriptionRo
           subscriptionId: newSubscriptionId,
           paymentId: paymentRecordId,
           userId: user.id,
+          ...(referrer && { referrer }),
         },
       });
 
@@ -460,13 +462,13 @@ export const resubscribeHandler: RouteHandler<typeof resubscribeRoute, ApiEnv> =
   {
     auth: 'session',
     validateParams: SubscriptionParamsSchema,
-    validateBody: CreateSubscriptionRequestSchema.pick({ callbackUrl: true }),
+    validateBody: CreateSubscriptionRequestSchema.pick({ callbackUrl: true, referrer: true }),
     operationName: 'resubscribe',
   },
   async (c, tx) => {
     const user = c.get('user')!;
     const { id } = c.validated.params;
-    const { callbackUrl } = c.validated.body;
+    const { callbackUrl, referrer } = c.validated.body;
 
     c.logger.info('Resubscribing to subscription', {
       logType: 'operation',
@@ -519,6 +521,7 @@ export const resubscribeHandler: RouteHandler<typeof resubscribeRoute, ApiEnv> =
       status: 'pending' as const,
       paymentMethod: 'zarinpal',
       zarinpalDirectDebitUsed: false,
+      metadata: referrer ? { referrer } : null,
       createdAt: new Date(),
       updatedAt: new Date(),
     };
@@ -543,6 +546,7 @@ export const resubscribeHandler: RouteHandler<typeof resubscribeRoute, ApiEnv> =
         paymentId: paymentRecordId,
         userId: user.id,
         isResubscription: true,
+        ...(referrer && { referrer }),
       },
     });
 
@@ -622,7 +626,7 @@ export const changePlanHandler: RouteHandler<typeof changePlanRoute, ApiEnv> = c
   async (c, tx) => {
     const user = c.get('user')!;
     const { id } = c.validated.params;
-    const { newProductId, callbackUrl, effectiveDate } = c.validated.body;
+    const { newProductId, callbackUrl, effectiveDate, referrer } = c.validated.body;
 
     c.logger.info('Changing subscription plan', {
       logType: 'operation',
@@ -703,6 +707,7 @@ export const changePlanHandler: RouteHandler<typeof changePlanRoute, ApiEnv> = c
           status: 'pending' as const,
           paymentMethod: 'zarinpal',
           zarinpalDirectDebitUsed: false,
+          metadata: referrer ? { referrer } : null,
           createdAt: new Date(),
           updatedAt: new Date(),
         };
@@ -724,6 +729,7 @@ export const changePlanHandler: RouteHandler<typeof changePlanRoute, ApiEnv> = c
             planChange: true,
             oldProductId: currentProduct.id,
             newProductId: newProduct.id,
+            ...(referrer && { referrer }),
           },
         });
 

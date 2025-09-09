@@ -61,6 +61,10 @@ export const CreateSubscriptionRequestSchema = z.object({
     example: 'https://app.example.com/payment/callback',
     description: 'URL to redirect after payment (only used for zarinpal-oneoff legacy payments)',
   }),
+  referrer: z.string().url().optional().openapi({
+    example: 'https://roundtable.example.com/dashboard/plans',
+    description: 'Referrer URL to redirect back to after successful payment (used for cross-project SSO flows)',
+  }),
 }).openapi('CreateSubscriptionRequest');
 
 export const CancelSubscriptionRequestSchema = z.object({
@@ -145,6 +149,10 @@ export const ChangePlanRequestSchema = z.object({
   effectiveDate: z.enum(['immediate', 'next_billing_cycle']).default('immediate').openapi({
     example: 'immediate',
     description: 'When the plan change should take effect',
+  }),
+  referrer: z.string().url().optional().openapi({
+    example: 'https://roundtable.example.com/dashboard/plans',
+    description: 'Referrer URL to redirect back to after successful payment (used for cross-project SSO flows)',
   }),
 }).openapi('ChangePlanRequest');
 

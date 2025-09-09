@@ -15,6 +15,7 @@ type PlansPageProps = {
     price?: string;
     billing?: string;
     step?: string;
+    referrer?: string;
   };
 };
 
@@ -70,7 +71,7 @@ async function resolveProductFromParams(
  */
 export default async function PlansPage(props: PlansPageProps) {
   const searchParams = await props.searchParams;
-  const { product, price, billing, step } = searchParams;
+  const { product, price, billing, step, referrer } = searchParams;
 
   const queryClient = getQueryClient();
 
@@ -101,6 +102,8 @@ export default async function PlansPage(props: PlansPageProps) {
       paymentParams.set('price', price);
     if (billing)
       paymentParams.set('billing', billing);
+    if (referrer)
+      paymentParams.set('referrer', referrer);
 
     redirect(`/dashboard/billing/plans?${paymentParams.toString()}`);
   }
@@ -115,6 +118,7 @@ export default async function PlansPage(props: PlansPageProps) {
     selectedProductId: resolvedProductId,
     billingMethod: billing,
     priceId: price,
+    referrer,
   };
 
   return (

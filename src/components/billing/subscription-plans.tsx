@@ -23,6 +23,7 @@ type SSOFlowData = {
   selectedProductId: string | null;
   billingMethod?: string;
   priceId?: string;
+  referrer?: string;
 };
 
 type SubscriptionPlansProps = {
@@ -76,6 +77,7 @@ export function SubscriptionPlans({ ssoFlowData }: SubscriptionPlansProps) {
       const result = await createSubscriptionMutation.mutateAsync({
         json: {
           productId,
+          ...(ssoFlowData?.referrer && { referrer: ssoFlowData.referrer }),
         },
       });
 
@@ -89,7 +91,7 @@ export function SubscriptionPlans({ ssoFlowData }: SubscriptionPlansProps) {
       toast({ title: t('subscription.activationError') });
       console.error('Free subscription error:', error);
     }
-  }, [createSubscriptionMutation, t]);
+  }, [createSubscriptionMutation, t, ssoFlowData?.referrer]);
 
   const handlePlanSelect = (planId: string) => {
     const product = productList.find(p => p.id === planId);
@@ -121,6 +123,7 @@ export function SubscriptionPlans({ ssoFlowData }: SubscriptionPlansProps) {
           productId: selectedProductId,
           paymentMethod: 'direct-debit-contract',
           contractId,
+          ...(ssoFlowData?.referrer && { referrer: ssoFlowData.referrer }),
         },
       });
 

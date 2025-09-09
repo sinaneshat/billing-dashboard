@@ -79,7 +79,7 @@ export const ssoHandler: RouteHandler<typeof ssoRoute, ApiEnv> = createHandler(
     operationName: 'ssoAuth',
   },
   async (c) => {
-    const { supabase_jwt, product, price, billing } = c.validated.query;
+    const { supabase_jwt, product, price, billing, referrer } = c.validated.query;
 
     // Check if user is already authenticated
     const existingUser = c.get('user');
@@ -103,6 +103,8 @@ export const ssoHandler: RouteHandler<typeof ssoRoute, ApiEnv> = createHandler(
         params.set('price', price);
       if (billing)
         params.set('billing', billing);
+      if (referrer)
+        params.set('referrer', referrer);
 
       const redirectUrl = params.toString()
         ? `${baseUrl}/dashboard/billing/plans?${params.toString()}`
@@ -242,6 +244,8 @@ export const ssoHandler: RouteHandler<typeof ssoRoute, ApiEnv> = createHandler(
       params.set('price', price);
     if (billing)
       params.set('billing', billing);
+    if (referrer)
+      params.set('referrer', referrer);
 
     const redirectUrl = params.toString()
       ? `${baseUrl}/dashboard/billing/plans?${params.toString()}`
