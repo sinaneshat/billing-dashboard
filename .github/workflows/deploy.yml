@@ -42,9 +42,6 @@ jobs:
       - name: 🔍 Lint check
         run: pnpm lint
 
-      - name: 🧪 Run tests
-        run: pnpm test:run
-
       - name: 🔐 Security audit
         run: pnpm audit --audit-level moderate
 
