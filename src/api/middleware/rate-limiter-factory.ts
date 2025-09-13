@@ -124,13 +124,20 @@ function defaultKeyGenerator(c: Context<ApiEnv>): string {
   const session = c.get('session');
   const ip = c.req.header('cf-connecting-ip')
     || c.req.header('x-forwarded-for')
-    || 'unknown';
+    || c.req.header('x-real-ip')
+    || 'fallback';
 
   // Prefer user ID, fall back to session ID, then IP
   if (user?.id)
     return `user:${user.id}`;
   if (session?.userId)
     return `session:${session.userId}`;
+
+  // Only log warning if we couldn't get any IP at all
+  if (ip === 'fallback') {
+    console.warn('No IP address found for rate limiting, using fallback identifier');
+  }
+
   return `ip:${ip}`;
 }
 
@@ -140,7 +147,14 @@ function defaultKeyGenerator(c: Context<ApiEnv>): string {
 function ipKeyGenerator(c: Context<ApiEnv>): string {
   const ip = c.req.header('cf-connecting-ip')
     || c.req.header('x-forwarded-for')
-    || 'unknown';
+    || c.req.header('x-real-ip')
+    || 'fallback';
+
+  // Only log warning if we couldn't get any IP at all
+  if (ip === 'fallback') {
+    console.warn('No IP address found for rate limiting, using fallback identifier');
+  }
+
   return `ip:${ip}`;
 }
 

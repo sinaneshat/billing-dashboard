@@ -1,9 +1,11 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
+import { getCloudflareContext } from '@opennextjs/cloudflare';
 import Database from 'better-sqlite3';
 import { drizzle as drizzleBetter } from 'drizzle-orm/better-sqlite3';
 import { drizzle as drizzleD1 } from 'drizzle-orm/d1';
+import { cache } from 'react';
 
 import * as schema from './schema';
 
@@ -67,62 +69,71 @@ function initLocalDb() {
   return db;
 }
 
-/**
- * Initialize D1 database connection for production/preview
- */
-function initD1Db() {
-  if (!process.env.DB) {
-    throw new Error(
-      'D1 database binding not found. Ensure DB is configured in wrangler.jsonc',
-    );
-  }
+// Removed initD1Db - using drizzleD1 directly with official OpenNext.js patterns
 
-  return drizzleD1(process.env.DB as unknown as D1Database, {
-    schema,
-    logger: process.env.NODE_ENV !== 'production',
-  });
+/**
+ * Get D1 database binding using official OpenNext.js pattern
+ */
+function getD1Binding(): D1Database | null {
+  try {
+    const { env } = getCloudflareContext();
+    return env.DB || null;
+  } catch {
+    return null;
+  }
 }
 
-// Cached database instance
-let _db: ReturnType<typeof initLocalDb | typeof initD1Db> | null = null;
+/**
+ * Create database instance following official OpenNext.js patterns
+ * Uses React cache for optimal performance in server components
+ */
+export const getDb = cache(() => {
+  const { env } = getCloudflareContext();
+  return drizzleD1(env.DB, { schema });
+});
 
 /**
- * Get database instance with lazy initialization
- * - In development: Uses local SQLite file via better-sqlite3
- * - In production/preview: Uses Cloudflare D1
+ * Async version for static routes (ISR/SSG) following OpenNext.js patterns
  */
-function getDb() {
-  if (_db) {
-    return _db;
-  }
+export const getDbAsync = cache(async () => {
+  const { env } = await getCloudflareContext({ async: true });
+  return drizzleD1(env.DB, { schema });
+});
 
+/**
+ * Legacy database instance for backward compatibility
+ * Uses automatic environment detection
+ */
+function createDbInstance(): ReturnType<typeof drizzleD1<typeof schema>> | ReturnType<typeof drizzleBetter<typeof schema>> {
   const isLocal = process.env.NODE_ENV === 'development' || process.env.NEXT_PUBLIC_WEBAPP_ENV === 'local';
 
-  // If we have a D1 binding, use it (even in development with wrangler)
-  if (process.env.DB) {
-    _db = initD1Db();
-    return _db;
+  // Try to get D1 binding first (production/preview)
+  const d1Database = getD1Binding();
+  if (d1Database) {
+    return drizzleD1(d1Database, {
+      schema,
+      logger: process.env.NODE_ENV !== 'production',
+    });
   }
 
-  // Otherwise, use local SQLite in development
+  // Fall back to local SQLite in development
   if (isLocal) {
-    _db = initLocalDb();
-    return _db;
+    return initLocalDb();
   }
 
-  // In production without D1 binding, throw error
+  // In production without D1 binding, throw descriptive error
   throw new Error(
     'No database connection available. In production, D1 binding is required.',
   );
 }
 
 /**
- * Database instance with lazy initialization and performance optimizations
- * This prevents database connection during build time when bindings are not available
+ * Default database instance for backward compatibility
+ * Note: In production, prefer using getDb() or getDbAsync()
  */
-export const db = new Proxy({} as ReturnType<typeof getDb>, {
-  get(target, prop) {
-    const dbInstance = getDb();
+export const db = new Proxy({} as ReturnType<typeof createDbInstance>, {
+  get(_, prop) {
+    const dbInstance = createDbInstance();
     const value = dbInstance[prop as keyof typeof dbInstance];
 
     // Bind methods to the correct context
