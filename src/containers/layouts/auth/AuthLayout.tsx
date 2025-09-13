@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 
-import { Logo } from '@/components/logo-temp/index';
+import { Logo } from '@/components/logo/index';
 import { BRAND } from '@/constants/brand';
 
 type AuthLayoutProps = {
