@@ -236,6 +236,8 @@
         "NEXT_PUBLIC_CARD_VERIFICATION_AMOUNT": "1000",
         "NEXT_PUBLIC_CARD_VERIFICATION_DESCRIPTION": "Roundtable billing verification",
         "NEXT_PUBLIC_ROUNDTABLE_APP_URL": "https://roundtable.now",
+        "NEXT_PUBLIC_SUPABASE_URL": "https://zrldjcsfobgfagijwkwk.supabase.co",
+        "NEXT_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpybGRqY3Nmb2JnZmFnaWp3a3drIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDU1MTEyNjIsImV4cCI6MjA2MTA4NzI2Mn0.Znt3-5wV3gdr_Y2vH3Go9VmxTf8gYSVZD1usg5GJOow",
         "SUPABASE_URL": "https://zrldjcsfobgfagijwkwk.supabase.co",
         "ROUNDTABLE_SUPABASE_URL": "https://zrldjcsfobgfagijwkwk.supabase.co",
         "AUTH_GOOGLE_ID": "663775899954-cdv0rusfagdmnpabi8i7ofifpb8lm4uo.apps.googleusercontent.com",
