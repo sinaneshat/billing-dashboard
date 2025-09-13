@@ -14,6 +14,7 @@ import { and, eq } from 'drizzle-orm';
 import { createError } from '@/api/common/error-handling';
 import { createHandler, createHandlerWithTransaction, Responses } from '@/api/core';
 import type { SubscriptionMetadata } from '@/api/core/schemas';
+import { RoundtableIntegrationService } from '@/api/services/roundtable-integration';
 import { ZarinPalService } from '@/api/services/zarinpal';
 import type { ApiEnv } from '@/api/types';
 import { db } from '@/db';
@@ -40,7 +41,7 @@ import {
 
 /**
  * GET /subscriptions - Get user subscriptions
- * ✅ Refactored: Uses factory pattern + direct database access
+ * Refactored: Uses factory pattern + direct database access
  */
 export const getSubscriptionsHandler: RouteHandler<typeof getSubscriptionsRoute, ApiEnv> = createHandler(
   {
@@ -48,7 +49,10 @@ export const getSubscriptionsHandler: RouteHandler<typeof getSubscriptionsRoute,
     operationName: 'getSubscriptions',
   },
   async (c) => {
-    const user = c.get('user')!; // Guaranteed by auth: 'session'
+    const user = c.get('user');
+    if (!user) {
+      throw createError.unauthenticated('User authentication required');
+    }
     c.logger.info('Fetching subscriptions for user', { logType: 'operation', operationName: 'getSubscriptions', userId: user.id });
 
     // Direct database access for subscriptions
@@ -58,7 +62,7 @@ export const getSubscriptionsHandler: RouteHandler<typeof getSubscriptionsRoute,
     const subscriptionsWithProduct = await Promise.all(
       subscriptions.map(async (subscription) => {
         const productResults = await db.select().from(product).where(eq(product.id, subscription.productId)).limit(1);
-        const productRecord = productResults[0];
+        const productRecord = productResults[0] || null;
 
         return {
           ...subscription,
@@ -86,7 +90,7 @@ export const getSubscriptionsHandler: RouteHandler<typeof getSubscriptionsRoute,
 
 /**
  * GET /subscriptions/{id} - Get subscription by ID
- * ✅ Refactored: Uses factory pattern + direct database access
+ * Refactored: Uses factory pattern + direct database access
  */
 export const getSubscriptionHandler: RouteHandler<typeof getSubscriptionRoute, ApiEnv> = createHandler(
   {
@@ -95,7 +99,10 @@ export const getSubscriptionHandler: RouteHandler<typeof getSubscriptionRoute, A
     operationName: 'getSubscription',
   },
   async (c) => {
-    const user = c.get('user')!;
+    const user = c.get('user');
+    if (!user) {
+      throw createError.unauthenticated('User authentication required');
+    }
     const { id } = c.validated.params;
 
     c.logger.info('Fetching subscription', { logType: 'operation', operationName: 'getSubscription', userId: user.id, resource: id });
@@ -132,7 +139,7 @@ export const getSubscriptionHandler: RouteHandler<typeof getSubscriptionRoute, A
 
 /**
  * POST /subscriptions - Create new subscription
- * ✅ Refactored: Uses factory pattern + direct database access + transaction
+ * Refactored: Uses factory pattern + direct database access + transaction
  */
 export const createSubscriptionHandler: RouteHandler<typeof createSubscriptionRoute, ApiEnv> = createHandlerWithTransaction(
   {
@@ -141,7 +148,10 @@ export const createSubscriptionHandler: RouteHandler<typeof createSubscriptionRo
     operationName: 'createSubscription',
   },
   async (c, tx) => {
-    const user = c.get('user')!;
+    const user = c.get('user');
+    if (!user) {
+      throw createError.unauthenticated('User authentication required');
+    }
     const { productId, paymentMethod, contractId, enableAutoRenew, callbackUrl, referrer } = c.validated.body;
 
     c.logger.info('Creating subscription', {
@@ -151,22 +161,22 @@ export const createSubscriptionHandler: RouteHandler<typeof createSubscriptionRo
       resource: productId,
     });
 
-    // Validate product exists and is active
-    const productResults = await db.select().from(product).where(eq(product.id, productId)).limit(1);
-    const productRecord = productResults[0];
+    // Validate product exists and is active - use transaction for consistency
+    const productResults = await tx.select().from(product).where(eq(product.id, productId)).limit(1);
+    const productRecord = productResults[0] || null;
 
     if (!productRecord || !productRecord.isActive) {
       c.logger.warn('Product not found or inactive', { logType: 'operation', operationName: 'createSubscription', resource: productId });
       throw createError.notFound('Product not found or is not available');
     }
 
-    // Check if user already has an active subscription to this product
-    const existingSubscriptionResults = await db.select().from(subscription).where(and(
+    // Check if user already has an active subscription to this product - use transaction
+    const existingSubscriptionResults = await tx.select().from(subscription).where(and(
       eq(subscription.userId, user.id),
       eq(subscription.productId, productId),
       eq(subscription.status, 'active'),
     )).limit(1);
-    const existingSubscriptionRecord = existingSubscriptionResults[0];
+    const existingSubscriptionRecord = existingSubscriptionResults[0] || null;
 
     if (existingSubscriptionRecord) {
       c.logger.warn('User already has active subscription', {
@@ -186,13 +196,13 @@ export const createSubscriptionHandler: RouteHandler<typeof createSubscriptionRo
         throw createError.internal('Contract ID is required for direct debit subscriptions');
       }
 
-      // Validate contract exists and is active
-      const paymentMethodResults = await db.select().from(paymentMethodTable).where(eq(paymentMethodTable.contractSignature, contractId)).limit(1);
-      paymentMethodRecord = paymentMethodResults[0];
+      // Validate contract exists and is active - use transaction
+      const paymentMethodResults = await tx.select().from(paymentMethodTable).where(eq(paymentMethodTable.contractSignature, contractId)).limit(1);
+      paymentMethodRecord = paymentMethodResults[0] || null;
 
       if (!paymentMethodRecord || paymentMethodRecord.userId !== user.id || paymentMethodRecord.contractStatus !== 'active') {
         c.logger.warn('Invalid or inactive payment contract', { logType: 'operation', operationName: 'createSubscription', userId: user.id, resource: contractId });
-        throw createError.internal('Invalid or inactive payment contract');
+        throw createError.paymentMethodInvalid('Invalid or inactive payment contract');
       }
 
       c.logger.info('Using direct debit contract', { logType: 'operation', operationName: 'createSubscription', resource: contractId });
@@ -219,7 +229,7 @@ export const createSubscriptionHandler: RouteHandler<typeof createSubscriptionRo
       await tx.insert(subscription).values(subscriptionData);
       const newSubscriptionId = subscriptionData.id;
 
-      // Log subscription creation event
+      // Log subscription creation event - use transaction
       await tx.insert(billingEvent).values({
         id: crypto.randomUUID(),
         userId: user.id,
@@ -239,6 +249,35 @@ export const createSubscriptionHandler: RouteHandler<typeof createSubscriptionRo
         createdAt: new Date(),
         updatedAt: new Date(),
       });
+
+      // Update Roundtable database with new subscription
+      try {
+        const roundtableService = RoundtableIntegrationService.create(c.env);
+        await roundtableService.updateUserSubscription({
+          userId: user.id,
+          planId: productRecord.id,
+          subscriptionId: newSubscriptionId,
+          paymentId: crypto.randomUUID(), // Generate payment ID for tracking
+          amount: productRecord.price,
+          currency: 'USD',
+          isActive: true,
+          startsAt: subscriptionData.startDate.toISOString(),
+          endsAt: subscriptionData.nextBillingDate?.toISOString(),
+        });
+
+        c.logger.info('Roundtable database updated successfully for direct debit subscription', {
+          logType: 'operation',
+          operationName: 'createSubscription',
+          resource: newSubscriptionId,
+        });
+      } catch (roundtableError) {
+        c.logger.error('Failed to update Roundtable database', roundtableError instanceof Error ? roundtableError : new Error(String(roundtableError)), {
+          logType: 'operation',
+          operationName: 'createSubscription',
+          resource: newSubscriptionId,
+        });
+        // Continue with response even if Roundtable update fails
+      }
 
       c.logger.info('Direct debit subscription created successfully', {
         logType: 'operation',
@@ -305,7 +344,7 @@ export const createSubscriptionHandler: RouteHandler<typeof createSubscriptionRo
       const paymentResponse = await zarinPal.requestPayment({
         amount: amountInRials,
         currency: 'IRR',
-        description: `Subscription to ${product.name}`,
+        description: `Subscription to ${productRecord.name}`,
         callbackUrl,
         metadata: {
           subscriptionId: newSubscriptionId,
@@ -324,7 +363,7 @@ export const createSubscriptionHandler: RouteHandler<typeof createSubscriptionRo
         throw createError.zarinpal('Failed to initiate payment');
       }
 
-      // Update payment with ZarinPal authority
+      // Update payment with ZarinPal authority - use transaction
       await tx.update(payment)
         .set({
           zarinpalAuthority: paymentResponse.data.authority,
@@ -332,7 +371,7 @@ export const createSubscriptionHandler: RouteHandler<typeof createSubscriptionRo
         })
         .where(eq(payment.id, paymentRecordId));
 
-      // Log subscription creation event
+      // Log subscription creation event - use transaction
       await tx.insert(billingEvent).values({
         id: crypto.randomUUID(),
         userId: user.id,
@@ -375,17 +414,20 @@ export const createSubscriptionHandler: RouteHandler<typeof createSubscriptionRo
 
 /**
  * PATCH /subscriptions/{id}/cancel - Cancel subscription
- * ✅ Refactored: Uses factory pattern + direct database access + transaction
+ * Refactored: Uses factory pattern + direct database access + transaction
  */
-export const cancelSubscriptionHandler: RouteHandler<typeof cancelSubscriptionRoute, ApiEnv> = createHandlerWithTransaction(
+export const cancelSubscriptionHandler: RouteHandler<typeof cancelSubscriptionRoute, ApiEnv> = createHandler(
   {
     auth: 'session',
     validateParams: SubscriptionParamsSchema,
     validateBody: CancelSubscriptionRequestSchema,
     operationName: 'cancelSubscription',
   },
-  async (c, tx) => {
-    const user = c.get('user')!;
+  async (c) => {
+    const user = c.get('user');
+    if (!user) {
+      throw createError.unauthenticated('User authentication required');
+    }
     const { id } = c.validated.params;
     const { reason } = c.validated.body;
 
@@ -397,7 +439,7 @@ export const cancelSubscriptionHandler: RouteHandler<typeof cancelSubscriptionRo
     });
 
     const subscriptionResults = await db.select().from(subscription).where(eq(subscription.id, id)).limit(1);
-    const subscriptionRecord = subscriptionResults[0];
+    const subscriptionRecord = subscriptionResults[0] || null;
 
     if (!subscriptionRecord || subscriptionRecord.userId !== user.id) {
       c.logger.warn('Subscription not found for cancellation', { logType: 'operation', operationName: 'cancelSubscription', userId: user.id, resource: id });
@@ -416,7 +458,7 @@ export const cancelSubscriptionHandler: RouteHandler<typeof cancelSubscriptionRo
     const canceledAt = new Date();
 
     // Update subscription status
-    await tx.update(subscription)
+    await db.update(subscription)
       .set({
         status: 'canceled',
         endDate: canceledAt,
@@ -427,7 +469,7 @@ export const cancelSubscriptionHandler: RouteHandler<typeof cancelSubscriptionRo
       .where(eq(subscription.id, id));
 
     // Log cancellation event
-    await tx.insert(billingEvent).values({
+    await db.insert(billingEvent).values({
       id: crypto.randomUUID(),
       userId: user.id,
       subscriptionId: id,
@@ -444,6 +486,25 @@ export const cancelSubscriptionHandler: RouteHandler<typeof cancelSubscriptionRo
       updatedAt: new Date(),
     });
 
+    // Update Roundtable database to cancel subscription
+    try {
+      const roundtableService = RoundtableIntegrationService.create(c.env);
+      await roundtableService.cancelUserSubscription(user.id);
+
+      c.logger.info('Roundtable database updated successfully for subscription cancellation', {
+        logType: 'operation',
+        operationName: 'cancelSubscription',
+        resource: id,
+      });
+    } catch (roundtableError) {
+      c.logger.error('Failed to update Roundtable database for cancellation', roundtableError instanceof Error ? roundtableError : new Error(String(roundtableError)), {
+        logType: 'operation',
+        operationName: 'cancelSubscription',
+        resource: id,
+      });
+      // Continue with response even if Roundtable update fails
+    }
+
     c.logger.info('Subscription canceled successfully', { logType: 'operation', operationName: 'cancelSubscription', resource: id });
 
     return Responses.ok(c, {
@@ -456,17 +517,20 @@ export const cancelSubscriptionHandler: RouteHandler<typeof cancelSubscriptionRo
 
 /**
  * POST /subscriptions/{id}/resubscribe - Resubscribe to canceled subscription
- * ✅ Refactored: Uses factory pattern + direct database access + transaction
+ * Refactored: Uses factory pattern + direct database access + transaction
  */
-export const resubscribeHandler: RouteHandler<typeof resubscribeRoute, ApiEnv> = createHandlerWithTransaction(
+export const resubscribeHandler: RouteHandler<typeof resubscribeRoute, ApiEnv> = createHandler(
   {
     auth: 'session',
     validateParams: SubscriptionParamsSchema,
     validateBody: CreateSubscriptionRequestSchema.pick({ callbackUrl: true, referrer: true }),
     operationName: 'resubscribe',
   },
-  async (c, tx) => {
-    const user = c.get('user')!;
+  async (c) => {
+    const user = c.get('user');
+    if (!user) {
+      throw createError.unauthenticated('User authentication required');
+    }
     const { id } = c.validated.params;
     const { callbackUrl, referrer } = c.validated.body;
 
@@ -478,7 +542,7 @@ export const resubscribeHandler: RouteHandler<typeof resubscribeRoute, ApiEnv> =
     });
 
     const subscriptionResults = await db.select().from(subscription).where(eq(subscription.id, id)).limit(1);
-    const subscriptionRecord = subscriptionResults[0];
+    const subscriptionRecord = subscriptionResults[0] || null;
 
     if (!subscriptionRecord || subscriptionRecord.userId !== user.id) {
       c.logger.warn('Subscription not found for resubscription', { logType: 'operation', operationName: 'resubscribe', userId: user.id, resource: id });
@@ -496,7 +560,7 @@ export const resubscribeHandler: RouteHandler<typeof resubscribeRoute, ApiEnv> =
 
     // Get product details
     const productResults = await db.select().from(product).where(eq(product.id, subscriptionRecord.productId)).limit(1);
-    const productRecord = productResults[0];
+    const productRecord = productResults[0] || null;
 
     if (!productRecord || !productRecord.isActive) {
       c.logger.warn('Product no longer available for resubscription', {
@@ -526,7 +590,7 @@ export const resubscribeHandler: RouteHandler<typeof resubscribeRoute, ApiEnv> =
       updatedAt: new Date(),
     };
 
-    await tx.insert(payment).values(paymentData);
+    await db.insert(payment).values(paymentData);
     const paymentRecordId = paymentData.id;
 
     // Validate callback URL is provided
@@ -560,7 +624,7 @@ export const resubscribeHandler: RouteHandler<typeof resubscribeRoute, ApiEnv> =
     }
 
     // Update payment with ZarinPal authority
-    await tx.update(payment)
+    await db.update(payment)
       .set({
         zarinpalAuthority: paymentResponse.data.authority,
         updatedAt: new Date(),
@@ -568,7 +632,7 @@ export const resubscribeHandler: RouteHandler<typeof resubscribeRoute, ApiEnv> =
       .where(eq(payment.id, paymentRecordId));
 
     // Update subscription to pending (will be activated on payment completion)
-    await tx.update(subscription)
+    await db.update(subscription)
       .set({
         status: 'pending',
         endDate: null,
@@ -578,7 +642,7 @@ export const resubscribeHandler: RouteHandler<typeof resubscribeRoute, ApiEnv> =
       .where(eq(subscription.id, id));
 
     // Log resubscription event
-    await tx.insert(billingEvent).values({
+    await db.insert(billingEvent).values({
       id: crypto.randomUUID(),
       userId: user.id,
       subscriptionId: id,
@@ -614,17 +678,20 @@ export const resubscribeHandler: RouteHandler<typeof resubscribeRoute, ApiEnv> =
 
 /**
  * POST /subscriptions/{id}/change-plan - Change subscription plan
- * ✅ Refactored: Uses factory pattern + direct database access + transaction
+ * Refactored: Uses factory pattern + direct database access + transaction
  */
-export const changePlanHandler: RouteHandler<typeof changePlanRoute, ApiEnv> = createHandlerWithTransaction(
+export const changePlanHandler: RouteHandler<typeof changePlanRoute, ApiEnv> = createHandler(
   {
     auth: 'session',
     validateParams: SubscriptionParamsSchema,
     validateBody: ChangePlanRequestSchema,
     operationName: 'changePlan',
   },
-  async (c, tx) => {
-    const user = c.get('user')!;
+  async (c) => {
+    const user = c.get('user');
+    if (!user) {
+      throw createError.unauthenticated('User authentication required');
+    }
     const { id } = c.validated.params;
     const { newProductId, callbackUrl, effectiveDate, referrer } = c.validated.body;
 
@@ -636,7 +703,7 @@ export const changePlanHandler: RouteHandler<typeof changePlanRoute, ApiEnv> = c
     });
 
     const subscriptionResults = await db.select().from(subscription).where(eq(subscription.id, id)).limit(1);
-    const subscriptionRecord = subscriptionResults[0];
+    const subscriptionRecord = subscriptionResults[0] || null;
 
     if (!subscriptionRecord || subscriptionRecord.userId !== user.id) {
       c.logger.warn('Subscription not found for plan change', { logType: 'operation', operationName: 'changePlan', userId: user.id, resource: id });
@@ -657,8 +724,8 @@ export const changePlanHandler: RouteHandler<typeof changePlanRoute, ApiEnv> = c
       db.select().from(product).where(eq(product.id, subscriptionRecord.productId)).limit(1),
       db.select().from(product).where(eq(product.id, newProductId)).limit(1),
     ]);
-    const currentProduct = currentProductResults[0];
-    const newProduct = newProductResults[0];
+    const currentProduct = currentProductResults[0] || null;
+    const newProduct = newProductResults[0] || null;
 
     if (!currentProduct || !newProduct || !newProduct.isActive) {
       c.logger.warn('Products not found for plan change', {
@@ -712,7 +779,7 @@ export const changePlanHandler: RouteHandler<typeof changePlanRoute, ApiEnv> = c
           updatedAt: new Date(),
         };
 
-        await tx.insert(payment).values(paymentData);
+        await db.insert(payment).values(paymentData);
         const paymentRecordId = paymentData.id;
 
         // Request payment from ZarinPal
@@ -742,7 +809,7 @@ export const changePlanHandler: RouteHandler<typeof changePlanRoute, ApiEnv> = c
           throw createError.zarinpal('Failed to initiate payment for plan change');
         }
 
-        await tx.update(payment)
+        await db.update(payment)
           .set({
             zarinpalAuthority: paymentResponse.data.authority,
             updatedAt: new Date(),
@@ -762,7 +829,7 @@ export const changePlanHandler: RouteHandler<typeof changePlanRoute, ApiEnv> = c
 
     // Update subscription (either immediately or mark for next billing cycle)
     if (effectiveDate === 'immediate') {
-      await tx.update(subscription)
+      await db.update(subscription)
         .set({
           productId: newProduct.id,
           currentPrice: newProduct.price,
@@ -782,7 +849,7 @@ export const changePlanHandler: RouteHandler<typeof changePlanRoute, ApiEnv> = c
         changeType: priceDifference > 0 ? 'upgrade' : priceDifference < 0 ? 'downgrade' : 'lateral',
       };
 
-      await tx.update(subscription)
+      await db.update(subscription)
         .set({
           metadata: planChangeMetadata,
           updatedAt: new Date(),
@@ -791,7 +858,7 @@ export const changePlanHandler: RouteHandler<typeof changePlanRoute, ApiEnv> = c
     }
 
     // Log plan change event
-    await tx.insert(billingEvent).values({
+    await db.insert(billingEvent).values({
       id: crypto.randomUUID(),
       userId: user.id,
       subscriptionId: id,

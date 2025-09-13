@@ -1,62 +1,43 @@
 import type { RouteHandler } from '@hono/zod-openapi';
 import { eq } from 'drizzle-orm';
 
-// import * as HttpStatusCodes from 'stoker/http-status-codes'; // Unused
 import { createHandler, Responses } from '@/api/core';
 import { createCurrencyExchangeService } from '@/api/services/currency-exchange';
 import type { ApiEnv } from '@/api/types';
-import type { ProductMetadata } from '@/api/types/metadata';
 import { db } from '@/db';
 import { product } from '@/db/tables/billing';
 
 import type { getProductsRoute } from './route';
 
 /**
- * Handler for GET /products endpoint
- * Returns all active products with live Rial pricing for ZarinPal compatibility
- * Database stores USD prices, API converts to Iranian Rials
- * Using factory pattern for consistent authentication and error handling
+ * Products handler with Iranian currency conversion
  */
 export const getProductsHandler: RouteHandler<typeof getProductsRoute, ApiEnv> = createHandler(
   {
+    auth: 'public',
     operationName: 'getProducts',
   },
   async (c) => {
-    // Create currency exchange service instance
-    const currencyService = createCurrencyExchangeService(c.env);
-
-    // Get raw products from database (stored in USD) using direct DB access
+    // Get products from database (prices stored in USD)
     const rawProducts = await db.select().from(product).where(eq(product.isActive, true));
 
-    // Convert USD prices to Iranian Rials for ZarinPal compatibility
-    const enhancedProducts = await Promise.all(
+    // Convert USD prices to Iranian currency
+    const currencyService = createCurrencyExchangeService(c.env);
+    const productsWithTomanPricing = await Promise.all(
       rawProducts.map(async (prod) => {
-        const metadata = prod.metadata as ProductMetadata;
-        const usdPrice = prod.price; // Database stores USD prices
-
-        // Get fresh USD to IRR conversion for accurate pricing
-        const conversion = await currencyService.convertUsdToToman(usdPrice);
-
-        const pricingInfo = {
-          usdPrice: conversion.usdPrice,
-          rialPrice: conversion.rialPrice, // For ZarinPal payments
-          tomanPrice: conversion.tomanPrice, // For display to users
-          formattedPrice: conversion.formattedPrice,
-          exchangeRate: conversion.exchangeRate,
-          lastUpdated: conversion.lastUpdated,
-        };
+        // Convert USD to Toman for each product
+        const conversion = await currencyService.convertUsdToToman(prod.price);
 
         return {
           ...prod,
-          price: pricingInfo.rialPrice, // Return Rial price for ZarinPal compatibility
-          metadata: {
-            ...metadata,
-            pricing: pricingInfo,
-          },
+          price: conversion.tomanPrice, // Return Toman price for display
+          originalUsdPrice: prod.price, // Keep original USD for reference
+          exchangeRate: conversion.exchangeRate,
+          formattedPrice: conversion.formattedPrice,
         };
       }),
     );
 
-    return Responses.ok(c, enhancedProducts);
+    return Responses.ok(c, productsWithTomanPricing);
   },
 );

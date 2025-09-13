@@ -1,42 +1,92 @@
 /**
- * Monthly Billing Cron Job Handler
+ * Monthly Billing Cron Job Handler - Cloudflare Workers Optimized
  * Processes recurring subscriptions with ZarinPal Direct Debit
- * Runs monthly to charge active subscriptions
+ * Optimized for D1 batch operations and Cloudflare Workers limits
  */
 
 import { and, eq, isNull, lte } from 'drizzle-orm';
 
 import { parseMetadata } from '@/api/common/metadata-utils';
-import { getNumberFromMetadata } from '@/api/common/type-utils';
 import { apiLogger } from '@/api/middleware/hono-logger';
+import { CurrencyExchangeService } from '@/api/services/currency-exchange';
 import { ZarinPalService } from '@/api/services/zarinpal';
+import { ZarinPalDirectDebitService } from '@/api/services/zarinpal-direct-debit';
 import type { ApiEnv } from '@/api/types';
 import { db } from '@/db';
-import { payment, subscription } from '@/db/tables/billing';
+import { payment, paymentMethod, subscription } from '@/db/tables/billing';
 
 type BillingResult = {
   processed: number;
   successful: number;
   failed: number;
   errors: string[];
+  chunksProcessed: number;
+  timeoutReached: boolean;
 };
+
+type PaymentRecord = {
+  id: string;
+  status: string;
+  retryCount?: number;
+  maxRetries?: number;
+  createdAt?: Date;
+};
+
+type BatchResult = {
+  results: PaymentRecord[];
+};
+
+// Cloudflare Workers limits - following official documentation
+const WORKER_TIMEOUT_MS = 28000; // 28s to allow for cleanup before 30s limit
+const MAX_BATCH_SIZE = 25; // D1 batch limit per operation
+const CHUNK_SIZE = 10; // Process subscriptions in chunks to avoid memory issues
+
+// Helper to check if we're using D1 (production) vs BetterSQLite3 (development)
+function supportsDbBatch(): boolean {
+  return typeof (db as unknown as { batch?: unknown }).batch === 'function';
+}
+
+/**
+ * Execute multiple database operations efficiently
+ * Uses batch for D1 (production) or transaction for BetterSQLite3 (development)
+ */
+async function executeDatabaseOperations(operations: unknown[]) {
+  if (operations.length === 0) {
+    return;
+  }
+
+  if (supportsDbBatch()) {
+    // Use batch operations for D1 (production)
+    await (db as unknown as { batch: (ops: unknown[]) => Promise<unknown> }).batch(operations);
+  } else {
+    // Use transaction for BetterSQLite3 (development)
+    await db.transaction(async (_tx) => {
+      for (const operation of operations) {
+        await operation;
+      }
+    });
+  }
+}
 
 /**
  * Process monthly billing for all due subscriptions
  * This function is called by the Cloudflare cron trigger
  */
-export async function processMonthlyBilling(env: ApiEnv): Promise<BillingResult> {
+export async function processMonthlyBilling(env: ApiEnv['Bindings']): Promise<BillingResult> {
+  const startTime = Date.now();
   const result: BillingResult = {
     processed: 0,
     successful: 0,
     failed: 0,
     errors: [],
+    chunksProcessed: 0,
+    timeoutReached: false,
   };
 
   apiLogger.info('Starting monthly billing process', { component: 'monthly-billing' });
 
   try {
-    // Get all active monthly subscriptions that are due for billing
+    // Get active monthly subscriptions due for billing - optimized for D1
     const currentDate = new Date();
     const dueSubscriptions = await db
       .select()
@@ -45,10 +95,11 @@ export async function processMonthlyBilling(env: ApiEnv): Promise<BillingResult>
         and(
           eq(subscription.status, 'active'),
           eq(subscription.billingPeriod, 'monthly'),
-          lte(subscription.nextBillingDate!, currentDate), // Due for billing
-          isNull(subscription.endDate), // Not canceled
+          lte(subscription.nextBillingDate, currentDate),
+          isNull(subscription.endDate),
         ),
-      );
+      )
+      .limit(1000); // Limit to prevent memory issues
 
     apiLogger.info('Found subscriptions due for billing', {
       count: dueSubscriptions.length,
@@ -56,28 +107,58 @@ export async function processMonthlyBilling(env: ApiEnv): Promise<BillingResult>
     });
 
     if (dueSubscriptions.length === 0) {
+      apiLogger.info('No subscriptions due for billing', { component: 'monthly-billing' });
       return result;
     }
 
-    const zarinPal = ZarinPalService.create(env.Bindings);
+    // Process subscriptions in chunks to respect Cloudflare Workers limits
+    const chunks = [];
+    for (let i = 0; i < dueSubscriptions.length; i += CHUNK_SIZE) {
+      chunks.push(dueSubscriptions.slice(i, i + CHUNK_SIZE));
+    }
 
-    // Process each subscription
-    for (const sub of dueSubscriptions) {
-      result.processed++;
+    apiLogger.info('Processing subscriptions in chunks', {
+      totalSubscriptions: dueSubscriptions.length,
+      totalChunks: chunks.length,
+      chunkSize: CHUNK_SIZE,
+      component: 'monthly-billing',
+    });
+
+    // Process each chunk with timeout monitoring
+    for (const [chunkIndex, chunk] of chunks.entries()) {
+      // Check timeout before processing each chunk
+      if (Date.now() - startTime > WORKER_TIMEOUT_MS) {
+        result.timeoutReached = true;
+        apiLogger.warn('Worker timeout approaching, stopping processing', {
+          processedChunks: chunkIndex,
+          totalChunks: chunks.length,
+          elapsedMs: Date.now() - startTime,
+          component: 'monthly-billing',
+        });
+        break;
+      }
 
       try {
-        await processSingleSubscription(sub, zarinPal, result);
+        await processSubscriptionChunk(chunk, env, result);
+        result.chunksProcessed++;
       } catch (error) {
-        result.failed++;
-        const errorMessage = `Subscription ${sub.id} failed: ${error instanceof Error ? error.message : 'Unknown error'}`;
+        const errorMessage = `Chunk ${chunkIndex} failed: ${error instanceof Error ? error.message : 'Unknown error'}`;
         result.errors.push(errorMessage);
-        apiLogger.error('Billing process error', {
+        apiLogger.error('Chunk processing error', {
+          chunkIndex,
           error: errorMessage,
           component: 'monthly-billing',
         });
+      }
 
-        // Update subscription with failed billing attempt
-        await handleSubscriptionBillingFailure(sub.id, errorMessage);
+      // Circuit breaker: stop if too many failures
+      if (result.failed > result.successful && result.processed > 20) {
+        apiLogger.error('Too many failures, stopping processing', {
+          failed: result.failed,
+          successful: result.successful,
+          component: 'monthly-billing',
+        });
+        break;
       }
     }
 
@@ -98,44 +179,148 @@ export async function processMonthlyBilling(env: ApiEnv): Promise<BillingResult>
 }
 
 /**
+ * Process a chunk of subscriptions using database operations
+ */
+async function processSubscriptionChunk(
+  subscriptions: Array<typeof subscription.$inferSelect>,
+  env: ApiEnv['Bindings'],
+  result: BillingResult,
+) {
+  const processingResults: Array<{ subscription: typeof subscription.$inferSelect; success: boolean; error?: string }> = [];
+
+  for (const sub of subscriptions) {
+    result.processed++;
+
+    try {
+      await processSingleSubscription(sub, env, result);
+      processingResults.push({ subscription: sub, success: true });
+    } catch (error) {
+      result.failed++;
+      const errorMessage = `Subscription ${sub.id} failed: ${error instanceof Error ? error.message : 'Unknown error'}`;
+      result.errors.push(errorMessage);
+      processingResults.push({ subscription: sub, success: false, error: errorMessage });
+
+      apiLogger.error('Billing process error', {
+        subscriptionId: sub.id,
+        error: errorMessage,
+        component: 'monthly-billing',
+      });
+    }
+  }
+
+  // Update failed subscriptions using appropriate database pattern
+  const failedUpdates = processingResults
+    .filter(r => !r.success)
+    .map((r) => {
+      return db
+        .update(subscription)
+        .set({
+          metadata: {
+            ...parseMetadata(r.subscription.metadata),
+            lastBillingError: r.error,
+            lastBillingErrorAt: new Date().toISOString(),
+          },
+          updatedAt: new Date(),
+        })
+        .where(eq(subscription.id, r.subscription.id));
+    });
+
+  if (failedUpdates.length > 0 && failedUpdates.length <= MAX_BATCH_SIZE) {
+    try {
+      await executeDatabaseOperations(failedUpdates);
+    } catch (batchError) {
+      apiLogger.error('Failed to update failed subscriptions', {
+        error: batchError,
+        count: failedUpdates.length,
+        component: 'monthly-billing',
+      });
+    }
+  }
+}
+
+/**
  * Process billing for a single subscription
  */
 async function processSingleSubscription(
   sub: typeof subscription.$inferSelect,
-  zarinPal: ZarinPalService,
+  env: ApiEnv['Bindings'],
   result: BillingResult,
 ) {
-  // Check if subscription has direct debit token
+  // Find the active direct debit contract for this subscription
   if (!sub.directDebitContractId) {
-    throw new Error('No direct debit token available');
+    throw new Error('No direct debit contract available');
   }
 
-  // Check for existing pending payment for this subscription
-  const existingPendingPayments = await db
+  // Get the payment method record with contract signature - optimized query
+  const contractRecord = await db
     .select()
-    .from(payment)
+    .from(paymentMethod)
     .where(
       and(
-        eq(payment.subscriptionId, sub.id),
-        eq(payment.status, 'pending'),
+        eq(paymentMethod.userId, sub.userId),
+        eq(paymentMethod.contractSignature, sub.directDebitContractId),
+        eq(paymentMethod.isActive, true),
+        eq(paymentMethod.contractType, 'direct_debit_contract'),
       ),
-    );
+    )
+    .limit(1);
+
+  if (!contractRecord.length || !contractRecord[0]) {
+    throw new Error('Active direct debit contract not found');
+  }
+
+  const contract = contractRecord[0];
+  if (!contract.contractSignature) {
+    throw new Error('Contract signature is missing');
+  }
+
+  // Query for payment status checks - handle both database types
+  let existingPendingPayments: PaymentRecord[];
+  let failedPaymentsToday: PaymentRecord[];
+
+  if (supportsDbBatch()) {
+    // Use batch for D1 (production)
+    const paymentChecks = await (db as unknown as { batch: (ops: unknown[]) => Promise<BatchResult[]> }).batch([
+      db.select().from(payment).where(
+        and(
+          eq(payment.subscriptionId, sub.id),
+          eq(payment.status, 'pending'),
+        ),
+      ).limit(1),
+      db.select().from(payment).where(
+        and(
+          eq(payment.subscriptionId, sub.id),
+          eq(payment.status, 'failed'),
+          lte(payment.nextRetryAt, new Date()),
+        ),
+      ),
+    ]);
+    existingPendingPayments = paymentChecks[0]?.results || [];
+    failedPaymentsToday = paymentChecks[1]?.results || [];
+  } else {
+    // Use Promise.all for BetterSQLite3 (development)
+    const paymentChecks = await Promise.all([
+      db.select().from(payment).where(
+        and(
+          eq(payment.subscriptionId, sub.id),
+          eq(payment.status, 'pending'),
+        ),
+      ).limit(1),
+      db.select().from(payment).where(
+        and(
+          eq(payment.subscriptionId, sub.id),
+          eq(payment.status, 'failed'),
+          lte(payment.nextRetryAt, new Date()),
+        ),
+      ),
+    ]);
+    existingPendingPayments = paymentChecks[0];
+    failedPaymentsToday = paymentChecks[1];
+  }
 
   if (existingPendingPayments.length > 0) {
     throw new Error('Pending payment already exists');
   }
-
-  // Check retry count for failed payments
-  const failedPaymentsToday = await db
-    .select()
-    .from(payment)
-    .where(
-      and(
-        eq(payment.subscriptionId, sub.id),
-        eq(payment.status, 'failed'),
-        lte(payment.nextRetryAt!, new Date()),
-      ),
-    );
 
   // Determine retry count
   let retryCount = 0;
@@ -143,181 +328,238 @@ async function processSingleSubscription(
 
   if (failedPaymentsToday.length > 0) {
     // Use the most recent failed payment for retry logic
-    existingFailedPayment = failedPaymentsToday.sort((a, b) =>
+    const sortedPayments = failedPaymentsToday.sort((a, b) =>
       (b.createdAt?.getTime() || 0) - (a.createdAt?.getTime() || 0),
-    )[0]!;
+    );
+    const mostRecentPayment = sortedPayments[0] as PaymentRecord;
+    if (!mostRecentPayment) {
+      throw new Error('Failed payment not found after sorting');
+    }
+    existingFailedPayment = mostRecentPayment;
     retryCount = existingFailedPayment.retryCount || 0;
 
     if (retryCount >= (existingFailedPayment.maxRetries || 3)) {
       // Max retries reached, suspend subscription
-      await db
+      const suspendOperation = db
         .update(subscription)
         .set({
           status: 'expired',
           endDate: new Date(),
+          updatedAt: new Date(),
         })
         .where(eq(subscription.id, sub.id));
 
-      throw new Error(`Max retries (${existingFailedPayment.maxRetries}) reached, subscription suspended`);
+      await executeDatabaseOperations([suspendOperation]);
+      throw new Error(`Max retries (${existingFailedPayment.maxRetries || 3}) reached, subscription suspended`);
     }
   }
 
-  // Create payment record
+  // Convert USD to IRR using centralized service
+  const currencyService = CurrencyExchangeService.create(env);
+  const exchangeResult = await currencyService.convertUsdToToman(sub.currentPrice);
+  const exchangeRate = exchangeResult.exchangeRate;
+
+  // Use the converted amount from the service
+  const irrAmount = exchangeResult.tomanPrice;
+
+  apiLogger.info('Currency conversion for billing', {
+    subscriptionId: sub.id,
+    originalUsdPrice: sub.currentPrice,
+    convertedIrrAmount: irrAmount,
+    exchangeRate,
+    component: 'monthly-billing',
+  });
+
+  // Create payment record with converted amount
   const paymentId = crypto.randomUUID();
+  const now = new Date();
   const paymentRecord = {
     id: paymentId,
     userId: sub.userId,
     subscriptionId: sub.id,
     productId: sub.productId,
-    amount: sub.currentPrice,
+    amount: irrAmount, // Store converted IRR amount
     status: 'pending' as const,
-    paymentMethod: 'zarinpal',
+    paymentMethod: 'zarinpal_direct_debit',
     zarinpalDirectDebitUsed: true,
     retryCount,
     maxRetries: 3,
+    createdAt: now,
+    updatedAt: now,
+    metadata: {
+      originalUsdAmount: sub.currentPrice,
+      exchangeRate,
+      conversionTimestamp: now.toISOString(),
+      billingCycle: 'monthly',
+      isAutomaticBilling: true,
+      directDebitContractId: contract.id,
+    },
   };
 
+  // Handle payment record creation/update
+  const paymentOperations = [];
   if (existingFailedPayment) {
     // Update existing payment record for retry
-    await db
-      .update(payment)
-      .set({
-        ...paymentRecord,
-        retryCount: retryCount + 1,
-        nextRetryAt: null, // Clear retry timestamp
-      })
-      .where(eq(payment.id, existingFailedPayment.id));
+    paymentOperations.push(
+      db.update(payment)
+        .set({
+          ...paymentRecord,
+          retryCount: retryCount + 1,
+          nextRetryAt: null,
+        })
+        .where(eq(payment.id, (existingFailedPayment as PaymentRecord & { id: string }).id)),
+    );
   } else {
     // Create new payment record
-    await db.insert(payment).values(paymentRecord);
+    paymentOperations.push(db.insert(payment).values(paymentRecord));
   }
 
+  await executeDatabaseOperations(paymentOperations);
+
   try {
-    // Process Direct Debit payment with ZarinPal
-    const directDebitResult = await zarinPal.directDebitPayment({
-      amount: sub.currentPrice,
-      currency: 'IRR' as const,
-      description: `Monthly subscription billing - ${new Date().toLocaleDateString('en-US')}`,
-      card_hash: sub.directDebitContractId,
+    // Create ZarinPal payment request first
+    const zarinPal = ZarinPalService.create(env);
+    const paymentRequest = await zarinPal.requestPayment({
+      amount: irrAmount, // Use converted IRR amount
+      currency: 'IRR',
+      description: `Monthly subscription billing - ${new Date().toLocaleDateString('fa-IR')}`,
+      callbackUrl: `${env.NEXT_PUBLIC_APP_URL}/api/webhooks/zarinpal`,
       metadata: {
         subscriptionId: sub.id,
         paymentId,
         billingCycle: 'monthly',
         isAutomaticBilling: true,
+        isDirectDebit: true,
       },
     });
 
-    if (directDebitResult.data?.code === 100) {
-      // Payment successful
-      await db
-        .update(payment)
-        .set({
-          status: 'completed',
-          zarinpalRefId: directDebitResult.data?.ref_id?.toString(),
-          paidAt: new Date(),
-        })
-        .where(eq(payment.id, paymentId));
+    if (!paymentRequest.data?.authority) {
+      throw new Error('Failed to create ZarinPal payment request');
+    }
 
-      // Update subscription for next billing cycle
+    const authority = paymentRequest.data.authority;
+
+    // Update payment record with authority
+    const paymentUpdateOps = [
+      db.update(payment)
+        .set({
+          zarinpalAuthority: authority,
+          updatedAt: new Date(),
+        })
+        .where(eq(payment.id, paymentId)),
+    ];
+
+    // Execute direct debit transaction using ZarinPal Direct Debit Service
+    const directDebitService = ZarinPalDirectDebitService.create(env);
+    if (!contract.contractSignature) {
+      throw new Error('Contract signature is required for direct debit transaction');
+    }
+    const directDebitResult = await directDebitService.executeDirectTransaction({
+      authority,
+      signature: contract.contractSignature,
+    });
+
+    if (directDebitResult.data?.code === 100) {
+      // Payment successful - batch all success updates
+      const refId = directDebitResult.data.refrence_id?.toString();
       const nextBillingDate = new Date();
       nextBillingDate.setMonth(nextBillingDate.getMonth() + 1);
+      const successNow = new Date();
 
-      await db
-        .update(subscription)
-        .set({
-          nextBillingDate,
-        })
-        .where(eq(subscription.id, sub.id));
+      const successOperations = [
+        // Update payment as completed
+        db.update(payment)
+          .set({
+            status: 'completed',
+            zarinpalRefId: refId,
+            paidAt: successNow,
+            updatedAt: successNow,
+          })
+          .where(eq(payment.id, paymentId)),
+        // Update contract last used
+        db.update(paymentMethod)
+          .set({
+            lastUsedAt: successNow,
+            updatedAt: successNow,
+          })
+          .where(eq(paymentMethod.id, contract.id)),
+        // Update subscription for next billing cycle
+        db.update(subscription)
+          .set({
+            nextBillingDate,
+            updatedAt: successNow,
+          })
+          .where(eq(subscription.id, sub.id)),
+      ];
+
+      await executeDatabaseOperations(successOperations);
 
       result.successful++;
-      apiLogger.info('Subscription billed successfully', {
+      apiLogger.info('Subscription billed successfully with currency conversion', {
         subscriptionId: sub.id,
+        paymentId,
+        zarinpalRefId: refId,
+        originalUsdAmount: sub.currentPrice,
+        chargedIrrAmount: irrAmount,
+        exchangeRate,
         component: 'monthly-billing',
       });
     } else {
-      // Payment failed
+      // Payment failed - batch failure updates
       const nextRetryAt = calculateNextRetryTime(retryCount + 1);
+      const errorMessage = directDebitResult.data?.message || 'Direct debit payment failed';
+      const failureNow = new Date();
 
-      await db
-        .update(payment)
-        .set({
-          status: 'failed',
-          failureReason: directDebitResult.data?.message || 'Direct debit payment failed',
-          failedAt: new Date(),
-          nextRetryAt,
-        })
-        .where(eq(payment.id, paymentId));
+      const failureOperations = [
+        db.update(payment)
+          .set({
+            status: 'failed',
+            failureReason: errorMessage,
+            failedAt: failureNow,
+            nextRetryAt,
+            updatedAt: failureNow,
+          })
+          .where(eq(payment.id, paymentId)),
+      ];
 
+      await executeDatabaseOperations(failureOperations);
       result.failed++;
-      throw new Error(`ZarinPal Direct Debit failed: ${directDebitResult.data?.message || 'Unknown error'}`);
+      throw new Error(`ZarinPal Direct Debit failed: ${errorMessage}`);
+    }
+
+    // Execute the payment authority update if needed
+    if (paymentUpdateOps.length > 0) {
+      await executeDatabaseOperations(paymentUpdateOps);
     }
   } catch (error) {
     // Handle payment processing error
     const nextRetryAt = calculateNextRetryTime(retryCount + 1);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown payment error';
+    const errorNow = new Date();
 
-    await db
-      .update(payment)
-      .set({
-        status: 'failed',
-        failureReason: error instanceof Error ? error.message : 'Unknown payment error',
-        failedAt: new Date(),
-        nextRetryAt,
-      })
-      .where(eq(payment.id, paymentId));
-
-    throw error;
-  }
-}
-
-/**
- * Handle subscription billing failure
- */
-async function handleSubscriptionBillingFailure(subscriptionId: string, errorMessage: string) {
-  try {
-    // Get current failure count from metadata
-    const subData = await db
-      .select()
-      .from(subscription)
-      .where(eq(subscription.id, subscriptionId))
-      .limit(1);
-
-    if (subData.length === 0)
-      return;
-
-    const sub = subData[0]!;
-    const metadata = parseMetadata(sub.metadata);
-    const failureCount = getNumberFromMetadata(metadata, 'billingFailureCount', 0) + 1;
-
-    // Update subscription metadata
-    await db
-      .update(subscription)
-      .set({
-        metadata: {
-          ...metadata,
-          billingFailureCount: failureCount,
-          lastBillingError: errorMessage,
-          lastBillingErrorAt: new Date().toISOString(),
-        },
-      })
-      .where(eq(subscription.id, subscriptionId));
-
-    // If too many failures, suspend subscription
-    if (failureCount >= 5) {
-      await db
-        .update(subscription)
+    const errorOperations = [
+      db.update(payment)
         .set({
-          status: 'expired',
-          endDate: new Date(),
+          status: 'failed',
+          failureReason: errorMessage,
+          failedAt: errorNow,
+          nextRetryAt,
+          updatedAt: errorNow,
         })
-        .where(eq(subscription.id, subscriptionId));
+        .where(eq(payment.id, paymentId)),
+    ];
 
-      apiLogger.warn('Subscription suspended due to repeated billing failures', {
-        subscriptionId,
+    try {
+      await executeDatabaseOperations(errorOperations);
+    } catch (batchError) {
+      apiLogger.error('Failed to update payment error', {
+        paymentId,
+        error: batchError,
         component: 'monthly-billing',
       });
     }
-  } catch (error) {
-    apiLogger.error('Failed to handle subscription billing failure', { error });
+
+    throw error;
   }
 }
 
@@ -332,45 +574,80 @@ function calculateNextRetryTime(retryCount: number): Date {
 }
 
 /**
- * Scheduled event handler for Cloudflare Workers cron trigger
+ * Cloudflare Workers scheduled event handler for monthly billing
+ * Optimized for D1 and Workers constraints
  */
 export default {
   async scheduled(event: ScheduledEvent, env: ApiEnv, ctx: ExecutionContext): Promise<void> {
+    const startTime = Date.now();
+
     apiLogger.info('Monthly billing cron job triggered', {
       cron: event.cron,
+      scheduledTime: event.scheduledTime,
       component: 'cron-scheduler',
     });
 
+    // Use ctx.waitUntil to extend execution context per Cloudflare best practices
     ctx.waitUntil((async () => {
       try {
-        const result = await processMonthlyBilling(env);
+        const result = await processMonthlyBilling(env.Bindings);
+        const executionTime = Date.now() - startTime;
 
-        // Log results for monitoring
+        // Log comprehensive results for monitoring
         apiLogger.info('Monthly billing results', {
           timestamp: new Date().toISOString(),
           cron: event.cron,
-          ...result,
+          executionTimeMs: executionTime,
+          isTimeoutReached: result.timeoutReached,
+          chunksProcessed: result.chunksProcessed,
+          processed: result.processed,
+          successful: result.successful,
+          failed: result.failed,
+          errorCount: result.errors.length,
+          component: 'cron-scheduler',
         });
 
-        // Could optionally send results to external monitoring service
-        if (env.Bindings.EXTERNAL_WEBHOOK_URL && (result.failed > 0 || result.errors.length > 0)) {
+        // Send alerts for failures or timeouts to external monitoring
+        if (env.Bindings.EXTERNAL_WEBHOOK_URL && (result.failed > 0 || result.timeoutReached || result.errors.length > 0)) {
           try {
+            const alertPayload = {
+              source: 'monthly-billing-cron',
+              timestamp: new Date().toISOString(),
+              executionTimeMs: executionTime,
+              summary: {
+                processed: result.processed,
+                successful: result.successful,
+                failed: result.failed,
+                chunksProcessed: result.chunksProcessed,
+                timeoutReached: result.timeoutReached,
+              },
+              alerts: [
+                result.failed > 0 && 'billing_failures',
+                result.timeoutReached && 'worker_timeout',
+                result.errors.length > 10 && 'high_error_count',
+              ].filter(Boolean),
+              errors: result.errors.slice(0, 10), // Limit error details to prevent large payloads
+            };
+
             await fetch(env.Bindings.EXTERNAL_WEBHOOK_URL, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                source: 'monthly-billing-cron',
-                timestamp: new Date().toISOString(),
-                summary: result,
-                alert: result.failed > 0 ? 'billing_failures' : null,
-              }),
+              body: JSON.stringify(alertPayload),
             });
           } catch (webhookError) {
-            apiLogger.error('Failed to send billing report to external webhook', { error: webhookError });
+            apiLogger.error('Failed to send billing report to external webhook', {
+              error: webhookError,
+              component: 'cron-scheduler',
+            });
           }
         }
       } catch (error) {
-        apiLogger.error('Monthly billing cron job failed', { error });
+        const executionTime = Date.now() - startTime;
+        apiLogger.error('Monthly billing cron job failed', {
+          error,
+          executionTimeMs: executionTime,
+          component: 'cron-scheduler',
+        });
       }
     })());
   },
