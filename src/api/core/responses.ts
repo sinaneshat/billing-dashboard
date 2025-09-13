@@ -161,7 +161,7 @@ export function paginated<T>(
     },
     meta: {
       ...extractResponseMetadata(c),
-      ...(additionalMeta as Record<string, string>),
+      ...(additionalMeta || {}),
     },
   };
 

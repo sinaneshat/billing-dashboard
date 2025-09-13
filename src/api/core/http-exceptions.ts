@@ -497,7 +497,7 @@ export class HTTPExceptionFactory {
    * Bulk status code validation - useful for testing and debugging
    */
   static validateStatusCodes(): { valid: number[]; invalid: number[]; mapped: Record<number, ContentfulStatusCode> } {
-    const allStatusCodes = Object.values(HttpStatusCodes).filter(code => typeof code === 'number') as number[];
+    const allStatusCodes = Object.values(HttpStatusCodes).filter(code => typeof code === 'number');
     const valid: number[] = [];
     const invalid: number[] = [];
     const mapped: Record<number, ContentfulStatusCode> = {};

@@ -7,13 +7,16 @@ import * as React from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { cn, formatTomanCurrency } from '@/lib';
+import { cn } from '@/lib';
 
 type Product = {
   id: string;
   name: string;
   description: string | null;
-  price: number;
+  price: number; // Now in Toman from API
+  originalUsdPrice?: number;
+  exchangeRate?: number;
+  formattedPrice?: string;
   metadata: unknown;
   isActive: boolean;
 };
@@ -52,7 +55,6 @@ function CompactProductCard({
     badgeText?: string;
   } | null;
 
-  const pricing = metadata?.pricing;
   const isPopular = metadata?.popular === true;
   const features = metadata?.features || [];
   const isFree = product.price === 0;
@@ -104,37 +106,25 @@ function CompactProductCard({
                   <div className="text-xs text-muted-foreground">{t('time.forever')}</div>
                 </div>
               )
-            : pricing?.tomanPrice
-              ? (
-                  <div>
-                    <div className="flex items-baseline justify-center gap-1">
-                      <span className="text-xl font-bold">
-                        {pricing.tomanPrice.toLocaleString('en-US')}
-                      </span>
-                      <span className="text-xs text-muted-foreground">{t('currency.toman')}</span>
-                    </div>
-                    <div className="text-xs text-muted-foreground">
-                      {t('time.perMonth')}
-                      {' '}
-                      (
-                      {t('currency.dollar')}
-                      {pricing.usdPrice || 0}
-                      {' '}
-                      {t('currency.usd')}
-                      )
-                    </div>
+            : (
+                <div>
+                  <div className="text-xl font-bold">
+                    {product.formattedPrice || `${product.price.toLocaleString('en-US')} Toman`}
                   </div>
-                )
-              : (
-                  <div>
-                    <div className="flex items-baseline justify-center gap-1">
-                      <span className="text-xl font-bold">
-                        {formatTomanCurrency(product.price)}
-                      </span>
-                    </div>
-                    <div className="text-xs text-muted-foreground">{t('time.perMonth')}</div>
+                  <div className="text-xs text-muted-foreground">
+                    {t('time.perMonth')}
+                    {product.originalUsdPrice && (
+                      <>
+                        {' '}
+                        ($
+                        {product.originalUsdPrice}
+                        {' '}
+                        USD)
+                      </>
+                    )}
                   </div>
-                )}
+                </div>
+              )}
         </div>
       </CardHeader>
 

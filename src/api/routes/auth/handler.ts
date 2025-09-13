@@ -1,5 +1,6 @@
 import type { RouteHandler } from '@hono/zod-openapi';
 
+import { createError } from '@/api/common/error-handling';
 import { createHandler, Responses } from '@/api/core';
 import type { ApiEnv } from '@/api/types';
 
@@ -16,7 +17,10 @@ export const secureMeHandler: RouteHandler<typeof secureMeRoute, ApiEnv> = creat
     operationName: 'getMe',
   },
   async (c) => {
-    const user = c.get('user')!; // Guaranteed by auth: 'session'
+    const user = c.get('user');
+    if (!user) {
+      throw createError.unauthenticated('User authentication required');
+    }
     const session = c.get('session');
 
     c.logger.info('Fetching current user information', {
