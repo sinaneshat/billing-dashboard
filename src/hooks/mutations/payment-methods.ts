@@ -1,19 +1,28 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 
+import type { ApiResponse } from '@/api/core/schemas';
+// Import proper Zod-inferred types - no more manual casting
+import type { PaymentMethod } from '@/db/validation/billing';
 import { showErrorToast } from '@/lib';
 import { queryKeys } from '@/lib/data/query-keys';
 import { logError } from '@/lib/utils/safe-logger';
 import { isZarinPalError, parseZarinPalError } from '@/lib/utils/zarinpal-errors';
 import type {
+  CancelDirectDebitContractRequest,
   CreatePaymentMethodRequest,
   DeletePaymentMethodRequest,
+  ExecuteDirectDebitPaymentRequest,
+  GetBankListRequest,
   InitiateDirectDebitContractRequest,
   SetDefaultPaymentMethodRequest,
   VerifyDirectDebitContractRequest,
 } from '@/services/api/payment-methods';
 import {
+  cancelDirectDebitContractService,
   createPaymentMethodService,
   deletePaymentMethodService,
+  executeDirectDebitPaymentService,
+  getBankListService,
   initiateDirectDebitContractService,
   setDefaultPaymentMethodService,
   verifyDirectDebitContractService,
@@ -209,9 +218,9 @@ export function useInitiateDirectDebitContractMutation() {
         if (error.message.includes('Authentication required')) {
           errorMessage = 'Please sign in again to continue with the setup.';
         } else if (error.message.includes('Development mode')) {
-          errorMessage = '🚧 Development Mode: ZarinPal is not configured with real credentials. This is expected in development.';
+          errorMessage = 'Development Mode: ZarinPal is not configured with real credentials. This is expected in development.';
         } else if (error.message.includes('placeholder ZarinPal credentials')) {
-          errorMessage = '🚧 Development Mode: Payment service requires real credentials for testing. See console for setup instructions.';
+          errorMessage = 'Development Mode: Payment service requires real credentials for testing. See console for setup instructions.';
         } else if (error.message.includes('Invalid merchant') || error.message.includes('MERCHANT')) {
           errorMessage = 'Payment service configuration issue. Please contact support.';
         } else if (error.message.includes('Invalid mobile') || error.message.includes('MOBILE')) {
@@ -298,5 +307,195 @@ export function useVerifyDirectDebitContractMutation() {
       }
     },
     retry: false, // Contract verification should not auto-retry - it's a one-time callback
+  });
+}
+
+/**
+ * Hook to get available banks for direct debit contract signing
+ * Used for bank selection during contract setup
+ */
+export function useGetBankListMutation() {
+  return useMutation({
+    mutationFn: async (args?: GetBankListRequest) => {
+      const result = await getBankListService(args);
+      return result;
+    },
+    onError: (error) => {
+      logError('Failed to fetch bank list', error);
+
+      // Show user-friendly error message
+      let errorMessage = 'Failed to load banks. Please try again.';
+
+      if (error instanceof Error) {
+        if (error.message.includes('Network') || error.message.includes('Failed to fetch')) {
+          errorMessage = 'Connection error. Please check your internet and try again.';
+        } else if (error.message.includes('500') || error.message.includes('Internal Server Error')) {
+          errorMessage = 'Server error occurred. Please try again in a few moments.';
+        }
+      }
+
+      showErrorToast(errorMessage, {
+        component: 'bank-list',
+        actionType: 'fetch-banks',
+      });
+    },
+    retry: 1,
+  });
+}
+
+/**
+ * Hook to execute direct debit payment for subscription billing
+ * Handles currency conversion automatically from USD to IRR
+ */
+export function useExecuteDirectDebitPaymentMutation() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (args: ExecuteDirectDebitPaymentRequest) => {
+      const result = await executeDirectDebitPaymentService(args);
+      return result;
+    },
+    onSuccess: (data) => {
+      // Invalidate relevant queries on successful payment
+      queryClient.invalidateQueries({ queryKey: queryKeys.payments.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.subscriptions.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.paymentMethods.all });
+
+      // Update payment method last used timestamp
+      if (data.success) {
+        queryClient.invalidateQueries({ queryKey: queryKeys.paymentMethods.list });
+      }
+    },
+    onError: (error) => {
+      logError('Failed to execute direct debit payment', error);
+
+      // Parse ZarinPal error for structured error information
+      if (isZarinPalError(error)) {
+        const parsedError = parseZarinPalError(error);
+
+        // Attach parsed error information to the error object for component access
+        if (error instanceof Error) {
+          (error as ErrorWithZarinPalInfo).zarinPalError = parsedError;
+          (error as ErrorWithZarinPalInfo).isZarinPalError = true;
+        }
+      }
+
+      // Show user-friendly error message
+      let errorMessage = 'Payment failed. Please try again or contact support.';
+
+      if (error instanceof Error) {
+        if (error.message.includes('insufficient funds')) {
+          errorMessage = 'Insufficient funds in your account. Please check your balance.';
+        } else if (error.message.includes('card')) {
+          errorMessage = 'Card issue detected. Please check with your bank.';
+        } else if (error.message.includes('Network')) {
+          errorMessage = 'Connection error. Please try again.';
+        } else if (error.message.includes('Authentication')) {
+          errorMessage = 'Authentication required. Please sign in again.';
+        }
+      }
+
+      showErrorToast(errorMessage, {
+        component: 'direct-debit-payment',
+        actionType: 'execute-payment',
+      });
+    },
+    retry: false, // Payment operations should not auto-retry to avoid duplicate charges
+  });
+}
+
+/**
+ * Hook to cancel direct debit contract
+ * Legally required - users must be able to cancel contracts
+ */
+export function useCancelDirectDebitContractMutation() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (args: CancelDirectDebitContractRequest) => {
+      const result = await cancelDirectDebitContractService(args.param.contractId);
+      return result;
+    },
+    onMutate: async (args) => {
+      // Cancel any outgoing refetches
+      await queryClient.cancelQueries({ queryKey: queryKeys.paymentMethods.all });
+
+      // Snapshot the previous value for rollback
+      const previousPaymentMethods = queryClient.getQueryData(queryKeys.paymentMethods.list);
+
+      // Optimistically update using proper Zod-inferred types
+      queryClient.setQueryData(queryKeys.paymentMethods.list, (old: unknown) => {
+        // Type guard for ApiResponse<PaymentMethod[]>
+        function isPaymentMethodsResponse(data: unknown): data is ApiResponse<PaymentMethod[]> {
+          if (data === null || typeof data !== 'object')
+            return false;
+          if (!('success' in data) || !('data' in data))
+            return false;
+
+          const dataWithProps = data as { data: unknown };
+          return Array.isArray(dataWithProps.data);
+        }
+
+        if (!isPaymentMethodsResponse(old)) {
+          return old;
+        }
+
+        const oldData = old;
+        if (oldData.success && Array.isArray(oldData.data)) {
+          return {
+            ...oldData,
+            data: oldData.data.map(pm => ({
+              ...pm,
+              isActive: pm.id === args.param.contractId ? false : pm.isActive,
+              contractStatus: pm.id === args.param.contractId ? 'cancelled_by_user' : pm.contractStatus,
+            })),
+          };
+        }
+        return old;
+      });
+
+      return { previousPaymentMethods };
+    },
+    onError: (error, _variables, context) => {
+      logError('Failed to cancel direct debit contract', error);
+
+      // Rollback optimistic update on error
+      if (context?.previousPaymentMethods) {
+        queryClient.setQueryData(queryKeys.paymentMethods.list, context.previousPaymentMethods);
+      }
+
+      // Show user-friendly error message
+      let errorMessage = 'Failed to cancel contract. Please try again or contact support.';
+
+      if (error instanceof Error) {
+        if (error.message.includes('Not found')) {
+          errorMessage = 'Contract not found or already cancelled.';
+        } else if (error.message.includes('Network')) {
+          errorMessage = 'Connection error. Please try again.';
+        } else if (error.message.includes('Authentication')) {
+          errorMessage = 'Authentication required. Please sign in again.';
+        }
+      }
+
+      showErrorToast(errorMessage, {
+        component: 'contract-cancellation',
+        actionType: 'cancel-contract',
+      });
+    },
+    onSuccess: (data) => {
+      // Invalidate queries after successful cancellation
+      queryClient.invalidateQueries({ queryKey: queryKeys.paymentMethods.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.paymentMethods.list });
+      queryClient.invalidateQueries({ queryKey: queryKeys.subscriptions.all });
+
+      // Show success message
+      if (data.success) {
+        showErrorToast('Direct debit contract cancelled successfully', {
+          component: 'contract-cancellation',
+          actionType: 'cancel-success',
+        });
+      }
+    },
+    retry: 1,
   });
 }
