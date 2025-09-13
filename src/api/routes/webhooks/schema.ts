@@ -36,7 +36,7 @@ export const ZarinPalWebhookRequestSchema = z.object({
   }),
 }).openapi('ZarinPalWebhookRequest');
 
-// ✅ Single source of truth - use drizzle-zod schema, omit sensitive fields for public API
+// Single source of truth - use drizzle-zod schema, omit sensitive fields for public API
 const WebhookEventSchema = webhookEventSelectSchema.omit({
   rawPayload: true, // Contains sensitive webhook data
   processingError: true, // Internal error details

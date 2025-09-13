@@ -31,7 +31,7 @@ import {
 
 /**
  * GET /payments - Get user payment history
- * ✅ Refactored: Uses factory pattern + direct database access
+ * Refactored: Uses factory pattern + direct database access
  */
 export const getPaymentsHandler: RouteHandler<typeof getPaymentsRoute, ApiEnv> = createHandler(
   {
@@ -39,7 +39,10 @@ export const getPaymentsHandler: RouteHandler<typeof getPaymentsRoute, ApiEnv> =
     operationName: 'getPayments',
   },
   async (c) => {
-    const user = c.get('user')!; // Guaranteed by auth: 'session'
+    const user = c.get('user');
+    if (!user) {
+      throw createError.unauthenticated('User authentication required');
+    }
     c.logger.info('Fetching payments for user', { logType: 'operation', operationName: 'getPayments', userId: user.id });
 
     // Direct database access for payments
@@ -89,7 +92,7 @@ export const getPaymentsHandler: RouteHandler<typeof getPaymentsRoute, ApiEnv> =
 
 /**
  * GET /payments/callback - Handle ZarinPal payment callback
- * ✅ Refactored: Uses factory pattern + direct database access + transaction
+ * Refactored: Uses factory pattern + direct database access + transaction
  */
 export const paymentCallbackHandler: RouteHandler<typeof paymentCallbackRoute, ApiEnv> = createHandlerWithTransaction(
   {
@@ -216,7 +219,7 @@ export const paymentCallbackHandler: RouteHandler<typeof paymentCallbackRoute, A
         }
       }
 
-      // 🔗 ROUNDTABLE1 INTEGRATION: Update user subscription in Roundtable1 database
+      // ROUNDTABLE1 INTEGRATION: Update user subscription in Roundtable1 database
       try {
         if (c.env?.ROUNDTABLE_SUPABASE_URL && c.env?.ROUNDTABLE_SUPABASE_SERVICE_KEY) {
           const roundtableService = RoundtableIntegrationService.create(c.env);

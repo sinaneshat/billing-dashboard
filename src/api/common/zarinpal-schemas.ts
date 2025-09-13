@@ -169,6 +169,32 @@ export const DirectDebitContractRequestSchema = z.object({
 export type DirectDebitContractRequest = z.infer<typeof DirectDebitContractRequestSchema>;
 
 /**
+ * Bank schema with camelCase fields as returned by our API handlers
+ */
+export const ApiFormattedBankSchema = z.object({
+  name: z.string().openapi({
+    example: 'بانک ملی ایران',
+    description: 'Bank display name in Persian',
+  }),
+  slug: z.string().openapi({
+    example: 'bmi',
+    description: 'Bank slug identifier',
+  }),
+  bankCode: z.string().openapi({
+    example: '011',
+    description: 'Bank code for contract signing',
+  }),
+  maxDailyAmount: z.number().openapi({
+    example: 50000000,
+    description: 'Maximum daily amount in IRR',
+  }),
+  maxDailyCount: z.number().nullable().openapi({
+    example: 10,
+    description: 'Maximum daily transaction count',
+  }),
+}).openapi('ApiFormattedBank');
+
+/**
  * Contract initiation response from our API
  */
 export const DirectDebitContractResponseSchema = z.object({
@@ -176,10 +202,10 @@ export const DirectDebitContractResponseSchema = z.object({
     example: 'A00000000000000000000000000000000000000',
     description: 'ZarinPal Payman authority for contract signing',
   }),
-  banks: z.array(ZarinPalBankSchema).openapi({
-    description: 'Available banks for contract signing',
+  banks: z.array(ApiFormattedBankSchema).openapi({
+    description: 'Available banks for contract signing (with camelCase field names)',
   }),
-  contractSigningUrl: z.string().url().openapi({
+  contractSigningUrl: z.string().min(1).openapi({
     example: 'https://www.zarinpal.com/pg/StartPayman/{PAYMAN_AUTHORITY}/{BANK_CODE}',
     description: 'URL template for contract signing',
   }),
@@ -249,7 +275,7 @@ export const ZarinPalPaymanRequestSchema = z.object({
   max_daily_count: z.string(),
   max_monthly_count: z.string(),
   max_amount: z.string(),
-  callback_url: z.string().url(),
+  callback_url: z.string().min(1),
 });
 
 export type ZarinPalPaymanRequest = z.infer<typeof ZarinPalPaymanRequestSchema>;

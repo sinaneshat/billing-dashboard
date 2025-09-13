@@ -23,7 +23,10 @@ export const uploadUserAvatarHandler: RouteHandler<typeof uploadUserAvatarRoute,
     operationName: 'uploadUserAvatar',
   },
   async (c) => {
-    const currentUser = c.get('user')!;
+    const currentUser = c.get('user');
+    if (!currentUser) {
+      throw createError.unauthenticated('User authentication required');
+    }
     const bucket = c.env.UPLOADS_R2_BUCKET;
 
     // Parse multipart form data safely
@@ -117,7 +120,10 @@ export const uploadCompanyImageHandler: RouteHandler<typeof uploadCompanyImageRo
   },
   async (c) => {
     const routeType = c.validated.params?.type || 'banner';
-    const currentUser = c.get('user')!;
+    const currentUser = c.get('user');
+    if (!currentUser) {
+      throw createError.unauthenticated('User authentication required');
+    }
     const bucket = c.env.UPLOADS_R2_BUCKET;
 
     // Parse multipart form data safely
@@ -200,7 +206,10 @@ export const getImagesHandler: RouteHandler<typeof getImagesRoute, ApiEnv> = cre
   },
   async (c) => {
     const { type, userId, limit } = c.validated.query;
-    const currentUser = c.get('user')!;
+    const currentUser = c.get('user');
+    if (!currentUser) {
+      throw createError.unauthenticated('User authentication required');
+    }
     const bucket = c.env.UPLOADS_R2_BUCKET;
 
     // Build prefix for listing
@@ -269,7 +278,10 @@ export const getImageMetadataHandler: RouteHandler<typeof getImageMetadataRoute,
   },
   async (c) => {
     const { key } = c.validated.params;
-    const currentUser = c.get('user')!;
+    const currentUser = c.get('user');
+    if (!currentUser) {
+      throw createError.unauthenticated('User authentication required');
+    }
     const bucket = c.env.UPLOADS_R2_BUCKET;
 
     const object = await bucket.head(key!);
@@ -323,7 +335,10 @@ export const deleteImageHandler: RouteHandler<typeof deleteImageRoute, ApiEnv> =
   },
   async (c) => {
     const { key } = c.validated.params;
-    const currentUser = c.get('user')!;
+    const currentUser = c.get('user');
+    if (!currentUser) {
+      throw createError.unauthenticated('User authentication required');
+    }
     const bucket = c.env.UPLOADS_R2_BUCKET;
 
     // Get object metadata to check permissions

@@ -47,6 +47,7 @@ export default async function Layout({ children, modal }: RootLayoutProps) {
       lang={locale}
       dir={direction}
       className={`lang-${locale} dir-${direction}`}
+
     >
       <body>
         <RootLayout

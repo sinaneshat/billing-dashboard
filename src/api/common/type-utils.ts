@@ -38,7 +38,16 @@ export function parseErrorObject(error: unknown): {
     return { message: typeof error === 'string' ? error : 'Unknown error' };
   }
 
-  const obj = error as Record<string, unknown>;
+  // Type guard approach instead of casting
+  function isObjectWithProperties(obj: unknown): obj is Record<string, unknown> {
+    return obj !== null && typeof obj === 'object';
+  }
+
+  if (!isObjectWithProperties(error)) {
+    return { message: 'Unknown error' };
+  }
+
+  const obj = error;
   const result: ReturnType<typeof parseErrorObject> = {};
 
   // Extract message

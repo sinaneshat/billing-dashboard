@@ -10,6 +10,7 @@
 
 import { Scalar } from '@scalar/hono-api-reference';
 import { createMarkdownFromOpenApi } from '@scalar/openapi-to-markdown';
+import type { Context, Next } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
 import { cache } from 'hono/cache';
 import { compress } from 'hono/compress';
@@ -43,8 +44,8 @@ import {
 // Import routes and handlers directly for proper RPC type inference
 import { secureMeHandler } from './routes/auth/handler';
 import { secureMeRoute } from './routes/auth/route';
-import { ssoHandler } from './routes/auth/sso/handler';
-import { ssoRoute } from './routes/auth/sso/route';
+import { ssoGetHandler, ssoPostHandler } from './routes/auth/sso/handler';
+import { ssoGetRoute, ssoPostRoute } from './routes/auth/sso/route';
 import {
   deleteImageHandler,
   getImageMetadataHandler,
@@ -61,10 +62,18 @@ import {
 } from './routes/images/route';
 // Direct debit routes (ZarinPal Payman API)
 import {
+  cancelDirectDebitContractHandler,
+  directDebitCallbackHandler,
+  executeDirectDebitPaymentHandler,
+  getBankListHandler,
   initiateDirectDebitContractHandler,
   verifyDirectDebitContractHandler,
 } from './routes/payment-methods/direct-debit/handler';
 import {
+  cancelDirectDebitContractRoute,
+  directDebitCallbackRoute,
+  executeDirectDebitPaymentRoute,
+  getBankListRoute,
   initiateDirectDebitContractRoute,
   verifyDirectDebitContractRoute,
 } from './routes/payment-methods/direct-debit/route';
@@ -146,22 +155,46 @@ app.use('*', bodyLimit({
   onError: c => c.text('Payload Too Large', 413),
 }));
 
-// CORS configuration
+// CORS configuration - Use environment variables for dynamic origin configuration
 app.use('*', (c, next) => {
+  // Get the current environment's allowed origin from NEXT_PUBLIC_APP_URL
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+
+  const allowedOrigins = [
+    'http://localhost:3000', // Always allow local development
+    appUrl, // Current environment's official domain
+  ];
+
   const middleware = cors({
-    origin: origin => c.env?.NEXT_PUBLIC_APP_URL ?? origin ?? '*',
+    origin: (origin) => {
+      // Allow requests with no origin (like mobile apps or curl)
+      if (!origin)
+        return origin;
+
+      // Check if origin is in allowed list
+      return allowedOrigins.includes(origin) ? origin : null;
+    },
     credentials: true,
   });
   return middleware(c, next);
 });
 
-// CSRF protection
-app.use('*', (c, next) => {
-  const allowedUrl = c.env?.NEXT_PUBLIC_APP_URL;
-  const origin = allowedUrl ? new URL(allowedUrl).origin : undefined;
-  const middleware = origin ? csrf({ origin }) : csrf();
+// CSRF protection - Applied selectively to protected routes only
+// Following Hono best practices: exclude public endpoints like SSO from CSRF protection
+function csrfMiddleware(c: Context<ApiEnv>, next: Next) {
+  // Get the current environment's allowed origin from NEXT_PUBLIC_APP_URL
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+
+  const allowedOrigins = [
+    'http://localhost:3000', // Always allow local development
+    appUrl, // Current environment's official domain
+  ];
+
+  const middleware = csrf({
+    origin: allowedOrigins,
+  });
   return middleware(c, next);
-});
+}
 
 // ETag support
 app.use('*', etag());
@@ -188,17 +221,19 @@ app.notFound(notFound);
 // CRITICAL: Routes must be registered with .openapi() for RPC to work
 // ============================================================================
 
-// Apply middleware for protected routes
-app.use('/auth/*', requireSession);
-app.use('/images/*', requireSession);
-// Subscriptions require authentication
-app.use('/subscriptions/*', requireSession);
-// Payment methods require authentication
-app.use('/payment-methods/*', requireSession);
-app.use('/webhooks/events', requireSession);
-app.use('/webhooks/test', requireSession);
-// Admin routes require master key authentication
-app.use('/admin/*', requireMasterKey);
+// Apply CSRF protection and authentication to protected routes
+// Following Hono best practices: apply CSRF only to authenticated routes
+app.use('/auth/me', csrfMiddleware, requireSession);
+// SSO routes (/auth/sso*) are public and handle JWT verification inline - NO CSRF
+app.use('/images/*', csrfMiddleware, requireSession);
+// Subscriptions require authentication and CSRF protection
+app.use('/subscriptions/*', csrfMiddleware, requireSession);
+// Payment methods require authentication and CSRF protection
+app.use('/payment-methods/*', csrfMiddleware, requireSession);
+app.use('/webhooks/events', csrfMiddleware, requireSession);
+app.use('/webhooks/test', csrfMiddleware, requireSession);
+// Admin routes require master key authentication and CSRF protection
+app.use('/admin/*', csrfMiddleware, requireMasterKey);
 
 // Register all routes directly on the app
 const appRoutes = app
@@ -207,7 +242,9 @@ const appRoutes = app
   .openapi(detailedHealthRoute, detailedHealthHandler)
   // Auth routes
   .openapi(secureMeRoute, secureMeHandler)
-  .openapi(ssoRoute, ssoHandler)
+  // SSO routes - both legacy GET and secure POST methods
+  .openapi(ssoGetRoute, ssoGetHandler)
+  .openapi(ssoPostRoute, ssoPostHandler)
   // Products routes
   .openapi(getProductsRoute, getProductsHandler)
   // Subscriptions routes
@@ -228,6 +265,10 @@ const appRoutes = app
   // Direct debit contract routes (ZarinPal Payman API)
   .openapi(initiateDirectDebitContractRoute, initiateDirectDebitContractHandler)
   .openapi(verifyDirectDebitContractRoute, verifyDirectDebitContractHandler)
+  .openapi(getBankListRoute, getBankListHandler)
+  .openapi(executeDirectDebitPaymentRoute, executeDirectDebitPaymentHandler)
+  .openapi(cancelDirectDebitContractRoute, cancelDirectDebitContractHandler)
+  .openapi(directDebitCallbackRoute, directDebitCallbackHandler)
   // Webhooks routes
   .openapi(zarinPalWebhookRoute, zarinPalWebhookHandler)
   .openapi(getWebhookEventsRoute, getWebhookEventsHandler)

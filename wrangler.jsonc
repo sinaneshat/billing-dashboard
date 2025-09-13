@@ -2,7 +2,7 @@
   "$schema": "node_modules/wrangler/config-schema.json",
   "main": ".open-next/worker.js",
   "name": "billing-dashboard",
-  "account_id": "c21c4d074e34a8b1b9d335a41c2f69e3",
+  "account_id": "499b6c3c38f75f7f7dc7d3127954b921",
   "compatibility_date": "2025-03-25",
   "keep_names": false,
   "triggers": {
@@ -33,29 +33,29 @@
   "d1_databases": [
     {
       "binding": "DB",
-      "database_name": "billing-dashboard-d1-local",
-      "database_id": "854922be-22d2-4243-a660-14ea5e52cc28",
+      "database_name": "billing-dashboard-db-local",
+      "database_id": "b1472255-9a48-4821-a0b8-f88d8ab41753",
       "migrations_dir": "./src/db/migrations",
-      "preview_database_id": "854922be-22d2-4243-a660-14ea5e52cc28"
+      "preview_database_id": "b1472255-9a48-4821-a0b8-f88d8ab41753"
     }
   ],
   "kv_namespaces": [
     {
       "binding": "KV",
-      "id": "6787c34724534d1cba2af7c476a49953",
-      "preview_id": "6787c34724534d1cba2af7c476a49953"
+      "id": "0185d15d43964d87a3d00fcdd44d1da3",
+      "preview_id": "0185d15d43964d87a3d00fcdd44d1da3"
     }
   ],
   "r2_buckets": [
     {
       "binding": "NEXT_INC_CACHE_R2_BUCKET",
-      "bucket_name": "billing-dashboard-next-cache-preview",
-      "preview_bucket_name": "billing-dashboard-next-cache-preview"
+      "bucket_name": "billing-dashboard-r2-cache-local",
+      "preview_bucket_name": "billing-dashboard-r2-cache-local"
     },
     {
       "binding": "UPLOADS_R2_BUCKET",
-      "bucket_name": "billing-dashboard-uploads-preview",
-      "preview_bucket_name": "billing-dashboard-uploads-preview"
+      "bucket_name": "billing-dashboard-r2-uploads-local",
+      "preview_bucket_name": "billing-dashboard-r2-uploads-local"
     }
   ],
   "services": [
@@ -68,20 +68,22 @@
     "NEXT_PUBLIC_WEBAPP_ENV": "local",
     "NEXT_PUBLIC_APP_URL": "http://localhost:3000",
     "NEXT_PUBLIC_MAINTENANCE": "false",
-    "NEXT_PUBLIC_TURNSTILE_SITE_KEY": "1x00000000000000000000AA",
+    "NEXT_PUBLIC_TURNSTILE_SITE_KEY": "0x4AAAAAAAnF8lAkO8_hM6w4",
     "R2_PUBLIC_URL": "http://localhost:3000/uploads",
     "AWS_SES_REGION": "us-east-1",
     "FROM_EMAIL": "noreply@localhost",
     "SES_REPLY_TO_EMAIL": "noreply@localhost",
     "SES_VERIFIED_EMAIL": "noreply@localhost",
-    "WEBHOOK_URL": "https://webhook.site/your-unique-id",
-    "EXTERNAL_WEBHOOK_URL": "https://webhook.site/your-unique-id",
+    "WEBHOOK_URL": "http://localhost:3000/api/webhooks/zarinpal",
+    "EXTERNAL_WEBHOOK_URL": "http://localhost:3000/api/webhooks/external",
     "ZARINPAL_DEFAULT_CONTRACT_DURATION_DAYS": "365",
-    "ZARINPAL_DEFAULT_MAX_DAILY_COUNT": "10",
-    "ZARINPAL_DEFAULT_MAX_MONTHLY_COUNT": "100",
-    "ZARINPAL_DEFAULT_MAX_AMOUNT": "50000000",
+    "ZARINPAL_DEFAULT_MAX_DAILY_COUNT": "5",
+    "ZARINPAL_DEFAULT_MAX_MONTHLY_COUNT": "50",
+    "ZARINPAL_DEFAULT_MAX_AMOUNT": "10000000",
+    "ZARINPAL_PAYMAN_CALLBACK_URL": "http://localhost:3000/api/webhooks/zarinpal/payman",
     "CARD_VERIFICATION_AMOUNT": "1000",
-    "CARD_VERIFICATION_DESCRIPTION": "Card verification for direct payment",
+    "CARD_VERIFICATION_DESCRIPTION": "Roundtable billing verification (local)",
+    "ROUNDTABLE_APP_URL": "https://roundtable.now",
     "OPEN_NEXT_DEBUG": "true",
     "NEXTJS_ENV": "development",
     "NODE_VERSION": "22.14.0",
@@ -92,32 +94,38 @@
   "env": {
     "preview": {
       "name": "billing-dashboard-preview",
+      "routes": [
+        {
+          "pattern": "billing-preview.roundtable.now/*",
+          "custom_domain": true
+        }
+      ],
       "d1_databases": [
         {
           "binding": "DB",
-          "database_name": "billing-dashboard-d1-preview",
-          "database_id": "b5e503e8-1202-4ee1-85b7-cb088208b85f",
+          "database_name": "billing-dashboard-db-preview",
+          "database_id": "3b992e46-03e2-4df8-aa0e-4a452836f636",
           "migrations_dir": "./src/db/migrations",
-          "preview_database_id": "b5e503e8-1202-4ee1-85b7-cb088208b85f"
+          "preview_database_id": "3b992e46-03e2-4df8-aa0e-4a452836f636"
         }
       ],
       "kv_namespaces": [
         {
           "binding": "KV",
-          "id": "6787c34724534d1cba2af7c476a49953",
-          "preview_id": "6787c34724534d1cba2af7c476a49953"
+          "id": "0c509b9c921546c1b20c4bc907a8c0e5",
+          "preview_id": "0c509b9c921546c1b20c4bc907a8c0e5"
         }
       ],
       "r2_buckets": [
         {
           "binding": "NEXT_INC_CACHE_R2_BUCKET",
-          "bucket_name": "billing-dashboard-next-cache-preview",
-          "preview_bucket_name": "billing-dashboard-next-cache-preview"
+          "bucket_name": "billing-dashboard-r2-cache-preview",
+          "preview_bucket_name": "billing-dashboard-r2-cache-preview"
         },
         {
           "binding": "UPLOADS_R2_BUCKET",
-          "bucket_name": "billing-dashboard-uploads-preview",
-          "preview_bucket_name": "billing-dashboard-uploads-preview"
+          "bucket_name": "billing-dashboard-r2-uploads-preview",
+          "preview_bucket_name": "billing-dashboard-r2-uploads-preview"
         }
       ],
       "services": [
@@ -128,22 +136,24 @@
       ],
       "vars": {
         "NEXT_PUBLIC_WEBAPP_ENV": "preview",
-        "NEXT_PUBLIC_APP_URL": "https://billing-dashboard-preview.firstexhotic.workers.dev",
+        "NEXT_PUBLIC_APP_URL": "https://billing-preview.roundtable.now",
         "NEXT_PUBLIC_MAINTENANCE": "false",
-        "NEXT_PUBLIC_TURNSTILE_SITE_KEY": "1x00000000000000000000AA",
-        "R2_PUBLIC_URL": "https://billing-dashboard-preview.firstexhotic.workers.dev/uploads",
+        "NEXT_PUBLIC_TURNSTILE_SITE_KEY": "0x4AAAAAAAnF8lAkO8_hM6w5",
+        "R2_PUBLIC_URL": "https://billing-preview.roundtable.now/uploads",
         "AWS_SES_REGION": "us-east-1",
-        "FROM_EMAIL": "noreply@firstexhotic.workers.dev",
-        "SES_REPLY_TO_EMAIL": "noreply@firstexhotic.workers.dev",
-        "SES_VERIFIED_EMAIL": "noreply@firstexhotic.workers.dev",
-        "WEBHOOK_URL": "https://webhook.site/your-unique-id",
-        "EXTERNAL_WEBHOOK_URL": "https://webhook.site/your-unique-id",
+        "FROM_EMAIL": "noreply@roundtable.now",
+        "SES_REPLY_TO_EMAIL": "noreply@roundtable.now",
+        "SES_VERIFIED_EMAIL": "noreply@roundtable.now",
+        "WEBHOOK_URL": "https://billing-preview.roundtable.now/api/webhooks/zarinpal",
+        "EXTERNAL_WEBHOOK_URL": "https://billing-preview.roundtable.now/api/webhooks/external",
         "ZARINPAL_DEFAULT_CONTRACT_DURATION_DAYS": "365",
-        "ZARINPAL_DEFAULT_MAX_DAILY_COUNT": "10",
-        "ZARINPAL_DEFAULT_MAX_MONTHLY_COUNT": "100",
-        "ZARINPAL_DEFAULT_MAX_AMOUNT": "50000000",
+        "ZARINPAL_DEFAULT_MAX_DAILY_COUNT": "25",
+        "ZARINPAL_DEFAULT_MAX_MONTHLY_COUNT": "750",
+        "ZARINPAL_DEFAULT_MAX_AMOUNT": "100000000",
+        "ZARINPAL_PAYMAN_CALLBACK_URL": "https://billing-preview.roundtable.now/api/webhooks/zarinpal/payman",
         "CARD_VERIFICATION_AMOUNT": "1000",
-        "CARD_VERIFICATION_DESCRIPTION": "Card verification for direct payment",
+        "CARD_VERIFICATION_DESCRIPTION": "Roundtable billing verification",
+        "ROUNDTABLE_APP_URL": "https://roundtable.now",
         "OPEN_NEXT_DEBUG": "false",
         "NEXTJS_ENV": "production",
         "NODE_VERSION": "22.14.0",
@@ -155,32 +165,38 @@
     },
     "production": {
       "name": "billing-dashboard-production",
+      "routes": [
+        {
+          "pattern": "billing.roundtable.now/*",
+          "custom_domain": true
+        }
+      ],
       "d1_databases": [
         {
           "binding": "DB",
-          "database_name": "billing-dashboard-d1-prod",
-          "database_id": "e72893ab-9a78-41c6-a83e-aeb03e70d32f",
+          "database_name": "billing-dashboard-db-prod",
+          "database_id": "b09dad8d-caa0-453a-96ad-7c857fbfd4a8",
           "migrations_dir": "./src/db/migrations",
-          "preview_database_id": "e72893ab-9a78-41c6-a83e-aeb03e70d32f"
+          "preview_database_id": "b09dad8d-caa0-453a-96ad-7c857fbfd4a8"
         }
       ],
       "kv_namespaces": [
         {
           "binding": "KV",
-          "id": "6787c34724534d1cba2af7c476a49953",
-          "preview_id": "6787c34724534d1cba2af7c476a49953"
+          "id": "5b65f8ced9b44bbfa856486bc722ef4b",
+          "preview_id": "5b65f8ced9b44bbfa856486bc722ef4b"
         }
       ],
       "r2_buckets": [
         {
           "binding": "NEXT_INC_CACHE_R2_BUCKET",
-          "bucket_name": "billing-dashboard-next-cache-prod",
-          "preview_bucket_name": "billing-dashboard-next-cache-preview"
+          "bucket_name": "billing-dashboard-r2-cache-prod",
+          "preview_bucket_name": "billing-dashboard-r2-cache-preview"
         },
         {
           "binding": "UPLOADS_R2_BUCKET",
-          "bucket_name": "billing-dashboard-uploads-prod",
-          "preview_bucket_name": "billing-dashboard-uploads-preview"
+          "bucket_name": "billing-dashboard-r2-uploads-prod",
+          "preview_bucket_name": "billing-dashboard-r2-uploads-preview"
         }
       ],
       "services": [
@@ -191,22 +207,24 @@
       ],
       "vars": {
         "NEXT_PUBLIC_WEBAPP_ENV": "prod",
-        "NEXT_PUBLIC_APP_URL": "https://billing-dashboard-production.firstexhotic.workers.dev",
+        "NEXT_PUBLIC_APP_URL": "https://billing.roundtable.now",
         "NEXT_PUBLIC_MAINTENANCE": "false",
-        "NEXT_PUBLIC_TURNSTILE_SITE_KEY": "1x00000000000000000000AA",
-        "R2_PUBLIC_URL": "https://billing-dashboard-production.firstexhotic.workers.dev/uploads",
+        "NEXT_PUBLIC_TURNSTILE_SITE_KEY": "0x4AAAAAAAnF8lAkO8_hM6w6",
+        "R2_PUBLIC_URL": "https://billing.roundtable.now/uploads",
         "AWS_SES_REGION": "us-east-1",
-        "FROM_EMAIL": "noreply@firstexhotic.workers.dev",
-        "SES_REPLY_TO_EMAIL": "noreply@firstexhotic.workers.dev",
-        "SES_VERIFIED_EMAIL": "noreply@firstexhotic.workers.dev",
-        "WEBHOOK_URL": "https://webhook.site/your-unique-id",
-        "EXTERNAL_WEBHOOK_URL": "https://webhook.site/your-unique-id",
+        "FROM_EMAIL": "noreply@roundtable.now",
+        "SES_REPLY_TO_EMAIL": "support@roundtable.now",
+        "SES_VERIFIED_EMAIL": "noreply@roundtable.now",
+        "WEBHOOK_URL": "https://billing.roundtable.now/api/webhooks/zarinpal",
+        "EXTERNAL_WEBHOOK_URL": "https://billing.roundtable.now/api/webhooks/external",
         "ZARINPAL_DEFAULT_CONTRACT_DURATION_DAYS": "365",
-        "ZARINPAL_DEFAULT_MAX_DAILY_COUNT": "10",
-        "ZARINPAL_DEFAULT_MAX_MONTHLY_COUNT": "100",
-        "ZARINPAL_DEFAULT_MAX_AMOUNT": "50000000",
+        "ZARINPAL_DEFAULT_MAX_DAILY_COUNT": "25",
+        "ZARINPAL_DEFAULT_MAX_MONTHLY_COUNT": "750",
+        "ZARINPAL_DEFAULT_MAX_AMOUNT": "100000000",
+        "ZARINPAL_PAYMAN_CALLBACK_URL": "https://billing.roundtable.now/api/webhooks/zarinpal/payman",
         "CARD_VERIFICATION_AMOUNT": "1000",
-        "CARD_VERIFICATION_DESCRIPTION": "Card verification for direct payment",
+        "CARD_VERIFICATION_DESCRIPTION": "Roundtable billing verification",
+        "ROUNDTABLE_APP_URL": "https://roundtable.now",
         "OPEN_NEXT_DEBUG": "false",
         "NEXTJS_ENV": "production",
         "NODE_VERSION": "22.14.0",

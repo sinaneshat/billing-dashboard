@@ -19,6 +19,7 @@ import { HTTPException } from 'hono/http-exception';
 import * as HttpStatusCodes from 'stoker/http-status-codes';
 import type { z } from 'zod';
 
+import { AppError } from '@/api/common/error-handling';
 import { attachSession, requireMasterKey, requireSession } from '@/api/middleware/auth';
 import { apiLogger } from '@/api/middleware/hono-logger';
 import type { ApiEnv } from '@/api/types';
@@ -113,7 +114,7 @@ export type TransactionHandler<
   TParams extends z.ZodSchema = never,
 > = (
   c: HandlerContext<TEnv, TBody, TQuery, TParams>,
-  tx: Parameters<Parameters<typeof db.transaction>[0]>[0]
+  database: typeof db
 ) => Promise<Response>;
 
 // ============================================================================
@@ -370,6 +371,40 @@ export function createHandler<
         throw error;
       }
 
+      if (error instanceof AppError) {
+        // Convert AppError instances to appropriate HTTP responses
+        switch (error.code) {
+          case 'PAYMENT_METHOD_INVALID':
+          case 'CONTRACT_NOT_ACTIVE':
+          case 'PAYMENT_FAILED':
+            return Responses.paymentError(c, error.message, 'other');
+          case 'RESOURCE_NOT_FOUND':
+            return Responses.notFound(c, 'Resource');
+          case 'RESOURCE_CONFLICT':
+          case 'RESOURCE_ALREADY_EXISTS':
+            return Responses.conflict(c, error.message);
+          case 'UNAUTHENTICATED':
+          case 'TOKEN_EXPIRED':
+          case 'TOKEN_INVALID':
+            return Responses.authenticationError(c, error.message);
+          case 'UNAUTHORIZED':
+          case 'INSUFFICIENT_PERMISSIONS':
+            return Responses.authorizationError(c, error.message);
+          case 'VALIDATION_ERROR':
+          case 'INVALID_INPUT':
+            return Responses.badRequest(c, error.message, error.details);
+          case 'DATABASE_ERROR':
+            return Responses.databaseError(c, 'transaction', error.message);
+          case 'ZARINPAL_ERROR':
+            return Responses.externalServiceError(c, 'ZarinPal', error.message);
+          case 'EXTERNAL_SERVICE_ERROR':
+            return Responses.externalServiceError(c, 'External Service', error.message);
+          default:
+            // For internal server errors and other unknown AppError codes
+            return Responses.internalServerError(c, error.message, operationName);
+        }
+      }
+
       // Convert other errors to internal server error
       return Responses.internalServerError(c, 'Handler execution failed', operationName);
     }
@@ -423,18 +458,11 @@ export function createHandlerWithTransaction<
         performance,
       }) as HandlerContext<TEnv, TBody, TQuery, TParams>;
 
-      // Execute with transaction
-      performance.markTime('transaction_start');
-      logger.debug('Starting database transaction');
-
-      // Type-safe transaction execution
-      let result!: Response;
-      await db.transaction(async (tx) => {
-        performance.markTime('implementation_start');
-        result = await implementation(enhancedContext, tx);
-      });
-
-      performance.markTime('transaction_complete');
+      // Execute implementation (transaction handling moved to individual handlers)
+      performance.markTime('implementation_start');
+      logger.debug('Executing handler implementation');
+      const result = await implementation(enhancedContext, db);
+      performance.markTime('implementation_complete');
 
       const duration = performance.getDuration();
       logger.info('Transaction handler completed successfully', {
@@ -465,6 +493,40 @@ export function createHandlerWithTransaction<
           }
         }
         throw error;
+      }
+
+      if (error instanceof AppError) {
+        // Convert AppError instances to appropriate HTTP responses
+        switch (error.code) {
+          case 'PAYMENT_METHOD_INVALID':
+          case 'CONTRACT_NOT_ACTIVE':
+          case 'PAYMENT_FAILED':
+            return Responses.paymentError(c, error.message, 'other');
+          case 'RESOURCE_NOT_FOUND':
+            return Responses.notFound(c, 'Resource');
+          case 'RESOURCE_CONFLICT':
+          case 'RESOURCE_ALREADY_EXISTS':
+            return Responses.conflict(c, error.message);
+          case 'UNAUTHENTICATED':
+          case 'TOKEN_EXPIRED':
+          case 'TOKEN_INVALID':
+            return Responses.authenticationError(c, error.message);
+          case 'UNAUTHORIZED':
+          case 'INSUFFICIENT_PERMISSIONS':
+            return Responses.authorizationError(c, error.message);
+          case 'VALIDATION_ERROR':
+          case 'INVALID_INPUT':
+            return Responses.badRequest(c, error.message, error.details);
+          case 'DATABASE_ERROR':
+            return Responses.databaseError(c, 'transaction', error.message);
+          case 'ZARINPAL_ERROR':
+            return Responses.externalServiceError(c, 'ZarinPal', error.message);
+          case 'EXTERNAL_SERVICE_ERROR':
+            return Responses.externalServiceError(c, 'External Service', error.message);
+          default:
+            // For internal server errors and other unknown AppError codes
+            return Responses.internalServerError(c, error.message, operationName);
+        }
       }
 
       // Convert database errors to appropriate responses

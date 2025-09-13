@@ -158,7 +158,7 @@ async function findUnusedKeys(): Promise<void> {
     console.log('\n⚠️  Note: Some keys might be used dynamically and not detected by this script.');
     console.log('   Please review these keys manually before removing them.');
   } else {
-    console.log('\n✅ All translation keys appear to be in use!');
+    console.log('\nAll translation keys appear to be in use!');
   }
 }
 

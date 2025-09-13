@@ -3,13 +3,20 @@ import { z } from '@hono/zod-openapi';
 import { createApiResponseSchema } from '@/api/core/schemas';
 import { productSelectSchema } from '@/db/validation/billing';
 
-// ✅ Single source of truth - use drizzle-zod schema with OpenAPI metadata
-const ProductSchema = productSelectSchema.openapi({
+// Extended product schema with currency conversion fields
+const ProductSchema = productSelectSchema.extend({
+  originalUsdPrice: z.number().optional().describe('Original USD price from database'),
+  exchangeRate: z.number().optional().describe('USD to IRR exchange rate used'),
+  formattedPrice: z.string().optional().describe('Formatted price in Toman currency'),
+}).openapi({
   example: {
     id: '375e4aee-6dfc-48b3-bd11-5ba892f17edd',
     name: 'Pro',
     description: 'For those who think big and often.',
-    price: 59, // USD price (converted to Rials by API)
+    price: 62450000, // Toman price (converted from USD)
+    originalUsdPrice: 59, // Original USD price from database
+    exchangeRate: 1027876.5, // Current USD to IRR exchange rate
+    formattedPrice: '62,450,000 Toman', // Formatted Toman price
     billingPeriod: 'monthly',
     isActive: true,
     // Roundtable integration fields
@@ -54,6 +61,6 @@ const ProductsArraySchema = z.array(ProductSchema);
 
 export const GetProductsResponseSchema = createApiResponseSchema(ProductsArraySchema).openapi('GetProductsResponse');
 
-// ✅ Export types - now consistent with database schema
+// Export types - now consistent with database schema
 export type Product = z.infer<typeof ProductSchema>;
 export type ProductsResponse = z.infer<typeof GetProductsResponseSchema>;

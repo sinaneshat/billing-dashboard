@@ -128,13 +128,13 @@ export async function testJWTFlow(): Promise<void> {
     
     console.log('Step 1: Creating JWT token...');
     const token = await createSecureJWT(testPayload, testSecret);
-    console.log('✅ JWT created successfully');
+    console.log('JWT created successfully');
     console.log('   Token length:', token.length);
     console.log('   Token parts:', token.split('.').length, '(should be 3)');
     
     console.log('\nStep 2: Verifying JWT token...');
     const decoded = await verifyJWT(token, testSecret);
-    console.log('✅ JWT verification successful');
+    console.log('JWT verification successful');
     console.log('   Decoded payload:', {
       ...decoded,
       exp: new Date(decoded.exp * 1000).toISOString()
@@ -151,7 +151,7 @@ export async function testJWTFlow(): Promise<void> {
     
     const unicodeToken = await createSecureJWT(unicodePayload, testSecret);
     const unicodeDecoded = await verifyJWT(unicodeToken, testSecret);
-    console.log('✅ Unicode JWT test successful');
+    console.log('Unicode JWT test successful');
     console.log('   Original name:', unicodePayload.name);
     console.log('   Decoded name:', unicodeDecoded.name);
     console.log('   Names match:', unicodePayload.name === unicodeDecoded.name);
@@ -161,7 +161,7 @@ export async function testJWTFlow(): Promise<void> {
       await verifyJWT(token, 'wrong-secret');
       console.log('❌ Should have failed with wrong secret');
     } catch (error) {
-      console.log('✅ Correctly failed with wrong secret:', error.message);
+      console.log('Correctly failed with wrong secret:', error.message);
     }
     
     console.log('\nStep 5: Testing expired token...');
@@ -173,7 +173,7 @@ export async function testJWTFlow(): Promise<void> {
     const expiredDecoded = await verifyJWT(expiredToken, testSecret);
     
     if (expiredDecoded.exp && Date.now() / 1000 > expiredDecoded.exp) {
-      console.log('✅ Token expiry check working (token is expired)');
+      console.log('Token expiry check working (token is expired)');
     } else {
       console.log('⚠️ Token expiry check may need attention');
     }
@@ -211,7 +211,7 @@ export async function testSSOEndpoint(): Promise<void> {
     console.log('Response headers:', Object.fromEntries(response.headers.entries()));
     
     if (response.status === 400) {
-      console.log('✅ SSO endpoint is accessible and returning expected error for missing token');
+      console.log('SSO endpoint is accessible and returning expected error for missing token');
     } else {
       console.log('⚠️ Unexpected response status. Expected 400 for missing token.');
     }

@@ -153,6 +153,7 @@ export const queryKeys = {
     all: QueryKeyFactory.base('paymentMethods'),
     list: QueryKeyFactory.list('paymentMethods'), // ['paymentMethods', 'list'] - matches Context7 exactly
     detail: (paymentMethodId: string) => QueryKeyFactory.detail('paymentMethods', paymentMethodId),
+    bankList: QueryKeyFactory.action('paymentMethods', 'bankList'), // ['paymentMethods', 'bankList'] - for direct debit banks
   },
 } as const;
 

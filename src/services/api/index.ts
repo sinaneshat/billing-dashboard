@@ -30,12 +30,21 @@ export {
 
 // Payment Methods service exports
 export {
+  type CancelDirectDebitContractRequest,
+  type CancelDirectDebitContractResponse,
+  cancelDirectDebitContractService,
   type CreatePaymentMethodRequest,
   type CreatePaymentMethodResponse,
   createPaymentMethodService,
   type DeletePaymentMethodRequest,
   type DeletePaymentMethodResponse,
   deletePaymentMethodService,
+  type ExecuteDirectDebitPaymentRequest,
+  type ExecuteDirectDebitPaymentResponse,
+  executeDirectDebitPaymentService,
+  type GetBankListRequest,
+  type GetBankListResponse,
+  getBankListService,
   type GetPaymentMethodsRequest,
   type GetPaymentMethodsResponse,
   getPaymentMethodsService,

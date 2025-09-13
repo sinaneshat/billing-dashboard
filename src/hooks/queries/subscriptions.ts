@@ -42,7 +42,7 @@ export function useSubscriptionQuery(subscriptionId: string) {
  */
 export function useCurrentSubscriptionQuery() {
   return useQuery({
-    queryKey: queryKeys.subscriptions.list, // ✅ CRITICAL FIX: Static array - same key as prefetch
+    queryKey: queryKeys.subscriptions.list, // CRITICAL FIX: Static array - same key as prefetch
     queryFn: getSubscriptionsService, // CRITICAL FIX: No arrow wrapper - match server
     staleTime: 60 * 1000, // CRITICAL FIX: Match Context7 examples (60 seconds)
     retry: 2,

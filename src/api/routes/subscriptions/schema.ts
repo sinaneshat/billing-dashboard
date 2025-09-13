@@ -3,7 +3,7 @@ import { z } from '@hono/zod-openapi';
 import { CoreSchemas } from '@/api/core/schemas';
 import { productSelectSchema, subscriptionSelectSchema } from '@/db/validation/billing';
 
-// ✅ Single source of truth - use drizzle-zod schemas with OpenAPI metadata
+// Single source of truth - use drizzle-zod schemas with OpenAPI metadata
 const SubscriptionSchema = subscriptionSelectSchema.openapi({
   example: {
     id: 'sub_123',
@@ -74,7 +74,7 @@ export const CancelSubscriptionRequestSchema = z.object({
   }),
 }).openapi('CancelSubscriptionRequest');
 
-// ✅ Refactored: Direct data schemas, response wrapper handled by Responses.* methods
+// Refactored: Direct data schemas, response wrapper handled by Responses.* methods
 export const GetSubscriptionsResponseDataSchema = z.array(SubscriptionWithProductSchema).openapi('GetSubscriptionsData');
 
 export const GetSubscriptionResponseDataSchema = SubscriptionWithProductSchema.openapi('GetSubscriptionData');
@@ -199,7 +199,7 @@ export const SubscriptionParamsSchema = z.object({
   }),
 });
 
-// ✅ Export types - now consistent with database schema and unified response system
+// Export types - now consistent with database schema and unified response system
 export type Subscription = z.infer<typeof SubscriptionSchema>;
 export type SubscriptionWithProduct = z.infer<typeof SubscriptionWithProductSchema>;
 export type CreateSubscriptionRequest = z.infer<typeof CreateSubscriptionRequestSchema>;

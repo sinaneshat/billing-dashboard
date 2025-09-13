@@ -14,20 +14,16 @@ import { LoadingSpinner } from '@/components/ui/loading-spinner';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useCreateSubscriptionMutation } from '@/hooks/mutations/subscriptions';
 import { useProductsQuery } from '@/hooks/queries/products';
-import { formatTomanCurrency } from '@/lib';
+import { getEnvironmentVariables } from '@/utils';
 
 import { toast } from '../ui/use-toast';
 
-type SSOFlowData = {
-  initialStep: string;
-  selectedProductId: string | null;
-  billingMethod?: string;
-  priceId?: string;
-  referrer?: string;
-};
-
 type SubscriptionPlansProps = {
-  ssoFlowData?: SSOFlowData;
+  ssoFlowData?: {
+    priceId?: string;
+    billing?: string;
+    step?: string;
+  };
 };
 
 // Database-driven translation key extraction from product name
@@ -54,11 +50,9 @@ export function SubscriptionPlans({ ssoFlowData }: SubscriptionPlansProps) {
   const { data: products, isLoading, error, refetch } = useProductsQuery();
   const createSubscriptionMutation = useCreateSubscriptionMutation();
 
-  // Initialize state from server-provided SSO flow data
-  const [selectedProductId, setSelectedProductId] = useState<string | null>(
-    ssoFlowData?.selectedProductId || null,
-  );
-  const [activeTab, setActiveTab] = useState(ssoFlowData?.initialStep || 'plans');
+  const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState('plans');
+  const [isClientMounted, setIsClientMounted] = useState(false);
   const [contractId, setContractId] = useState<string | null>(null);
 
   const productList = useMemo(() => {
@@ -66,6 +60,16 @@ export function SubscriptionPlans({ ssoFlowData }: SubscriptionPlansProps) {
       ? products.data.filter(product => product.isActive)
       : [];
   }, [products]);
+
+  // Simple price ID matching - find product by stripe price ID
+  const preSelectedProduct = useMemo(() => {
+    if (!ssoFlowData?.priceId || productList.length === 0) {
+      return null;
+    }
+
+    const found = productList.find(p => p.stripePriceId === ssoFlowData.priceId) || null;
+    return found;
+  }, [ssoFlowData?.priceId, productList]);
 
   // Products are already in the correct format from the API
   // API returns products with metadata.pricing containing USD/Toman/Rial prices
@@ -75,15 +79,16 @@ export function SubscriptionPlans({ ssoFlowData }: SubscriptionPlansProps) {
   const handleDirectSubscription = useCallback(async (productId: string) => {
     try {
       const result = await createSubscriptionMutation.mutateAsync({
-        json: {
-          productId,
-          ...(ssoFlowData?.referrer && { referrer: ssoFlowData.referrer }),
-        },
+        json: { productId },
       });
 
       if (result.success) {
         toast({ title: t('subscription.activationSuccess') });
-        window.location.href = '/dashboard/billing';
+
+        // Redirect back to roundtable after successful subscription
+        setTimeout(() => {
+          window.location.href = `${getEnvironmentVariables().ROUNDTABLE_APP_URL}/dashboard/plans`;
+        }, 1500);
       } else {
         toast({ title: t('subscription.activationFailed') });
       }
@@ -91,7 +96,7 @@ export function SubscriptionPlans({ ssoFlowData }: SubscriptionPlansProps) {
       toast({ title: t('subscription.activationError') });
       console.error('Free subscription error:', error);
     }
-  }, [createSubscriptionMutation, t, ssoFlowData?.referrer]);
+  }, [createSubscriptionMutation, t]);
 
   const handlePlanSelect = (planId: string) => {
     const product = productList.find(p => p.id === planId);
@@ -123,13 +128,16 @@ export function SubscriptionPlans({ ssoFlowData }: SubscriptionPlansProps) {
           productId: selectedProductId,
           paymentMethod: 'direct-debit-contract',
           contractId,
-          ...(ssoFlowData?.referrer && { referrer: ssoFlowData.referrer }),
         },
       });
 
       if (result.success) {
         toast({ title: t('subscription.createSuccess') });
-        window.location.href = '/dashboard/billing';
+
+        // Redirect back to roundtable after successful subscription
+        setTimeout(() => {
+          window.location.href = `${getEnvironmentVariables().ROUNDTABLE_APP_URL}/dashboard/plans`;
+        }, 1500);
       } else {
         toast({ title: t('subscription.createFailed') });
         setActiveTab('payment');
@@ -140,17 +148,55 @@ export function SubscriptionPlans({ ssoFlowData }: SubscriptionPlansProps) {
     }
   };
 
-  // Server-side SSO flow handling - auto-subscribe to free plans if pre-selected
-  React.useEffect(() => {
-    if (ssoFlowData?.selectedProductId && productList.length > 0) {
-      const targetProduct = productList.find(p => p.id === ssoFlowData.selectedProductId);
+  // Handle client mount and SSO flow data
+  const handleClientMount = React.useCallback(() => {
+    // eslint-disable-next-line react-hooks-extra/no-direct-set-state-in-use-effect
+    setIsClientMounted(true);
+  }, []);
 
-      // For free plans coming from SSO, automatically subscribe
-      if (targetProduct && targetProduct.price === 0 && ssoFlowData.initialStep === 'payment') {
-        void handleDirectSubscription(ssoFlowData.selectedProductId);
+  const handleTabChange = React.useCallback((step: string) => {
+    // eslint-disable-next-line react-hooks-extra/no-direct-set-state-in-use-effect
+    setActiveTab(step);
+  }, []);
+
+  const handleProductSelection = React.useCallback((productId: string) => {
+    // eslint-disable-next-line react-hooks-extra/no-direct-set-state-in-use-effect
+    setSelectedProductId(productId);
+  }, []);
+
+  const handlePaymentTabChange = React.useCallback(() => {
+    // eslint-disable-next-line react-hooks-extra/no-direct-set-state-in-use-effect
+    setActiveTab('payment');
+  }, []);
+
+  React.useEffect(() => {
+    handleClientMount();
+  }, [handleClientMount]);
+
+  React.useEffect(() => {
+    // Set initial tab based on SSO data after client mount
+    if (ssoFlowData?.step) {
+      handleTabChange(ssoFlowData.step);
+    }
+  }, [ssoFlowData?.step, handleTabChange]);
+
+  // Handle pre-selected product from SSO
+  React.useEffect(() => {
+    if (!isClientMounted) {
+      return;
+    }
+
+    if (preSelectedProduct && !selectedProductId) {
+      handleProductSelection(preSelectedProduct.id);
+
+      // If step is payment and it's a free plan, auto-subscribe
+      if (preSelectedProduct.price === 0 && ssoFlowData?.step === 'payment') {
+        void handleDirectSubscription(preSelectedProduct.id);
+      } else if (preSelectedProduct.price > 0 && ssoFlowData?.step === 'payment') {
+        handlePaymentTabChange();
       }
     }
-  }, [productList, ssoFlowData, handleDirectSubscription]);
+  }, [preSelectedProduct, selectedProductId, ssoFlowData, handleDirectSubscription, isClientMounted, handleProductSelection, handlePaymentTabChange]);
 
   // Return early states without wrappers (parent screen handles structure)
   if (error) {
@@ -219,7 +265,12 @@ export function SubscriptionPlans({ ssoFlowData }: SubscriptionPlansProps) {
       />
 
       <DashboardSection delay={0.1}>
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-8">
+        <Tabs
+          value={activeTab}
+          onValueChange={value => setActiveTab(value as 'plans' | 'payment' | 'confirmation')}
+          className="space-y-8"
+          suppressHydrationWarning
+        >
           <div className="flex justify-center">
             <TabsList className="grid w-full max-w-md grid-cols-3">
               <TabsTrigger value="plans" className="flex items-center gap-2">
@@ -263,7 +314,7 @@ export function SubscriptionPlans({ ssoFlowData }: SubscriptionPlansProps) {
                         </span>
                         <div className="text-start">
                           <div className="font-bold text-lg">
-                            {formatTomanCurrency(selectedProduct.price)}
+                            {selectedProduct.formattedPrice || `${selectedProduct.price} Toman`}
                           </div>
                           <div className="text-sm text-muted-foreground">
                             {t('plans.perMonth')}
@@ -289,7 +340,7 @@ export function SubscriptionPlans({ ssoFlowData }: SubscriptionPlansProps) {
               title={t('plans.congratulations')}
               description={t('plans.subscriptionActivated')}
               actionText={t('plans.goToDashboard')}
-              actionHref="/dashboard"
+              actionHref={`${getEnvironmentVariables().ROUNDTABLE_APP_URL}/dashboard/plans`}
             />
           </TabsContent>
         </Tabs>

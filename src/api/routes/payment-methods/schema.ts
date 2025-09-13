@@ -3,7 +3,7 @@ import { z } from '@hono/zod-openapi';
 import { createApiResponseSchema } from '@/api/core/schemas';
 import { paymentMethodSelectSchema } from '@/db/validation/billing';
 
-// ✅ Single source of truth - use drizzle-zod schema with OpenAPI metadata
+// Single source of truth - use drizzle-zod schema with OpenAPI metadata
 const PaymentMethodSchema = paymentMethodSelectSchema.openapi({
   example: {
     id: 'pm_123',
@@ -83,6 +83,6 @@ export const PaymentMethodParamsSchema = z.object({
   }),
 });
 
-// ✅ Export types - now consistent with database schema
+// Export types - now consistent with database schema
 export type PaymentMethod = z.infer<typeof PaymentMethodSchema>;
 export type PaymentMethodParams = z.infer<typeof PaymentMethodParamsSchema>;

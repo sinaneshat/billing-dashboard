@@ -10,7 +10,9 @@ import { HTTPException } from 'hono/http-exception';
 import * as HttpStatusCodes from 'stoker/http-status-codes';
 
 import { createZarinPalHTTPException } from '@/api/common/zarinpal-error-utils';
+import { validateWithSchema } from '@/api/core/validation';
 import { BaseService } from '@/api/patterns/service-factory';
+import type { ApiEnv } from '@/api/types';
 
 // =============================================================================
 // ZOD SCHEMAS (Context7 Best Practices)
@@ -32,6 +34,9 @@ export const ZarinPalDirectDebitConfigSchema = z.object({
   isSandbox: z.boolean().optional(),
   isPlaceholder: z.boolean().optional().openapi({
     description: 'Indicates using development placeholder ID',
+  }),
+  isSandboxValue: z.boolean().optional().openapi({
+    description: 'Indicates using official ZarinPal sandbox credentials',
   }),
 }).openapi('ZarinPalDirectDebitConfig');
 
@@ -63,8 +68,8 @@ export const DirectDebitContractRequestSchema = z.object({
   mobile: IranianMobileSchema,
   ssn: IranianSSNSchema.optional(),
   expire_at: z.string().datetime().openapi({
-    example: '2024-12-31 23:59:59',
-    description: 'Contract expiry date in YYYY-MM-DD HH:MM:SS format',
+    example: '2024-12-31T23:59:59.000Z',
+    description: 'Contract expiry date in ISO 8601 format (YYYY-MM-DDTHH:MM:SS.sssZ)',
   }),
   max_daily_count: z.string().regex(/^\d+$/, 'Must be a numeric string').openapi({
     example: '10',
@@ -216,9 +221,10 @@ export class ZarinPalDirectDebitService extends BaseService<ZarinPalDirectDebitC
   }
 
   /**
-   * Get service configuration from environment with Zod validation
+   * Get service configuration from environment with proper validation patterns
+   * Following API Development Guide - schema-first with discriminated unions
    */
-  static getConfig(env: CloudflareEnv): ZarinPalDirectDebitConfig {
+  static getConfig(env: ApiEnv['Bindings']): ZarinPalDirectDebitConfig {
     if (!env.ZARINPAL_MERCHANT_ID) {
       throw new HTTPException(HttpStatusCodes.INTERNAL_SERVER_ERROR, {
         message: 'ZarinPal merchant ID not configured. Set ZARINPAL_MERCHANT_ID.',
@@ -242,8 +248,18 @@ export class ZarinPalDirectDebitService extends BaseService<ZarinPalDirectDebitC
       'xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx',
     ];
 
-    const isPlaceholder = placeholderPatterns.some(pattern => env.ZARINPAL_MERCHANT_ID!.includes(pattern));
+    const isPlaceholder = placeholderPatterns.some(pattern =>
+      env.ZARINPAL_MERCHANT_ID ? env.ZARINPAL_MERCHANT_ID.includes(pattern) : false,
+    );
     const isSandbox = env.NODE_ENV === 'development';
+
+    // Check for sandbox values but allow them in development
+    const ZARINPAL_SANDBOX_VALUES = [
+      '36e0ea98-43fa-400d-a421-f7593b1c73bc', // Official sandbox merchant ID
+      'zp-sandbox-access-token', // Official sandbox access token
+    ];
+    const isSandboxValue = (env.ZARINPAL_MERCHANT_ID && ZARINPAL_SANDBOX_VALUES.includes(env.ZARINPAL_MERCHANT_ID))
+      || (env.ZARINPAL_ACCESS_TOKEN && ZARINPAL_SANDBOX_VALUES.includes(env.ZARINPAL_ACCESS_TOKEN));
 
     if (isPlaceholder) {
       // In development, allow placeholder but warn
@@ -269,13 +285,15 @@ export class ZarinPalDirectDebitService extends BaseService<ZarinPalDirectDebitC
       },
       merchantId: env.ZARINPAL_MERCHANT_ID,
       isSandbox,
-      isPlaceholder,
+      isPlaceholder: isPlaceholder && !(isSandboxValue && isSandbox), // Don't treat sandbox values as placeholders in development
+      isSandboxValue,
     };
 
-    // Validate configuration using Zod schema
-    const result = ZarinPalDirectDebitConfigSchema.safeParse(config);
+    // Validate configuration using discriminated union patterns per API guide
+    const result = validateWithSchema(ZarinPalDirectDebitConfigSchema, config);
     if (!result.success) {
-      throw new Error(`ZarinPal Direct Debit config validation failed: ${result.error.message}`);
+      const errorMessage = result.errors[0]?.message || 'Configuration validation failed';
+      throw new Error(`ZarinPal Direct Debit config validation failed: ${errorMessage}`);
     }
     return result.data;
   }
@@ -285,18 +303,31 @@ export class ZarinPalDirectDebitService extends BaseService<ZarinPalDirectDebitC
    * Using BaseService HTTP methods with Zod validation for type safety
    */
   async requestContract(request: DirectDebitContractRequest): Promise<DirectDebitContractResponse> {
-    // Validate input using Zod schema
-    const requestResult = DirectDebitContractRequestSchema.safeParse(request);
+    // Validate input using discriminated unions per API Development Guide
+    const requestResult = validateWithSchema(DirectDebitContractRequestSchema, request);
     if (!requestResult.success) {
-      throw new Error(`Direct debit contract request validation failed: ${requestResult.error.message}`);
+      const errorMessage = requestResult.errors[0]?.message || 'Contract request validation failed';
+      throw new Error(`Direct debit contract request validation failed: ${errorMessage}`);
     }
     const validatedRequest = requestResult.data;
 
-    // Return mock data in development with placeholder ID
-    if (this.config.isPlaceholder) {
-      throw new HTTPException(HttpStatusCodes.BAD_REQUEST, {
-        message: 'Development mode: Using placeholder ZarinPal credentials. Please configure real merchant ID for actual payments.',
-      });
+    // Handle sandbox/development mode
+    if (this.config.isPlaceholder || (this.config.isSandbox && this.config.isSandboxValue)) {
+      if (this.config.isSandbox) {
+        // In development mode with placeholder credentials, return mock response
+        return {
+          data: {
+            payman_authority: `mock-payman-authority-${Date.now()}`,
+            code: 100,
+            message: 'Mock direct debit contract for development',
+          },
+          errors: [],
+        };
+      } else {
+        throw new HTTPException(HttpStatusCodes.BAD_REQUEST, {
+          message: 'Production mode: Invalid ZarinPal credentials. Configure real credentials from https://next.zarinpal.com/panel/',
+        });
+      }
     }
 
     const payload = {
@@ -318,10 +349,11 @@ export class ZarinPalDirectDebitService extends BaseService<ZarinPalDirectDebitC
         'contract request',
       );
 
-      // Validate response using Zod schema
-      const responseResult = DirectDebitContractResponseSchema.safeParse(rawResult);
+      // Validate response using discriminated unions per API guide
+      const responseResult = validateWithSchema(DirectDebitContractResponseSchema, rawResult);
       if (!responseResult.success) {
-        throw new Error(`Direct debit contract response validation failed: ${responseResult.error.message}`);
+        const errorMessage = responseResult.errors[0]?.message || 'Contract response validation failed';
+        throw new Error(`Direct debit contract response validation failed: ${errorMessage}`);
       }
       const validatedResult = responseResult.data;
 
@@ -347,11 +379,38 @@ export class ZarinPalDirectDebitService extends BaseService<ZarinPalDirectDebitC
    * Using BaseService HTTP methods with Zod validation for type safety
    */
   async getBankList(): Promise<BankListResponse> {
-    // Return mock data in development with placeholder ID
-    if (this.config.isPlaceholder) {
-      throw new HTTPException(HttpStatusCodes.BAD_REQUEST, {
-        message: 'Development mode: Using placeholder ZarinPal credentials. Please configure real merchant ID for actual payments.',
-      });
+    // Handle sandbox/development mode
+    if (this.config.isPlaceholder || (this.config.isSandbox && this.config.isSandboxValue)) {
+      if (this.config.isSandbox) {
+        // In development mode with placeholder credentials, return mock response
+        return {
+          data: {
+            banks: [
+              {
+                name: 'Mock Bank 1 (Development)',
+                slug: 'mock-bank-1',
+                bank_code: '001',
+                max_daily_amount: 50000000,
+                max_daily_count: 10,
+              },
+              {
+                name: 'Mock Bank 2 (Development)',
+                slug: 'mock-bank-2',
+                bank_code: '002',
+                max_daily_amount: 25000000,
+                max_daily_count: 5,
+              },
+            ],
+            code: 100,
+            message: 'Mock bank list for development',
+          },
+          errors: [],
+        };
+      } else {
+        throw new HTTPException(HttpStatusCodes.BAD_REQUEST, {
+          message: 'Production mode: Invalid ZarinPal credentials. Configure real credentials from https://next.zarinpal.com/panel/',
+        });
+      }
     }
 
     try {
@@ -361,10 +420,11 @@ export class ZarinPalDirectDebitService extends BaseService<ZarinPalDirectDebitC
         'get bank list',
       );
 
-      // Validate response using Zod schema
-      const responseResult = BankListResponseSchema.safeParse(rawResult);
+      // Validate response using discriminated unions per API guide
+      const responseResult = validateWithSchema(BankListResponseSchema, rawResult);
       if (!responseResult.success) {
-        throw new Error(`Bank list response validation failed: ${responseResult.error.message}`);
+        const errorMessage = responseResult.errors[0]?.message || 'Bank list response validation failed';
+        throw new Error(`Bank list response validation failed: ${errorMessage}`);
       }
       const validatedResult = responseResult.data;
       return validatedResult;
@@ -386,18 +446,26 @@ export class ZarinPalDirectDebitService extends BaseService<ZarinPalDirectDebitC
    * Using BaseService HTTP methods with Zod validation for type safety
    */
   async verifyContractAndGetSignature(request: SignatureRequest): Promise<SignatureResponse> {
-    // Validate input using Zod schema
-    const requestResult = SignatureRequestSchema.safeParse(request);
+    // Validate input using discriminated unions per API Development Guide
+    const requestResult = validateWithSchema(SignatureRequestSchema, request);
     if (!requestResult.success) {
-      throw new Error(`Signature request validation failed: ${requestResult.error.message}`);
+      const errorMessage = requestResult.errors[0]?.message || 'Signature request validation failed';
+      throw new Error(`Signature request validation failed: ${errorMessage}`);
     }
     const validatedRequest = requestResult.data;
 
-    // Return mock data in development with placeholder ID
+    // Handle sandbox/development mode
     if (this.config.isPlaceholder) {
-      throw new HTTPException(HttpStatusCodes.BAD_REQUEST, {
-        message: 'Development mode: Using placeholder ZarinPal credentials. Please configure real merchant ID for actual payments.',
-      });
+      if (this.config.isSandbox && this.config.isSandboxValue) {
+        // Allow sandbox credentials in development - they'll fail gracefully at API level
+        console.warn('[ZarinPal] Using sandbox credentials in development mode - API calls will fail gracefully');
+      } else {
+        throw new HTTPException(HttpStatusCodes.BAD_REQUEST, {
+          message: this.config.isSandbox
+            ? 'Development mode: Configure real ZarinPal credentials for testing, or use mock mode.'
+            : 'Production mode: Invalid ZarinPal credentials. Configure real credentials from https://next.zarinpal.com/panel/',
+        });
+      }
     }
 
     const payload = {
@@ -429,9 +497,16 @@ export class ZarinPalDirectDebitService extends BaseService<ZarinPalDirectDebitC
   /**
    * Step 4: Execute direct transaction using signature
    * Using BaseService with limited retries to avoid duplicate charges
+   * Following API Development Guide patterns for validation
    * Note: You still need to create regular payment authority first
    */
   async executeDirectTransaction(request: DirectTransactionRequest): Promise<DirectTransactionResponse> {
+    // Validate input using discriminated unions per API Development Guide
+    const requestResult = validateWithSchema(DirectTransactionRequestSchema, request);
+    if (!requestResult.success) {
+      const errorMessage = requestResult.errors[0]?.message || 'Direct transaction request validation failed';
+      throw new Error(`Direct transaction request validation failed: ${errorMessage}`);
+    }
     const payload = {
       merchant_id: this.config.merchantId,
       authority: request.authority,

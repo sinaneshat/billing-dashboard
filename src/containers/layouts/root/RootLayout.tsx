@@ -36,7 +36,7 @@ export function RootLayout({
     >
       <ThemeProvider
         attribute="class"
-        defaultTheme="dark"
+        defaultTheme="system"
         enableSystem={true}
         disableTransitionOnChange
         storageKey="theme"
@@ -44,7 +44,11 @@ export function RootLayout({
         <QueryClientProvider>
           <>
             <NuqsAdapter>
-              <NextIntlClientProvider messages={translations} locale={locale}>
+              <NextIntlClientProvider
+                messages={translations}
+                locale={locale}
+                timeZone="UTC"
+              >
                 {env.NEXT_PUBLIC_MAINTENANCE !== 'true'
                   ? (
                       <main>{children}</main>

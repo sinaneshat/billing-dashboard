@@ -76,7 +76,7 @@ type HealthCheckResult = {
 
 /**
  * Handler for basic health check endpoint
- * ✅ Refactored: Uses unified factory pattern
+ * Refactored: Uses unified factory pattern
  */
 export const healthHandler: RouteHandler<typeof healthRoute, ApiEnv> = createHandler(
   {
@@ -94,7 +94,7 @@ export const healthHandler: RouteHandler<typeof healthRoute, ApiEnv> = createHan
 
 /**
  * Handler for detailed health check endpoint with comprehensive external dependency monitoring
- * ✅ Refactored: Uses unified factory pattern
+ * Refactored: Uses unified factory pattern
  */
 export const detailedHealthHandler: RouteHandler<typeof detailedHealthRoute, ApiEnv> = createHandler(
   {

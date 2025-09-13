@@ -121,7 +121,7 @@ export function validateEnvironmentConfig(env: Record<string, string | undefined
       warnings.push('Using placeholder ZarinPal credentials in development. Payment features will not work properly.');
     } else if (ZARINPAL_SANDBOX_VALUES.includes(env.ZARINPAL_MERCHANT_ID as string)
       || ZARINPAL_SANDBOX_VALUES.includes(env.ZARINPAL_ACCESS_TOKEN as string)) {
-      console.error('✅ Using official ZarinPal sandbox credentials for development');
+      console.error('Using official ZarinPal sandbox credentials for development');
     }
   }
 
@@ -156,7 +156,7 @@ export function validateEnvironmentConfig(env: Record<string, string | undefined
     console.warn(`Environment configuration warnings:\n${warnings.join('\n')}`);
   }
 
-  console.error(`✅ Environment configuration validated for ${env.NODE_ENV} environment`);
+  console.error(`Environment configuration validated for ${env.NODE_ENV} environment`);
 
   return env as EnvironmentConfig;
 }
