@@ -104,7 +104,7 @@ export function getBaseUrl(): string {
   }
 
   // Default fallback
-  return 'https://deadpixel.app';
+  return 'https://billing.roundtable.now';
 }
 
 // Export env as a getter for dynamic environment variables

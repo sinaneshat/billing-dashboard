@@ -6,6 +6,7 @@ import type { Metadata, Viewport } from 'next';
 import { getLocale, getMessages } from 'next-intl/server';
 import React from 'react';
 
+import { StructuredData } from '@/components/seo/structured-data';
 import { BRAND } from '@/constants/brand';
 import { RootLayout } from '@/containers/layouts/root';
 import { createMetadata } from '@/utils/metadata';
@@ -50,6 +51,7 @@ export default async function Layout({ children, modal }: RootLayoutProps) {
 
     >
       <body>
+        <StructuredData type="WebApplication" />
         <RootLayout
           locale={locale}
           translations={translations as Record<string, unknown>}
