@@ -13,7 +13,6 @@ import { createMarkdownFromOpenApi } from '@scalar/openapi-to-markdown';
 import type { Context, Next } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
 import { cache } from 'hono/cache';
-import { compress } from 'hono/compress';
 import { contextStorage } from 'hono/context-storage';
 import { cors } from 'hono/cors';
 import { csrf } from 'hono/csrf';
@@ -145,7 +144,9 @@ app.use('*', trimTrailingSlash());
 app.use('*', contextStorage());
 app.use('*', secureHeaders()); // Use default secure headers - much simpler
 app.use('*', requestId());
-app.use('*', compress());
+// IMPORTANT: Compression handled natively by Cloudflare Workers
+// Using Hono's compress() middleware causes binary corruption in OpenNext.js
+// Let Cloudflare handle gzip/brotli compression automatically
 app.use('*', timing());
 app.use('*', timeout(15000));
 
