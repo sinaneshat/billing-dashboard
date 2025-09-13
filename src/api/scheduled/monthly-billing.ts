@@ -608,7 +608,7 @@ export default {
         });
 
         // Send alerts for failures or timeouts to external monitoring
-        if (env.Bindings.EXTERNAL_WEBHOOK_URL && (result.failed > 0 || result.timeoutReached || result.errors.length > 0)) {
+        if (env.Bindings.NEXT_PUBLIC_EXTERNAL_WEBHOOK_URL && (result.failed > 0 || result.timeoutReached || result.errors.length > 0)) {
           try {
             const alertPayload = {
               source: 'monthly-billing-cron',
@@ -629,7 +629,7 @@ export default {
               errors: result.errors.slice(0, 10), // Limit error details to prevent large payloads
             };
 
-            await fetch(env.Bindings.EXTERNAL_WEBHOOK_URL, {
+            await fetch(env.Bindings.NEXT_PUBLIC_EXTERNAL_WEBHOOK_URL, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify(alertPayload),

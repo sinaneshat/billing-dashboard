@@ -488,7 +488,7 @@ export const zarinPalWebhookHandler: RouteHandler<typeof zarinPalWebhookRoute, A
       rawPayload: webhookPayload,
       processed: false,
       forwardedToExternal: false,
-      externalWebhookUrl: c.env?.EXTERNAL_WEBHOOK_URL || null,
+      externalWebhookUrl: c.env?.NEXT_PUBLIC_EXTERNAL_WEBHOOK_URL || null,
     };
 
     try {
@@ -783,7 +783,7 @@ export const zarinPalWebhookHandler: RouteHandler<typeof zarinPalWebhookRoute, A
 
     // Forward to external webhook URL if configured
     let forwarded = false;
-    if (c.env?.EXTERNAL_WEBHOOK_URL) {
+    if (c.env?.NEXT_PUBLIC_EXTERNAL_WEBHOOK_URL) {
       try {
         const forwardPayload = {
           source: 'zarinpal',
@@ -800,7 +800,7 @@ export const zarinPalWebhookHandler: RouteHandler<typeof zarinPalWebhookRoute, A
           correlationId: crypto.randomUUID(),
         };
 
-        const fetchResult = await postJSON(c.env.EXTERNAL_WEBHOOK_URL, forwardPayload, fetchConfig, {
+        const fetchResult = await postJSON(c.env.NEXT_PUBLIC_EXTERNAL_WEBHOOK_URL, forwardPayload, fetchConfig, {
           'X-Webhook-Source': 'billing-dashboard',
           'X-Event-ID': eventId,
         });

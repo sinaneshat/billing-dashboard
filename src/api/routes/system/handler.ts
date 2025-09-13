@@ -118,7 +118,7 @@ export const detailedHealthHandler: RouteHandler<typeof detailedHealthRoute, Api
     healthChecks.zarinpal = await checkZarinPalHealth(c.env);
 
     // 5. External webhook endpoint check (if configured)
-    healthChecks.externalWebhook = await checkExternalWebhookHealth(c.env?.EXTERNAL_WEBHOOK_URL);
+    healthChecks.externalWebhook = await checkExternalWebhookHealth(c.env?.NEXT_PUBLIC_EXTERNAL_WEBHOOK_URL);
 
     // 6. KV store check
     healthChecks.kvStore = await checkKVHealth(c.env?.KV);
@@ -305,7 +305,7 @@ async function checkStorageHealth(bucket?: R2Bucket): Promise<HealthCheckResult>
  * Check ZarinPal payment gateway connectivity
  */
 async function checkZarinPalHealth(env: CloudflareEnv): Promise<HealthCheckResult> {
-  if (!env?.ZARINPAL_MERCHANT_ID || !env?.ZARINPAL_ACCESS_TOKEN) {
+  if (!env?.NEXT_PUBLIC_ZARINPAL_MERCHANT_ID || !env?.ZARINPAL_ACCESS_TOKEN) {
     return {
       status: 'degraded',
       message: 'ZarinPal credentials not configured',
