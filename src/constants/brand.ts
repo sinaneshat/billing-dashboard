@@ -21,15 +21,15 @@ export const BRAND = {
     foreground: '#1e293b', // Dark text
   },
 
-  // Logo paths - Real assets from Roundtable website
+  // Logo paths - Proper transparent logos for different use cases
   logos: {
-    light: '/static/logo.png',
-    dark: '/static/logo.png',
-    iconLight: '/apple-touch-icon.png',
-    iconDark: '/apple-touch-icon.png',
-    round: '/apple-touch-icon.png',
-    roundWhite: '/apple-touch-icon.png',
-    roundBlack: '/static/logo.png',
+    light: '/static/logo.png', // Transparent background for light themes
+    dark: '/static/logo.png', // Transparent background for dark themes
+    iconLight: '/static/logo.png', // Use transparent logo for icons too
+    iconDark: '/static/logo.png', // Use transparent logo for icons too
+    round: '/static/logo.png', // Main transparent logo for full variant
+    roundWhite: '/static/logo.png', // Transparent logo works on all backgrounds
+    roundBlack: '/apple-touch-icon.png', // Keep apple-touch-icon for PWA/mobile only
     animation: '/static/logo.png',
     main: '/static/logo.png',
     mainBlack: '/static/logo.png',

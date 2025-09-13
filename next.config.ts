@@ -72,6 +72,36 @@ const nextConfig: NextConfig = {
         ],
       },
       {
+        // Scalar API documentation - needs permissive CSP
+        source: '/api/v1/scalar',
+        headers: [
+          {
+            key: 'Content-Security-Policy',
+            value: [
+              'default-src \'self\' \'unsafe-inline\' \'unsafe-eval\' data: blob:',
+              'script-src \'self\' \'unsafe-inline\' \'unsafe-eval\' https://cdn.jsdelivr.net https://unpkg.com https://cdnjs.cloudflare.com',
+              'style-src \'self\' \'unsafe-inline\' https://fonts.googleapis.com https://cdn.jsdelivr.net https://unpkg.com',
+              'font-src \'self\' https://fonts.gstatic.com https://cdn.jsdelivr.net',
+              'img-src \'self\' data: blob: https:',
+              'connect-src \'self\' https: wss: ws:',
+              'worker-src \'self\' blob:',
+              'child-src \'self\' blob:',
+              'frame-ancestors \'none\'',
+              'base-uri \'self\'',
+              'form-action \'self\'',
+            ].join('; '),
+          },
+          {
+            key: 'X-Frame-Options',
+            value: 'DENY',
+          },
+          {
+            key: 'X-Content-Type-Options',
+            value: 'nosniff',
+          },
+        ],
+      },
+      {
         // API routes - no cache by default (handled by middleware)
         source: '/api/:path*',
         headers: [
@@ -82,8 +112,8 @@ const nextConfig: NextConfig = {
         ],
       },
       {
-        // Basic security headers for all routes
-        source: '/(.*)',
+        // Basic security headers for all routes except Scalar
+        source: '/((?!api/v1/scalar).*)',
         headers: [
           {
             key: 'X-Content-Type-Options',
