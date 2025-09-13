@@ -139,7 +139,7 @@ async function checkMissingTranslations(): Promise<void> {
     });
     hasErrors = true;
   } else {
-    console.log('✅ All locales have the same keys');
+    console.log('All locales have the same keys');
   }
 
   // Check for placeholder values
@@ -159,7 +159,7 @@ async function checkMissingTranslations(): Promise<void> {
       }
       hasErrors = true;
     } else {
-      console.log(`✅ No placeholder values found in ${locale}`);
+      console.log(`No placeholder values found in ${locale}`);
     }
   }
 
@@ -196,7 +196,7 @@ async function checkMissingTranslations(): Promise<void> {
         console.log(`      ... and ${duplicateEntries.length - 5} more duplicates`);
       }
     } else {
-      console.log(`✅ No obvious duplicate values in ${locale}`);
+      console.log(`No obvious duplicate values in ${locale}`);
     }
   }
 
@@ -213,7 +213,7 @@ async function checkMissingTranslations(): Promise<void> {
     console.log('\n❌ Translation issues found. Please address them above.');
     process.exit(1);
   } else {
-    console.log('\n✅ All translation quality checks passed!');
+    console.log('\nAll translation quality checks passed!');
   }
 }
 

@@ -181,7 +181,7 @@ async function validateTranslations(): Promise<void> {
   }
 
   if (missingInFa.length === 0 && missingInEn.length === 0) {
-    console.log('✅ All translation keys are present in both locales');
+    console.log('All translation keys are present in both locales');
   }
 
   // Find hardcoded strings in components
@@ -227,7 +227,7 @@ async function validateTranslations(): Promise<void> {
 
     hasErrors = true;
   } else {
-    console.log('✅ No obvious hardcoded strings found');
+    console.log('No obvious hardcoded strings found');
   }
 
   // Summary
@@ -240,7 +240,7 @@ async function validateTranslations(): Promise<void> {
     console.log('\n❌ Translation validation failed. Please address the issues above.');
     process.exit(1);
   } else {
-    console.log('\n✅ All translation checks passed! Your app appears to be 100% translated.');
+    console.log('\nAll translation checks passed! Your app appears to be 100% translated.');
     process.exit(0);
   }
 }

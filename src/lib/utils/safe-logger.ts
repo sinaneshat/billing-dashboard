@@ -15,7 +15,7 @@
 
 import { z } from 'zod';
 
-import { getConfigValue, isDevelopment } from '@/lib/config';
+import { getConfigValue, isDevelopment } from '@/api/core/config';
 
 // ============================================================================
 // SENSITIVE DATA PATTERNS
@@ -115,7 +115,7 @@ const REDACTED_FIELDS = new Set([
 // LOG LEVELS
 // ============================================================================
 
-// ✅ Zod enum for log levels - reusable across logging modules
+// Zod enum for log levels - reusable across logging modules
 export const logLevelSchema = z.enum(['DEBUG', 'INFO', 'WARN', 'ERROR']);
 export type LogLevel = z.infer<typeof logLevelSchema>;
 

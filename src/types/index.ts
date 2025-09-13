@@ -1,7 +1,7 @@
 /**
  * Type exports for the application
  *
- * ✅ MIGRATION TO ZOD COMPLETE:
+ * MIGRATION TO ZOD COMPLETE:
  *
  * **For Database Types**, import directly from validation schemas:
  * ```typescript

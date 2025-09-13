@@ -3,16 +3,12 @@
 import { SubscriptionPlans } from '@/components/billing/subscription-plans';
 import { DashboardPage } from '@/components/dashboard/dashboard-states';
 
-type SSOFlowData = {
-  initialStep: string;
-  selectedProductId: string | null;
-  billingMethod?: string;
-  priceId?: string;
-  referrer?: string;
-};
-
 type SubscriptionPlansScreenProps = {
-  ssoFlowData?: SSOFlowData;
+  ssoFlowData?: {
+    priceId?: string;
+    billing?: string;
+    step?: string;
+  };
 };
 
 export default function SubscriptionPlansScreen({ ssoFlowData }: SubscriptionPlansScreenProps) {

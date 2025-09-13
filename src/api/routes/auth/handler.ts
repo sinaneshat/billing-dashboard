@@ -8,7 +8,7 @@ import type { secureMeRoute } from './route';
 /**
  * Handler for secure /auth/me endpoint
  * Returns current authenticated user information
- * ✅ Refactored: Now uses unified factory pattern with consistent responses
+ * Refactored: Now uses unified factory pattern with consistent responses
  */
 export const secureMeHandler: RouteHandler<typeof secureMeRoute, ApiEnv> = createHandler(
   {

@@ -174,7 +174,7 @@ async function seedProducts() {
           createdAt: new Date(),
           updatedAt: new Date(),
         });
-        console.log(`✅ Created product: ${productData.name} (${productData.stripePriceId || 'Free'})`);
+        console.log(`Created product: ${productData.name} (${productData.stripePriceId || 'Free'})`);
       } else {
         // Update existing product
         await db
@@ -192,7 +192,7 @@ async function seedProducts() {
     }
   }
 
-  console.log('✅ Products seeded successfully');
+  console.log('Products seeded successfully');
 }
 
 async function main() {

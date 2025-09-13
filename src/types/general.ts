@@ -1,7 +1,7 @@
 import type { LucideIcon } from 'lucide-react';
 import { z } from 'zod';
 
-// ✅ Zod schemas for form components - maximum reusability
+// Zod schemas for form components - maximum reusability
 export const formOptionSchema = z.object({
   label: z.string(),
   value: z.string(),
@@ -32,7 +32,7 @@ export type GeneralFormProps = {
   className?: string;
 };
 
-// ✅ Zod enums for form variants - reusable and type-safe
+// Zod enums for form variants - reusable and type-safe
 export const textInputVariantSchema = z.enum([
   'text',
   'checkbox',
@@ -67,11 +67,11 @@ export type NavItem = {
   onClick?: () => void;
 } & FormOption;
 
-// ✅ Zod enum instead of static TypeScript enum for consistency
+// Zod enum instead of static TypeScript enum for consistency
 export const aiHistoryStatusSchema = z.enum(['aborted', 'success', 'error']);
 export type AIHistoryStatus = z.infer<typeof aiHistoryStatusSchema>;
 
-// ✅ UPDATED: Use core schemas from @/api/core/schemas for API-related types
+// UPDATED: Use core schemas from @/api/core/schemas for API-related types
 // Frontend types are kept separate from API schemas for clear separation of concerns
 // API error types should import from @/api/core/schemas when needed
 

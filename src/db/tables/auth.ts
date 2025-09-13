@@ -13,6 +13,7 @@ export const user = sqliteTable('user', {
   emailVerified: integer('email_verified', { mode: 'boolean' }).$defaultFn(() => false).notNull(),
   image: text('image'),
   phone: text('phone'),
+  role: text('role').default('user').notNull(), // Added role field for Better Auth compatibility
   isAnonymous: integer('is_anonymous', { mode: 'boolean' }),
   lastLoginAt: integer('last_login_at', { mode: 'timestamp' }),
   failedLoginAttempts: integer('failed_login_attempts').default(0).notNull(),

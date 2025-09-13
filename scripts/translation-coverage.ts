@@ -273,7 +273,7 @@ async function generateCoverageReport(): Promise<CoverageSummary> {
   }
 
   if (componentCoverage >= 95 && totalHardcodedStrings === 0 && keyCoverage >= 80) {
-    console.log('   ✅ Excellent translation coverage! Your app is well-internationalized.');
+    console.log('   Excellent translation coverage! Your app is well-internationalized.');
   }
 
   console.log(`\n${'='.repeat(60)}`);
@@ -292,7 +292,7 @@ async function generateCoverageReport(): Promise<CoverageSummary> {
 
 generateCoverageReport().then((summary) => {
   if (summary.success) {
-    console.log('\n✅ Translation coverage meets quality standards!');
+    console.log('\nTranslation coverage meets quality standards!');
     process.exit(0);
   } else {
     console.log('\n⚠️  Translation coverage could be improved.');

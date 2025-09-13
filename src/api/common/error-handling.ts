@@ -331,6 +331,29 @@ export const createError = {
     }),
 
   /**
+   * Validation errors
+   */
+  badRequest: (message = 'Invalid request', context?: ErrorContext, correlationId?: string) =>
+    new AppError({
+      message,
+      code: ERROR_CODES.VALIDATION_ERROR,
+      statusCode: HttpStatusCodes.BAD_REQUEST,
+      severity: ERROR_SEVERITY.LOW,
+      context,
+      correlationId,
+    }),
+
+  validation: (message = 'Validation failed', context?: ErrorContext, correlationId?: string) =>
+    new AppError({
+      message,
+      code: ERROR_CODES.VALIDATION_ERROR,
+      statusCode: HttpStatusCodes.BAD_REQUEST,
+      severity: ERROR_SEVERITY.LOW,
+      context,
+      correlationId,
+    }),
+
+  /**
    * System errors
    */
   internal: (message = 'Internal server error', context?: ErrorContext, correlationId?: string) =>

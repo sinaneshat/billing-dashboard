@@ -80,7 +80,7 @@ export const LogContextSchema = z.discriminatedUnion('logType', [
   }).passthrough(),
 ]);
 
-// ✅ Flexible: Discriminated union with Record fallback for custom logging needs
+// Flexible: Discriminated union with Record fallback for custom logging needs
 export type LogContext = z.infer<typeof LogContextSchema> | Record<string, unknown>;
 
 // Logger data type for handler contexts
@@ -100,7 +100,7 @@ export function validateLogContext(context: unknown): LogContext | null {
   return result.success ? result.data : null;
 }
 
-// ✅ Balanced: Type-safe helpers for common patterns while maintaining flexibility
+// Balanced: Type-safe helpers for common patterns while maintaining flexibility
 export const LogHelpers = {
   request: (data: Record<string, unknown> & {
     requestId: string;

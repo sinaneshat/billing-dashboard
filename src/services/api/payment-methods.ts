@@ -90,6 +90,20 @@ export type InitiateDirectDebitContractResponse = InferResponseType<(typeof apiC
 export type VerifyDirectDebitContractRequest = InferRequestType<(typeof apiClient)['payment-methods']['verify-direct-debit-contract']['$post']>;
 export type VerifyDirectDebitContractResponse = InferResponseType<(typeof apiClient)['payment-methods']['verify-direct-debit-contract']['$post']>;
 
+// Get Available Banks
+export type GetBankListRequest = InferRequestType<(typeof apiClient)['payment-methods']['direct-debit']['banks']['$get']>;
+export type GetBankListResponse = InferResponseType<(typeof apiClient)['payment-methods']['direct-debit']['banks']['$get']>;
+
+// Execute Direct Debit Payment
+export type ExecuteDirectDebitPaymentRequest = InferRequestType<(typeof apiClient)['payment-methods']['direct-debit']['charge']['$post']>;
+export type ExecuteDirectDebitPaymentResponse = InferResponseType<(typeof apiClient)['payment-methods']['direct-debit']['charge']['$post']>;
+
+// Cancel Direct Debit Contract
+export type CancelDirectDebitContractRequest = {
+  param: { contractId: string };
+};
+export type CancelDirectDebitContractResponse = InferResponseType<(typeof apiClient)['payment-methods']['direct-debit'][':contractId']['$delete']>;
+
 /**
  * Initiate Direct Debit Contract Setup (Step 1)
  * Creates contract with ZarinPal and returns bank selection options
@@ -104,4 +118,32 @@ export async function initiateDirectDebitContractService(args: InitiateDirectDeb
  */
 export async function verifyDirectDebitContractService(args: VerifyDirectDebitContractRequest) {
   return parseResponse(apiClient['payment-methods']['verify-direct-debit-contract'].$post(args));
+}
+
+/**
+ * Get Available Banks for Direct Debit Contract Signing
+ * Returns list of banks with their limits and capabilities
+ */
+export async function getBankListService(args?: GetBankListRequest) {
+  return args
+    ? parseResponse(apiClient['payment-methods']['direct-debit'].banks.$get(args))
+    : parseResponse(apiClient['payment-methods']['direct-debit'].banks.$get());
+}
+
+/**
+ * Execute Direct Debit Payment for Subscription Billing
+ * Charges user using signed direct debit contract with currency conversion
+ */
+export async function executeDirectDebitPaymentService(args: ExecuteDirectDebitPaymentRequest) {
+  return parseResponse(apiClient['payment-methods']['direct-debit'].charge.$post(args));
+}
+
+/**
+ * Cancel Direct Debit Contract
+ * Allows users to cancel their direct debit contracts (legally required)
+ */
+export async function cancelDirectDebitContractService(contractId: string) {
+  return parseResponse(apiClient['payment-methods']['direct-debit'][':contractId'].$delete({
+    param: { contractId },
+  }));
 }

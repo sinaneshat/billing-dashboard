@@ -104,7 +104,7 @@ const nextConfig: NextConfig = {
               'script-src \'self\' \'unsafe-inline\' \'unsafe-eval\'',
               'style-src \'self\' \'unsafe-inline\'',
               'img-src \'self\' data: https://lh3.googleusercontent.com https://lh4.googleusercontent.com https://lh5.googleusercontent.com https://lh6.googleusercontent.com https://googleusercontent.com',
-              'connect-src \'self\' https://api.zarinpal.com https://billing-dashboard-preview.firstexhotic.workers.dev https://billing-dashboard-production.firstexhotic.workers.dev',
+              `connect-src 'self' https://api.zarinpal.com ${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}`,
               'frame-ancestors \'none\'',
               'base-uri \'self\'',
               'form-action \'self\'',
@@ -121,19 +121,19 @@ const nextConfig: NextConfig = {
     deviceSizes: [640, 750, 828, 1080, 1200, 1920, 2048, 3840],
     imageSizes: [16, 32, 48, 64, 96, 128, 256, 384],
     remotePatterns: [
-      {
-        protocol: 'https',
-        hostname: 'billing-dashboard-preview.firstexhotic.workers.dev',
-      },
-      {
-        protocol: 'https',
-        hostname: 'billing-dashboard-production.firstexhotic.workers.dev',
-      },
-      {
-        protocol: 'http',
-        hostname: 'localhost',
-        port: '3000',
-      },
+      // Dynamic hostname based on environment
+      ...(process.env.NEXT_PUBLIC_APP_URL
+        ? [{
+            protocol: new URL(process.env.NEXT_PUBLIC_APP_URL).protocol.slice(0, -1) as 'http' | 'https',
+            hostname: new URL(process.env.NEXT_PUBLIC_APP_URL).hostname,
+            port: new URL(process.env.NEXT_PUBLIC_APP_URL).port || undefined,
+          }]
+        : [{
+            protocol: 'http' as const,
+            hostname: 'localhost',
+            port: '3000',
+          }]
+      ),
       {
         protocol: 'https',
         hostname: 'lh3.googleusercontent.com',

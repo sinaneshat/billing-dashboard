@@ -12,7 +12,7 @@ export function showSuccessToast(message: string, options?: string | { descripti
   const description = typeof options === 'string' ? options : options?.description;
 
   return toast({
-    title: '✅ Success',
+    title: 'Success',
     description: message,
     variant: 'default',
     ...(description && { description }),
@@ -26,7 +26,7 @@ export function showErrorToast(message: string, options?: string | { description
   const description = typeof options === 'string' ? options : options?.description;
 
   return toast({
-    title: '❌ Error',
+    title: 'Error',
     description: message,
     variant: 'destructive',
     ...(description && { description }),
@@ -38,7 +38,7 @@ export function showErrorToast(message: string, options?: string | { description
  */
 export function showWarningToast(message: string, description?: string) {
   return toast({
-    title: '⚠️ Warning',
+    title: 'Warning',
     description: message,
     variant: 'default',
     ...(description && { description }),
