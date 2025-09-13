@@ -34,7 +34,10 @@ export const getPaymentMethodsHandler: RouteHandler<typeof getPaymentMethodsRout
     operationName: 'getPaymentMethods',
   },
   async (c) => {
-    const user = c.get('user')!; // Guaranteed by auth: 'session'
+    const user = c.get('user');
+    if (!user) {
+      throw createError.unauthenticated('User authentication required');
+    }
     c.logger.info('Fetching payment methods for user', { logType: 'operation', operationName: 'getPaymentMethods', userId: user.id });
 
     // Direct database access for payment methods
@@ -64,7 +67,10 @@ export const createPaymentMethodHandler: RouteHandler<typeof createPaymentMethod
     operationName: 'createPaymentMethod',
   },
   async (c, tx) => {
-    const user = c.get('user')!;
+    const user = c.get('user');
+    if (!user) {
+      throw createError.unauthenticated('User authentication required');
+    }
     const { zarinpalCardHash, cardMask, cardType, expiresAt, setPrimary } = c.validated.body;
 
     c.logger.info('Creating payment method from tokenized card', {
@@ -152,7 +158,10 @@ export const deletePaymentMethodHandler: RouteHandler<typeof deletePaymentMethod
   },
   async (c, tx) => {
     const { id } = c.req.param();
-    const user = c.get('user')!;
+    const user = c.get('user');
+    if (!user) {
+      throw createError.unauthenticated('User authentication required');
+    }
 
     if (!id) {
       throw createError.notFound('Payment method ID is required');
@@ -247,7 +256,10 @@ export const setDefaultPaymentMethodHandler: RouteHandler<typeof setDefaultPayme
   },
   async (c, tx) => {
     const { id } = c.req.param();
-    const user = c.get('user')!;
+    const user = c.get('user');
+    if (!user) {
+      throw createError.unauthenticated('User authentication required');
+    }
 
     if (!id) {
       throw createError.notFound('Payment method ID is required');

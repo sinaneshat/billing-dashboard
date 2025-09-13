@@ -434,7 +434,7 @@ async function validateWebhookSecurity(c: { req: { header: (name: string) => str
 
 /**
  * Enhanced ZarinPal Webhook Handler with Event Dispatching - Refactored
- * ✅ Now uses unified createHandlerWithTransaction pattern
+ * Now uses unified createHandlerWithTransaction pattern
  */
 export const zarinPalWebhookHandler: RouteHandler<typeof zarinPalWebhookRoute, ApiEnv> = createHandlerWithTransaction(
   {
@@ -547,7 +547,7 @@ export const zarinPalWebhookHandler: RouteHandler<typeof zarinPalWebhookRoute, A
                 throw new Error('Payment record not found after update');
               }
 
-              // 🎯 DISPATCH WEBHOOK EVENT: Payment succeeded
+              // DISPATCH WEBHOOK EVENT: Payment succeeded
               const paymentEvent = WebhookEventBuilders.createPaymentSucceededEvent(
                 updatedPayment.id,
                 updatedPayment.userId,
@@ -580,7 +580,7 @@ export const zarinPalWebhookHandler: RouteHandler<typeof zarinPalWebhookRoute, A
                     throw new Error('Subscription record not found after update');
                   }
 
-                  // 🎯 DISPATCH WEBHOOK EVENT: Subscription activated
+                  // DISPATCH WEBHOOK EVENT: Subscription activated
                   const subscriptionEvent = WebhookEventBuilders.createSubscriptionUpdatedEvent(
                     updatedSubscription.id,
                     updatedSubscription.userId,
@@ -592,7 +592,7 @@ export const zarinPalWebhookHandler: RouteHandler<typeof zarinPalWebhookRoute, A
                 }
               }
 
-              // 🔗 ROUNDTABLE1 INTEGRATION: Update user subscription in Roundtable1 database
+              // ROUNDTABLE1 INTEGRATION: Update user subscription in Roundtable1 database
               try {
                 if (c.env?.ROUNDTABLE_SUPABASE_URL && c.env?.ROUNDTABLE_SUPABASE_SERVICE_KEY) {
                   const roundtableService = RoundtableIntegrationService.create(c.env);
@@ -677,7 +677,7 @@ export const zarinPalWebhookHandler: RouteHandler<typeof zarinPalWebhookRoute, A
                 throw new Error('Payment record not found after update');
               }
 
-              // 🎯 DISPATCH WEBHOOK EVENT: Payment failed
+              // DISPATCH WEBHOOK EVENT: Payment failed
               const paymentEvent = WebhookEventBuilders.createPaymentFailedEvent(
                 updatedPayment.id,
                 updatedPayment.userId,
@@ -717,7 +717,7 @@ export const zarinPalWebhookHandler: RouteHandler<typeof zarinPalWebhookRoute, A
               throw new Error('Payment record not found after update');
             }
 
-            // 🎯 DISPATCH WEBHOOK EVENT: Payment failed due to error
+            // DISPATCH WEBHOOK EVENT: Payment failed due to error
             const paymentEvent = WebhookEventBuilders.createPaymentFailedEvent(
               updatedPayment.id,
               updatedPayment.userId,
@@ -746,7 +746,7 @@ export const zarinPalWebhookHandler: RouteHandler<typeof zarinPalWebhookRoute, A
             throw new Error('Payment record not found after update');
           }
 
-          // 🎯 DISPATCH WEBHOOK EVENT: Payment failed
+          // DISPATCH WEBHOOK EVENT: Payment failed
           const paymentEvent = WebhookEventBuilders.createPaymentFailedEvent(
             updatedPayment.id,
             updatedPayment.userId,
@@ -840,7 +840,7 @@ export const zarinPalWebhookHandler: RouteHandler<typeof zarinPalWebhookRoute, A
 
 /**
  * Get webhook events handler - Refactored
- * ✅ Now uses unified createHandler pattern
+ * Now uses unified createHandler pattern
  */
 export const getWebhookEventsHandler: RouteHandler<typeof getWebhookEventsRoute, ApiEnv> = createHandler(
   {
@@ -897,7 +897,7 @@ export const getWebhookEventsHandler: RouteHandler<typeof getWebhookEventsRoute,
 
 /**
  * Test webhook handler - Refactored
- * ✅ Now uses unified createHandler pattern
+ * Now uses unified createHandler pattern
  */
 export const testWebhookHandler: RouteHandler<typeof testWebhookRoute, ApiEnv> = createHandler(
   {

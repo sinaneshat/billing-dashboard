@@ -39,7 +39,10 @@ export const getPaymentsHandler: RouteHandler<typeof getPaymentsRoute, ApiEnv> =
     operationName: 'getPayments',
   },
   async (c) => {
-    const user = c.get('user')!; // Guaranteed by auth: 'session'
+    const user = c.get('user');
+    if (!user) {
+      throw createError.unauthenticated('User authentication required');
+    }
     c.logger.info('Fetching payments for user', { logType: 'operation', operationName: 'getPayments', userId: user.id });
 
     // Direct database access for payments
