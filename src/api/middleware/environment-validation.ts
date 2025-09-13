@@ -48,7 +48,7 @@ export const PAYMENT_ENV_VARS = [
  * Required for file upload and storage functionality
  */
 export const STORAGE_ENV_VARS = [
-  'R2_PUBLIC_URL',
+  'NEXT_PUBLIC_R2_PUBLIC_URL',
   'CLOUDFLARE_ACCOUNT_ID',
   'SIGNED_URL_SECRET',
 ] as const;
@@ -58,18 +58,18 @@ export const STORAGE_ENV_VARS = [
  * Required for email and webhook functionality
  */
 export const COMMUNICATION_ENV_VARS = [
-  'FROM_EMAIL',
+  'NEXT_PUBLIC_FROM_EMAIL',
   'AWS_SES_ACCESS_KEY_ID',
   'AWS_SES_SECRET_ACCESS_KEY',
-  'AWS_SES_REGION',
+  'NEXT_PUBLIC_AWS_SES_REGION',
 ] as const;
 
 /**
  * Optional environment variables that have defaults or are feature-specific
  */
 export const OPTIONAL_ENV_VARS = [
-  'EXTERNAL_WEBHOOK_URL',
-  'WEBHOOK_URL',
+  'NEXT_PUBLIC_EXTERNAL_WEBHOOK_URL',
+  'NEXT_PUBLIC_WEBHOOK_URL',
   'WEBHOOK_SECRET',
   'API_MASTER_KEY',
   'NEXT_PUBLIC_TURNSTILE_SITE_KEY',
@@ -149,20 +149,20 @@ export function validateEnvironmentConfiguration(env: CloudflareEnv): {
     errors.push('DATABASE_URL must be a valid URL');
   }
 
-  if (env.R2_PUBLIC_URL && !isValidUrl(env.R2_PUBLIC_URL)) {
+  if (env.NEXT_PUBLIC_R2_PUBLIC_URL && !isValidUrl(env.NEXT_PUBLIC_R2_PUBLIC_URL)) {
     errors.push('R2_PUBLIC_URL must be a valid URL');
   }
 
   // Validate payment-related variables
-  if (env.ZARINPAL_MERCHANT_ID) {
-    if (!isValidZarinpalMerchantId(env.ZARINPAL_MERCHANT_ID)) {
+  if (env.NEXT_PUBLIC_ZARINPAL_MERCHANT_ID) {
+    if (!isValidZarinpalMerchantId(env.NEXT_PUBLIC_ZARINPAL_MERCHANT_ID)) {
       errors.push('ZARINPAL_MERCHANT_ID must be a valid UUID format');
     }
 
     // Check for placeholder values
     const placeholderPatterns = ['your-merchant-id', 'merchant_id', 'xxx', '000'];
     const isPlaceholder = placeholderPatterns.some(pattern =>
-      env.ZARINPAL_MERCHANT_ID!.toLowerCase().includes(pattern),
+      env.NEXT_PUBLIC_ZARINPAL_MERCHANT_ID!.toLowerCase().includes(pattern),
     );
 
     if (isPlaceholder) {
@@ -181,20 +181,20 @@ export function validateEnvironmentConfiguration(env: CloudflareEnv): {
   }
 
   // Validate email configuration
-  if (env.FROM_EMAIL && !isValidEmail(env.FROM_EMAIL)) {
+  if (env.NEXT_PUBLIC_FROM_EMAIL && !isValidEmail(env.NEXT_PUBLIC_FROM_EMAIL)) {
     errors.push('FROM_EMAIL must be a valid email address');
   }
 
-  if (env.SES_REPLY_TO_EMAIL && !isValidEmail(env.SES_REPLY_TO_EMAIL)) {
+  if (env.NEXT_PUBLIC_SES_REPLY_TO_EMAIL && !isValidEmail(env.NEXT_PUBLIC_SES_REPLY_TO_EMAIL)) {
     errors.push('SES_REPLY_TO_EMAIL must be a valid email address');
   }
 
-  if (env.SES_VERIFIED_EMAIL && !isValidEmail(env.SES_VERIFIED_EMAIL)) {
+  if (env.NEXT_PUBLIC_SES_VERIFIED_EMAIL && !isValidEmail(env.NEXT_PUBLIC_SES_VERIFIED_EMAIL)) {
     errors.push('SES_VERIFIED_EMAIL must be a valid email address');
   }
 
   // Validate AWS configuration
-  if (env.AWS_SES_REGION && !isValidAwsRegion(env.AWS_SES_REGION)) {
+  if (env.NEXT_PUBLIC_AWS_SES_REGION && !isValidAwsRegion(env.NEXT_PUBLIC_AWS_SES_REGION)) {
     errors.push('AWS_SES_REGION must be a valid AWS region format (e.g., us-east-1)');
   }
 
@@ -384,16 +384,16 @@ export function createEnvironmentSummary(env: CloudflareEnv): SafeEnvironmentSum
 
   // Determine payment gateway status
   let paymentStatus: 'configured' | 'missing' | 'invalid' = 'missing';
-  if (env.ZARINPAL_MERCHANT_ID && env.ZARINPAL_ACCESS_TOKEN) {
+  if (env.NEXT_PUBLIC_ZARINPAL_MERCHANT_ID && env.ZARINPAL_ACCESS_TOKEN) {
     // Basic validation - in reality you'd validate the format/connectivity
-    const isValidMerchantId = isValidZarinpalMerchantId(env.ZARINPAL_MERCHANT_ID);
+    const isValidMerchantId = isValidZarinpalMerchantId(env.NEXT_PUBLIC_ZARINPAL_MERCHANT_ID);
     paymentStatus = isValidMerchantId ? 'configured' : 'invalid';
   }
 
   // Determine storage status
   let storageStatus: 'configured' | 'missing' | 'invalid' = 'missing';
-  if (env.R2_PUBLIC_URL && env.CLOUDFLARE_ACCOUNT_ID && env.SIGNED_URL_SECRET) {
-    const isValidR2Url = isValidUrl(env.R2_PUBLIC_URL);
+  if (env.NEXT_PUBLIC_R2_PUBLIC_URL && env.CLOUDFLARE_ACCOUNT_ID && env.SIGNED_URL_SECRET) {
+    const isValidR2Url = isValidUrl(env.NEXT_PUBLIC_R2_PUBLIC_URL);
     storageStatus = isValidR2Url ? 'configured' : 'invalid';
   }
 

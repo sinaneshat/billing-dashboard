@@ -161,7 +161,7 @@ export const adminTestWebhookHandler: RouteHandler<typeof adminTestWebhookRoute,
   },
   async (c) => {
     const { event_type, test_data } = c.validated.body;
-    const webhookUrl = c.env?.EXTERNAL_WEBHOOK_URL;
+    const webhookUrl = c.env?.NEXT_PUBLIC_EXTERNAL_WEBHOOK_URL;
 
     c.logger.info('Admin webhook test requested', {
       logType: 'operation',

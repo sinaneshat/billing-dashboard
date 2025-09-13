@@ -25,7 +25,7 @@ class EmailService {
   constructor(config?: EmailConfig) {
     const accessKeyId = config?.accessKeyId || process.env.AWS_SES_ACCESS_KEY_ID;
     const secretAccessKey = config?.secretAccessKey || process.env.AWS_SES_SECRET_ACCESS_KEY;
-    const region = config?.region || process.env.AWS_SES_REGION || 'us-east-1';
+    const region = config?.region || process.env.NEXT_PUBLIC_AWS_SES_REGION || 'us-east-1';
 
     if (accessKeyId && secretAccessKey) {
       this.sesClient = new SESClient({
@@ -37,8 +37,8 @@ class EmailService {
       });
     }
 
-    this.fromEmail = config?.fromEmail || process.env.FROM_EMAIL || 'noreply@example.com';
-    this.replyToEmail = config?.replyToEmail || process.env.SES_REPLY_TO_EMAIL || this.fromEmail;
+    this.fromEmail = config?.fromEmail || process.env.NEXT_PUBLIC_FROM_EMAIL || 'noreply@example.com';
+    this.replyToEmail = config?.replyToEmail || process.env.NEXT_PUBLIC_SES_REPLY_TO_EMAIL || this.fromEmail;
   }
 
   private async sendEmail({
