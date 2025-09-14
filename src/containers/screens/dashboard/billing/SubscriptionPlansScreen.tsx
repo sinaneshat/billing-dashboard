@@ -6,7 +6,7 @@ import { DashboardPage } from '@/components/dashboard/dashboard-states';
 type SubscriptionPlansScreenProps = {
   ssoFlowData?: {
     priceId?: string;
-    billing?: string;
+    productId?: string;
     step?: string;
   };
 };

@@ -91,6 +91,9 @@ import { getPaymentsHandler, paymentCallbackHandler } from './routes/payments/ha
 import { getPaymentsRoute, paymentCallbackRoute } from './routes/payments/route';
 import { getProductsHandler } from './routes/products/handler';
 import { getProductsRoute } from './routes/products/route';
+// SSO routes
+import { ssoExchangeHandler } from './routes/sso/handler';
+import { ssoExchangeRoute } from './routes/sso/route';
 // Billing routes
 import {
   cancelSubscriptionHandler,
@@ -240,6 +243,8 @@ const appRoutes = app
   .openapi(detailedHealthRoute, detailedHealthHandler)
   // Auth routes
   .openapi(secureMeRoute, secureMeHandler)
+  // SSO routes (public - no middleware needed)
+  .openapi(ssoExchangeRoute, ssoExchangeHandler)
   // Products routes
   .openapi(getProductsRoute, getProductsHandler)
   // Subscriptions routes

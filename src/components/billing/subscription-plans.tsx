@@ -21,7 +21,7 @@ import { toast } from '../ui/use-toast';
 type SubscriptionPlansProps = {
   ssoFlowData?: {
     priceId?: string;
-    billing?: string;
+    productId?: string;
     step?: string;
   };
 };
@@ -61,15 +61,28 @@ export function SubscriptionPlans({ ssoFlowData }: SubscriptionPlansProps) {
       : [];
   }, [products]);
 
-  // Simple price ID matching - find product by stripe price ID
+  // Find product by price ID or product ID
   const preSelectedProduct = useMemo(() => {
-    if (!ssoFlowData?.priceId || productList.length === 0) {
+    if (productList.length === 0) {
       return null;
     }
 
-    const found = productList.find(p => p.stripePriceId === ssoFlowData.priceId) || null;
-    return found;
-  }, [ssoFlowData?.priceId, productList]);
+    // First try to match by price ID
+    if (ssoFlowData?.priceId) {
+      const foundByPrice = productList.find(p => p.stripePriceId === ssoFlowData.priceId);
+      if (foundByPrice)
+        return foundByPrice;
+    }
+
+    // Fallback to matching by product ID
+    if (ssoFlowData?.productId) {
+      const foundByProduct = productList.find(p => p.id === ssoFlowData.productId);
+      if (foundByProduct)
+        return foundByProduct;
+    }
+
+    return null;
+  }, [ssoFlowData?.priceId, ssoFlowData?.productId, productList]);
 
   // Products are already in the correct format from the API
   // API returns products with metadata.pricing containing USD/Toman/Rial prices

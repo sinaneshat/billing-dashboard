@@ -17,8 +17,16 @@ export default async function PlansPage(props: PlansPageProps) {
   const queryClient = getQueryClient();
 
   // Extract essential parameters only - no referrer
-  const priceId = typeof searchParams.price === 'string' ? searchParams.price : undefined;
-  const billing = typeof searchParams.billing === 'string' ? searchParams.billing : undefined;
+  const priceId = typeof searchParams.priceId === 'string'
+    ? searchParams.priceId
+    : typeof searchParams.price === 'string'
+      ? searchParams.price
+      : undefined;
+  const productId = typeof searchParams.productId === 'string'
+    ? searchParams.productId
+    : typeof searchParams.product === 'string'
+      ? searchParams.product
+      : undefined;
   const step = typeof searchParams.step === 'string' ? searchParams.step : undefined;
 
   // Prefetch data
@@ -36,7 +44,7 @@ export default async function PlansPage(props: PlansPageProps) {
   // Clean SSO flow data with only essential parameters
   const ssoFlowData = {
     priceId,
-    billing,
+    productId,
     step: step === '2' ? 'payment' : undefined, // Only set step if explicit
   };
 
