@@ -1,100 +1,140 @@
-import { Buffer } from 'node:buffer';
-import * as crypto from 'node:crypto';
+import jwt from 'jsonwebtoken';
 
+import { createError } from '@/api/common/error-handling';
+import type { ErrorContext } from '@/api/core';
 import type { ExchangeTokenPayload } from '@/api/routes/sso/schema';
+import { ExchangeTokenPayloadSchema } from '@/api/routes/sso/schema';
 import type { ApiEnv } from '@/api/types';
 
 /**
- * Minimal SSO Token Exchange Service
+ * SSO Token Exchange Service - Enterprise-grade JWT validation
  *
- * Validates HMAC-SHA256 signed tokens from roundtable Supabase Edge Function.
- * Handles minimal user data: email, name, exp, iat, iss
+ * Follows API Development Guide patterns:
+ * - Schema-first validation with zero casting
+ * - Standardized error handling
+ * - Proper UTF-8/Unicode support for international characters
+ * - Type-safe operations
+ *
+ * Validates industry-standard JWT tokens from roundtable Supabase Edge Function.
+ * Handles user data including international characters (Persian, Arabic, Cyrillic, etc.)
  */
 export class SSOExchangeService {
-  private signingSecret: string;
+  private readonly signingSecret: string;
+  private readonly issuer = 'roundtable';
+  private readonly algorithm = 'HS256';
 
   constructor(env: ApiEnv) {
-    // Get signing secret from environment
-    this.signingSecret = env.Bindings.SSO_SIGNING_SECRET || '';
+    // Get signing secret from environment with proper validation
+    this.signingSecret = env.Bindings.SSO_SIGNING_SECRET;
 
     if (!this.signingSecret) {
-      throw new Error('SSO_SIGNING_SECRET is required for token exchange');
+      throw createError.internal('SSO_SIGNING_SECRET is required for token exchange', {
+        errorType: 'external_service',
+        serviceName: 'sso-exchange-service',
+        endpoint: 'token-verification',
+      } satisfies ErrorContext);
     }
   }
 
   /**
-   * Verify HMAC-signed exchange token from roundtable
-   * Returns minimal payload if valid, throws if invalid
+   * Verify JWT token from roundtable using schema-first validation
+   *
+   * Features:
+   * - Zero casting policy - uses Zod schema validation
+   * - Proper UTF-8/Unicode support for international characters
+   * - Standardized error handling with context
+   * - Type-safe operations
+   *
+   * @param token - JWT token from roundtable Supabase Edge Function
+   * @returns Promise<ExchangeTokenPayload> - Validated token payload
+   * @throws AppError - Standardized errors with proper context
    */
-  async verifyExchangeToken(signedToken: string): Promise<ExchangeTokenPayload> {
+  async verifyExchangeToken(token: string): Promise<ExchangeTokenPayload> {
     try {
-      // Split token into payload and signature
-      const [payloadBase64, signature] = signedToken.split('.');
-      if (!payloadBase64 || !signature) {
-        throw new Error('Invalid token format');
+      // Step 1: Verify JWT signature and structure
+      const decoded = jwt.verify(token, this.signingSecret, {
+        issuer: this.issuer,
+        algorithms: [this.algorithm],
+      });
+
+      // Step 2: Schema-first validation (zero casting policy)
+      const validationResult = ExchangeTokenPayloadSchema.safeParse(decoded);
+
+      if (!validationResult.success) {
+        throw createError.validation('Invalid token payload structure', {
+          errorType: 'validation',
+          fieldErrors: validationResult.error.issues.map(issue => ({
+            field: issue.path.join('.'),
+            message: issue.message,
+            code: issue.code,
+          })),
+          schemaName: 'ExchangeTokenPayload',
+        } satisfies ErrorContext);
       }
 
-      // Decode payload
-      const payloadJson = Buffer.from(payloadBase64, 'base64url').toString('utf-8');
-      const payload = JSON.parse(payloadJson) as ExchangeTokenPayload;
-
-      // Verify HMAC signature
-      const expectedSignature = this.createSignature(payloadJson);
-      const providedSignature = Buffer.from(signature, 'base64url');
-
-      if (!crypto.timingSafeEqual(expectedSignature, providedSignature)) {
-        throw new Error('Invalid token signature');
+      // Return validated payload (type is guaranteed by schema)
+      return validationResult.data;
+    } catch (error) {
+      // Handle JWT library specific errors with proper context
+      if (error instanceof jwt.TokenExpiredError) {
+        throw createError.tokenExpired('SSO token has expired', {
+          errorType: 'authentication',
+          failureReason: 'token_expired',
+        } satisfies ErrorContext);
       }
 
-      // Check expiration
-      const now = Math.floor(Date.now() / 1000);
-      if (payload.exp < now) {
-        throw new Error('Token has expired');
+      if (error instanceof jwt.JsonWebTokenError) {
+        throw createError.unauthenticated('Invalid SSO token signature', {
+          errorType: 'authentication',
+          failureReason: 'missing_token',
+        } satisfies ErrorContext);
       }
 
-      // Validate issuer (must match roundtable)
-      if (payload.iss !== 'roundtable') {
-        throw new Error('Invalid token issuer');
+      // Re-throw our own validation errors
+      if (error && typeof error === 'object' && 'code' in error && error.code === 'VALIDATION_ERROR') {
+        throw error;
       }
 
-      // Validate required minimal fields
-      if (!payload.email || !payload.name) {
-        throw new Error('Missing required user information in token');
-      }
-
-      return payload;
-    } catch {
-      throw new Error('Invalid or expired exchange token');
+      // Catch-all for unexpected errors
+      throw createError.internal('SSO token verification failed', {
+        errorType: 'external_service',
+        serviceName: 'sso-exchange-service',
+        endpoint: 'jwt-verification',
+      } satisfies ErrorContext);
     }
   }
 
   /**
-   * Create HMAC-SHA256 signature (matches roundtable implementation)
-   */
-  private createSignature(payload: string): Buffer {
-    return crypto
-      .createHmac('sha256', this.signingSecret)
-      .update(payload)
-      .digest();
-  }
-
-  /**
-   * Extract minimal user data for session creation
+   * Extract user data for session creation with type safety
+   *
+   * @param payload - Validated token payload from verifyExchangeToken
+   * @returns Type-safe user data for Better Auth session creation
    */
   extractUserData(payload: ExchangeTokenPayload): {
-    email: string;
-    name: string;
-    emailVerified: boolean;
+    readonly email: string;
+    readonly name: string;
+    readonly emailVerified: boolean;
+    readonly ssoProvider: 'roundtable';
+    readonly tokenIssuedAt: Date;
+    readonly tokenExpiresAt: Date;
   } {
     return {
       email: payload.email,
       name: payload.name,
       emailVerified: true, // From authenticated roundtable session
-    };
+      ssoProvider: 'roundtable',
+      tokenIssuedAt: new Date(payload.iat * 1000),
+      tokenExpiresAt: new Date(payload.exp * 1000),
+    } as const;
   }
 
   /**
    * Generate redirect URL to plans page with optional pricing parameters
+   *
+   * @param options - Optional pricing parameters for pre-selection
+   * @param options.priceId - Optional price ID for pre-selection
+   * @param options.productId - Optional product ID for pre-selection
+   * @returns URL string for redirect after successful SSO authentication
    */
   generateRedirectUrl(options?: {
     priceId?: string;
@@ -102,17 +142,26 @@ export class SSOExchangeService {
   }): string {
     const params = new URLSearchParams({
       source: 'roundtable',
+      sso: 'true', // Indicate this came from SSO
     });
 
-    // Add pricing parameters if provided
-    if (options?.priceId) {
-      params.set('priceId', options.priceId);
+    // Add pricing parameters if provided (with validation)
+    if (options?.priceId && options.priceId.trim()) {
+      params.set('priceId', options.priceId.trim());
     }
 
-    if (options?.productId) {
-      params.set('productId', options.productId);
+    if (options?.productId && options.productId.trim()) {
+      params.set('productId', options.productId.trim());
     }
 
     return `/dashboard/plans?${params.toString()}`;
+  }
+
+  /**
+   * Static factory method for creating service instance
+   * Follows dependency injection patterns
+   */
+  static create(env: ApiEnv): SSOExchangeService {
+    return new SSOExchangeService(env);
   }
 }

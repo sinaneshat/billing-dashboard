@@ -97,7 +97,7 @@ export const TestWebhookRequestSchema = z.object({
     example: 'https://api.example.com/webhooks',
     description: 'URL to test webhook delivery',
   }),
-  payload: z.record(z.string(), z.unknown()).optional().openapi({
+  payload: z.record(z.string(), z.union([z.string(), z.number(), z.boolean()])).optional().openapi({
     example: { test: true, timestamp: '2024-01-01T00:00:00Z' },
     description: 'Optional test payload',
   }),
