@@ -14,7 +14,7 @@ import {
 } from '@/components/ui/breadcrumb';
 import { Separator } from '@/components/ui/separator';
 import { SidebarTrigger } from '@/components/ui/sidebar';
-import { cn } from '@/lib';
+import { cn } from '@/lib/ui/cn';
 
 import { DashboardSection } from './dashboard-states';
 

@@ -23,7 +23,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { LoadingSpinner } from '@/components/ui/loading-spinner';
 import { FadeIn, PageTransition } from '@/components/ui/motion';
-import { cn } from '@/lib';
+import { cn } from '@/lib/ui/cn';
 
 // =============================================================================
 // UNIFIED STATE SYSTEM FOR DASHBOARD

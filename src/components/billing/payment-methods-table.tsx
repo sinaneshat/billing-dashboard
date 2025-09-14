@@ -22,8 +22,8 @@ import {
 import { FadeIn } from '@/components/ui/motion';
 import { ContractStatusBadge, DefaultBadge } from '@/components/ui/status-badge';
 import { useDeletePaymentMethodMutation, useSetDefaultPaymentMethodMutation } from '@/hooks/mutations/payment-methods';
-import { showErrorToast, showSuccessToast } from '@/lib';
 import { createLocaleFormatters } from '@/lib/i18n/locale-formatters';
+import { showErrorToast, showSuccessToast } from '@/lib/toast';
 
 type PaymentMethod = {
   id: string;

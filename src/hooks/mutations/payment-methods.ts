@@ -3,8 +3,8 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import type { ApiResponse } from '@/api/core/schemas';
 // Import proper Zod-inferred types - no more manual casting
 import type { PaymentMethod } from '@/db/validation/billing';
-import { showErrorToast } from '@/lib';
 import { queryKeys } from '@/lib/data/query-keys';
+import { showErrorToast } from '@/lib/toast';
 import { logError } from '@/lib/utils/safe-logger';
 import { isZarinPalError, parseZarinPalError } from '@/lib/utils/zarinpal-errors';
 import type {

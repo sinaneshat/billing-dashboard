@@ -66,10 +66,28 @@ export const verification = sqliteTable('verification', {
   index('verification_identifier_idx').on(table.identifier),
 ]);
 
+// SSO Provider table for Better Auth SSO plugin
+export const ssoProvider = sqliteTable('sso_provider', {
+  id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+  providerId: text('provider_id').notNull().unique(),
+  issuer: text('issuer').notNull(),
+  domain: text('domain').notNull(),
+  oidcConfig: text('oidc_config'), // JSON string for OIDC configuration
+  samlConfig: text('saml_config'), // JSON string for SAML configuration
+  userId: text('user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
+  organizationId: text('organization_id'), // Optional - for organization linking
+  ...timestamps,
+}, table => [
+  index('sso_provider_user_id_idx').on(table.userId),
+  index('sso_provider_domain_idx').on(table.domain),
+  index('sso_provider_issuer_idx').on(table.issuer),
+]);
+
 // Simplified Relations
 export const userRelations = relations(user, ({ many }) => ({
   accounts: many(account),
   sessions: many(session),
+  ssoProviders: many(ssoProvider),
 }));
 
 export const sessionRelations = relations(session, ({ one }) => ({
@@ -82,6 +100,13 @@ export const sessionRelations = relations(session, ({ one }) => ({
 export const accountRelations = relations(account, ({ one }) => ({
   user: one(user, {
     fields: [account.userId],
+    references: [user.id],
+  }),
+}));
+
+export const ssoProviderRelations = relations(ssoProvider, ({ one }) => ({
+  user: one(user, {
+    fields: [ssoProvider.userId],
     references: [user.id],
   }),
 }));

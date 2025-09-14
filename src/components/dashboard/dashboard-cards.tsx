@@ -12,7 +12,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import { cn } from '@/lib';
+import { cn } from '@/lib/ui/cn';
 
 // =============================================================================
 // UNIFIED DASHBOARD CARD SYSTEM

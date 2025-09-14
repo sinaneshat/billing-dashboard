@@ -28,7 +28,8 @@ import {
 } from '@/components/ui/select';
 import { useInitiateDirectDebitContractMutation } from '@/hooks/mutations/payment-methods';
 import { useMutationUIState } from '@/hooks/utils/query-helpers';
-import { formatTomanCurrency, showErrorToast, showSuccessToast } from '@/lib';
+import { formatTomanCurrency } from '@/lib/format';
+import { showErrorToast, showSuccessToast } from '@/lib/toast';
 
 type DirectDebitContractSetupProps = {
   children?: React.ReactNode;

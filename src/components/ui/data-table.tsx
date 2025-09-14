@@ -58,7 +58,7 @@ import {
 } from "@/components/ui/table"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { FadeIn, StaggerContainer, StaggerItem } from "@/components/ui/motion"
-import { cn } from "@/lib"
+import { cn } from "@/lib/ui/cn"
 
 // Enhanced filter configuration
 export type DataTableFilter = {

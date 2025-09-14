@@ -3,7 +3,7 @@
 import { useTranslations } from 'next-intl';
 import * as React from 'react';
 
-import { cn } from '@/lib';
+import { cn } from '@/lib/ui/cn';
 
 import { ShadcnPricingCard } from './shadcn-pricing-card';
 

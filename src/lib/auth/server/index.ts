@@ -1,15 +1,16 @@
+import { sso } from '@better-auth/sso';
 import { betterAuth } from 'better-auth';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { nextCookies } from 'better-auth/next-js';
-import { admin, magicLink } from 'better-auth/plugins';
+import { admin } from 'better-auth/plugins';
 
 import { db } from '@/db';
 import * as authSchema from '@/db/tables/auth';
 import { getBaseUrl } from '@/utils/helpers';
 
 /**
- * Better Auth Configuration - Simple User Authentication
- * No organizations, just basic user auth
+ * Better Auth Configuration - SSO Only Authentication
+ * All authentication goes through registered SSO providers
  */
 export const auth = betterAuth({
   secret: process.env.BETTER_AUTH_SECRET,
@@ -53,25 +54,30 @@ export const auth = betterAuth({
   },
 
   emailAndPassword: {
-    enabled: true,
+    enabled: true, // Required for SSO plugin to work properly
     requireEmailVerification: false,
-  },
-
-  socialProviders: {
-    google: {
-      clientId: process.env.AUTH_GOOGLE_ID || '',
-      clientSecret: process.env.AUTH_GOOGLE_SECRET || '',
-    },
   },
 
   plugins: [
     nextCookies(),
-    admin(), // Enable admin plugin for SSO impersonateUser functionality
-    magicLink({
-      sendMagicLink: async ({ email, url }) => {
-        const { emailService } = await import('@/lib/email/ses-service');
-        await emailService.sendMagicLink(email, url);
+    admin(), // Required for impersonateUser functionality in SSO
+    sso({
+      // User provisioning - called when users sign in through SSO
+      provisionUser: async ({ user, userInfo, provider }) => {
+        // Log SSO sign-in for audit purposes
+        console.warn(`SSO user provisioned: ${user.email} via ${provider.providerId}`);
+
+        // Update user profile with any additional information from SSO provider
+        if (userInfo.name && user.name !== userInfo.name) {
+          // Note: Better Auth will handle the user updates automatically
+          console.warn(`SSO user name updated: ${userInfo.name}`);
+        }
       },
+
+      // Configuration options
+      defaultOverrideUserInfo: false, // Don't override existing user info by default
+      disableImplicitSignUp: false, // Allow new users to be created via SSO
+      trustEmailVerified: true, // Trust that SSO provider has verified the email
     }),
   ],
 });

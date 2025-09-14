@@ -3,7 +3,7 @@
 import type { ReactNode } from 'react';
 
 import { Separator } from '@/components/ui/separator';
-import { cn } from '@/lib';
+import { cn } from '@/lib/ui/cn';
 
 type DashboardPageWrapperProps = {
   children: ReactNode;

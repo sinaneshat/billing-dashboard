@@ -13,5 +13,5 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function SignUpPage() {
-  return <AuthForm isSignUp />;
+  return <AuthForm />;
 }

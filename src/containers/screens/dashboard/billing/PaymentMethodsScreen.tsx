@@ -12,7 +12,7 @@ import { Button } from '@/components/ui/button';
 import { useDeletePaymentMethodMutation, useSetDefaultPaymentMethodMutation } from '@/hooks/mutations/payment-methods';
 import { usePaymentMethodsQuery } from '@/hooks/queries/payment-methods';
 import { staleWhileRevalidate, useOptimisticMutationWithFeedback, useQueryUIState } from '@/hooks/utils/query-helpers';
-import { showErrorToast, showSuccessToast } from '@/lib';
+import { showErrorToast, showSuccessToast } from '@/lib/toast';
 
 export default function PaymentMethodsScreen() {
   const t = useTranslations();

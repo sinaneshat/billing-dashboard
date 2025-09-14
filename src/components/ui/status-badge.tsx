@@ -7,7 +7,7 @@ import { z } from 'zod'
 import { useTranslations } from 'next-intl'
 
 import { Badge } from '@/components/ui/badge'
-import { cn } from '@/lib'
+import { cn } from '@/lib/ui/cn'
 
 /**
  * Enhanced Status Badge System following Shadcn/UI v4 patterns

@@ -353,6 +353,16 @@
     "dollar": "$"
   },
   "auth": {
+    "layout": {
+      "welcomeTo": "Welcome to {brand}",
+      "subtitle": "Your billing dashboard"
+    },
+    "sso": {
+      "continueWithSSO": "Continue with SSO",
+      "signInThroughOrganization": "Sign in through your organization's Single Sign-On provider",
+      "continueWithRoundtableSSO": "Continue with Roundtable SSO",
+      "redirectMessage": "You'll be redirected to your organization's sign-in page"
+    },
     "form": {
       "error": "Error",
       "somethingWentWrong": "Something went wrong. Please try again.",
@@ -1115,6 +1125,84 @@
     "info": "Info",
     "loading": "Loading"
   },
+  "legal": {
+    "terms": {
+      "title": "Terms of Service",
+      "lastUpdated": "Last updated: {date}",
+      "acceptance": {
+        "title": "1. Acceptance of Terms",
+        "content": "By accessing and using this service, you accept and agree to be bound by the terms and provision of this agreement. If you do not agree to abide by the above, please do not use this service."
+      },
+      "services": {
+        "title": "2. Use of Service",
+        "content": "This service is provided to help you manage your billing and subscriptions. You may use this service for lawful purposes only and in accordance with these Terms."
+      },
+      "billing": {
+        "title": "3. Billing and Payments",
+        "content": "You agree to pay all fees and charges incurred in connection with your use of the service. We reserve the right to change our fees at any time with prior notice."
+      },
+      "privacy": {
+        "title": "4. Privacy Policy",
+        "content": "Your use of our service is also governed by our Privacy Policy. Please review our Privacy Policy, which also governs the site and informs users of our data collection practices."
+      },
+      "termination": {
+        "title": "5. Termination",
+        "content": "We may terminate or suspend your account and bar access to the service immediately, without prior notice or liability, under our sole discretion, for any reason whatsoever."
+      },
+      "liability": {
+        "title": "6. Limitation of Liability",
+        "content": "In no event shall Roundtable, nor its directors, employees, partners, agents, suppliers, or affiliates, be liable for any indirect, incidental, special, consequential, or punitive damages."
+      },
+      "governing": {
+        "title": "7. Governing Law",
+        "content": "These Terms shall be governed and construed in accordance with the laws of the jurisdiction in which the company is established, without regard to its conflict of law provisions."
+      },
+      "contact": {
+        "title": "8. Contact Information",
+        "content": "If you have any questions about these Terms of Service, please contact us at hello@roundtable.now."
+      }
+    },
+    "privacy": {
+      "title": "Privacy Policy",
+      "lastUpdated": "Last updated: {date}",
+      "collection": {
+        "title": "1. Information We Collect",
+        "content": "We collect information you provide directly to us, such as when you create an account, subscribe to a service, or contact us for support."
+      },
+      "usage": {
+        "title": "2. How We Use Your Information",
+        "content": "We use the information we collect to provide, maintain, and improve our services, process transactions, and communicate with you."
+      },
+      "sharing": {
+        "title": "3. Information Sharing",
+        "content": "We do not sell, trade, or otherwise transfer your personal information to third parties without your consent, except as described in this Privacy Policy."
+      },
+      "security": {
+        "title": "4. Data Security",
+        "content": "We implement appropriate technical and organizational measures to protect your personal information against unauthorized access, alteration, disclosure, or destruction."
+      },
+      "cookies": {
+        "title": "5. Cookies and Tracking",
+        "content": "We use cookies and similar tracking technologies to track activity on our service and hold certain information to improve and analyze our service."
+      },
+      "rights": {
+        "title": "6. Your Rights",
+        "content": "You have the right to access, update, or delete your personal information. You may also opt-out of certain communications from us."
+      },
+      "children": {
+        "title": "7. Children's Privacy",
+        "content": "Our service is not directed to individuals under the age of 13. We do not knowingly collect personal information from children under 13."
+      },
+      "changes": {
+        "title": "8. Changes to This Policy",
+        "content": "We may update our Privacy Policy from time to time. We will notify you of any changes by posting the new Privacy Policy on this page."
+      },
+      "contact": {
+        "title": "9. Contact Us",
+        "content": "If you have any questions about this Privacy Policy, please contact us at hello@roundtable.now."
+      }
+    }
+  },
   "meta": {
     "defaultTitle": "Billing Dashboard",
     "defaultDescription": "Manage your subscriptions and billing information",
@@ -1129,6 +1217,16 @@
     },
     "authCallback": {
       "description": "Completing sign in process"
+    },
+    "legal": {
+      "terms": {
+        "title": "Terms of Service - Billing Dashboard",
+        "description": "Terms of Service for Roundtable Billing Dashboard"
+      },
+      "privacy": {
+        "title": "Privacy Policy - Billing Dashboard",
+        "description": "Privacy Policy for Roundtable Billing Dashboard"
+      }
     }
   },
   "accessibility": {

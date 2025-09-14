@@ -22,6 +22,13 @@
       "when": 1757624875919,
       "tag": "0002_married_colossus",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1757847351248,
+      "tag": "0003_quick_blue_shield",
+      "breakpoints": true
     }
   ]
 }

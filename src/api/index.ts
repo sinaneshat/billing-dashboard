@@ -43,8 +43,6 @@ import {
 // Import routes and handlers directly for proper RPC type inference
 import { secureMeHandler } from './routes/auth/handler';
 import { secureMeRoute } from './routes/auth/route';
-import { ssoGetHandler, ssoPostHandler } from './routes/auth/sso/handler';
-import { ssoGetRoute, ssoPostRoute } from './routes/auth/sso/route';
 import {
   deleteImageHandler,
   getImageMetadataHandler,
@@ -225,7 +223,6 @@ app.notFound(notFound);
 // Apply CSRF protection and authentication to protected routes
 // Following Hono best practices: apply CSRF only to authenticated routes
 app.use('/auth/me', csrfMiddleware, requireSession);
-// SSO routes (/auth/sso*) are public and handle JWT verification inline - NO CSRF
 app.use('/images/*', csrfMiddleware, requireSession);
 // Subscriptions require authentication and CSRF protection
 app.use('/subscriptions/*', csrfMiddleware, requireSession);
@@ -243,9 +240,6 @@ const appRoutes = app
   .openapi(detailedHealthRoute, detailedHealthHandler)
   // Auth routes
   .openapi(secureMeRoute, secureMeHandler)
-  // SSO routes - both legacy GET and secure POST methods
-  .openapi(ssoGetRoute, ssoGetHandler)
-  .openapi(ssoPostRoute, ssoPostHandler)
   // Products routes
   .openapi(getProductsRoute, getProductsHandler)
   // Subscriptions routes

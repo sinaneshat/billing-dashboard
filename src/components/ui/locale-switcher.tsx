@@ -4,7 +4,7 @@ import { Languages, Loader2 } from 'lucide-react';
 import { useLocale } from 'next-intl';
 import React, { useTransition } from 'react';
 
-import { setUserLocale } from '@/lib/locale';
+import { setUserLocale } from '@/lib/i18n/locale-cookies';
 import { type Locale } from '@/i18n/routing';
 import { locales } from '@/i18n/routing';
 import { Button } from '@/components/ui/button';
@@ -14,7 +14,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { cn } from '@/lib';
+import { cn } from '@/lib/ui/cn';
 
 // Language display names
 const languageNames: Record<Locale, { native: string; english: string }> = {

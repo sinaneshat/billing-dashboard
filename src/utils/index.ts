@@ -13,4 +13,4 @@ export {
   formatPercent,
   formatSlug,
   generateSlugFromName,
-} from '@/lib';
+} from '@/lib/utils';

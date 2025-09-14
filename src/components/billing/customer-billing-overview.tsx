@@ -35,7 +35,9 @@ import {
 import { FadeIn } from '@/components/ui/motion';
 import { Skeleton } from '@/components/ui/skeleton';
 import { PaymentStatusBadge, SubscriptionStatusBadge } from '@/components/ui/status-badge';
-import { cn, formatTomanCurrency, showSuccessToast } from '@/lib';
+import { formatTomanCurrency } from '@/lib/format';
+import { showSuccessToast } from '@/lib/toast';
+import { cn } from '@/lib/ui/cn';
 
 // Types for customer billing overview
 type CustomerSubscription = {

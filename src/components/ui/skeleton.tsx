@@ -1,4 +1,4 @@
-import { cn } from "@/lib"
+import { cn } from "@/lib/ui/cn"
 import * as React from "react"
 
 function Skeleton({ className, ...props }: React.ComponentProps<"div">) {

@@ -8,7 +8,7 @@ import {
 } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -88,6 +88,7 @@ function getNavigation(t: ReturnType<typeof useTranslations>) {
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const pathname = usePathname();
+  const router = useRouter();
   const { data: session } = useSession();
   const { data: currentSubscription } = useCurrentSubscriptionQuery();
   const { isMobile } = useSidebar();
@@ -103,7 +104,13 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const hasActiveSubscription = currentSubscription?.status === 'active';
 
   const handleSignOut = async () => {
-    await signOut();
+    await signOut({
+      fetchOptions: {
+        onSuccess: () => {
+          router.push('/auth/sign-in');
+        },
+      },
+    });
   };
 
   return (

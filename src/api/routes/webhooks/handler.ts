@@ -19,11 +19,10 @@ import type { FetchConfig } from '@/api/common/fetch-utilities';
 import { postJSON } from '@/api/common/fetch-utilities';
 import { createHandler, createHandlerWithTransaction, Responses } from '@/api/core';
 import { apiLogger } from '@/api/middleware/hono-logger';
-import { RoundtableIntegrationService } from '@/api/services/roundtable-integration';
 import { ZarinPalService } from '@/api/services/zarinpal';
 import type { ApiEnv } from '@/api/types';
 import { db } from '@/db';
-import { payment, product, subscription, webhookEvent } from '@/db/tables/billing';
+import { payment, subscription, webhookEvent } from '@/db/tables/billing';
 
 import type {
   getWebhookEventsRoute,
@@ -592,63 +591,8 @@ export const zarinPalWebhookHandler: RouteHandler<typeof zarinPalWebhookRoute, A
                 }
               }
 
-              // ROUNDTABLE1 INTEGRATION: Update user subscription in Roundtable1 database
-              try {
-                if (c.env?.ROUNDTABLE_SUPABASE_URL && c.env?.ROUNDTABLE_SUPABASE_SERVICE_KEY) {
-                  const roundtableService = RoundtableIntegrationService.create(c.env);
-
-                  // Get product information for plan mapping
-                  const productResults = await db.select().from(product).where(eq(product.id, paymentRecord.productId)).limit(1);
-                  const productRecord = productResults[0];
-
-                  if (productRecord) {
-                    // Calculate subscription end date based on billing period
-                    let endsAt: string | undefined;
-                    const startsAt = new Date().toISOString();
-
-                    if (productRecord.billingPeriod === 'monthly') {
-                      const endDate = new Date();
-                      endDate.setMonth(endDate.getMonth() + 1);
-                      endsAt = endDate.toISOString();
-                    }
-                    // For lifetime plans, leave endsAt as undefined
-
-                    await roundtableService.updateUserSubscription({
-                      userId: paymentRecord.userId,
-                      planId: productRecord.id, // Use product ID directly (same IDs in both projects now)
-                      subscriptionId: paymentRecord.subscriptionId || crypto.randomUUID(),
-                      paymentId: paymentRecord.id,
-                      amount: paymentRecord.amount,
-                      currency: 'IRR',
-                      isActive: true,
-                      startsAt,
-                      endsAt,
-                    });
-
-                    c.logger.info('Roundtable1 user subscription updated successfully', {
-                      logType: 'operation',
-                      operationName: 'roundtableIntegration',
-                      userId: paymentRecord.userId,
-                      resource: paymentRecord.id,
-                    });
-                  }
-                } else {
-                  c.logger.warn('Roundtable1 integration skipped - environment variables not configured', {
-                    logType: 'operation',
-                    operationName: 'roundtableIntegration',
-                    resource: paymentRecord.id,
-                  });
-                }
-              } catch (roundtableError) {
-                c.logger.error('Failed to update Roundtable1 subscription', roundtableError as Error, {
-                  logType: 'operation',
-                  operationName: 'roundtableIntegration',
-                  userId: paymentRecord.userId,
-                  resource: paymentRecord.id,
-                });
-                // Don't fail the whole payment process if roundtable update fails
-                // Just log the error and continue
-              }
+              // Note: Roundtable integration was removed as part of cleanup.
+              // Payment processing is now complete without external integrations.
 
               apiLogger.info('Payment verified and webhook events dispatched', {
                 operation: 'payment_verification_success',

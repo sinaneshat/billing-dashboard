@@ -11,6 +11,19 @@ import { useSubscriptionsQuery } from '@/hooks/queries/subscriptions';
 
 import { PaymentHistoryCards } from './payment-history-cards';
 
+type PaymentEntry = {
+  id: string;
+  productName: string;
+  amount: number;
+  status: string;
+  paymentMethod: string;
+  paidAt: string | null;
+  createdAt: string;
+  hasReceipt: boolean;
+  failureReason?: string | null;
+  zarinpalRefId?: string | null;
+};
+
 export const BillingHistory = memo(() => {
   const t = useTranslations();
   const { data: subscriptionsData, isLoading, error } = useSubscriptionsQuery();
@@ -32,7 +45,7 @@ export const BillingHistory = memo(() => {
       directDebitContractId: string | null;
       product?: { name: string };
     }) => {
-      const entries = [];
+      const entries: PaymentEntry[] = [];
 
       // Add current subscription as a payment record if it has been paid
       if (sub.status === 'active' && sub.startDate) {

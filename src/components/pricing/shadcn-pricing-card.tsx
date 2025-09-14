@@ -7,7 +7,7 @@ import * as React from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { cn } from '@/lib';
+import { cn } from '@/lib/ui/cn';
 
 type PricingFeature = {
   text: string;

@@ -1,16 +1,16 @@
-import { magicLinkClient } from 'better-auth/client/plugins';
+import { ssoClient } from '@better-auth/sso/client';
 import { createAuthClient } from 'better-auth/react';
 
 /**
- * Better Auth Client Configuration - Simple User Authentication
- * No organizations, just basic user auth
+ * Better Auth Client Configuration - SSO Only Authentication
+ * All authentication goes through SSO providers
  */
 export const authClient = createAuthClient({
   baseURL: process.env.NEXT_PUBLIC_APP_URL
     || (typeof window !== 'undefined' ? `${window.location.protocol}//${window.location.host}` : 'http://localhost:3000'),
 
   plugins: [
-    magicLinkClient(),
+    ssoClient(),
   ],
 });
 
@@ -20,22 +20,16 @@ export const {
   useSession,
   getSession,
 
-  // Authentication methods
+  // SSO Authentication methods
   signIn,
-  signUp,
   signOut,
+
+  // SSO specific methods
+  sso,
 
   // User management
   updateUser,
   deleteUser,
-
-  // Password management
-  forgetPassword,
-  resetPassword,
-
-  // Email verification
-  sendVerificationEmail,
-  verifyEmail,
 } = authClient;
 
 // Types are exported from @/lib/auth/types for consistency
