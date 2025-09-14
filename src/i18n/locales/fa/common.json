@@ -374,7 +374,10 @@
       "continueWithSSO": "ادامه با SSO",
       "signInThroughOrganization": "ورود از طریق سیستم احراز هویت یکپارچه سازمان شما",
       "continueWithRoundtableSSO": "ادامه با Roundtable SSO",
-      "redirectMessage": "شما به صفحه ورود سازمان خود هدایت خواهید شد"
+      "redirectMessage": "شما به صفحه ورود سازمان خود هدایت خواهید شد",
+      "authenticationRequired": "احراز هویت SSO ضروری است",
+      "onlySupportsSSO": "این برنامه فقط از ورود SSO پشتیبانی می‌کند",
+      "contactAdministrator": "برای پیکربندی دسترسی SSO برای این برنامه با مدیر خود تماس بگیرید."
     },
     "form": {
       "error": "خطا",

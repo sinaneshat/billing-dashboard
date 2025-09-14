@@ -361,7 +361,10 @@
       "continueWithSSO": "Continue with SSO",
       "signInThroughOrganization": "Sign in through your organization's Single Sign-On provider",
       "continueWithRoundtableSSO": "Continue with Roundtable SSO",
-      "redirectMessage": "You'll be redirected to your organization's sign-in page"
+      "redirectMessage": "You'll be redirected to your organization's sign-in page",
+      "authenticationRequired": "SSO Authentication Required",
+      "onlySupportsSSO": "This application only supports SSO login",
+      "contactAdministrator": "Contact your administrator to configure SSO access for this application."
     },
     "form": {
       "error": "Error",
