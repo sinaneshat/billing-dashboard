@@ -1,24 +1,88 @@
-import { sso } from '@better-auth/sso';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
+
 import { betterAuth } from 'better-auth';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { nextCookies } from 'better-auth/next-js';
-import { admin } from 'better-auth/plugins';
+import { admin, magicLink } from 'better-auth/plugins';
+import Database from 'better-sqlite3';
+import { drizzle } from 'drizzle-orm/better-sqlite3';
 
-import { db } from '@/db';
+import { getDb } from '@/db';
 import * as authSchema from '@/db/tables/auth';
 import { getBaseUrl } from '@/utils/helpers';
 
+// Database configuration for Better Auth
+const LOCAL_DB_DIR = '.wrangler/state/v3/d1/miniflare-D1DatabaseObject';
+const LOCAL_DB_PATH = path.join(process.cwd(), LOCAL_DB_DIR);
+
 /**
- * Better Auth Configuration - SSO Only Authentication
- * All authentication goes through registered SSO providers
+ * Gets the path to the local SQLite database file for Better Auth
+ */
+function getLocalDbPath(): string {
+  if (!fs.existsSync(LOCAL_DB_PATH)) {
+    fs.mkdirSync(LOCAL_DB_PATH, { recursive: true });
+  }
+
+  try {
+    const files = fs.readdirSync(LOCAL_DB_PATH);
+    const dbFile = files.find(file => file.endsWith('.sqlite'));
+    if (dbFile) {
+      return path.join(LOCAL_DB_PATH, dbFile);
+    }
+  } catch {
+  }
+
+  return path.join(LOCAL_DB_PATH, 'database.sqlite');
+}
+
+/**
+ * Get database configuration for Better Auth
+ * Uses Drizzle adapter for both local and production for consistent column mapping
+ */
+function getDatabaseConfig() {
+  const isLocal = process.env.NODE_ENV === 'development' || process.env.NEXT_PUBLIC_WEBAPP_ENV === 'local';
+
+  if (isLocal) {
+    // Use Drizzle adapter with better-sqlite3 for local development
+    const dbPath = getLocalDbPath();
+    const sqlite = new Database(dbPath);
+
+    // Configure SQLite for better performance and transaction handling
+    sqlite.pragma('journal_mode = WAL');
+    sqlite.pragma('synchronous = NORMAL');
+    sqlite.pragma('foreign_keys = ON');
+
+    const localDb = drizzle(sqlite, { schema: authSchema });
+
+    return drizzleAdapter(localDb, {
+      provider: 'sqlite',
+      schema: authSchema,
+    });
+  } else {
+    // Use Drizzle adapter with D1 for production
+    return drizzleAdapter(getDb(), {
+      provider: 'sqlite',
+      schema: authSchema,
+    });
+  }
+}
+
+/**
+ * Better Auth Configuration - Simple User Authentication
+ * No organizations, just basic user auth
  */
 export const auth = betterAuth({
   secret: process.env.BETTER_AUTH_SECRET,
   baseURL: process.env.BETTER_AUTH_URL || `${getBaseUrl()}/api/auth`,
-  database: drizzleAdapter(db, {
-    provider: 'sqlite',
-    schema: authSchema,
-  }),
+  database: getDatabaseConfig(),
+
+  socialProviders: {
+    google: {
+      clientId: process.env.AUTH_GOOGLE_ID || '',
+      clientSecret: process.env.AUTH_GOOGLE_SECRET || '',
+    },
+  },
 
   // Session configuration
   session: {
@@ -54,30 +118,18 @@ export const auth = betterAuth({
   },
 
   emailAndPassword: {
-    enabled: true, // Required for SSO plugin to work properly
+    enabled: true,
     requireEmailVerification: false,
   },
 
   plugins: [
     nextCookies(),
-    admin(), // Required for impersonateUser functionality in SSO
-    sso({
-      // User provisioning - called when users sign in through SSO
-      provisionUser: async ({ user, userInfo, provider }) => {
-        // Log SSO sign-in for audit purposes
-        console.warn(`SSO user provisioned: ${user.email} via ${provider.providerId}`);
-
-        // Update user profile with any additional information from SSO provider
-        if (userInfo.name && user.name !== userInfo.name) {
-          // Note: Better Auth will handle the user updates automatically
-          console.warn(`SSO user name updated: ${userInfo.name}`);
-        }
+    admin(), // Enable admin plugin for SSO impersonateUser functionality
+    magicLink({
+      sendMagicLink: async ({ email, url }) => {
+        const { emailService } = await import('@/lib/email/ses-service');
+        await emailService.sendMagicLink(email, url);
       },
-
-      // Configuration options
-      defaultOverrideUserInfo: false, // Don't override existing user info by default
-      disableImplicitSignUp: false, // Allow new users to be created via SSO
-      trustEmailVerified: true, // Trust that SSO provider has verified the email
     }),
   ],
 });

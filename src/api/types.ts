@@ -10,6 +10,7 @@ export type ApiEnv = {
     user?: User | null;
     apiKey?: string | undefined;
     requestId?: string;
+    // Authentication context variables
     // Storage-related context variables
     storageKey?: string;
     storagePurpose?: StoragePurpose | null;

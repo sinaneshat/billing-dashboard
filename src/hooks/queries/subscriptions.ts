@@ -14,7 +14,7 @@ export function useSubscriptionsQuery() {
   return useQuery({
     queryKey: queryKeys.subscriptions.list, // CRITICAL FIX: Static array like official examples
     queryFn: getSubscriptionsService,
-    staleTime: 60 * 1000, // CRITICAL FIX: Match Context7 examples (60 seconds)
+    staleTime: 2 * 60 * 1000, // CRITICAL FIX: Match server prefetch (2 minutes)
     retry: 2,
     throwOnError: false,
   });
@@ -28,7 +28,7 @@ export function useSubscriptionQuery(subscriptionId: string) {
   return useQuery({
     queryKey: queryKeys.subscriptions.detail(subscriptionId),
     queryFn: () => getSubscriptionService(subscriptionId),
-    staleTime: 60 * 1000, // CRITICAL FIX: Match Context7 examples (60 seconds)
+    staleTime: 2 * 60 * 1000, // CRITICAL FIX: Match server prefetch (2 minutes)
     retry: 2,
     throwOnError: false,
     enabled: !!subscriptionId,
@@ -44,7 +44,7 @@ export function useCurrentSubscriptionQuery() {
   return useQuery({
     queryKey: queryKeys.subscriptions.list, // CRITICAL FIX: Static array - same key as prefetch
     queryFn: getSubscriptionsService, // CRITICAL FIX: No arrow wrapper - match server
-    staleTime: 60 * 1000, // CRITICAL FIX: Match Context7 examples (60 seconds)
+    staleTime: 2 * 60 * 1000, // CRITICAL FIX: Match server prefetch (2 minutes)
     retry: 2,
     throwOnError: false,
     select: (data) => {

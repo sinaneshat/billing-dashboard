@@ -63,7 +63,7 @@ export const CreateSubscriptionRequestSchema = z.object({
   }),
   referrer: z.string().url().optional().openapi({
     example: 'https://roundtable.example.com/dashboard/plans',
-    description: 'Referrer URL to redirect back to after successful payment (used for cross-project SSO flows)',
+    description: 'Referrer URL to redirect back to after successful payment',
   }),
 }).openapi('CreateSubscriptionRequest');
 
@@ -152,7 +152,7 @@ export const ChangePlanRequestSchema = z.object({
   }),
   referrer: z.string().url().optional().openapi({
     example: 'https://roundtable.example.com/dashboard/plans',
-    description: 'Referrer URL to redirect back to after successful payment (used for cross-project SSO flows)',
+    description: 'Referrer URL to redirect back to after successful payment',
   }),
 }).openapi('ChangePlanRequest');
 

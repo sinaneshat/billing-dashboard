@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import type { ReactNode } from 'react';
+import React from 'react';
 
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
@@ -373,15 +374,17 @@ export function EmptyState({
             size === 'lg' && 'rounded-2xl bg-gradient-to-br from-primary/10 to-primary/5 border-2 border-dashed border-primary/20',
           )}
           >
-            {typeof Icon === 'function'
-              ? (
-                  <Icon className={cn(
-                    sizeSettings.iconSize,
-                    size === 'lg' ? 'text-primary/60' : 'text-muted-foreground',
-                  )}
-                  />
-                )
-              : Icon}
+            {React.isValidElement(Icon)
+              ? Icon
+              : Icon && typeof Icon === 'function'
+                ? (
+                    <Icon className={cn(
+                      sizeSettings.iconSize,
+                      size === 'lg' ? 'text-primary/60' : 'text-muted-foreground',
+                    )}
+                    />
+                  )
+                : null}
           </div>
           <div className="space-y-3">
             <h3 className={sizeSettings.title}>

@@ -1,4 +1,7 @@
 {
+  "common": {
+    "or": "Or"
+  },
   "navigation": {
     "navigation": "Navigation",
     "home": "Home",
@@ -353,6 +356,9 @@
     "dollar": "$"
   },
   "auth": {
+    "email": "Email",
+    "emailPlaceholder": "Enter your email",
+    "secureAuthentication": "Secure authentication with Better Auth",
     "layout": {
       "welcomeTo": "Welcome to {brand}",
       "subtitle": "Your billing dashboard"
@@ -393,6 +399,7 @@
     "signIn": {
       "title": "Sign In",
       "subtitle": "Welcome back to Billing Dashboard",
+      "description": "Enter your email for a magic link or sign in with Google",
       "email": "Email",
       "password": "Password",
       "forgotPassword": "Forgot password?",
@@ -401,6 +408,12 @@
       "noAccount": "Don't have an account?",
       "signUpLink": "Sign up here",
       "rememberMe": "Remember me"
+    },
+    "magicLink": {
+      "title": "Check your email",
+      "emailSentMessage": "We've sent a magic link to {email}. Click the link to sign in.",
+      "useDifferentEmail": "Use a different email",
+      "sendButton": "Send Magic Link"
     },
     "signUp": {
       "title": "Sign Up",

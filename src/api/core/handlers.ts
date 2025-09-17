@@ -20,10 +20,10 @@ import * as HttpStatusCodes from 'stoker/http-status-codes';
 import type { z } from 'zod';
 
 import { AppError } from '@/api/common/error-handling';
-import { attachSession, requireMasterKey, requireSession } from '@/api/middleware/auth';
 import { apiLogger } from '@/api/middleware/hono-logger';
 import type { ApiEnv } from '@/api/types';
-import { db } from '@/db';
+// Database access should be handled by individual handlers
+import { getDbAsync } from '@/db';
 
 import { HTTPExceptionFactory } from './http-exceptions';
 import { Responses } from './responses';
@@ -42,7 +42,7 @@ import { validateWithSchema } from './validation';
 // TYPE DEFINITIONS
 // ============================================================================
 
-export type AuthMode = 'session' | 'api-key' | 'session-optional' | 'public';
+export type AuthMode = 'session' | 'session-optional' | 'public';
 
 export type HandlerConfig<
   _TRoute extends RouteConfig,
@@ -114,7 +114,7 @@ export type TransactionHandler<
   TParams extends z.ZodSchema = never,
 > = (
   c: HandlerContext<TEnv, TBody, TQuery, TParams>,
-  database: typeof db
+  database: Awaited<ReturnType<typeof getDbAsync>>
 ) => Promise<Response>;
 
 // ============================================================================
@@ -180,21 +180,57 @@ function createPerformanceTracker() {
 }
 
 /**
- * Apply authentication middleware based on mode
+ * Apply authentication check based on mode
+ * Properly implements authentication without incorrect middleware calls
  */
 async function applyAuthentication(c: Context, authMode: AuthMode): Promise<void> {
+  const { auth } = await import('@/lib/auth/server');
+
   switch (authMode) {
-    case 'session':
-      await requireSession(c, async () => {});
+    case 'session': {
+      // Require valid session - throw error if not authenticated
+      const sessionData = await auth.api.getSession({
+        headers: c.req.raw.headers,
+      });
+
+      if (!sessionData?.user || !sessionData?.session) {
+        throw new HTTPException(HttpStatusCodes.UNAUTHORIZED, {
+          message: 'Authentication required',
+        });
+      }
+
+      // Set authenticated session context
+      c.set('session', sessionData.session);
+      c.set('user', sessionData.user);
+      c.set('requestId', c.req.header('x-request-id') || crypto.randomUUID());
       break;
-    case 'api-key':
-      await requireMasterKey(c, async () => {});
+    }
+    case 'session-optional': {
+      // Optional session - don't throw error if not authenticated
+      try {
+        const sessionData = await auth.api.getSession({
+          headers: c.req.raw.headers,
+        });
+
+        if (sessionData?.user && sessionData?.session) {
+          c.set('session', sessionData.session);
+          c.set('user', sessionData.user);
+        } else {
+          c.set('session', null);
+          c.set('user', null);
+        }
+        c.set('requestId', c.req.header('x-request-id') || crypto.randomUUID());
+      } catch (error) {
+        // Log error but don't throw - allow unauthenticated requests
+        console.error('[Auth] Error retrieving session:', error);
+        c.set('session', null);
+        c.set('user', null);
+      }
       break;
-    case 'session-optional':
-      await attachSession(c, async () => {});
-      break;
+    }
     case 'public':
       // No authentication required
+      c.set('requestId', c.req.header('x-request-id') || crypto.randomUUID());
       break;
     default:
       throw new Error(`Unknown auth mode: ${authMode}`);
@@ -461,6 +497,7 @@ export function createHandlerWithTransaction<
       // Execute implementation (transaction handling moved to individual handlers)
       performance.markTime('implementation_start');
       logger.debug('Executing handler implementation');
+      const db = await getDbAsync();
       const result = await implementation(enhancedContext, db);
       performance.markTime('implementation_complete');
 

@@ -12,7 +12,7 @@ import { and, eq } from 'drizzle-orm';
 import { createError } from '@/api/common/error-handling';
 import { createHandler, createHandlerWithTransaction, Responses } from '@/api/core';
 import type { ApiEnv } from '@/api/types';
-import { db } from '@/db';
+import { getDbAsync } from '@/db';
 import { billingEvent, paymentMethod, subscription } from '@/db/tables/billing';
 
 import type {
@@ -35,6 +35,8 @@ export const getPaymentMethodsHandler: RouteHandler<typeof getPaymentMethodsRout
   },
   async (c) => {
     const user = c.get('user');
+    const db = await getDbAsync();
+
     if (!user) {
       throw createError.unauthenticated('User authentication required');
     }
@@ -68,6 +70,8 @@ export const createPaymentMethodHandler: RouteHandler<typeof createPaymentMethod
   },
   async (c, tx) => {
     const user = c.get('user');
+    const db = await getDbAsync();
+
     if (!user) {
       throw createError.unauthenticated('User authentication required');
     }
@@ -159,6 +163,8 @@ export const deletePaymentMethodHandler: RouteHandler<typeof deletePaymentMethod
   async (c, tx) => {
     const { id } = c.req.param();
     const user = c.get('user');
+    const db = await getDbAsync();
+
     if (!user) {
       throw createError.unauthenticated('User authentication required');
     }
@@ -257,6 +263,8 @@ export const setDefaultPaymentMethodHandler: RouteHandler<typeof setDefaultPayme
   async (c, tx) => {
     const { id } = c.req.param();
     const user = c.get('user');
+    const db = await getDbAsync();
+
     if (!user) {
       throw createError.unauthenticated('User authentication required');
     }

@@ -4,6 +4,7 @@
  */
 
 import { z } from '@hono/zod-openapi';
+import { getCloudflareContext } from '@opennextjs/cloudflare';
 import { HTTPException } from 'hono/http-exception';
 import * as HttpStatusCodes from 'stoker/http-status-codes';
 
@@ -164,8 +165,10 @@ export class ZarinPalService extends BaseService<ZarinPalConfig> {
   /**
    * Get service configuration from environment with validation
    * Uses Zod schema validation for type safety
+   * Uses OpenNext.js Cloudflare context for consistent environment access
    */
-  static getConfig(env: CloudflareEnv): ZarinPalConfig {
+  static getConfig(): ZarinPalConfig {
+    const { env } = getCloudflareContext();
     // Validate ZarinPal specific configuration
     if (!env.NEXT_PUBLIC_ZARINPAL_MERCHANT_ID || !env.ZARINPAL_ACCESS_TOKEN) {
       throw new HTTPException(HttpStatusCodes.INTERNAL_SERVER_ERROR, {
@@ -397,5 +400,5 @@ export class ZarinPalService extends BaseService<ZarinPalConfig> {
   }
 }
 
-// Note: Use ZarinPalService.create(env) with proper Cloudflare environment
-// This follows proper env pattern for Cloudflare Workers
+// Note: Use ZarinPalService.create() with OpenNext.js Cloudflare context
+// This follows proper environment access pattern for OpenNext.js Workers

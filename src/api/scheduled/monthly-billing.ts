@@ -12,7 +12,7 @@ import { CurrencyExchangeService } from '@/api/services/currency-exchange';
 import { ZarinPalService } from '@/api/services/zarinpal';
 import { ZarinPalDirectDebitService } from '@/api/services/zarinpal-direct-debit';
 import type { ApiEnv } from '@/api/types';
-import { db } from '@/db';
+import { getDbAsync } from '@/db';
 import { payment, paymentMethod, subscription } from '@/db/tables/billing';
 
 type BillingResult = {
@@ -42,7 +42,7 @@ const MAX_BATCH_SIZE = 25; // D1 batch limit per operation
 const CHUNK_SIZE = 10; // Process subscriptions in chunks to avoid memory issues
 
 // Helper to check if we're using D1 (production) vs BetterSQLite3 (development)
-function supportsDbBatch(): boolean {
+function supportsDbBatch(db: Awaited<ReturnType<typeof getDbAsync>>): boolean {
   return typeof (db as unknown as { batch?: unknown }).batch === 'function';
 }
 
@@ -50,12 +50,12 @@ function supportsDbBatch(): boolean {
  * Execute multiple database operations efficiently
  * Uses batch for D1 (production) or transaction for BetterSQLite3 (development)
  */
-async function executeDatabaseOperations(operations: unknown[]) {
+async function executeDatabaseOperations(operations: unknown[], db: Awaited<ReturnType<typeof getDbAsync>>) {
   if (operations.length === 0) {
     return;
   }
 
-  if (supportsDbBatch()) {
+  if (supportsDbBatch(db)) {
     // Use batch operations for D1 (production)
     await (db as unknown as { batch: (ops: unknown[]) => Promise<unknown> }).batch(operations);
   } else {
@@ -74,6 +74,7 @@ async function executeDatabaseOperations(operations: unknown[]) {
  */
 export async function processMonthlyBilling(env: ApiEnv['Bindings']): Promise<BillingResult> {
   const startTime = Date.now();
+  const db = await getDbAsync();
   const result: BillingResult = {
     processed: 0,
     successful: 0,
@@ -139,7 +140,7 @@ export async function processMonthlyBilling(env: ApiEnv['Bindings']): Promise<Bi
       }
 
       try {
-        await processSubscriptionChunk(chunk, env, result);
+        await processSubscriptionChunk(chunk, env, result, db);
         result.chunksProcessed++;
       } catch (error) {
         const errorMessage = `Chunk ${chunkIndex} failed: ${error instanceof Error ? error.message : 'Unknown error'}`;
@@ -185,6 +186,7 @@ async function processSubscriptionChunk(
   subscriptions: Array<typeof subscription.$inferSelect>,
   env: ApiEnv['Bindings'],
   result: BillingResult,
+  db: Awaited<ReturnType<typeof getDbAsync>>,
 ) {
   const processingResults: Array<{ subscription: typeof subscription.$inferSelect; success: boolean; error?: string }> = [];
 
@@ -192,7 +194,7 @@ async function processSubscriptionChunk(
     result.processed++;
 
     try {
-      await processSingleSubscription(sub, env, result);
+      await processSingleSubscription(sub, env, result, db);
       processingResults.push({ subscription: sub, success: true });
     } catch (error) {
       result.failed++;
@@ -227,7 +229,7 @@ async function processSubscriptionChunk(
 
   if (failedUpdates.length > 0 && failedUpdates.length <= MAX_BATCH_SIZE) {
     try {
-      await executeDatabaseOperations(failedUpdates);
+      await executeDatabaseOperations(failedUpdates, db);
     } catch (batchError) {
       apiLogger.error('Failed to update failed subscriptions', {
         error: batchError,
@@ -245,6 +247,7 @@ async function processSingleSubscription(
   sub: typeof subscription.$inferSelect,
   env: ApiEnv['Bindings'],
   result: BillingResult,
+  db: Awaited<ReturnType<typeof getDbAsync>>,
 ) {
   // Find the active direct debit contract for this subscription
   if (!sub.directDebitContractId) {
@@ -278,7 +281,7 @@ async function processSingleSubscription(
   let existingPendingPayments: PaymentRecord[];
   let failedPaymentsToday: PaymentRecord[];
 
-  if (supportsDbBatch()) {
+  if (supportsDbBatch(db)) {
     // Use batch for D1 (production)
     const paymentChecks = await (db as unknown as { batch: (ops: unknown[]) => Promise<BatchResult[]> }).batch([
       db.select().from(payment).where(
@@ -349,13 +352,13 @@ async function processSingleSubscription(
         })
         .where(eq(subscription.id, sub.id));
 
-      await executeDatabaseOperations([suspendOperation]);
+      await executeDatabaseOperations([suspendOperation], db);
       throw new Error(`Max retries (${existingFailedPayment.maxRetries || 3}) reached, subscription suspended`);
     }
   }
 
   // Convert USD to IRR using centralized service
-  const currencyService = CurrencyExchangeService.create(env);
+  const currencyService = CurrencyExchangeService.create();
   const exchangeResult = await currencyService.convertUsdToToman(sub.currentPrice);
   const exchangeRate = exchangeResult.exchangeRate;
 
@@ -414,11 +417,11 @@ async function processSingleSubscription(
     paymentOperations.push(db.insert(payment).values(paymentRecord));
   }
 
-  await executeDatabaseOperations(paymentOperations);
+  await executeDatabaseOperations(paymentOperations, db);
 
   try {
     // Create ZarinPal payment request first
-    const zarinPal = ZarinPalService.create(env);
+    const zarinPal = ZarinPalService.create();
     const paymentRequest = await zarinPal.requestPayment({
       amount: irrAmount, // Use converted IRR amount
       currency: 'IRR',
@@ -450,7 +453,7 @@ async function processSingleSubscription(
     ];
 
     // Execute direct debit transaction using ZarinPal Direct Debit Service
-    const directDebitService = ZarinPalDirectDebitService.create(env);
+    const directDebitService = ZarinPalDirectDebitService.create();
     if (!contract.contractSignature) {
       throw new Error('Contract signature is required for direct debit transaction');
     }
@@ -492,7 +495,7 @@ async function processSingleSubscription(
           .where(eq(subscription.id, sub.id)),
       ];
 
-      await executeDatabaseOperations(successOperations);
+      await executeDatabaseOperations(successOperations, db);
 
       result.successful++;
       apiLogger.info('Subscription billed successfully with currency conversion', {
@@ -522,14 +525,14 @@ async function processSingleSubscription(
           .where(eq(payment.id, paymentId)),
       ];
 
-      await executeDatabaseOperations(failureOperations);
+      await executeDatabaseOperations(failureOperations, db);
       result.failed++;
       throw new Error(`ZarinPal Direct Debit failed: ${errorMessage}`);
     }
 
     // Execute the payment authority update if needed
     if (paymentUpdateOps.length > 0) {
-      await executeDatabaseOperations(paymentUpdateOps);
+      await executeDatabaseOperations(paymentUpdateOps, db);
     }
   } catch (error) {
     // Handle payment processing error
@@ -550,7 +553,7 @@ async function processSingleSubscription(
     ];
 
     try {
-      await executeDatabaseOperations(errorOperations);
+      await executeDatabaseOperations(errorOperations, db);
     } catch (batchError) {
       apiLogger.error('Failed to update payment error', {
         paymentId,
@@ -608,7 +611,7 @@ export default {
         });
 
         // Send alerts for failures or timeouts to external monitoring
-        if (env.Bindings.NEXT_PUBLIC_EXTERNAL_WEBHOOK_URL && (result.failed > 0 || result.timeoutReached || result.errors.length > 0)) {
+        if (env.Bindings.NEXT_PUBLIC_ROUNDTABLE_WEBHOOK_URL && (result.failed > 0 || result.timeoutReached || result.errors.length > 0)) {
           try {
             const alertPayload = {
               source: 'monthly-billing-cron',
@@ -629,7 +632,7 @@ export default {
               errors: result.errors.slice(0, 10), // Limit error details to prevent large payloads
             };
 
-            await fetch(env.Bindings.NEXT_PUBLIC_EXTERNAL_WEBHOOK_URL, {
+            await fetch(env.Bindings.NEXT_PUBLIC_ROUNDTABLE_WEBHOOK_URL, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify(alertPayload),

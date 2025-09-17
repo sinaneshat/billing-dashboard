@@ -1,14 +1,15 @@
 /**
- * Enhanced Webhook System Handler - Roundtable Integration
+ * Enhanced Webhook System Handler
  *
  * Comprehensive webhook processing with unified createHandler pattern.
- * Enhanced for seamless ZarinPal to Stripe webhook translation for Roundtable integration.
- * Features: Multiple endpoints, retry logic, SSO user mapping, Stripe compatibility.
+ * Enhanced for seamless ZarinPal to Stripe webhook translation.
+ * Features: Multiple endpoints, retry logic, Stripe compatibility.
  */
 
 import crypto from 'node:crypto';
 
 import type { RouteHandler } from '@hono/zod-openapi';
+import { getCloudflareContext } from '@opennextjs/cloudflare';
 import { and, desc, eq } from 'drizzle-orm';
 import { z } from 'zod';
 
@@ -19,7 +20,7 @@ import { createHandler, createHandlerWithTransaction, Responses } from '@/api/co
 import { apiLogger } from '@/api/middleware/hono-logger';
 import { ZarinPalService } from '@/api/services/zarinpal';
 import type { ApiEnv } from '@/api/types';
-import { db } from '@/db';
+import { getDbAsync } from '@/db';
 import { payment, subscription, webhookEvent } from '@/db/tables/billing';
 
 import type {
@@ -127,37 +128,7 @@ const StripeWebhookEventSchema = z.discriminatedUnion('type', [
   }),
 ]);
 
-/**
- * Enhanced Webhook Endpoint Configuration Schema
- * Supports multiple endpoints with different configurations
- */
-const _WebhookEndpointConfigSchema = z.object({
-  id: z.string(),
-  name: z.string(), // 'roundtable_production', 'roundtable_staging'
-  url: z.string().url(),
-  enabled_events: z.array(z.string()),
-  status: z.enum(['enabled', 'disabled']),
-  secret: z.string(),
-  maxRetries: z.number().int().min(0).default(3),
-  timeoutMs: z.number().int().positive().default(15000),
-  retryBackoffMs: z.number().int().positive().default(1000),
-  created: z.number().int().positive(),
-});
-
 type WebhookEvent = z.infer<typeof StripeWebhookEventSchema>;
-type WebhookEndpointConfig = z.infer<typeof _WebhookEndpointConfigSchema>;
-
-/**
- * SSO User Mapping Interface for Roundtable Integration
- */
-type SSORoundtableUserMapping = {
-  billingUserId: string;
-  roundtableUserId?: string;
-  roundtableEmail?: string;
-  virtualStripeCustomerId: string;
-  ssoTokenHash?: string;
-  lastSsoAt?: Date;
-};
 
 // ============================================================================
 // WEBHOOK EVENT BUILDERS (TYPE-SAFE VERSION)
@@ -284,7 +255,7 @@ class WebhookEventBuilders {
   }
 
   /**
-   * Create customer subscription created event for Roundtable
+   * Create customer subscription created event
    */
   static createCustomerSubscriptionCreatedEvent(subscriptionId: string, customerId: string, metadata?: Record<string, string>): WebhookEvent {
     const event = {
@@ -314,25 +285,12 @@ class WebhookEventBuilders {
   }
 
   /**
-   * Map billing user to virtual Stripe customer ID for Roundtable compatibility
+   * Generate virtual Stripe customer ID for compatibility
    */
   static generateVirtualStripeCustomerId(billingUserId: string): string {
     // Create deterministic virtual customer ID that looks like Stripe format
     const hash = crypto.createHash('sha256').update(`billing_${billingUserId}`).digest('hex').substring(0, 24);
     return `cus_${hash}`;
-  }
-
-  /**
-   * Create SSO user mapping for Roundtable integration
-   */
-  static createSSORoundtableUserMapping(billingUserId: string, roundtableUserId?: string, roundtableEmail?: string): SSORoundtableUserMapping {
-    return {
-      billingUserId,
-      roundtableUserId,
-      roundtableEmail,
-      virtualStripeCustomerId: this.generateVirtualStripeCustomerId(billingUserId),
-      lastSsoAt: new Date(),
-    };
   }
 }
 
@@ -341,326 +299,97 @@ class WebhookEventBuilders {
 // ============================================================================
 
 /**
- * Enhanced Webhook Endpoint Manager with Configuration-Based Multi-Endpoint Support
- * Supports environment-based configuration with retry logic and SSO user mapping
+ * Roundtable Webhook Forwarder
+ * Handles forwarding billing events to the Roundtable application
  */
-class WebhookEndpointManager {
-  private static getWebhookEndpoints(): WebhookEndpointConfig[] {
-    const endpoints: WebhookEndpointConfig[] = [];
-
-    // Main external webhook URL from environment
-    if (process.env.NEXT_PUBLIC_EXTERNAL_WEBHOOK_URL) {
-      endpoints.push({
-        id: 'external-primary',
-        name: 'External Primary Endpoint',
-        url: process.env.NEXT_PUBLIC_EXTERNAL_WEBHOOK_URL,
-        enabled_events: ['*'], // All events
-        status: 'enabled',
-        secret: process.env.WEBHOOK_SECRET || 'default-secret',
-        maxRetries: 3,
-        timeoutMs: 15000,
-        retryBackoffMs: 1000,
-        created: Date.now(),
-      });
+class RoundtableWebhookForwarder {
+  private static getRoundtableWebhookUrl(): string | null {
+    try {
+      const { env } = getCloudflareContext();
+      return env.NEXT_PUBLIC_ROUNDTABLE_WEBHOOK_URL || process.env.NEXT_PUBLIC_ROUNDTABLE_WEBHOOK_URL || null;
+    } catch {
+      return process.env.NEXT_PUBLIC_ROUNDTABLE_WEBHOOK_URL || null;
     }
-
-    // Roundtable-specific endpoint
-    if (process.env.NEXT_PUBLIC_ROUNDTABLE_APP_URL) {
-      const roundtableWebhookUrl = `${process.env.NEXT_PUBLIC_ROUNDTABLE_APP_URL.replace(/\/$/, '')}/webhooks/zarinpal`;
-      endpoints.push({
-        id: 'roundtable-production',
-        name: 'Roundtable Production',
-        url: roundtableWebhookUrl,
-        enabled_events: [
-          'payment_intent.succeeded',
-          'payment_intent.payment_failed',
-          'subscription.updated',
-          'customer.subscription.created',
-        ],
-        status: 'enabled',
-        secret: process.env.SSO_SIGNING_SECRET || process.env.WEBHOOK_SECRET || 'default-secret',
-        maxRetries: 5, // More retries for critical Roundtable integration
-        timeoutMs: 20000,
-        retryBackoffMs: 2000,
-        created: Date.now(),
-      });
-    }
-
-    return endpoints;
   }
 
-  static async dispatchEvent(event: WebhookEvent, userMapping?: SSORoundtableUserMapping): Promise<void> {
-    const endpoints = this.getWebhookEndpoints().filter(ep =>
-      ep.status === 'enabled' && (
-        ep.enabled_events.includes('*')
-        || ep.enabled_events.includes(event.type)
-      ),
-    );
+  private static getWebhookSecret(): string {
+    try {
+      const { env } = getCloudflareContext();
+      return env.WEBHOOK_SECRET || process.env.WEBHOOK_SECRET || 'default-secret';
+    } catch {
+      return process.env.WEBHOOK_SECRET || 'default-secret';
+    }
+  }
 
-    if (endpoints.length === 0) {
-      apiLogger.info('No webhook endpoints configured', {
+  static async forwardEvent(event: WebhookEvent): Promise<boolean> {
+    const url = this.getRoundtableWebhookUrl();
+    if (!url) {
+      apiLogger.info('No Roundtable webhook URL configured', {
         logType: 'api' as const,
         method: 'POST' as const,
-        path: '/webhooks/dispatch',
+        path: '/webhooks/roundtable',
         responseSize: 0,
       });
-      return;
+      return false;
     }
 
-    // Dispatch to all endpoints in parallel with enhanced error handling
-    const results = await Promise.allSettled(
-      endpoints.map(endpoint => this.deliverToEndpoint(endpoint, event, userMapping)),
-    );
+    const secret = this.getWebhookSecret();
+    const payload = JSON.stringify(event);
+    const timestamp = Math.floor(Date.now() / 1000);
+    const signature = this.generateSignature(payload, secret, timestamp);
 
-    // Log delivery summary
-    const successful = results.filter(r => r.status === 'fulfilled').length;
-    const failed = results.length - successful;
+    const headers = {
+      'Content-Type': 'application/json',
+      'User-Agent': 'BillingDashboard-Webhooks/1.0',
+      'X-Webhook-Signature': signature,
+      'X-Webhook-Timestamp': timestamp.toString(),
+      'X-Webhook-Event-Type': event.type,
+      'X-Webhook-Event-Id': event.id,
+      'X-Webhook-Source': 'billing-dashboard',
+    };
 
-    apiLogger.info('Webhook dispatch completed', {
-      logType: 'api' as const,
-      method: 'POST' as const,
-      path: '/webhooks/dispatch',
-      successful,
-      failed,
-      totalEndpoints: endpoints.length,
-    });
-  }
+    const fetchConfig: FetchConfig = {
+      timeoutMs: 15000,
+      maxRetries: 3,
+      correlationId: `roundtable-webhook-${event.id}`,
+    };
 
-  private static async deliverToEndpoint(
-    endpoint: WebhookEndpointConfig,
-    event: WebhookEvent,
-    userMapping?: SSORoundtableUserMapping,
-  ): Promise<void> {
-    const payload = this.preparePayloadForEndpoint(event, endpoint, userMapping);
-    const payloadString = JSON.stringify(payload);
+    try {
+      const startTime = Date.now();
+      const result = await postJSON(url, event, fetchConfig, headers);
+      const duration = Date.now() - startTime;
 
-    let lastError: Error | null = null;
-    const maxRetries = endpoint.maxRetries || 3;
-    const baseBackoffMs = endpoint.retryBackoffMs || 1000;
-
-    for (let attempt = 0; attempt <= maxRetries; attempt++) {
-      try {
-        const timestamp = Math.floor(Date.now() / 1000);
-        const signature = this.generateSignature(payloadString, endpoint.secret, timestamp);
-
-        const requestHeaders = {
-          'Content-Type': 'application/json',
-          'User-Agent': 'BillingDashboard-Webhooks/1.0',
-          'X-Webhook-Signature': signature,
-          'X-Webhook-Timestamp': timestamp.toString(),
-          'X-Webhook-Event-Type': event.type,
-          'X-Webhook-Event-Id': event.id,
-          'X-Webhook-Endpoint-Id': endpoint.id,
-          // Add Roundtable-specific headers for SSO integration
-          ...(userMapping && endpoint.id.includes('roundtable') && {
-            'X-SSO-User-Id': userMapping.billingUserId,
-            'X-Virtual-Customer-Id': userMapping.virtualStripeCustomerId,
-          }),
-        };
-
-        const fetchConfig: FetchConfig = {
-          timeoutMs: endpoint.timeoutMs || 15000,
-          maxRetries: 1, // We handle retries manually for better control
-          correlationId: `webhook-${event.id}-${endpoint.id}-${attempt}`,
-        };
-
-        const startTime = Date.now();
-        const result = await postJSON(endpoint.url, payload, fetchConfig, requestHeaders);
-        const duration = Date.now() - startTime;
-
-        if (result.success) {
-          apiLogger.info('Webhook delivered successfully', {
-            logType: 'api' as const,
-            method: 'POST' as const,
-            path: endpoint.url,
-            endpointId: endpoint.id,
-            statusCode: result.response?.status,
-            duration,
-            attempt: attempt + 1,
-            eventType: event.type,
-          });
-          return; // Success - exit retry loop
-        } else {
-          throw new Error(`HTTP ${result.response?.status || 'unknown'}: ${result.error || 'Unknown error'}`);
-        }
-      } catch (error) {
-        lastError = error instanceof Error ? error : new Error(String(error));
-
-        const isLastAttempt = attempt === maxRetries;
-        const statusCode = this.extractStatusCodeFromError(error);
-
-        // Don't retry on certain HTTP status codes (4xx client errors except 408, 429)
-        const shouldRetry = isLastAttempt ? false : this.shouldRetryDelivery(statusCode);
-
-        if (shouldRetry && !isLastAttempt) {
-          // Exponential backoff with jitter
-          const backoffMs = baseBackoffMs * 2 ** attempt;
-          const jitter = Math.random() * backoffMs * 0.1; // 10% jitter
-          const delayMs = backoffMs + jitter;
-
-          apiLogger.warn('Webhook delivery attempt failed, retrying', {
-            logType: 'api' as const,
-            method: 'POST' as const,
-            path: endpoint.url,
-            endpointId: endpoint.id,
-            statusCode,
-            attempt: attempt + 1,
-            maxRetries: maxRetries + 1,
-            retryAfter: Math.round(delayMs),
-            error: lastError.message,
-          });
-
-          await this.sleep(delayMs);
-        } else {
-          apiLogger.error('Webhook delivery failed permanently', {
-            logType: 'api' as const,
-            method: 'POST' as const,
-            path: endpoint.url,
-            endpointId: endpoint.id,
-            statusCode,
-            attempts: attempt + 1,
-            error: lastError.message,
-            eventType: event.type,
-          });
-          break; // Don't retry
-        }
+      if (result.success) {
+        apiLogger.info('Roundtable webhook delivered successfully', {
+          logType: 'api' as const,
+          method: 'POST' as const,
+          path: url,
+          statusCode: result.response?.status,
+          duration,
+          eventType: event.type,
+        });
+        return true;
+      } else {
+        apiLogger.error('Roundtable webhook delivery failed', {
+          logType: 'api' as const,
+          method: 'POST' as const,
+          path: url,
+          statusCode: result.response?.status,
+          error: result.error,
+          eventType: event.type,
+        });
+        return false;
       }
+    } catch (error) {
+      apiLogger.error('Roundtable webhook delivery error', {
+        logType: 'api' as const,
+        method: 'POST' as const,
+        path: url,
+        error: error instanceof Error ? error.message : String(error),
+        eventType: event.type,
+      });
+      return false;
     }
-
-    // If we reach here, all attempts failed
-    throw lastError || new Error('All delivery attempts failed');
-  }
-
-  /**
-   * Prepare payload for specific endpoint (add Roundtable-specific transformations)
-   */
-  private static preparePayloadForEndpoint(
-    event: WebhookEvent,
-    endpoint: WebhookEndpointConfig,
-    userMapping?: SSORoundtableUserMapping,
-  ): WebhookEvent {
-    // For non-Roundtable endpoints or no user mapping, return as-is
-    if (!endpoint.id.includes('roundtable') || !userMapping) {
-      return event;
-    }
-
-    // Handle each event type separately to maintain type safety
-    switch (event.type) {
-      case 'payment_intent.succeeded':
-        return {
-          ...event,
-          data: {
-            object: {
-              ...event.data.object,
-              customer: userMapping.virtualStripeCustomerId,
-              metadata: {
-                ...event.data.object.metadata,
-                billing_user_id: userMapping.billingUserId,
-                roundtable_user_id: userMapping.roundtableUserId || '',
-                integration_source: 'zarinpal_direct_debit',
-              },
-            },
-          },
-        };
-
-      case 'payment_intent.payment_failed':
-        return {
-          ...event,
-          data: {
-            object: {
-              ...event.data.object,
-              customer: userMapping.virtualStripeCustomerId,
-              metadata: {
-                ...event.data.object.metadata,
-                billing_user_id: userMapping.billingUserId,
-                roundtable_user_id: userMapping.roundtableUserId || '',
-                integration_source: 'zarinpal_direct_debit',
-              },
-            },
-          },
-        };
-
-      case 'subscription.updated':
-        return {
-          ...event,
-          data: {
-            object: {
-              ...event.data.object,
-              customer: userMapping.virtualStripeCustomerId,
-              metadata: {
-                ...event.data.object.metadata,
-                billing_user_id: userMapping.billingUserId,
-                roundtable_user_id: userMapping.roundtableUserId || '',
-                integration_source: 'zarinpal_direct_debit',
-              },
-            },
-          },
-        };
-
-      case 'customer.subscription.created':
-        return {
-          ...event,
-          data: {
-            object: {
-              ...event.data.object,
-              customer: userMapping.virtualStripeCustomerId,
-              metadata: {
-                ...event.data.object.metadata,
-                billing_user_id: userMapping.billingUserId,
-                roundtable_user_id: userMapping.roundtableUserId || '',
-                integration_source: 'zarinpal_direct_debit',
-              },
-            },
-          },
-        };
-
-      default:
-        return event;
-    }
-  }
-
-  /**
-   * Determine if delivery should be retried based on status code
-   */
-  private static shouldRetryDelivery(statusCode?: number): boolean {
-    if (!statusCode)
-      return true; // Network errors should be retried
-
-    // Retry on 5xx server errors and specific 4xx errors
-    if (statusCode >= 500)
-      return true;
-    if (statusCode === 408)
-      return true; // Request Timeout
-    if (statusCode === 429)
-      return true; // Rate Limited
-
-    return false; // Don't retry on other 4xx client errors
-  }
-
-  /**
-   * Extract HTTP status code from error
-   */
-  private static extractStatusCodeFromError(error: unknown): number | undefined {
-    if (typeof error === 'object' && error !== null) {
-      if ('status' in error && typeof error.status === 'number') {
-        return error.status;
-      }
-      if ('response' in error
-        && typeof error.response === 'object'
-        && error.response !== null
-        && 'status' in error.response
-        && typeof error.response.status === 'number') {
-        return error.response.status;
-      }
-    }
-    return undefined;
-  }
-
-  /**
-   * Sleep utility for retry delays
-   */
-  private static sleep(ms: number): Promise<void> {
-    return new Promise(resolve => setTimeout(resolve, ms));
   }
 
   private static generateSignature(payload: string, secret: string, timestamp: number): string {
@@ -798,6 +527,7 @@ export const zarinPalWebhookHandler: RouteHandler<typeof zarinPalWebhookRoute, A
   async (c, _tx) => {
     // Enhanced security validation using our error handling pattern
     await validateWebhookSecurity(c);
+    const db = await getDbAsync();
 
     const webhookPayload = c.validated.body;
 
@@ -816,7 +546,14 @@ export const zarinPalWebhookHandler: RouteHandler<typeof zarinPalWebhookRoute, A
       rawPayload: webhookPayload,
       processed: false,
       forwardedToExternal: false,
-      externalWebhookUrl: c.env?.NEXT_PUBLIC_EXTERNAL_WEBHOOK_URL || null,
+      externalWebhookUrl: (() => {
+        try {
+          const { env } = getCloudflareContext();
+          return env.NEXT_PUBLIC_ROUNDTABLE_WEBHOOK_URL || null;
+        } catch {
+          return process.env.NEXT_PUBLIC_ROUNDTABLE_WEBHOOK_URL || null;
+        }
+      })(),
     };
 
     try {
@@ -848,7 +585,7 @@ export const zarinPalWebhookHandler: RouteHandler<typeof zarinPalWebhookRoute, A
 
         // Process payment based on webhook status
         if (webhookPayload.status === 'OK') {
-          const zarinPal = ZarinPalService.create(c.env);
+          const zarinPal = ZarinPalService.create();
 
           try {
             const verification = await zarinPal.verifyPayment({
@@ -876,16 +613,9 @@ export const zarinPalWebhookHandler: RouteHandler<typeof zarinPalWebhookRoute, A
               }
 
               // DISPATCH WEBHOOK EVENT: Payment succeeded
-              // Create SSO user mapping for Roundtable integration
-              const userMapping = WebhookEventBuilders.createSSORoundtableUserMapping(
-                updatedPayment.userId,
-                undefined, // roundtableUserId - to be populated via SSO
-                undefined, // roundtableEmail - to be populated via SSO
-              );
-
               const paymentEvent = WebhookEventBuilders.createPaymentSucceededEvent(
                 updatedPayment.id,
-                userMapping.virtualStripeCustomerId,
+                WebhookEventBuilders.generateVirtualStripeCustomerId(updatedPayment.userId),
                 updatedPayment.amount,
                 {
                   subscriptionId: paymentRecord.subscriptionId || '',
@@ -895,7 +625,7 @@ export const zarinPalWebhookHandler: RouteHandler<typeof zarinPalWebhookRoute, A
                 },
                 verification.data?.card_hash || webhookPayload.card_hash, // payment method ID
               );
-              await WebhookEndpointManager.dispatchEvent(paymentEvent, userMapping);
+              await RoundtableWebhookForwarder.forwardEvent(paymentEvent);
 
               // Update subscription if exists
               if (paymentRecord.subscriptionId && subscriptionRecord) {
@@ -925,7 +655,7 @@ export const zarinPalWebhookHandler: RouteHandler<typeof zarinPalWebhookRoute, A
                   // DISPATCH WEBHOOK EVENT: Subscription activated
                   const subscriptionEvent = WebhookEventBuilders.createSubscriptionUpdatedEvent(
                     updatedSubscription.id,
-                    userMapping.virtualStripeCustomerId,
+                    WebhookEventBuilders.generateVirtualStripeCustomerId(updatedPayment.userId),
                     'active',
                     {
                       billingUserId: updatedPayment.userId,
@@ -938,28 +668,27 @@ export const zarinPalWebhookHandler: RouteHandler<typeof zarinPalWebhookRoute, A
                       interval: subscriptionRecord.billingPeriod === 'monthly' ? 'month' : 'year',
                     },
                   );
-                  await WebhookEndpointManager.dispatchEvent(subscriptionEvent, userMapping);
+                  await RoundtableWebhookForwarder.forwardEvent(subscriptionEvent);
 
                   // Also dispatch customer.subscription.created for new subscriptions
                   if (subscriptionRecord.status === 'pending') {
                     const customerSubEvent = WebhookEventBuilders.createCustomerSubscriptionCreatedEvent(
                       updatedSubscription.id,
-                      userMapping.virtualStripeCustomerId,
+                      WebhookEventBuilders.generateVirtualStripeCustomerId(updatedPayment.userId),
                       {
                         billingUserId: updatedPayment.userId,
                         productId: subscriptionRecord.productId || '',
                         plan: subscriptionRecord.billingPeriod || 'monthly',
                       },
                     );
-                    await WebhookEndpointManager.dispatchEvent(customerSubEvent, userMapping);
+                    await RoundtableWebhookForwarder.forwardEvent(customerSubEvent);
                   }
 
                   subscriptionRecord = updatedSubscription;
                 }
               }
 
-              // Note: Roundtable integration was removed as part of cleanup.
-              // Payment processing is now complete without external integrations.
+              // Roundtable webhook events have been forwarded
 
               apiLogger.info('Payment verified and webhook events dispatched', {
                 operation: 'payment_verification_success',
@@ -989,13 +718,9 @@ export const zarinPalWebhookHandler: RouteHandler<typeof zarinPalWebhookRoute, A
               }
 
               // DISPATCH WEBHOOK EVENT: Payment failed
-              const userMapping = WebhookEventBuilders.createSSORoundtableUserMapping(
-                updatedPayment.userId,
-              );
-
               const paymentEvent = WebhookEventBuilders.createPaymentFailedEvent(
                 updatedPayment.id,
-                userMapping.virtualStripeCustomerId,
+                WebhookEventBuilders.generateVirtualStripeCustomerId(updatedPayment.userId),
                 updatedPayment.amount,
                 verification.data?.message || 'Verification failed',
                 {
@@ -1006,7 +731,7 @@ export const zarinPalWebhookHandler: RouteHandler<typeof zarinPalWebhookRoute, A
                 },
                 verification.data?.card_hash || webhookPayload.card_hash,
               );
-              await WebhookEndpointManager.dispatchEvent(paymentEvent, userMapping);
+              await RoundtableWebhookForwarder.forwardEvent(paymentEvent);
 
               apiLogger.warn('Payment verification failed with webhook events', {
                 operation: 'payment_verification_failed',
@@ -1040,13 +765,9 @@ export const zarinPalWebhookHandler: RouteHandler<typeof zarinPalWebhookRoute, A
             }
 
             // DISPATCH WEBHOOK EVENT: Payment failed due to error
-            const userMapping = WebhookEventBuilders.createSSORoundtableUserMapping(
-              updatedPayment.userId,
-            );
-
             const paymentEvent = WebhookEventBuilders.createPaymentFailedEvent(
               updatedPayment.id,
-              userMapping.virtualStripeCustomerId,
+              WebhookEventBuilders.generateVirtualStripeCustomerId(updatedPayment.userId),
               updatedPayment.amount,
               'Payment verification error',
               {
@@ -1056,7 +777,7 @@ export const zarinPalWebhookHandler: RouteHandler<typeof zarinPalWebhookRoute, A
                 errorType: 'verification_error',
               },
             );
-            await WebhookEndpointManager.dispatchEvent(paymentEvent, userMapping);
+            await RoundtableWebhookForwarder.forwardEvent(paymentEvent);
 
             processed = true;
           }
@@ -1079,13 +800,9 @@ export const zarinPalWebhookHandler: RouteHandler<typeof zarinPalWebhookRoute, A
           }
 
           // DISPATCH WEBHOOK EVENT: Payment failed
-          const userMapping = WebhookEventBuilders.createSSORoundtableUserMapping(
-            updatedPayment.userId,
-          );
-
           const paymentEvent = WebhookEventBuilders.createPaymentFailedEvent(
             updatedPayment.id,
-            userMapping.virtualStripeCustomerId,
+            WebhookEventBuilders.generateVirtualStripeCustomerId(updatedPayment.userId),
             updatedPayment.amount,
             'Payment failed',
             {
@@ -1096,7 +813,7 @@ export const zarinPalWebhookHandler: RouteHandler<typeof zarinPalWebhookRoute, A
               zarinpalStatus: webhookPayload.status,
             },
           );
-          await WebhookEndpointManager.dispatchEvent(paymentEvent, userMapping);
+          await RoundtableWebhookForwarder.forwardEvent(paymentEvent);
 
           apiLogger.info('Payment failed with webhook events', {
             operation: 'payment_webhook_failed',
@@ -1124,58 +841,13 @@ export const zarinPalWebhookHandler: RouteHandler<typeof zarinPalWebhookRoute, A
       })
       .where(eq(webhookEvent.id, eventId));
 
-    // Forward to external webhook URL if configured
-    let forwarded = false;
-    if (c.env?.NEXT_PUBLIC_EXTERNAL_WEBHOOK_URL) {
-      try {
-        const forwardPayload = {
-          source: 'zarinpal',
-          eventType: eventRecord.eventType,
-          timestamp: new Date().toISOString(),
-          data: webhookPayload,
-          paymentId: paymentRecord?.id,
-          subscriptionId: paymentRecord?.subscriptionId,
-        };
-
-        const fetchConfig: FetchConfig = {
-          timeoutMs: 15000,
-          maxRetries: 2,
-          correlationId: crypto.randomUUID(),
-        };
-
-        const fetchResult = await postJSON(c.env.NEXT_PUBLIC_EXTERNAL_WEBHOOK_URL, forwardPayload, fetchConfig, {
-          'X-Webhook-Source': 'billing-dashboard',
-          'X-Event-ID': eventId,
-        });
-
-        forwarded = fetchResult.success;
-
-        await db
-          .update(webhookEvent)
-          .set({
-            forwardedToExternal: forwarded,
-            forwardedAt: forwarded ? new Date() : null,
-            forwardingError: forwarded ? null : (!fetchResult.success ? (fetchResult as { error?: string }).error || 'Unknown error' : 'Unknown error'),
-          })
-          .where(eq(webhookEvent.id, eventId));
-      } catch (forwardError) {
-        apiLogger.error('Failed to forward webhook', { error: forwardError });
-
-        await db
-          .update(webhookEvent)
-          .set({
-            forwardedToExternal: false,
-            forwardingError: forwardError instanceof Error ? forwardError.message : 'Unknown error',
-          })
-          .where(eq(webhookEvent.id, eventId));
-      }
-    }
+    // Webhook processing completed with Roundtable forwarding
+    // Events are forwarded when processed - using 'processed' variable to track success
 
     return Responses.ok(c, {
       received: true,
       eventId,
       processed,
-      forwarded,
       webhook_events_dispatched: processed,
     });
   },
@@ -1198,6 +870,7 @@ export const getWebhookEventsHandler: RouteHandler<typeof getWebhookEventsRoute,
   },
   async (c) => {
     const { source, processed, limit, offset } = c.validated.query;
+    const db = await getDbAsync();
 
     c.logger.info('Fetching webhook events', {
       logType: 'operation',

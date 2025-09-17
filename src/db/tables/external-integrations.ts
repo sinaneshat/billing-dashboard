@@ -7,13 +7,12 @@ import { relations } from 'drizzle-orm';
 import { index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
 
 import { timestamps } from '../utils';
-import { user } from './auth';
 
 // External webhook endpoints configuration
 export const externalWebhookEndpoint = sqliteTable('external_webhook_endpoint', {
   id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
-  name: text('name').notNull(), // 'roundtable_production', 'roundtable_staging'
-  url: text('url').notNull(), // 'https://app.roundtable.deadpixel.io/webhooks/zarinpal'
+  name: text('name').notNull(), // e.g. 'external_service_production', 'external_service_staging'
+  url: text('url').notNull(), // e.g. 'https://external-service.example.com/webhooks'
   secretKey: text('secret_key').notNull(), // For HMAC signing
   isActive: integer('is_active', { mode: 'boolean' }).notNull().default(true),
 
@@ -40,47 +39,8 @@ export const externalWebhookEndpoint = sqliteTable('external_webhook_endpoint', 
   index('external_webhook_endpoint_url_idx').on(table.url),
 ]);
 
-// Roundtable integration mapping
-export const roundtableIntegration = sqliteTable('roundtable_integration', {
-  id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
-
-  // User mapping
-  billingUserId: text('billing_user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
-  roundtableUserId: text('roundtable_user_id'), // UUID from Roundtable system
-  roundtableEmail: text('roundtable_email'), // Email used in Roundtable
-
-  // Virtual Stripe customer ID for compatibility
-  virtualStripeCustomerId: text('virtual_stripe_customer_id').notNull().unique(),
-
-  // Product/Plan mapping (JSON)
-  productMapping: text('product_mapping', { mode: 'json' }), // Maps billing products to Roundtable plan IDs
-
-  // Integration status
-  status: text('status', {
-    enum: ['active', 'suspended', 'cancelled', 'pending_verification'],
-  }).notNull().default('pending_verification'),
-
-  // SSO token information
-  ssoTokenHash: text('sso_token_hash'), // Hashed SSO token for security
-  ssoExpiresAt: integer('sso_expires_at', { mode: 'timestamp' }),
-  lastSsoAt: integer('last_sso_at', { mode: 'timestamp' }),
-
-  // Sync status
-  lastSyncAt: integer('last_sync_at', { mode: 'timestamp' }),
-  syncErrors: integer('sync_errors').notNull().default(0),
-  lastSyncError: text('last_sync_error'),
-
-  metadata: text('metadata', { mode: 'json' }), // Additional integration data
-  ...timestamps,
-}, table => [
-  index('roundtable_integration_billing_user_idx').on(table.billingUserId),
-  index('roundtable_integration_roundtable_user_idx').on(table.roundtableUserId),
-  index('roundtable_integration_virtual_customer_idx').on(table.virtualStripeCustomerId),
-  index('roundtable_integration_status_idx').on(table.status),
-  index('roundtable_integration_roundtable_email_idx').on(table.roundtableEmail),
-  // Composite indexes for common queries
-  index('roundtable_integration_user_status_idx').on(table.billingUserId, table.status),
-]);
+// Note: External integration tables for user mapping have been removed
+// Users are managed directly through Better Auth without additional mapping
 
 // Webhook delivery tracking for external systems
 export const webhookDeliveryAttempt = sqliteTable('webhook_delivery_attempt', {
@@ -125,12 +85,7 @@ export const externalWebhookEndpointRelations = relations(externalWebhookEndpoin
   deliveryAttempts: many(webhookDeliveryAttempt),
 }));
 
-export const roundtableIntegrationRelations = relations(roundtableIntegration, ({ one }) => ({
-  billingUser: one(user, {
-    fields: [roundtableIntegration.billingUserId],
-    references: [user.id],
-  }),
-}));
+// Note: External integration relations removed to simplify schema
 
 export const webhookDeliveryAttemptRelations = relations(webhookDeliveryAttempt, ({ one }) => ({
   endpoint: one(externalWebhookEndpoint, {

@@ -17,23 +17,25 @@ import {
 export default async function DashboardOverviewPage() {
   const queryClient = getQueryClient();
 
-  // Prefetch all billing data in parallel for instant loading
+  // Prefetch essential billing data for immediate dashboard display
+  // Products are handled via ISR on plans page since they change infrequently
   // Using Promise.allSettled to avoid failing if one query fails
+  // CRITICAL: Key matching options for proper hydration (prefetchQuery has limited options)
   await Promise.allSettled([
     queryClient.prefetchQuery({
       queryKey: queryKeys.subscriptions.list,
       queryFn: getSubscriptionsService,
-      staleTime: 2 * 60 * 1000, // 2 minutes for subscription data
+      staleTime: 2 * 60 * 1000, // 2 minutes - must match client hook
     }),
     queryClient.prefetchQuery({
       queryKey: queryKeys.paymentMethods.list,
       queryFn: getPaymentMethodsService,
-      staleTime: 5 * 60 * 1000, // 5 minutes for payment methods
+      staleTime: 5 * 60 * 1000, // 5 minutes - must match client hook
     }),
     queryClient.prefetchQuery({
       queryKey: queryKeys.payments.list,
       queryFn: getPaymentsService,
-      staleTime: 60 * 1000, // 1 minute for payment history
+      staleTime: 60 * 1000, // 1 minute - must match client hook
     }),
   ]);
 

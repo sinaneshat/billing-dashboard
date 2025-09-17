@@ -1,3 +1,4 @@
+import { getCloudflareContext } from '@opennextjs/cloudflare';
 import { createMiddleware } from 'hono/factory';
 
 import type { ApiEnv } from '@/api/types';
@@ -31,7 +32,8 @@ export const performanceMiddleware = createMiddleware<ApiEnv>(async (c, next) =>
   }
 
   // Log performance metrics to console in development
-  if (c.env?.NODE_ENV === 'development') {
+  const { env } = getCloudflareContext();
+  if (env.NODE_ENV === 'development') {
     const method = c.req.method;
     const path = new URL(c.req.url).pathname;
     const status = c.res.status;
@@ -60,7 +62,8 @@ export const metricsMiddleware = createMiddleware<ApiEnv>(async (c, next) => {
 
   // In a production environment, you might want to collect metrics
   // and send them to a monitoring service like DataDog, New Relic, or CloudFlare Analytics
-  if (c.env?.NODE_ENV === 'production') {
+  const { env } = getCloudflareContext();
+  if (env.NODE_ENV === 'production') {
     const metricsData = {
       timestamp: new Date().toISOString(),
       method: c.req.method,

@@ -10,59 +10,49 @@ CREATE TABLE `account` (
 	`refresh_token_expires_at` integer,
 	`scope` text,
 	`password` text,
-	`created_at` integer NOT NULL,
+	`created_at` integer DEFAULT (cast((julianday('now') - 2440587.5)*86400000 as integer)) NOT NULL,
 	`updated_at` integer NOT NULL,
 	FOREIGN KEY (`user_id`) REFERENCES `user`(`id`) ON UPDATE no action ON DELETE cascade
 );
 --> statement-breakpoint
-CREATE INDEX `account_user_id_idx` ON `account` (`user_id`);--> statement-breakpoint
-CREATE INDEX `account_provider_id_account_id_idx` ON `account` (`provider_id`,`account_id`);--> statement-breakpoint
 CREATE TABLE `session` (
 	`id` text PRIMARY KEY NOT NULL,
 	`expires_at` integer NOT NULL,
 	`token` text NOT NULL,
+	`created_at` integer DEFAULT (cast((julianday('now') - 2440587.5)*86400000 as integer)) NOT NULL,
+	`updated_at` integer NOT NULL,
 	`ip_address` text,
 	`user_agent` text,
 	`user_id` text NOT NULL,
-	`created_at` integer NOT NULL,
-	`updated_at` integer NOT NULL,
+	`impersonated_by` text,
 	FOREIGN KEY (`user_id`) REFERENCES `user`(`id`) ON UPDATE no action ON DELETE cascade
 );
 --> statement-breakpoint
 CREATE UNIQUE INDEX `session_token_unique` ON `session` (`token`);--> statement-breakpoint
-CREATE INDEX `session_user_id_idx` ON `session` (`user_id`);--> statement-breakpoint
-CREATE INDEX `session_token_idx` ON `session` (`token`);--> statement-breakpoint
 CREATE TABLE `user` (
 	`id` text PRIMARY KEY NOT NULL,
 	`name` text NOT NULL,
 	`email` text NOT NULL,
-	`username` text,
-	`display_username` text,
-	`email_verified` integer NOT NULL,
+	`email_verified` integer DEFAULT false NOT NULL,
 	`image` text,
-	`phone` text,
-	`is_anonymous` integer,
-	`last_login_at` integer,
-	`failed_login_attempts` integer DEFAULT 0 NOT NULL,
-	`locked_until` integer,
-	`created_at` integer NOT NULL,
-	`updated_at` integer NOT NULL
+	`created_at` integer DEFAULT (cast((julianday('now') - 2440587.5)*86400000 as integer)) NOT NULL,
+	`updated_at` integer DEFAULT (cast((julianday('now') - 2440587.5)*86400000 as integer)) NOT NULL,
+	`role` text,
+	`banned` integer DEFAULT false,
+	`ban_reason` text,
+	`ban_expires` integer
 );
 --> statement-breakpoint
 CREATE UNIQUE INDEX `user_email_unique` ON `user` (`email`);--> statement-breakpoint
-CREATE UNIQUE INDEX `user_username_unique` ON `user` (`username`);--> statement-breakpoint
-CREATE INDEX `user_email_idx` ON `user` (`email`);--> statement-breakpoint
-CREATE INDEX `user_username_idx` ON `user` (`username`);--> statement-breakpoint
 CREATE TABLE `verification` (
 	`id` text PRIMARY KEY NOT NULL,
 	`identifier` text NOT NULL,
 	`value` text NOT NULL,
 	`expires_at` integer NOT NULL,
-	`created_at` integer NOT NULL,
-	`updated_at` integer NOT NULL
+	`created_at` integer DEFAULT (cast((julianday('now') - 2440587.5)*86400000 as integer)) NOT NULL,
+	`updated_at` integer DEFAULT (cast((julianday('now') - 2440587.5)*86400000 as integer)) NOT NULL
 );
 --> statement-breakpoint
-CREATE INDEX `verification_identifier_idx` ON `verification` (`identifier`);--> statement-breakpoint
 CREATE TABLE `billing_event` (
 	`id` text PRIMARY KEY NOT NULL,
 	`user_id` text NOT NULL,
@@ -166,14 +156,29 @@ CREATE TABLE `product` (
 	`price` real NOT NULL,
 	`billing_period` text DEFAULT 'one_time' NOT NULL,
 	`is_active` integer DEFAULT true NOT NULL,
+	`roundtable_id` text,
+	`message_quota` integer,
+	`conversation_limit` integer,
+	`model_limit` integer,
+	`features` text,
+	`stripe_product_id` text,
+	`stripe_price_id` text,
+	`usage_type` text,
+	`system_prompt_id` text,
 	`metadata` text,
 	`created_at` integer NOT NULL,
 	`updated_at` integer NOT NULL
 );
 --> statement-breakpoint
+CREATE UNIQUE INDEX `product_roundtable_id_unique` ON `product` (`roundtable_id`);--> statement-breakpoint
 CREATE INDEX `product_name_idx` ON `product` (`name`);--> statement-breakpoint
 CREATE INDEX `product_billing_period_idx` ON `product` (`billing_period`);--> statement-breakpoint
 CREATE INDEX `product_is_active_idx` ON `product` (`is_active`);--> statement-breakpoint
+CREATE INDEX `product_roundtable_id_idx` ON `product` (`roundtable_id`);--> statement-breakpoint
+CREATE INDEX `product_stripe_product_id_idx` ON `product` (`stripe_product_id`);--> statement-breakpoint
+CREATE INDEX `product_stripe_price_id_idx` ON `product` (`stripe_price_id`);--> statement-breakpoint
+CREATE INDEX `product_message_quota_idx` ON `product` (`message_quota`);--> statement-breakpoint
+CREATE INDEX `product_model_limit_idx` ON `product` (`model_limit`);--> statement-breakpoint
 CREATE INDEX `product_active_billing_idx` ON `product` (`is_active`,`billing_period`);--> statement-breakpoint
 CREATE TABLE `subscription` (
 	`id` text PRIMARY KEY NOT NULL,
@@ -235,4 +240,53 @@ CREATE INDEX `webhook_event_source_idx` ON `webhook_event` (`source`);--> statem
 CREATE INDEX `webhook_event_type_idx` ON `webhook_event` (`event_type`);--> statement-breakpoint
 CREATE INDEX `webhook_event_payment_id_idx` ON `webhook_event` (`payment_id`);--> statement-breakpoint
 CREATE INDEX `webhook_event_processed_idx` ON `webhook_event` (`processed`);--> statement-breakpoint
-CREATE INDEX `webhook_event_created_at_idx` ON `webhook_event` (`created_at`);
+CREATE INDEX `webhook_event_created_at_idx` ON `webhook_event` (`created_at`);--> statement-breakpoint
+CREATE TABLE `external_webhook_endpoint` (
+	`id` text PRIMARY KEY NOT NULL,
+	`name` text NOT NULL,
+	`url` text NOT NULL,
+	`secret_key` text NOT NULL,
+	`is_active` integer DEFAULT true NOT NULL,
+	`enabled_events` text DEFAULT '["*"]' NOT NULL,
+	`max_retries` integer DEFAULT 3 NOT NULL,
+	`retry_backoff_multiplier` integer DEFAULT 2 NOT NULL,
+	`timeout_ms` integer DEFAULT 15000 NOT NULL,
+	`total_deliveries` integer DEFAULT 0 NOT NULL,
+	`successful_deliveries` integer DEFAULT 0 NOT NULL,
+	`failed_deliveries` integer DEFAULT 0 NOT NULL,
+	`last_success_at` integer,
+	`last_failure_at` integer,
+	`metadata` text,
+	`created_at` integer NOT NULL,
+	`updated_at` integer NOT NULL
+);
+--> statement-breakpoint
+CREATE INDEX `external_webhook_endpoint_name_idx` ON `external_webhook_endpoint` (`name`);--> statement-breakpoint
+CREATE INDEX `external_webhook_endpoint_is_active_idx` ON `external_webhook_endpoint` (`is_active`);--> statement-breakpoint
+CREATE INDEX `external_webhook_endpoint_url_idx` ON `external_webhook_endpoint` (`url`);--> statement-breakpoint
+CREATE TABLE `webhook_delivery_attempt` (
+	`id` text PRIMARY KEY NOT NULL,
+	`webhook_event_id` text NOT NULL,
+	`endpoint_id` text NOT NULL,
+	`attempt_number` integer DEFAULT 1 NOT NULL,
+	`http_status_code` integer,
+	`response_body` text,
+	`response_headers` text,
+	`delivered_at` integer,
+	`response_time_ms` integer,
+	`success` integer DEFAULT false NOT NULL,
+	`error_message` text,
+	`error_type` text,
+	`next_retry_at` integer,
+	`retry_after_ms` integer,
+	`created_at` integer NOT NULL,
+	`updated_at` integer NOT NULL,
+	FOREIGN KEY (`endpoint_id`) REFERENCES `external_webhook_endpoint`(`id`) ON UPDATE no action ON DELETE cascade
+);
+--> statement-breakpoint
+CREATE INDEX `webhook_delivery_attempt_event_idx` ON `webhook_delivery_attempt` (`webhook_event_id`);--> statement-breakpoint
+CREATE INDEX `webhook_delivery_attempt_endpoint_idx` ON `webhook_delivery_attempt` (`endpoint_id`);--> statement-breakpoint
+CREATE INDEX `webhook_delivery_attempt_success_idx` ON `webhook_delivery_attempt` (`success`);--> statement-breakpoint
+CREATE INDEX `webhook_delivery_attempt_next_retry_idx` ON `webhook_delivery_attempt` (`next_retry_at`);--> statement-breakpoint
+CREATE INDEX `webhook_delivery_attempt_event_endpoint_idx` ON `webhook_delivery_attempt` (`webhook_event_id`,`endpoint_id`);--> statement-breakpoint
+CREATE INDEX `webhook_delivery_attempt_retry_queue_idx` ON `webhook_delivery_attempt` (`next_retry_at`,`success`);

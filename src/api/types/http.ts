@@ -221,7 +221,8 @@ export const SafeEnvironmentSummarySchema = z.object({
   ENVIRONMENT_VERIFIED: z.boolean(),
   DATABASE_CONNECTION_STATUS: z.enum(['connected', 'disconnected', 'pending']),
   PAYMENT_GATEWAY_STATUS: z.enum(['configured', 'missing', 'invalid']),
-  STORAGE_STATUS: z.enum(['configured', 'missing', 'invalid']),
+  OAUTH_STATUS: z.enum(['configured', 'missing', 'invalid']),
+  WEBHOOK_STATUS: z.enum(['configured', 'missing', 'invalid']),
   TIMESTAMP: z.string().datetime(),
 });
 

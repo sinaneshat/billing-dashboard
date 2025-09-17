@@ -11,7 +11,7 @@ export function useProductsQuery() {
   return useQuery({
     queryKey: queryKeys.products.list, // CRITICAL FIX: Static array like official examples
     queryFn: getProductsService,
-    staleTime: 60 * 1000, // CRITICAL FIX: Match Context7 examples (60 seconds)
+    staleTime: 2 * 60 * 60 * 1000, // CRITICAL FIX: Match ISR revalidation (2 hours)
     retry: 2,
     throwOnError: false,
   });

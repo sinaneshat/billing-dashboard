@@ -1,4 +1,4 @@
-export { attachSession, requireApiKey, requireMasterKey, requireSession } from './auth';
+export { attachSession, requireSession } from './auth';
 export {
   createEnvironmentSummary,
   createEnvironmentValidationMiddleware,

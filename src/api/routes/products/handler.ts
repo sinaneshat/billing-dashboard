@@ -4,7 +4,7 @@ import { eq } from 'drizzle-orm';
 import { createHandler, Responses } from '@/api/core';
 import { createCurrencyExchangeService } from '@/api/services/currency-exchange';
 import type { ApiEnv } from '@/api/types';
-import { db } from '@/db';
+import { getDbAsync } from '@/db';
 import { product } from '@/db/tables/billing';
 
 import type { getProductsRoute } from './route';
@@ -19,10 +19,11 @@ export const getProductsHandler: RouteHandler<typeof getProductsRoute, ApiEnv> =
   },
   async (c) => {
     // Get products from database (prices stored in USD)
+    const db = await getDbAsync();
     const rawProducts = await db.select().from(product).where(eq(product.isActive, true));
 
     // Convert USD prices to Iranian currency
-    const currencyService = createCurrencyExchangeService(c.env);
+    const currencyService = createCurrencyExchangeService();
     const productsWithTomanPricing = await Promise.all(
       rawProducts.map(async (prod) => {
         // Convert USD to Toman for each product

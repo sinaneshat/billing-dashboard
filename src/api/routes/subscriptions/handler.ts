@@ -16,7 +16,7 @@ import { createHandler, createHandlerWithTransaction, Responses } from '@/api/co
 import type { SubscriptionMetadata } from '@/api/core/schemas';
 import { ZarinPalService } from '@/api/services/zarinpal';
 import type { ApiEnv } from '@/api/types';
-import { db } from '@/db';
+import { getDbAsync } from '@/db';
 import { billingEvent, payment, paymentMethod as paymentMethodTable, product, subscription } from '@/db/tables/billing';
 
 import type {
@@ -49,6 +49,8 @@ export const getSubscriptionsHandler: RouteHandler<typeof getSubscriptionsRoute,
   },
   async (c) => {
     const user = c.get('user');
+    const db = await getDbAsync();
+
     if (!user) {
       throw createError.unauthenticated('User authentication required');
     }
@@ -99,6 +101,8 @@ export const getSubscriptionHandler: RouteHandler<typeof getSubscriptionRoute, A
   },
   async (c) => {
     const user = c.get('user');
+    const db = await getDbAsync();
+
     if (!user) {
       throw createError.unauthenticated('User authentication required');
     }
@@ -148,6 +152,7 @@ export const createSubscriptionHandler: RouteHandler<typeof createSubscriptionRo
   },
   async (c, tx) => {
     const user = c.get('user');
+
     if (!user) {
       throw createError.unauthenticated('User authentication required');
     }
@@ -312,7 +317,7 @@ export const createSubscriptionHandler: RouteHandler<typeof createSubscriptionRo
       const paymentRecordId = paymentData.id;
 
       // Request payment from ZarinPal
-      const zarinPal = ZarinPalService.create(c.env);
+      const zarinPal = ZarinPalService.create();
       const paymentResponse = await zarinPal.requestPayment({
         amount: amountInRials,
         currency: 'IRR',
@@ -397,6 +402,8 @@ export const cancelSubscriptionHandler: RouteHandler<typeof cancelSubscriptionRo
   },
   async (c) => {
     const user = c.get('user');
+    const db = await getDbAsync();
+
     if (!user) {
       throw createError.unauthenticated('User authentication required');
     }
@@ -483,6 +490,8 @@ export const resubscribeHandler: RouteHandler<typeof resubscribeRoute, ApiEnv> =
   },
   async (c) => {
     const user = c.get('user');
+    const db = await getDbAsync();
+
     if (!user) {
       throw createError.unauthenticated('User authentication required');
     }
@@ -554,7 +563,7 @@ export const resubscribeHandler: RouteHandler<typeof resubscribeRoute, ApiEnv> =
     }
 
     // Request payment from ZarinPal
-    const zarinPal = ZarinPalService.create(c.env);
+    const zarinPal = ZarinPalService.create();
     const paymentResponse = await zarinPal.requestPayment({
       amount: amountInRials,
       currency: 'IRR',
@@ -644,6 +653,8 @@ export const changePlanHandler: RouteHandler<typeof changePlanRoute, ApiEnv> = c
   },
   async (c) => {
     const user = c.get('user');
+    const db = await getDbAsync();
+
     if (!user) {
       throw createError.unauthenticated('User authentication required');
     }
@@ -738,7 +749,7 @@ export const changePlanHandler: RouteHandler<typeof changePlanRoute, ApiEnv> = c
         const paymentRecordId = paymentData.id;
 
         // Request payment from ZarinPal
-        const zarinPal = ZarinPalService.create(c.env);
+        const zarinPal = ZarinPalService.create();
         const paymentResponse = await zarinPal.requestPayment({
           amount: amountToCharge,
           currency: 'IRR',

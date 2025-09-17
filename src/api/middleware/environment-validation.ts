@@ -36,44 +36,51 @@ export const CRITICAL_ENV_VARS = [
 
 /**
  * Payment-related environment variables
- * Required for payment processing functionality
+ * Required for ZarinPal payment processing functionality
  */
 export const PAYMENT_ENV_VARS = [
-  'ZARINPAL_MERCHANT_ID',
+  'NEXT_PUBLIC_ZARINPAL_MERCHANT_ID',
   'ZARINPAL_ACCESS_TOKEN',
 ] as const;
 
 /**
- * Storage-related environment variables
- * Required for file upload and storage functionality
+ * Email/Communication environment variables
+ * Required for AWS SES email functionality
  */
-export const STORAGE_ENV_VARS = [
-  'NEXT_PUBLIC_R2_PUBLIC_URL',
-  'CLOUDFLARE_ACCOUNT_ID',
-  'SIGNED_URL_SECRET',
-] as const;
-
-/**
- * Communication-related environment variables
- * Required for email and webhook functionality
- */
-export const COMMUNICATION_ENV_VARS = [
+export const EMAIL_ENV_VARS = [
   'NEXT_PUBLIC_FROM_EMAIL',
   'AWS_SES_ACCESS_KEY_ID',
   'AWS_SES_SECRET_ACCESS_KEY',
   'NEXT_PUBLIC_AWS_SES_REGION',
+  'NEXT_PUBLIC_SES_REPLY_TO_EMAIL',
+  'NEXT_PUBLIC_SES_VERIFIED_EMAIL',
+] as const;
+
+/**
+ * Google OAuth environment variables
+ * Required for social authentication
+ */
+export const OAUTH_ENV_VARS = [
+  'AUTH_GOOGLE_ID',
+  'AUTH_GOOGLE_SECRET',
+] as const;
+
+/**
+ * Webhook environment variables
+ * Required for payment webhooks and external integrations
+ */
+export const WEBHOOK_ENV_VARS = [
+  'NEXT_PUBLIC_ROUNDTABLE_WEBHOOK_URL',
+  'WEBHOOK_SECRET',
 ] as const;
 
 /**
  * Optional environment variables that have defaults or are feature-specific
  */
 export const OPTIONAL_ENV_VARS = [
-  'NEXT_PUBLIC_EXTERNAL_WEBHOOK_URL',
-  'NEXT_PUBLIC_WEBHOOK_URL',
-  'WEBHOOK_SECRET',
-  'API_MASTER_KEY',
   'NEXT_PUBLIC_TURNSTILE_SITE_KEY',
   'TURNSTILE_SECRET_KEY',
+  'NEXT_PUBLIC_R2_PUBLIC_URL',
 ] as const;
 
 // ============================================================================
@@ -154,9 +161,16 @@ export function validateEnvironmentConfiguration(env: CloudflareEnv): {
   }
 
   // Validate payment-related variables
+  for (const varName of PAYMENT_ENV_VARS) {
+    if (!env[varName]) {
+      missingOptional.push(varName);
+      warnings.push(`Missing payment configuration: ${varName}`);
+    }
+  }
+
   if (env.NEXT_PUBLIC_ZARINPAL_MERCHANT_ID) {
     if (!isValidZarinpalMerchantId(env.NEXT_PUBLIC_ZARINPAL_MERCHANT_ID)) {
-      errors.push('ZARINPAL_MERCHANT_ID must be a valid UUID format');
+      errors.push('NEXT_PUBLIC_ZARINPAL_MERCHANT_ID must be a valid UUID format');
     }
 
     // Check for placeholder values
@@ -167,43 +181,60 @@ export function validateEnvironmentConfiguration(env: CloudflareEnv): {
 
     if (isPlaceholder) {
       if (env.NODE_ENV === 'production') {
-        errors.push('ZARINPAL_MERCHANT_ID appears to be a placeholder value in production');
+        errors.push('NEXT_PUBLIC_ZARINPAL_MERCHANT_ID appears to be a placeholder value in production');
       } else {
-        warnings.push('ZARINPAL_MERCHANT_ID appears to be a placeholder value');
+        warnings.push('NEXT_PUBLIC_ZARINPAL_MERCHANT_ID appears to be a placeholder value');
       }
     }
-  } else {
-    missingOptional.push('ZARINPAL_MERCHANT_ID');
   }
 
-  if (!env.ZARINPAL_ACCESS_TOKEN) {
-    missingOptional.push('ZARINPAL_ACCESS_TOKEN');
+  // Validate Google OAuth configuration
+  for (const varName of OAUTH_ENV_VARS) {
+    if (!env[varName]) {
+      missingOptional.push(varName);
+      warnings.push(`Missing OAuth configuration: ${varName}`);
+    }
+  }
+
+  // Validate webhook configuration
+  for (const varName of WEBHOOK_ENV_VARS) {
+    if (!env[varName]) {
+      missingOptional.push(varName);
+      warnings.push(`Missing webhook configuration: ${varName}`);
+    }
   }
 
   // Validate email configuration
+  for (const varName of EMAIL_ENV_VARS) {
+    if (!env[varName]) {
+      missingOptional.push(varName);
+      warnings.push(`Missing email configuration: ${varName}`);
+    }
+  }
+
   if (env.NEXT_PUBLIC_FROM_EMAIL && !isValidEmail(env.NEXT_PUBLIC_FROM_EMAIL)) {
-    errors.push('FROM_EMAIL must be a valid email address');
+    errors.push('NEXT_PUBLIC_FROM_EMAIL must be a valid email address');
   }
 
   if (env.NEXT_PUBLIC_SES_REPLY_TO_EMAIL && !isValidEmail(env.NEXT_PUBLIC_SES_REPLY_TO_EMAIL)) {
-    errors.push('SES_REPLY_TO_EMAIL must be a valid email address');
+    errors.push('NEXT_PUBLIC_SES_REPLY_TO_EMAIL must be a valid email address');
   }
 
   if (env.NEXT_PUBLIC_SES_VERIFIED_EMAIL && !isValidEmail(env.NEXT_PUBLIC_SES_VERIFIED_EMAIL)) {
-    errors.push('SES_VERIFIED_EMAIL must be a valid email address');
+    errors.push('NEXT_PUBLIC_SES_VERIFIED_EMAIL must be a valid email address');
   }
 
   // Validate AWS configuration
   if (env.NEXT_PUBLIC_AWS_SES_REGION && !isValidAwsRegion(env.NEXT_PUBLIC_AWS_SES_REGION)) {
-    errors.push('AWS_SES_REGION must be a valid AWS region format (e.g., us-east-1)');
+    errors.push('NEXT_PUBLIC_AWS_SES_REGION must be a valid AWS region format (e.g., us-east-1)');
   }
 
-  // Check for missing communication variables (as a group)
-  const hasSomeEmailConfig = COMMUNICATION_ENV_VARS.some(varName => env[varName]);
-  const hasAllEmailConfig = COMMUNICATION_ENV_VARS.every(varName => env[varName]);
+  // Check for missing email variables (as a group)
+  const hasSomeEmailConfig = EMAIL_ENV_VARS.some(varName => env[varName]);
+  const hasAllEmailConfig = EMAIL_ENV_VARS.every(varName => env[varName]);
 
   if (hasSomeEmailConfig && !hasAllEmailConfig) {
-    const missingEmailVars = COMMUNICATION_ENV_VARS.filter(varName => !env[varName]);
+    const missingEmailVars = EMAIL_ENV_VARS.filter(varName => !env[varName]);
     warnings.push(`Incomplete email configuration - missing: ${missingEmailVars.join(', ')}`);
   }
 
@@ -231,17 +262,26 @@ export function validateEnvironmentConfiguration(env: CloudflareEnv): {
     }
   }
 
-  // Check for required Cloudflare bindings
+  // Check for required Cloudflare bindings (Critical for Better Auth)
   if (!env.DB) {
-    errors.push('Missing required Cloudflare D1 database binding (DB)');
+    errors.push('Missing required Cloudflare D1 database binding (DB) - Better Auth requires database access');
+  } else {
+    // Validate D1 database binding has required methods for Better Auth transactions
+    try {
+      if (typeof env.DB.prepare !== 'function') {
+        errors.push('D1 database binding (DB) is invalid - missing prepare method for Better Auth');
+      }
+    } catch {
+      warnings.push('Unable to validate D1 database binding methods');
+    }
+  }
+
+  if (!env.KV) {
+    warnings.push('Missing KV namespace binding (KV) - session caching may be limited');
   }
 
   if (!env.UPLOADS_R2_BUCKET) {
     warnings.push('Missing R2 bucket binding (UPLOADS_R2_BUCKET) - file upload functionality will be unavailable');
-  }
-
-  if (!env.KV) {
-    warnings.push('Missing KV namespace binding (KV) - caching functionality may be limited');
   }
 
   const isValid = errors.length === 0 && missingCritical.length === 0;
@@ -262,15 +302,18 @@ export function validateEnvironmentConfiguration(env: CloudflareEnv): {
 /**
  * Environment validation middleware that runs on application startup
  * Validates all required environment variables and provides detailed error reporting
+ * Uses OpenNext.js Cloudflare context for consistent environment access
  */
 export function createEnvironmentValidationMiddleware() {
-  return async (c: { env: CloudflareEnv }, next: () => Promise<void>) => {
+  return async (_c: { env: CloudflareEnv }, next: () => Promise<void>) => {
+    const { getCloudflareContext } = await import('@opennextjs/cloudflare');
+    const { env } = getCloudflareContext();
     // Skip validation in test environment
     if (process.env.NODE_ENV === 'test') {
       return next();
     }
 
-    const validation = validateEnvironmentConfiguration(c.env);
+    const validation = validateEnvironmentConfiguration(env);
 
     // Log validation results
     if (!validation.isValid) {
@@ -281,14 +324,14 @@ export function createEnvironmentValidationMiddleware() {
       });
 
       // In production, fail fast on critical errors
-      if (c.env.NODE_ENV === 'production' && validation.missingCritical.length > 0) {
+      if (env.NODE_ENV === 'production' && validation.missingCritical.length > 0) {
         throw new HTTPException(HttpStatusCodes.INTERNAL_SERVER_ERROR, {
           message: 'Application misconfiguration detected',
         });
       }
 
       // In development, provide detailed error information
-      if (c.env.NODE_ENV === 'development') {
+      if (env.NODE_ENV === 'development') {
         const errorDetails = [
           ...validation.errors,
           ...validation.missingCritical.map(v => `Missing critical: ${v}`),
@@ -390,11 +433,20 @@ export function createEnvironmentSummary(env: CloudflareEnv): SafeEnvironmentSum
     paymentStatus = isValidMerchantId ? 'configured' : 'invalid';
   }
 
-  // Determine storage status
-  let storageStatus: 'configured' | 'missing' | 'invalid' = 'missing';
-  if (env.NEXT_PUBLIC_R2_PUBLIC_URL && env.CLOUDFLARE_ACCOUNT_ID && env.SIGNED_URL_SECRET) {
-    const isValidR2Url = isValidUrl(env.NEXT_PUBLIC_R2_PUBLIC_URL);
-    storageStatus = isValidR2Url ? 'configured' : 'invalid';
+  // Determine OAuth status
+  let oauthStatus: 'configured' | 'missing' | 'invalid' = 'missing';
+  if (env.AUTH_GOOGLE_ID && env.AUTH_GOOGLE_SECRET) {
+    // Basic validation - check if they look like real OAuth credentials
+    const hasValidFormat = env.AUTH_GOOGLE_ID.includes('.apps.googleusercontent.com')
+      && env.AUTH_GOOGLE_SECRET.startsWith('GOCSPX-');
+    oauthStatus = hasValidFormat ? 'configured' : 'invalid';
+  }
+
+  // Determine webhook status
+  let webhookStatus: 'configured' | 'missing' | 'invalid' = 'missing';
+  if (env.NEXT_PUBLIC_ROUNDTABLE_WEBHOOK_URL && env.WEBHOOK_SECRET) {
+    const isValidWebhookUrl = isValidUrl(env.NEXT_PUBLIC_ROUNDTABLE_WEBHOOK_URL);
+    webhookStatus = isValidWebhookUrl ? 'configured' : 'invalid';
   }
 
   return {
@@ -403,7 +455,8 @@ export function createEnvironmentSummary(env: CloudflareEnv): SafeEnvironmentSum
     ENVIRONMENT_VERIFIED: !!(env.DATABASE_URL && env.BETTER_AUTH_SECRET && env.BETTER_AUTH_URL),
     DATABASE_CONNECTION_STATUS: databaseStatus,
     PAYMENT_GATEWAY_STATUS: paymentStatus,
-    STORAGE_STATUS: storageStatus,
+    OAUTH_STATUS: oauthStatus,
+    WEBHOOK_STATUS: webhookStatus,
     TIMESTAMP: new Date().toISOString(),
   };
 }

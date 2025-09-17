@@ -2,6 +2,11 @@ import { initOpenNextCloudflareForDev } from '@opennextjs/cloudflare';
 import type { NextConfig } from 'next';
 import createNextIntlPlugin from 'next-intl/plugin';
 
+// Initialize OpenNext Cloudflare for development - must be called before any other code
+if (process.env.NODE_ENV === 'development') {
+  initOpenNextCloudflareForDev();
+}
+
 const nextConfig: NextConfig = {
   // Required for OpenNext deployment
   output: 'standalone',
@@ -191,4 +196,3 @@ const nextConfig: NextConfig = {
 
 const withNextIntl = createNextIntlPlugin('./src/i18n/request.ts');
 export default withNextIntl(nextConfig);
-initOpenNextCloudflareForDev();

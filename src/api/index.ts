@@ -27,19 +27,10 @@ import notFound from 'stoker/middlewares/not-found';
 import onError from 'stoker/middlewares/on-error';
 
 import { createOpenApiApp } from './factory';
-import { attachSession, requireMasterKey, requireSession } from './middleware';
+import { attachSession, requireSession } from './middleware';
 import { apiLogger, errorLoggerMiddleware, honoLoggerMiddleware } from './middleware/hono-logger';
 import { metricsMiddleware, performanceMiddleware } from './middleware/performance';
 import { RateLimiterFactory } from './middleware/rate-limiter-factory';
-// Admin routes for platform owner access
-import {
-  adminStatsHandler,
-  adminStatsRoute,
-  adminTestWebhookHandler,
-  adminTestWebhookRoute,
-  adminUsersHandler,
-  adminUsersRoute,
-} from './routes/admin';
 // Import routes and handlers directly for proper RPC type inference
 import { secureMeHandler } from './routes/auth/handler';
 import { secureMeRoute } from './routes/auth/route';
@@ -91,9 +82,6 @@ import { getPaymentsHandler, paymentCallbackHandler } from './routes/payments/ha
 import { getPaymentsRoute, paymentCallbackRoute } from './routes/payments/route';
 import { getProductsHandler } from './routes/products/handler';
 import { getProductsRoute } from './routes/products/route';
-// SSO routes
-import { ssoExchangeHandler } from './routes/sso/handler';
-import { ssoExchangeRoute } from './routes/sso/route';
 // Billing routes
 import {
   cancelSubscriptionHandler,
@@ -164,6 +152,7 @@ app.use('*', (c, next) => {
 
   const allowedOrigins = [
     'http://localhost:3000', // Always allow local development
+    'http://localhost:5173',
     appUrl, // Current environment's official domain
   ];
 
@@ -182,13 +171,14 @@ app.use('*', (c, next) => {
 });
 
 // CSRF protection - Applied selectively to protected routes only
-// Following Hono best practices: exclude public endpoints like SSO from CSRF protection
+// Following Hono best practices: exclude public endpoints from CSRF protection
 function csrfMiddleware(c: Context<ApiEnv>, next: Next) {
   // Get the current environment's allowed origin from NEXT_PUBLIC_APP_URL
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
 
   const allowedOrigins = [
     'http://localhost:3000', // Always allow local development
+    'http://localhost:5173',
     appUrl, // Current environment's official domain
   ];
 
@@ -233,8 +223,6 @@ app.use('/subscriptions/*', csrfMiddleware, requireSession);
 app.use('/payment-methods/*', csrfMiddleware, requireSession);
 app.use('/webhooks/events', csrfMiddleware, requireSession);
 app.use('/webhooks/test', csrfMiddleware, requireSession);
-// Admin routes require master key authentication and CSRF protection
-app.use('/admin/*', csrfMiddleware, requireMasterKey);
 
 // Register all routes directly on the app
 const appRoutes = app
@@ -243,8 +231,6 @@ const appRoutes = app
   .openapi(detailedHealthRoute, detailedHealthHandler)
   // Auth routes
   .openapi(secureMeRoute, secureMeHandler)
-  // SSO routes (public - no middleware needed)
-  .openapi(ssoExchangeRoute, ssoExchangeHandler)
   // Products routes
   .openapi(getProductsRoute, getProductsHandler)
   // Subscriptions routes
@@ -279,10 +265,7 @@ const appRoutes = app
   .openapi(getImagesRoute, getImagesHandler)
   .openapi(getImageMetadataRoute, getImageMetadataHandler)
   .openapi(deleteImageRoute, deleteImageHandler)
-  // Admin routes (master key required)
-  .openapi(adminStatsRoute, adminStatsHandler)
-  .openapi(adminUsersRoute, adminUsersHandler)
-  .openapi(adminTestWebhookRoute, adminTestWebhookHandler);
+;
 
 // ============================================================================
 // Step 5: Export AppType for RPC client type inference (CRITICAL!)
@@ -314,7 +297,6 @@ appRoutes.doc('/doc', c => ({
     { name: 'payment-methods', description: 'Subscription payment methods and direct debit automation' },
     { name: 'webhooks', description: 'Subscription webhooks and billing notifications' },
     { name: 'images', description: 'Image upload and management' },
-    { name: 'admin', description: 'Platform administration and external API access (master key required)' },
   ],
   servers: [
     {

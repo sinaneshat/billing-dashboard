@@ -1,4 +1,5 @@
 import type { RouteHandler } from '@hono/zod-openapi';
+import { getCloudflareContext } from '@opennextjs/cloudflare';
 import * as HttpStatusCodes from 'stoker/http-status-codes';
 import { z } from 'zod';
 
@@ -106,22 +107,23 @@ export const detailedHealthHandler: RouteHandler<typeof detailedHealthRoute, Api
     const healthChecks: Record<string, HealthCheckResult> = {};
 
     // 1. Database connectivity check
-    healthChecks.database = await checkDatabaseHealth(c.env?.DB);
+    const { env } = getCloudflareContext();
+    healthChecks.database = await checkDatabaseHealth(env.DB);
 
     // 2. Environment configuration check
-    healthChecks.environment = checkEnvironmentHealth(c.env);
+    healthChecks.environment = checkEnvironmentHealth(env);
 
     // 3. Storage (R2) accessibility check
-    healthChecks.storage = await checkStorageHealth(c.env?.UPLOADS_R2_BUCKET);
+    healthChecks.storage = await checkStorageHealth(env.UPLOADS_R2_BUCKET);
 
     // 4. ZarinPal payment gateway connectivity check
-    healthChecks.zarinpal = await checkZarinPalHealth(c.env);
+    healthChecks.zarinpal = await checkZarinPalHealth(env);
 
     // 5. External webhook endpoint check (if configured)
-    healthChecks.externalWebhook = await checkExternalWebhookHealth(c.env?.NEXT_PUBLIC_EXTERNAL_WEBHOOK_URL);
+    healthChecks.externalWebhook = await checkExternalWebhookHealth(env.NEXT_PUBLIC_ROUNDTABLE_WEBHOOK_URL);
 
     // 6. KV store check
-    healthChecks.kvStore = await checkKVHealth(c.env?.KV);
+    healthChecks.kvStore = await checkKVHealth(env.KV);
 
     const healthDuration = Date.now() - healthStart;
 
@@ -148,7 +150,7 @@ export const detailedHealthHandler: RouteHandler<typeof detailedHealthRoute, Api
       env: {
         runtime: typeof globalThis.navigator !== 'undefined' ? 'cloudflare-workers' : 'node',
         version: typeof process !== 'undefined' ? process.version : 'workers-runtime',
-        nodeEnv: c.env?.NODE_ENV || 'unknown',
+        nodeEnv: env.NODE_ENV || 'unknown',
       },
       dependencies: healthChecks,
       summary: {

@@ -70,20 +70,21 @@ export abstract class BaseService<TConfig extends ServiceConfig> {
 
   /**
    * Factory method to create service instance with environment validation
+   * Uses OpenNext.js Cloudflare context for consistent environment access
    */
   static create<T extends BaseService<TConfig>, TConfig extends ServiceConfig>(
-    this: (new (config: TConfig) => T) & { getConfig: (env: CloudflareEnv) => TConfig },
-    env: CloudflareEnv,
+    this: (new (config: TConfig) => T) & { getConfig: () => TConfig },
   ): T {
-    const config = this.getConfig(env);
+    const config = this.getConfig();
     return new this(config);
   }
 
   /**
    * Abstract method to get service configuration from environment
    * Must be implemented by each service
+   * Uses OpenNext.js Cloudflare context for consistent environment access
    */
-  protected static getConfig(_env: CloudflareEnv): ServiceConfig {
+  protected static getConfig(): ServiceConfig {
     throw new Error('getConfig must be implemented by service');
   }
 

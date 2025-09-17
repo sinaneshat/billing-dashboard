@@ -8,8 +8,11 @@ import {
   getSubscriptionsService,
 } from '@/services/api';
 
+// ISR Configuration - Revalidate plans every 2 hours since they change infrequently
+export const revalidate = 7200; // 2 hours in seconds
+
 type PlansPageProps = {
-  searchParams: Record<string, string | string[] | undefined>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 };
 
 export default async function PlansPage(props: PlansPageProps) {
@@ -29,15 +32,18 @@ export default async function PlansPage(props: PlansPageProps) {
       : undefined;
   const step = typeof searchParams.step === 'string' ? searchParams.step : undefined;
 
-  // Prefetch data
+  // ISR Strategy: Products are cached for 2 hours via ISR
+  // Prefetch data with extended stale times to align with ISR strategy
   await Promise.allSettled([
     queryClient.prefetchQuery({
       queryKey: queryKeys.products.list,
       queryFn: getProductsService,
+      staleTime: 2 * 60 * 60 * 1000, // 2 hours to match ISR revalidation
     }),
     queryClient.prefetchQuery({
       queryKey: queryKeys.subscriptions.list,
       queryFn: getSubscriptionsService,
+      staleTime: 2 * 60 * 1000, // 2 minutes for subscription data
     }),
   ]);
 

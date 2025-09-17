@@ -1,7 +1,7 @@
 import { createInsertSchema, createSelectSchema, createUpdateSchema } from 'drizzle-zod';
 import { z } from 'zod';
 
-import { REGEX_PATTERNS, STRING_LIMITS } from '@/constants';
+import { STRING_LIMITS } from '@/constants';
 
 import {
   account,
@@ -14,14 +14,10 @@ import {
 export const userSelectSchema = createSelectSchema(user);
 export const userInsertSchema = createInsertSchema(user, {
   email: schema => schema.email(),
-  username: schema => schema.min(STRING_LIMITS.USERNAME_MIN).max(STRING_LIMITS.USERNAME_MAX).regex(REGEX_PATTERNS.USERNAME),
-  phone: schema => schema.regex(REGEX_PATTERNS.PHONE).optional(),
   image: () => z.string().url().optional(),
 });
 export const userUpdateSchema = createUpdateSchema(user, {
   email: schema => schema.email().optional(),
-  username: schema => schema.min(STRING_LIMITS.USERNAME_MIN).max(STRING_LIMITS.USERNAME_MAX).regex(REGEX_PATTERNS.USERNAME).optional(),
-  phone: schema => schema.regex(REGEX_PATTERNS.PHONE).optional(),
   image: () => z.string().url().optional(),
 });
 
@@ -39,8 +35,6 @@ export type AuthFormValues = z.infer<typeof authFormSchema>;
 
 export const profileUpdateSchema = z.object({
   name: userUpdateSchema.shape.name,
-  username: userUpdateSchema.shape.username,
-  phone: userUpdateSchema.shape.phone,
   image: userUpdateSchema.shape.image.or(z.literal('')),
   email: z.string().email('Invalid email address'),
 });

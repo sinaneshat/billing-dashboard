@@ -512,7 +512,7 @@ export function useQueryUIState(query: UseQueryResult) {
     ariaLabel: loadingState.isLoading
       ? 'Loading data'
       : errorState.hasError
-        ? `Error: ${errorState.error?.message}`
+        ? `Error: ${String(errorState.error?.message || 'Unknown error')}`
         : 'Data loaded',
   };
 }

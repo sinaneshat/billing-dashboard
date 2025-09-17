@@ -69,8 +69,6 @@ function initLocalDb() {
   return db;
 }
 
-// Removed initD1Db - using drizzleD1 directly with official OpenNext.js patterns
-
 /**
  * Get D1 database binding using official OpenNext.js pattern
  */
@@ -147,3 +145,6 @@ export const db = new Proxy({} as ReturnType<typeof createDbInstance>, {
 
 // Database type for prepared queries
 export type DbType = typeof db;
+
+// Export schema for Better Auth CLI compatibility
+export { schema };

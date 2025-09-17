@@ -13,7 +13,7 @@ import { createError } from '@/api/common/error-handling';
 import { createHandler, createHandlerWithTransaction, Responses } from '@/api/core';
 import { ZarinPalService } from '@/api/services/zarinpal';
 import type { ApiEnv } from '@/api/types';
-import { db } from '@/db';
+import { getDbAsync } from '@/db';
 import { billingEvent, payment, product, subscription } from '@/db/tables/billing';
 
 import type {
@@ -39,6 +39,8 @@ export const getPaymentsHandler: RouteHandler<typeof getPaymentsRoute, ApiEnv> =
   },
   async (c) => {
     const user = c.get('user');
+    const db = await getDbAsync();
+
     if (!user) {
       throw createError.unauthenticated('User authentication required');
     }
@@ -101,6 +103,7 @@ export const paymentCallbackHandler: RouteHandler<typeof paymentCallbackRoute, A
   },
   async (c, tx) => {
     const { Authority, Status } = c.validated.query;
+    const db = await getDbAsync();
 
     c.logger.info('Processing payment callback', { logType: 'operation', operationName: 'paymentCallback', resource: Authority });
 
@@ -158,7 +161,7 @@ export const paymentCallbackHandler: RouteHandler<typeof paymentCallbackRoute, A
     }
 
     // Verify payment with ZarinPal
-    const zarinPal = ZarinPalService.create(c.env);
+    const zarinPal = ZarinPalService.create();
     const verification = await zarinPal.verifyPayment({
       authority: Authority,
       amount: paymentRecord.amount,

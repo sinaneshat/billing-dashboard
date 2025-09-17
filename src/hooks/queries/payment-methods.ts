@@ -11,7 +11,7 @@ export function usePaymentMethodsQuery() {
   return useQuery({
     queryKey: queryKeys.paymentMethods.list, // CRITICAL FIX: Static array like official examples
     queryFn: getPaymentMethodsService,
-    staleTime: 60 * 1000, // CRITICAL FIX: Match Context7 examples (60 seconds)
+    staleTime: 5 * 60 * 1000, // CRITICAL FIX: Match server prefetch (5 minutes)
     retry: 2,
     throwOnError: false,
   });

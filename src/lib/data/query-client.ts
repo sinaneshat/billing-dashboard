@@ -55,27 +55,33 @@ let clientQueryClient: QueryClient | undefined;
  * Get or create QueryClient instance - Context7 official pattern
  * - On server: always creates new instance for each request
  * - On client: returns singleton instance
+ * CRITICAL: Minimal defaults to prevent conflicts with individual query options
  */
 export function getQueryClient() {
   if (typeof window === 'undefined') {
-    // Server: create fresh QueryClient like Context7 examples
+    // Server: create fresh QueryClient with minimal defaults
     return new QueryClient({
       defaultOptions: {
         queries: {
-          // CRITICAL FIX: Match Context7 official examples exactly
-          staleTime: 60 * 1000, // 60 seconds like official examples
+          // Minimal defaults - let individual queries control their own options
+          retry: false, // Don't retry on server
+          refetchOnMount: false,
+          refetchOnReconnect: false,
+          refetchOnWindowFocus: false,
         },
       },
     });
   } else {
-    // Client: use singleton
+    // Client: use singleton with hydration-safe defaults
     if (!clientQueryClient) {
       clientQueryClient = new QueryClient({
         defaultOptions: {
           queries: {
-            // CRITICAL FIX: Match Context7 official examples exactly
-            staleTime: 60 * 1000, // 60 seconds like official examples
-            refetchOnMount: false, // Prevent refetch after hydration
+            // CRITICAL: Prevent refetches after hydration
+            refetchOnMount: false, // Don't refetch when component mounts
+            refetchOnReconnect: 'always',
+            refetchOnWindowFocus: false,
+            // Let individual queries control staleTime, retry, etc.
           },
         },
       });

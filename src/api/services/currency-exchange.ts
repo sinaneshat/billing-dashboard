@@ -65,8 +65,9 @@ export class CurrencyExchangeService extends BaseService<CurrencyExchangeConfig>
 
   /**
    * Get service configuration from environment
+   * Uses OpenNext.js Cloudflare context for consistent environment access
    */
-  static getConfig(_env: CloudflareEnv): CurrencyExchangeConfig {
+  static getConfig(): CurrencyExchangeConfig {
     const configData = {
       serviceName: 'currency-exchange',
       baseUrl: 'https://services.chatqt.com/public',
@@ -252,7 +253,8 @@ export class CurrencyExchangeService extends BaseService<CurrencyExchangeConfig>
 
 /**
  * Create CurrencyExchangeService instance
+ * Uses OpenNext.js Cloudflare context for consistent environment access
  */
-export function createCurrencyExchangeService(env: CloudflareEnv): CurrencyExchangeService {
-  return CurrencyExchangeService.create(env);
+export function createCurrencyExchangeService(): CurrencyExchangeService {
+  return CurrencyExchangeService.create();
 }

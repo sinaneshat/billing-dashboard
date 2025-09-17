@@ -5,6 +5,7 @@
  */
 
 import type { RouteHandler } from '@hono/zod-openapi';
+import { getCloudflareContext } from '@opennextjs/cloudflare';
 import { and, eq } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 
@@ -19,7 +20,7 @@ import { CurrencyExchangeService } from '@/api/services/currency-exchange';
 import { ZarinPalService } from '@/api/services/zarinpal';
 import { ZarinPalDirectDebitService } from '@/api/services/zarinpal-direct-debit';
 import type { ApiEnv } from '@/api/types';
-import { db } from '@/db';
+import { getDbAsync } from '@/db';
 import { payment, paymentMethod, subscription } from '@/db/tables/billing';
 
 import type {
@@ -58,6 +59,8 @@ export const initiateDirectDebitContractHandler: RouteHandler<
   },
   async (c) => {
     const user = c.get('user');
+    const db = await getDbAsync();
+
     if (!user) {
       throw createError.unauthenticated('User authentication required');
     }
@@ -81,12 +84,19 @@ export const initiateDirectDebitContractHandler: RouteHandler<
         throw createError.validation(errorMessage);
       }
 
-      const zarinpalService = ZarinPalDirectDebitService.create(c.env);
+      const zarinpalService = ZarinPalDirectDebitService.create();
 
       // Calculate contract expiry date
       const expireAt = new Date();
       expireAt.setDate(expireAt.getDate() + contractDurationDays);
-      const expireAtString = expireAt.toISOString();
+
+      // Format date for ZarinPal API (Y-m-d H:i:s format: YYYY-MM-DD HH:MM:SS)
+      const expireAtString = `${expireAt.getFullYear()
+      }-${String(expireAt.getMonth() + 1).padStart(2, '0')
+      }-${String(expireAt.getDate()).padStart(2, '0')
+      } ${String(expireAt.getHours()).padStart(2, '0')
+      }:${String(expireAt.getMinutes()).padStart(2, '0')
+      }:${String(expireAt.getSeconds()).padStart(2, '0')}`;
 
       // Step 1: Request contract from ZarinPal
       const contractResult = await zarinpalService.requestContract({
@@ -214,6 +224,8 @@ export const verifyDirectDebitContractHandler: RouteHandler<
   },
   async (c) => {
     const user = c.get('user');
+    const db = await getDbAsync();
+
     if (!user) {
       throw createError.unauthenticated('User authentication required');
     }
@@ -265,7 +277,7 @@ export const verifyDirectDebitContractHandler: RouteHandler<
         });
       }
 
-      const zarinpalService = ZarinPalDirectDebitService.create(c.env);
+      const zarinpalService = ZarinPalDirectDebitService.create();
 
       // Step 3: Verify contract and get signature
       const signatureResult = await zarinpalService.verifyContractAndGetSignature({
@@ -422,7 +434,7 @@ export const getBankListHandler: RouteHandler<typeof getBankListRoute, ApiEnv> =
   },
   async (c) => {
     try {
-      const zarinpalService = ZarinPalDirectDebitService.create(c.env);
+      const zarinpalService = ZarinPalDirectDebitService.create();
 
       const bankListResult = await zarinpalService.getBankList();
 
@@ -463,6 +475,8 @@ export const executeDirectDebitPaymentHandler: RouteHandler<
   },
   async (c) => {
     const user = c.get('user');
+    const db = await getDbAsync();
+
     if (!user) {
       throw createError.unauthenticated('User authentication required');
     }
@@ -515,7 +529,7 @@ export const executeDirectDebitPaymentHandler: RouteHandler<
       const subscriptionData = subscriptionRecord[0];
 
       // Convert USD to IRR using centralized service
-      const currencyService = CurrencyExchangeService.create(c.env);
+      const currencyService = CurrencyExchangeService.create();
       const exchangeResult = await currencyService.convertUsdToToman(usdAmount);
       const exchangeRate = exchangeResult.exchangeRate;
 
@@ -556,12 +570,15 @@ export const executeDirectDebitPaymentHandler: RouteHandler<
       await db.insert(payment).values(paymentRecord);
 
       // 5. Create ZarinPal payment request first (Step 1)
-      const zarinpalService = ZarinPalService.create(c.env);
+      const zarinpalService = ZarinPalService.create();
       const paymentRequest = await zarinpalService.requestPayment({
         amount: irrAmount,
         currency: 'IRR',
         description,
-        callbackUrl: `${c.env.NEXT_PUBLIC_APP_URL}/api/webhooks/zarinpal`, // Standard webhook
+        callbackUrl: (() => {
+          const { env } = getCloudflareContext();
+          return `${env.NEXT_PUBLIC_APP_URL}/api/webhooks/zarinpal`; // Standard webhook
+        })(),
         metadata: {
           subscriptionId,
           paymentId,
@@ -585,7 +602,7 @@ export const executeDirectDebitPaymentHandler: RouteHandler<
         .where(eq(payment.id, paymentId));
 
       // 7. Execute direct debit transaction (Step 2)
-      const directDebitService = ZarinPalDirectDebitService.create(c.env);
+      const directDebitService = ZarinPalDirectDebitService.create();
 
       // Contract signature was validated above, but TypeScript needs explicit check
       if (!contract.contractSignature) {
@@ -678,6 +695,7 @@ export const cancelDirectDebitContractHandler: RouteHandler<
       throw createError.unauthenticated('User authentication required');
     }
     const { contractId } = c.validated.params;
+    const db = await getDbAsync();
 
     try {
       // Find the contract
@@ -706,7 +724,7 @@ export const cancelDirectDebitContractHandler: RouteHandler<
       }
 
       // Cancel with ZarinPal
-      const zarinpalService = ZarinPalDirectDebitService.create(c.env);
+      const zarinpalService = ZarinPalDirectDebitService.create();
       await zarinpalService.cancelContract({
         signature: contractSignature,
       });
@@ -779,7 +797,8 @@ export const directDebitCallbackHandler: RouteHandler<
 
     // Redirect to frontend with status information
     // Frontend will then call verify-direct-debit-contract endpoint
-    const frontendUrl = new URL('/billing/payment-methods/direct-debit/callback', c.env.NEXT_PUBLIC_APP_URL);
+    const { env } = getCloudflareContext();
+    const frontendUrl = new URL('/billing/payment-methods/direct-debit/callback', env.NEXT_PUBLIC_APP_URL);
     frontendUrl.searchParams.set('payman_authority', payman_authority);
     frontendUrl.searchParams.set('status', status);
 

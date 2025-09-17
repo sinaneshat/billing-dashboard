@@ -6,13 +6,13 @@
  */
 
 import { z } from '@hono/zod-openapi';
+import { getCloudflareContext } from '@opennextjs/cloudflare';
 import { HTTPException } from 'hono/http-exception';
 import * as HttpStatusCodes from 'stoker/http-status-codes';
 
 import { createZarinPalHTTPException } from '@/api/common/zarinpal-error-utils';
 import { validateWithSchema } from '@/api/core/validation';
 import { BaseService } from '@/api/patterns/service-factory';
-import type { ApiEnv } from '@/api/types';
 
 // =============================================================================
 // ZOD SCHEMAS (Context7 Best Practices)
@@ -67,9 +67,9 @@ export const IranianSSNSchema = z.string()
 export const DirectDebitContractRequestSchema = z.object({
   mobile: IranianMobileSchema,
   ssn: IranianSSNSchema.optional(),
-  expire_at: z.string().datetime().openapi({
-    example: '2024-12-31T23:59:59.000Z',
-    description: 'Contract expiry date in ISO 8601 format (YYYY-MM-DDTHH:MM:SS.sssZ)',
+  expire_at: z.string().regex(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/, 'expire_at must be in Y-m-d H:i:s format').openapi({
+    example: '2024-12-31 23:59:59',
+    description: 'Contract expiry date in ZarinPal format (YYYY-MM-DD HH:MM:SS)',
   }),
   max_daily_count: z.string().regex(/^\d+$/, 'Must be a numeric string').openapi({
     example: '10',
@@ -223,8 +223,10 @@ export class ZarinPalDirectDebitService extends BaseService<ZarinPalDirectDebitC
   /**
    * Get service configuration from environment with proper validation patterns
    * Following API Development Guide - schema-first with discriminated unions
+   * Uses OpenNext.js Cloudflare context for consistent environment access
    */
-  static getConfig(env: ApiEnv['Bindings']): ZarinPalDirectDebitConfig {
+  static getConfig(): ZarinPalDirectDebitConfig {
+    const { env } = getCloudflareContext();
     if (!env.NEXT_PUBLIC_ZARINPAL_MERCHANT_ID) {
       throw new HTTPException(HttpStatusCodes.INTERNAL_SERVER_ERROR, {
         message: 'ZarinPal merchant ID not configured. Set NEXT_PUBLIC_ZARINPAL_MERCHANT_ID.',

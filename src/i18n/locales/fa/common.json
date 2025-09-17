@@ -1,4 +1,7 @@
 {
+  "common": {
+    "or": "یا"
+  },
   "navigation": {
     "navigation": "منوی راهبری",
     "home": "خانه",
@@ -366,6 +369,9 @@
     "dollar": "$"
   },
   "auth": {
+    "email": "ایمیل",
+    "emailPlaceholder": "ایمیل خود را وارد کنید",
+    "secureAuthentication": "احراز هویت امن با Better Auth",
     "layout": {
       "welcomeTo": "خوش آمدید به {brand}",
       "subtitle": "داشبورد صورتحساب شما"
@@ -406,6 +412,7 @@
     "signIn": {
       "title": "ورود",
       "subtitle": "به داشبورد صورتحساب خوش آمدید",
+      "description": "ایمیل خود را برای دریافت لینک جادویی وارد کنید یا با گوگل وارد شوید",
       "email": "ایمیل",
       "password": "رمز عبور",
       "forgotPassword": "رمز عبور را فراموش کرده‌اید؟",
@@ -414,6 +421,12 @@
       "noAccount": "حساب کاربری ندارید؟",
       "signUpLink": "اینجا ثبت نام کنید",
       "rememberMe": "مرا به خاطر بسپار"
+    },
+    "magicLink": {
+      "title": "ایمیل خود را بررسی کنید",
+      "emailSentMessage": "لینک جادویی به {email} ارسال شد. روی لینک کلیک کنید تا وارد شوید.",
+      "useDifferentEmail": "از ایمیل دیگری استفاده کنید",
+      "sendButton": "ارسال لینک جادویی"
     },
     "signUp": {
       "title": "ثبت نام",
