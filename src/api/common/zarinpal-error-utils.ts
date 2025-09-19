@@ -5,7 +5,7 @@
 
 import { HTTPExceptionFactory } from '@/api/core/http-exceptions';
 
-import type { ZarinPalError } from './zarinpal-schemas';
+import type { ZarinPalError, ZarinPalErrorCode } from './zarinpal-schemas';
 import { ZarinPalErrorSchema } from './zarinpal-schemas';
 
 /**
@@ -90,13 +90,13 @@ export function createZarinPalHTTPException(
 /**
  * Check if error is a ZarinPal authentication/authorization issue
  */
-export function isZarinPalAuthError(zarinPalCode: number): boolean {
-  return [-74, -80, -10, -15, -40].includes(zarinPalCode);
+export function isZarinPalAuthError(zarinPalCode: ZarinPalErrorCode): boolean {
+  return ['-74', '-80', '-10', '-15', '-40'].includes(zarinPalCode);
 }
 
 /**
  * Check if error is a ZarinPal service availability issue
  */
-export function isZarinPalServiceError(zarinPalCode: number): boolean {
-  return [-11, -17, -30].includes(zarinPalCode);
+export function isZarinPalServiceError(zarinPalCode: ZarinPalErrorCode): boolean {
+  return ['-11', '-17', '-30'].includes(zarinPalCode);
 }

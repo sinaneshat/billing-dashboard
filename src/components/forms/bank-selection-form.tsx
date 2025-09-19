@@ -59,43 +59,64 @@ export function BankSelectionForm({
     await onSubmit(data);
   };
 
-  // Transform banks into options for the radio group
-  const bankOptions = banks.map(bank => ({
-    value: bank.bankCode,
-    label: bank.name,
-    description: `${formatTomanCurrency(bank.maxDailyAmount)} ${t('bankSetup.bank.dailyLimit').toLowerCase()}${
-      bank.maxDailyCount ? ` • ${bank.maxDailyCount} ${t('bankSetup.bank.dailyCount').toLowerCase()}` : ''
-    }`,
-  }));
+  // Transform banks into options for the radio group following Shad-UI patterns
+  const bankOptions = banks.map((bank) => {
+    const dailyLimitText = `${formatTomanCurrency(bank.maxDailyAmount)} ${t('bankSetup.bank.dailyLimit')}`;
+    const transactionCountText = bank.maxDailyCount
+      ? `${bank.maxDailyCount} ${t('bankSetup.bank.transactionsPerDay')}`
+      : t('bankSetup.bank.unlimitedTransactions');
+
+    return {
+      value: bank.bankCode,
+      label: bank.name,
+      description: `${dailyLimitText} • ${transactionCountText}`,
+      metadata: {
+        bankCode: bank.bankCode,
+        slug: bank.slug,
+        maxDailyAmount: bank.maxDailyAmount,
+        maxDailyCount: bank.maxDailyCount,
+      },
+    };
+  });
 
   return (
     <FormProvider methods={methods} onSubmit={methods.handleSubmit(handleSubmit)}>
       <div className={className}>
         <div className="space-y-6">
           <div className="space-y-4">
-            <ScrollArea className="h-64 w-full">
-              <RHFRadioGroup
-                name="selectedBankCode"
-                title={t('bankSetup.bank.selectLabel')}
-                options={bankOptions}
-                required
-                disabled={isLoading}
-              />
+            <div className="space-y-2">
+              <h3 className="text-lg font-semibold">{t('bankSetup.bank.selectLabel')}</h3>
+              <p className="text-sm text-muted-foreground">
+                {t('bankSetup.bank.description')}
+              </p>
+            </div>
+            <ScrollArea className="h-80 w-full rounded-md border">
+              <div className="p-4">
+                <RHFRadioGroup
+                  name="selectedBankCode"
+                  title=""
+                  options={bankOptions}
+                  required
+                  disabled={isLoading}
+                />
+              </div>
             </ScrollArea>
           </div>
 
-          <div className="flex justify-between pt-4">
+          <div className="flex flex-col sm:flex-row gap-3 sm:justify-between pt-6">
             <Button
               type="button"
               variant="outline"
               disabled={isLoading}
               onClick={onBack}
+              className="order-2 sm:order-1"
             >
               {t('actions.back')}
             </Button>
             <Button
               type="submit"
               disabled={isLoading || !methods.formState.isValid}
+              className="order-1 sm:order-2"
             >
               {isLoading ? t('actions.loading') : t('bankSetup.bank.continueToAuthorization')}
             </Button>

@@ -201,9 +201,9 @@ export const ChangePlanResponseDataSchema = z.object({
   }),
 }).openapi('ChangePlanData');
 
-// Path parameter schemas
+// Path parameter schemas - use CoreSchemas for consistency
 export const SubscriptionParamsSchema = z.object({
-  id: z.string().min(1).openapi({
+  id: CoreSchemas.id().openapi({
     param: { name: 'id', in: 'path' },
     example: 'sub_123',
     description: 'Subscription ID',

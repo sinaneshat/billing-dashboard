@@ -48,7 +48,7 @@ export function SubscriptionPlans() {
       const result = await createSubscription.mutateAsync({
         json: {
           productId: product.id,
-          callbackUrl: callbackUrl || `${window.location.origin}/subscription/callback`,
+          callbackUrl: callbackUrl || `${window.location.origin}/payment/callback`,
         },
       });
 
@@ -70,7 +70,7 @@ export function SubscriptionPlans() {
     }
 
     // Check if user has valid direct debit contract
-    if (!directDebitContract.canMakePayments) {
+    if (!directDebitContract.data?.canMakePayments) {
       // Navigate to intercepted route for bank setup with product context
       const params = new URLSearchParams({
         productId: product.id,
@@ -110,9 +110,9 @@ export function SubscriptionPlans() {
       <PricingPlans
         products={sortedProducts}
         onPlanSelect={handlePlanSelect}
-        contractStatus={directDebitContract.status}
-        contractMessage={directDebitContract.message}
-        canMakePayments={directDebitContract.canMakePayments}
+        contractStatus={directDebitContract.data?.status}
+        contractMessage={directDebitContract.data?.message}
+        canMakePayments={directDebitContract.data?.canMakePayments}
       />
     );
   }

@@ -155,6 +155,14 @@ export const queryKeys = {
     detail: (paymentMethodId: string) => QueryKeyFactory.detail('paymentMethods', paymentMethodId),
     bankList: QueryKeyFactory.action('paymentMethods', 'bankList'), // ['paymentMethods', 'bankList'] - for direct debit banks
   },
+
+  /**
+   * DIRECT DEBIT - Contract status and capabilities
+   */
+  directDebit: {
+    all: QueryKeyFactory.base('directDebit'),
+    contractStatus: QueryKeyFactory.action('directDebit', 'contractStatus'), // ['directDebit', 'contractStatus'] - backend API call
+  },
 } as const;
 
 // ============================================================================
@@ -273,6 +281,11 @@ export const invalidationPatterns = {
     queryKeys.paymentMethods.detail(paymentMethodId),
     queryKeys.paymentMethods.list,
   ],
+
+  directDebit: [
+    queryKeys.directDebit.contractStatus,
+    queryKeys.paymentMethods.list, // Contract status affects payment methods
+  ],
 } as const;
 
 // ============================================================================
@@ -300,6 +313,7 @@ export const CommonQueries = {
   currentSubscription: queryKeys.subscriptions.current,
   paymentHistory: queryKeys.payments.history,
   paymentMethods: queryKeys.paymentMethods.list,
+  directDebitContractStatus: queryKeys.directDebit.contractStatus,
 } as const;
 
 // ============================================================================
@@ -323,7 +337,8 @@ export type ResourceType =
   | 'products'
   | 'subscriptions'
   | 'payments'
-  | 'paymentMethods';
+  | 'paymentMethods'
+  | 'directDebit';
 
 // ============================================================================
 // VALIDATION HELPERS - Runtime Safety

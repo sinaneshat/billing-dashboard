@@ -1,6 +1,6 @@
 'use client';
 
-import { Check, Crown, Star, Zap } from 'lucide-react';
+import { Check } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import React, { useMemo } from 'react';
 
@@ -71,7 +71,7 @@ function ProductCard({
 
     // Use i18n keys for features based on plan type
     const planType = isFree ? 'free' : isPro ? 'pro' : isPower ? 'power' : 'starter';
-    const baseKey = `plans.pricing.${planType}`;
+    const baseKey = `pricing.${planType}`;
 
     return [
       t(`${baseKey}.features.messagesPerMonth`),
@@ -80,16 +80,6 @@ function ProductCard({
       ...(isFree ? [t(`${baseKey}.features.basicSupport`)] : [t(`${baseKey}.features.premiumModels`)]),
     ];
   }, [metadata?.features, isFree, isPro, isPower, t]);
-
-  const planIcon = useMemo(() => {
-    if (isPower)
-      return <Zap className="h-5 w-5" />;
-    if (isPro)
-      return <Crown className="h-5 w-5" />;
-    if (isPopular)
-      return <Star className="h-5 w-5" />;
-    return null;
-  }, [isPower, isPro, isPopular]);
 
   const getButtonContent = () => {
     if (isFree) {
@@ -114,7 +104,11 @@ function ProductCard({
           productPrice={product.price}
           variant={isPopular ? 'default' : 'outline'}
           size="lg"
-          className="w-full h-11 font-medium"
+          className={cn(
+            'w-full h-11 font-medium shadow-sm transition-all',
+            isPopular && 'shadow-md hover:shadow-lg',
+          )}
+          hideIcon={true}
         />
       );
     }
@@ -122,8 +116,11 @@ function ProductCard({
     return (
       <Button
         onClick={() => onSelect(product.id)}
-        className="w-full h-11 font-medium"
-        variant={isPopular ? 'default' : 'outline'}
+        className={cn(
+          'w-full h-11 font-medium shadow-sm transition-all',
+          isPopular && 'shadow-md hover:shadow-lg',
+        )}
+        variant="default"
         size="lg"
       >
         {t('actions.choosePlan')}
@@ -136,7 +133,7 @@ function ProductCard({
       className={cn(
         'relative flex flex-col h-full transition-all duration-300 hover:shadow-lg',
         {
-          'border-2 border-primary': isPopular,
+          'border-2 border-primary shadow-lg scale-105': isPopular,
           'border border-border': !isPopular,
         },
         className,
@@ -152,14 +149,13 @@ function ProductCard({
       )}
 
       <CardHeader className="pb-4 space-y-4 text-center">
-        {/* Plan Icon & Name */}
+        {/* Plan Name */}
         <div className="space-y-2">
-          <div className="flex items-center justify-center gap-2">
-            {planIcon}
+          <div className="flex items-center justify-center">
             <h3 className="text-xl font-bold">{product.name}</h3>
           </div>
           <p className="text-sm text-muted-foreground">
-            {product.description || t(`plans.pricing.${isFree ? 'free' : isPro ? 'pro' : isPower ? 'power' : 'starter'}.description`)}
+            {product.description || t(`pricing.${isFree ? 'free' : isPro ? 'pro' : isPower ? 'power' : 'starter'}.description`)}
           </p>
         </div>
 

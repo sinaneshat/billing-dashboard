@@ -1,11 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 
-import type { ApiResponse } from '@/api/core/schemas';
-// Import proper Zod-inferred types - no more manual casting
-import type { PaymentMethod } from '@/db/validation/billing';
 import { queryKeys } from '@/lib/data/query-keys';
 import { logError } from '@/lib/utils/safe-logger';
-import { isZarinPalError, parseZarinPalError } from '@/lib/utils/zarinpal-errors';
 import type {
   CancelDirectDebitContractRequest,
   CreatePaymentMethodRequest,
@@ -26,13 +22,6 @@ import {
   setDefaultPaymentMethodService,
   verifyDirectDebitContractService,
 } from '@/services/api/payment-methods';
-
-// Type interface for errors with ZarinPal error information attached
-type ErrorWithZarinPalInfo = {
-  zarinPalError?: ReturnType<typeof parseZarinPalError>;
-  isZarinPalError?: boolean;
-  isAuthError?: boolean;
-} & Error;
 
 export function useCreatePaymentMethodMutation() {
   const queryClient = useQueryClient();
@@ -202,48 +191,7 @@ export function useInitiateDirectDebitContractMutation() {
       return { variables, timestamp: Date.now() };
     },
     onError: (error, _variables, _context) => {
-      // Parse error message for better user experience
-      let errorMessage = 'Failed to setup direct debit contract. Please try again.';
-
-      if (error instanceof Error) {
-        // Check if it's a ZarinPal specific error
-        if (error.message.includes('Authentication required')) {
-          errorMessage = 'Please sign in again to continue with the setup.';
-        } else if (error.message.includes('Development mode')) {
-          errorMessage = 'Development Mode: ZarinPal is not configured with real credentials. This is expected in development.';
-        } else if (error.message.includes('placeholder ZarinPal credentials')) {
-          errorMessage = 'Development Mode: Payment service requires real credentials for testing. See console for setup instructions.';
-        } else if (error.message.includes('Invalid merchant') || error.message.includes('MERCHANT')) {
-          errorMessage = 'Payment service configuration issue. Please contact support.';
-        } else if (error.message.includes('Invalid mobile') || error.message.includes('MOBILE')) {
-          errorMessage = 'Please check your mobile number format and try again.';
-        } else if (error.message.includes('500') || error.message.includes('Internal Server Error')) {
-          errorMessage = 'Server error occurred. Please try again in a few moments.';
-        } else if (error.message.includes('Network') || error.message.includes('Failed to fetch')) {
-          errorMessage = 'Connection error. Please check your internet and try again.';
-        } else if (error.message.includes('Invalid ZarinPal merchant ID')) {
-          errorMessage = 'Payment service temporarily unavailable. Please try again later.';
-        }
-      }
-
-      // Log error for debugging (toast will be handled by component layer)
-      logError('Direct debit setup failed', { errorMessage, component: 'direct-debit-setup' });
-
-      // Parse ZarinPal error for structured error information (keep for component access)
-      if (isZarinPalError(error)) {
-        const parsedError = parseZarinPalError(error);
-
-        // Attach parsed error information to the error object for component access
-        if (error instanceof Error) {
-          (error as ErrorWithZarinPalInfo).zarinPalError = parsedError;
-          (error as ErrorWithZarinPalInfo).isZarinPalError = true;
-        }
-      }
-
-      // Handle authentication errors
-      if (error instanceof Error && error.message.includes('Authentication required')) {
-        (error as ErrorWithZarinPalInfo).isAuthError = true;
-      }
+      logError('Failed to initiate direct debit contract', error);
     },
     onSettled: (_data, _error, _variables, _context) => {
       // Log completion for debugging/analytics
@@ -282,16 +230,7 @@ export function useVerifyDirectDebitContractMutation() {
       }
     },
     onError: (error) => {
-      // Parse ZarinPal error for structured error information
-      if (isZarinPalError(error)) {
-        const parsedError = parseZarinPalError(error);
-
-        // Attach parsed error information to the error object for component access
-        if (error instanceof Error) {
-          (error as ErrorWithZarinPalInfo).zarinPalError = parsedError;
-          (error as ErrorWithZarinPalInfo).isZarinPalError = true;
-        }
-      }
+      logError('Failed to verify direct debit contract', error);
     },
     retry: false, // Contract verification should not auto-retry - it's a one-time callback
   });
@@ -348,35 +287,6 @@ export function useExecuteDirectDebitPaymentMutation() {
     },
     onError: (error) => {
       logError('Failed to execute direct debit payment', error);
-
-      // Parse ZarinPal error for structured error information
-      if (isZarinPalError(error)) {
-        const parsedError = parseZarinPalError(error);
-
-        // Attach parsed error information to the error object for component access
-        if (error instanceof Error) {
-          (error as ErrorWithZarinPalInfo).zarinPalError = parsedError;
-          (error as ErrorWithZarinPalInfo).isZarinPalError = true;
-        }
-      }
-
-      // Show user-friendly error message
-      let errorMessage = 'Payment failed. Please try again or contact support.';
-
-      if (error instanceof Error) {
-        if (error.message.includes('insufficient funds')) {
-          errorMessage = 'Insufficient funds in your account. Please check your balance.';
-        } else if (error.message.includes('card')) {
-          errorMessage = 'Card issue detected. Please check with your bank.';
-        } else if (error.message.includes('Network')) {
-          errorMessage = 'Connection error. Please try again.';
-        } else if (error.message.includes('Authentication')) {
-          errorMessage = 'Authentication required. Please sign in again.';
-        }
-      }
-
-      // Log error for debugging (toast will be handled by component layer)
-      logError('Direct debit payment failed', { errorMessage, component: 'direct-debit-payment' });
     },
     retry: false, // Payment operations should not auto-retry to avoid duplicate charges
   });
@@ -401,25 +311,10 @@ export function useCancelDirectDebitContractMutation() {
       // Snapshot the previous value for rollback
       const previousPaymentMethods = queryClient.getQueryData(queryKeys.paymentMethods.list);
 
-      // Optimistically update using proper Zod-inferred types
+      // Optimistically update payment methods list
       queryClient.setQueryData(queryKeys.paymentMethods.list, (old: unknown) => {
-        // Type guard for ApiResponse<PaymentMethod[]>
-        function isPaymentMethodsResponse(data: unknown): data is ApiResponse<PaymentMethod[]> {
-          if (data === null || typeof data !== 'object')
-            return false;
-          if (!('success' in data) || !('data' in data))
-            return false;
-
-          const dataWithProps = data as { data: unknown };
-          return Array.isArray(dataWithProps.data);
-        }
-
-        if (!isPaymentMethodsResponse(old)) {
-          return old;
-        }
-
-        const oldData = old;
-        if (oldData.success && Array.isArray(oldData.data)) {
+        const oldData = old as { success?: boolean; data?: Array<{ id: string; isActive: boolean; contractStatus: string }> };
+        if (oldData?.success && Array.isArray(oldData.data)) {
           return {
             ...oldData,
             data: oldData.data.map(pm => ({

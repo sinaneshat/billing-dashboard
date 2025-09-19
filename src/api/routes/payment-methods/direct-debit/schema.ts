@@ -72,9 +72,9 @@ export const CancelDirectDebitContractResponseSchema = createApiResponseSchema(
   }),
 );
 
-// Path parameter schemas following codebase patterns
+// Path parameter schemas - use CoreSchemas for consistency
 export const DirectDebitContractParamsSchema = z.object({
-  contractId: z.string().uuid().openapi({
+  contractId: CoreSchemas.uuid().openapi({
     param: { name: 'contractId', in: 'path' },
     example: 'contract_abc123',
     description: 'Direct debit contract ID',

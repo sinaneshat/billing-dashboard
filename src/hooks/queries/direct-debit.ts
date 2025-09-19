@@ -1,199 +1,67 @@
-import { useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { useTranslations } from 'next-intl';
 
-import type { ApiResponse } from '@/api/core/schemas';
+import { queryKeys } from '@/lib/data/query-keys';
+import { logError } from '@/lib/utils/safe-logger';
+import { getContractStatusService } from '@/services/api/payment-methods';
 
-import { usePaymentMethodsQuery } from './payment-methods';
-
-/**
- * Type definitions for payment method and direct debit contract
- */
-type PaymentMethod = {
-  id: string;
-  contractType: string;
-  contractStatus: string;
-  contractSignature?: string | null;
-  isActive: boolean;
-  contractExpiresAt?: string | null;
-  contractMobile?: string | null;
-  maxDailyAmount?: number | null;
-  maxDailyCount?: number | null;
-  maxMonthlyCount?: number | null;
-  contractVerifiedAt?: string | null;
-  createdAt: string;
-  updatedAt: string;
-};
-
-/**
- * Direct debit contract status types
- */
-export type DirectDebitContractStatus =
-  | 'no_contract' // No contract exists
-  | 'pending' // Contract initiated but not signed
-  | 'active' // Active contract with valid signature
-  | 'expired' // Contract has expired
-  | 'cancelled' // Contract was cancelled
-  | 'invalid'; // Contract exists but in invalid state
-
-/**
- * Direct debit contract information
- */
-export type DirectDebitContract = {
-  status: DirectDebitContractStatus;
-  contractId?: string;
-  signature?: string;
-  mobile?: string;
-  maxDailyAmount?: number;
-  maxDailyCount?: number;
-  maxMonthlyCount?: number;
-  expiresAt?: string;
-  verifiedAt?: string;
-  canMakePayments: boolean;
-  needsSetup: boolean;
-  message: string;
-};
+// All types are now inferred from the backend API following established patterns
 
 /**
  * Hook to check user's direct debit contract status
+ * Uses backend API endpoint following established patterns
+ * All types inferred from RPC client for complete type safety
  *
- * Analyzes the user's payment methods to determine if they have a valid
- * direct debit contract that can be used for subscription payments.
- *
- * @returns DirectDebitContract information including status and capabilities
+ * @returns Query result with DirectDebitContract information
  */
-export function useDirectDebitContract(): DirectDebitContract {
-  const { data: paymentMethodsData, isLoading, error } = usePaymentMethodsQuery();
+export function useDirectDebitContract() {
+  const t = useTranslations();
 
-  return useMemo(() => {
-    // While loading, assume no contract
-    if (isLoading) {
-      return {
-        status: 'no_contract',
-        canMakePayments: false,
-        needsSetup: true,
-        message: 'بررسی وضعیت قرارداد پرداخت مستقیم...',
-      };
-    }
+  return useQuery({
+    queryKey: queryKeys.directDebit.contractStatus,
+    queryFn: async () => {
+      try {
+        const result = await getContractStatusService();
 
-    // If there's an error, assume no contract available
-    if (error) {
-      return {
-        status: 'no_contract',
-        canMakePayments: false,
-        needsSetup: true,
-        message: 'برای استفاده از پلن‌ها، ابتدا باید قرارداد پرداخت مستقیم را تنظیم کنید.',
-      };
-    }
+        if (!result.success) {
+          logError('Failed to get contract status', { error: result });
+          return {
+            status: 'no_contract' as const,
+            canMakePayments: false,
+            needsSetup: true,
+            message: t('bankSetup.status.noContract'),
+          };
+        }
 
-    // Parse payment methods data
-    const apiResponse = paymentMethodsData as ApiResponse<PaymentMethod[]> | undefined;
-    const paymentMethods = apiResponse?.success && Array.isArray(apiResponse.data)
-      ? apiResponse.data
-      : [];
-
-    // Find direct debit contracts
-    const directDebitContracts = paymentMethods.filter(method =>
-      method.contractType === 'direct_debit_contract',
-    );
-
-    // No direct debit contracts found
-    if (directDebitContracts.length === 0) {
-      return {
-        status: 'no_contract',
-        canMakePayments: false,
-        needsSetup: true,
-        message: 'برای استفاده از پلن‌ها، ابتدا باید قرارداد پرداخت مستقیم را تنظیم کنید.',
-      };
-    }
-
-    // Find active contract
-    const activeContract = directDebitContracts.find(contract =>
-      contract.isActive
-      && contract.contractStatus === 'active'
-      && contract.contractSignature,
-    );
-
-    if (activeContract) {
-      // Check if contract is expired
-      const now = new Date();
-      const expiresAt = activeContract.contractExpiresAt ? new Date(activeContract.contractExpiresAt) : null;
-
-      if (expiresAt && expiresAt < now) {
+        return result.data;
+      } catch (error) {
+        logError('Failed to get contract status', error);
         return {
-          status: 'expired',
-          contractId: activeContract.id,
+          status: 'no_contract' as const,
           canMakePayments: false,
           needsSetup: true,
-          message: 'قرارداد پرداخت مستقیم شما منقضی شده است. لطفا قرارداد جدیدی ایجاد کنید.',
+          message: t('bankSetup.status.noContract'),
         };
       }
-
-      return {
-        status: 'active',
-        contractId: activeContract.id,
-        signature: activeContract.contractSignature || undefined,
-        mobile: activeContract.contractMobile || undefined,
-        maxDailyAmount: activeContract.maxDailyAmount || undefined,
-        maxDailyCount: activeContract.maxDailyCount || undefined,
-        maxMonthlyCount: activeContract.maxMonthlyCount || undefined,
-        expiresAt: activeContract.contractExpiresAt || undefined,
-        verifiedAt: activeContract.contractVerifiedAt || undefined,
-        canMakePayments: true,
-        needsSetup: false,
-        message: 'قرارداد پرداخت مستقیم فعال است. می‌توانید پلن مورد نظرتان را انتخاب کنید.',
-      };
-    }
-
-    // Check for pending contracts
-    const pendingContract = directDebitContracts.find(contract =>
-      contract.contractStatus === 'pending_signature'
-      || contract.contractStatus === 'pending',
-    );
-
-    if (pendingContract) {
-      return {
-        status: 'pending',
-        contractId: pendingContract.id,
-        canMakePayments: false,
-        needsSetup: true,
-        message: 'قرارداد پرداخت مستقیم در انتظار امضا است. لطفا فرآیند امضا را تکمیل کنید.',
-      };
-    }
-
-    // Check for cancelled contracts
-    const cancelledContract = directDebitContracts.find(contract =>
-      contract.contractStatus === 'cancelled_by_user'
-      || contract.contractStatus === 'cancelled',
-    );
-
-    if (cancelledContract) {
-      return {
-        status: 'cancelled',
-        contractId: cancelledContract.id,
-        canMakePayments: false,
-        needsSetup: true,
-        message: 'قرارداد پرداخت مستقیم لغو شده است. برای استفاده از پلن‌ها، قرارداد جدیدی ایجاد کنید.',
-      };
-    }
-
-    // Invalid contract state
-    return {
-      status: 'invalid',
-      canMakePayments: false,
-      needsSetup: true,
-      message: 'وضعیت قرارداد پرداخت مستقیم نامعلوم است. لطفا با پشتیبانی تماس بگیرید.',
-    };
-  }, [paymentMethodsData, isLoading, error]);
+    },
+    staleTime: 1000 * 60 * 5, // 5 minutes
+    retry: (failureCount, error) => {
+      // Don't retry on authentication errors
+      if (error instanceof Error && error.message.includes('Authentication')) {
+        return false;
+      }
+      return failureCount < 2;
+    },
+  });
 }
 
 /**
  * Hook to check if user can create subscriptions
- *
- * Simple utility hook that returns whether the user has the necessary
- * setup to create and pay for subscriptions.
+ * Uses the new backend API following established patterns
  *
  * @returns boolean indicating if user can create subscriptions
  */
 export function useCanCreateSubscriptions(): boolean {
-  const contract = useDirectDebitContract();
-  return contract.canMakePayments;
+  const { data: contract } = useDirectDebitContract();
+  return contract?.canMakePayments ?? false;
 }

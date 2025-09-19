@@ -14,7 +14,10 @@ import RHFTextField from './rhf-text-field';
 // Schema using established validation patterns from @/db/validation/
 const BillingContactFormSchema = z.object({
   mobile: z.string().regex(/^09\d{9}$/, 'validation.iranianMobile'),
-  nationalCode: z.string().regex(/^\d{10}$/, 'validation.iranianNationalCode').optional(),
+  nationalCode: z.string().optional().refine(
+    val => !val || /^\d{10}$/.test(val),
+    'validation.iranianNationalCode',
+  ),
 });
 
 export type BillingContactFormData = z.infer<typeof BillingContactFormSchema>;
@@ -40,7 +43,7 @@ export function BillingContactForm({
     resolver: zodResolver(BillingContactFormSchema),
     defaultValues: {
       mobile: '',
-      nationalCode: '',
+      nationalCode: undefined,
       ...initialValues,
     },
   });
@@ -61,7 +64,7 @@ export function BillingContactForm({
 
   const handleNationalCodeChange = (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement> | { target: { value: string | number | boolean | null | undefined } }) => {
     const value = String(event.target.value || '').replace(/\D/g, '').slice(0, 10);
-    methods.setValue('nationalCode', value, { shouldValidate: true });
+    methods.setValue('nationalCode', value || undefined, { shouldValidate: true });
     if ('target' in event && event.target instanceof HTMLInputElement) {
       event.target.value = value;
     }
@@ -96,18 +99,20 @@ export function BillingContactForm({
             fieldType="text"
           />
 
-          <div className="flex justify-between pt-4">
+          <div className="flex flex-col sm:flex-row gap-3 sm:justify-between pt-6">
             <Button
               type="button"
               variant="outline"
               disabled={isLoading}
               onClick={onCancel}
+              className="order-2 sm:order-1"
             >
               {t('actions.cancel')}
             </Button>
             <Button
               type="submit"
               disabled={isLoading || !methods.formState.isValid}
+              className="order-1 sm:order-2"
             >
               {isLoading ? t('actions.loading') : t('actions.continue')}
             </Button>

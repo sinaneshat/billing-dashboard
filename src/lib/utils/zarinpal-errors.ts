@@ -4,32 +4,9 @@
  * Integrates with structured logging following codebase patterns
  */
 
-import { logZarinPalError } from './error-logging';
+import type { ZarinPalErrorCode } from '@/api/common/zarinpal-schemas';
 
-export type ZarinPalErrorCode =
-  | -9 // Transaction failure
-  | -10 // Invalid IP or merchant
-  | -11 // Merchant is not active
-  | -12 // Attempts limit exceeded
-  | -15 // Merchant access denied
-  | -16 // Invalid merchant level
-  | -17 // Merchant must be active
-  | -30 // Service not allowed
-  | -31 // Transaction not found
-  | -33 // Transaction not successful
-  | -34 // Transaction not found
-  | -40 // Merchant access denied
-  | -41 // Invalid amount
-  | -42 // Refund limit exceeded
-  | -50 // Refund limit exceeded
-  | -51 // Transaction not refundable
-  | -52 // Bank error
-  | -53 // Transaction cancelled
-  | -54 // Transaction not verified
-  | -74 // Invalid merchant ID
-  | -80 // Merchant does not have access to direct debit
-  | 100 // Verified
-  | 101; // Already verified
+import { logZarinPalError } from './error-logging';
 
 type ZarinPalError = {
   code: ZarinPalErrorCode;
@@ -40,162 +17,162 @@ type ZarinPalError = {
 };
 
 const ZARINPAL_ERROR_MAP: Record<ZarinPalErrorCode, ZarinPalError> = {
-  [-9]: {
-    code: -9,
+  '-9': {
+    code: '-9',
     titleKey: 'zarinpal.errors.-9.title',
     messageKey: 'zarinpal.errors.-9.message',
     actionKey: 'zarinpal.errors.-9.action',
     severity: 'error',
   },
-  [-10]: {
-    code: -10,
+  '-10': {
+    code: '-10',
     titleKey: 'zarinpal.errors.-10.title',
     messageKey: 'zarinpal.errors.-10.message',
     actionKey: 'zarinpal.errors.-10.action',
     severity: 'error',
   },
-  [-11]: {
-    code: -11,
+  '-11': {
+    code: '-11',
     titleKey: 'zarinpal.errors.-11.title',
     messageKey: 'zarinpal.errors.-11.message',
     actionKey: 'zarinpal.errors.-11.action',
     severity: 'error',
   },
-  [-12]: {
-    code: -12,
+  '-12': {
+    code: '-12',
     titleKey: 'zarinpal.errors.-12.title',
     messageKey: 'zarinpal.errors.-12.message',
     actionKey: 'zarinpal.errors.-12.action',
     severity: 'warning',
   },
-  [-15]: {
-    code: -15,
+  '-15': {
+    code: '-15',
     titleKey: 'zarinpal.errors.-15.title',
     messageKey: 'zarinpal.errors.-15.message',
     actionKey: 'zarinpal.errors.-15.action',
     severity: 'error',
   },
-  [-16]: {
-    code: -16,
+  '-16': {
+    code: '-16',
     titleKey: 'zarinpal.errors.-16.title',
     messageKey: 'zarinpal.errors.-16.message',
     actionKey: 'zarinpal.errors.-16.action',
     severity: 'error',
   },
-  [-17]: {
-    code: -17,
+  '-17': {
+    code: '-17',
     titleKey: 'zarinpal.errors.-17.title',
     messageKey: 'zarinpal.errors.-17.message',
     actionKey: 'zarinpal.errors.-17.action',
     severity: 'error',
   },
-  [-30]: {
-    code: -30,
+  '-30': {
+    code: '-30',
     titleKey: 'zarinpal.errors.-30.title',
     messageKey: 'zarinpal.errors.-30.message',
     actionKey: 'zarinpal.errors.-30.action',
     severity: 'error',
   },
-  [-31]: {
-    code: -31,
+  '-31': {
+    code: '-31',
     titleKey: 'zarinpal.errors.-31.title',
     messageKey: 'zarinpal.errors.-31.message',
     actionKey: 'zarinpal.errors.-31.action',
     severity: 'error',
   },
-  [-33]: {
-    code: -33,
+  '-33': {
+    code: '-33',
     titleKey: 'zarinpal.errors.-33.title',
     messageKey: 'zarinpal.errors.-33.message',
     actionKey: 'zarinpal.errors.-33.action',
     severity: 'error',
   },
-  [-34]: {
-    code: -34,
+  '-34': {
+    code: '-34',
     titleKey: 'zarinpal.errors.-34.title',
     messageKey: 'zarinpal.errors.-34.message',
     actionKey: 'zarinpal.errors.-34.action',
     severity: 'error',
   },
-  [-40]: {
-    code: -40,
+  '-40': {
+    code: '-40',
     titleKey: 'zarinpal.errors.-40.title',
     messageKey: 'zarinpal.errors.-40.message',
     actionKey: 'zarinpal.errors.-40.action',
     severity: 'error',
   },
-  [-41]: {
-    code: -41,
+  '-41': {
+    code: '-41',
     titleKey: 'zarinpal.errors.-41.title',
     messageKey: 'zarinpal.errors.-41.message',
     actionKey: 'zarinpal.errors.-41.action',
     severity: 'error',
   },
-  [-42]: {
-    code: -42,
+  '-42': {
+    code: '-42',
     titleKey: 'zarinpal.errors.-42.title',
     messageKey: 'zarinpal.errors.-42.message',
     actionKey: 'zarinpal.errors.-42.action',
     severity: 'warning',
   },
-  [-50]: {
-    code: -50,
+  '-50': {
+    code: '-50',
     titleKey: 'zarinpal.errors.-50.title',
     messageKey: 'zarinpal.errors.-50.message',
     actionKey: 'zarinpal.errors.-50.action',
     severity: 'warning',
   },
-  [-51]: {
-    code: -51,
+  '-51': {
+    code: '-51',
     titleKey: 'zarinpal.errors.-51.title',
     messageKey: 'zarinpal.errors.-51.message',
     actionKey: 'zarinpal.errors.-51.action',
     severity: 'info',
   },
-  [-52]: {
-    code: -52,
+  '-52': {
+    code: '-52',
     titleKey: 'zarinpal.errors.-52.title',
     messageKey: 'zarinpal.errors.-52.message',
     actionKey: 'zarinpal.errors.-52.action',
     severity: 'error',
   },
-  [-53]: {
-    code: -53,
+  '-53': {
+    code: '-53',
     titleKey: 'zarinpal.errors.-53.title',
     messageKey: 'zarinpal.errors.-53.message',
     actionKey: 'zarinpal.errors.-53.action',
     severity: 'info',
   },
-  [-54]: {
-    code: -54,
+  '-54': {
+    code: '-54',
     titleKey: 'zarinpal.errors.-54.title',
     messageKey: 'zarinpal.errors.-54.message',
     actionKey: 'zarinpal.errors.-54.action',
     severity: 'error',
   },
-  [-74]: {
-    code: -74,
+  '-74': {
+    code: '-74',
     titleKey: 'zarinpal.errors.-74.title',
     messageKey: 'zarinpal.errors.-74.message',
     actionKey: 'zarinpal.errors.-74.action',
     severity: 'error',
   },
-  [-80]: {
-    code: -80,
+  '-80': {
+    code: '-80',
     titleKey: 'zarinpal.errors.-80.title',
     messageKey: 'zarinpal.errors.-80.message',
     actionKey: 'zarinpal.errors.-80.action',
     severity: 'error',
   },
-  100: {
-    code: 100,
+  '100': {
+    code: '100',
     titleKey: 'zarinpal.errors.100.title',
     messageKey: 'zarinpal.errors.100.message',
     actionKey: 'zarinpal.errors.100.action',
     severity: 'info',
   },
-  101: {
-    code: 101,
+  '101': {
+    code: '101',
     titleKey: 'zarinpal.errors.101.title',
     messageKey: 'zarinpal.errors.101.message',
     actionKey: 'zarinpal.errors.101.action',
@@ -231,8 +208,10 @@ export function parseZarinPalError(
 
   // Try to extract error code from different possible formats
   if (typeof error === 'object' && error !== null) {
-    // Direct error code
+    // Direct error code (convert to string format)
     if ('code' in error && typeof error.code === 'number') {
+      code = error.code.toString() as ZarinPalErrorCode;
+    } else if ('code' in error && typeof error.code === 'string') {
       code = error.code as ZarinPalErrorCode;
     }
 
@@ -243,13 +222,13 @@ export function parseZarinPalError(
       // Extract code from message like "Code: -74" or "error code -80"
       const codeMatch = error.message.match(/[Cc]ode[:\s]*(-?\d+)/);
       if (codeMatch && codeMatch[1]) {
-        code = Number.parseInt(codeMatch[1], 10) as ZarinPalErrorCode;
+        code = codeMatch[1] as ZarinPalErrorCode;
       }
     }
 
     // ZarinPal response format
-    if ('errors' in error && 'code' in error && typeof error.code === 'number') {
-      code = error.code as ZarinPalErrorCode;
+    if ('errors' in error && 'code' in error && (typeof error.code === 'number' || typeof error.code === 'string')) {
+      code = (typeof error.code === 'number' ? error.code.toString() : error.code) as ZarinPalErrorCode;
       const message = 'message' in error && typeof error.message === 'string' ? error.message : '';
       const errors = JSON.stringify(error.errors);
       technicalMessage = message || errors;
@@ -260,7 +239,7 @@ export function parseZarinPalError(
     // Try to extract code from string
     const codeMatch = error.match(/[Cc]ode[:\s]*(-?\d+)/);
     if (codeMatch && codeMatch[1]) {
-      code = Number.parseInt(codeMatch[1], 10) as ZarinPalErrorCode;
+      code = codeMatch[1] as ZarinPalErrorCode;
     }
   }
 

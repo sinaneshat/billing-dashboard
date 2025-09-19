@@ -1,6 +1,6 @@
 import { z } from '@hono/zod-openapi';
 
-import { createApiResponseSchema } from '@/api/core/schemas';
+import { CoreSchemas, createApiResponseSchema } from '@/api/core/schemas';
 import { paymentMethodSelectSchema } from '@/db/validation/billing';
 
 // Single source of truth - use drizzle-zod schema with OpenAPI metadata
@@ -56,27 +56,21 @@ export const CreatePaymentMethodResponseSchema = createApiResponseSchema(
   PaymentMethodSchema,
 );
 
-// DELETE /payment-methods/:id response
+// DELETE /payment-methods/:id response - matches handler return value
 export const DeletePaymentMethodResponseSchema = createApiResponseSchema(
   z.object({
-    id: z.string(),
     deleted: z.boolean(),
-    deletedAt: z.string().datetime(),
   }),
 );
 
-// PATCH /payment-methods/:id/default response
+// PATCH /payment-methods/:id/default response - matches handler return value
 export const SetDefaultPaymentMethodResponseSchema = createApiResponseSchema(
-  z.object({
-    id: z.string(),
-    isPrimary: z.boolean(),
-    updatedAt: z.string().datetime(),
-  }),
+  PaymentMethodSchema,
 );
 
-// Path parameter schemas
+// Path parameter schemas - use CoreSchemas for consistency
 export const PaymentMethodParamsSchema = z.object({
-  id: z.string().min(1).openapi({
+  id: CoreSchemas.id().openapi({
     param: { name: 'id', in: 'path' },
     example: 'pm_123',
     description: 'Payment Method ID',

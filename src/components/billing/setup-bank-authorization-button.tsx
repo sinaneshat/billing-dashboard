@@ -1,7 +1,7 @@
 'use client';
 
 import { CreditCard } from 'lucide-react';
-import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 
 import { Button } from '@/components/ui/button';
@@ -14,6 +14,7 @@ type SetupBankAuthorizationButtonProps = {
   variant?: 'default' | 'outline' | 'ghost';
   size?: 'sm' | 'default' | 'lg';
   className?: string;
+  hideIcon?: boolean;
 };
 
 export function SetupBankAuthorizationButton({
@@ -24,8 +25,10 @@ export function SetupBankAuthorizationButton({
   variant = 'default',
   size = 'default',
   className,
+  hideIcon = false,
 }: SetupBankAuthorizationButtonProps) {
   const t = useTranslations();
+  const router = useRouter();
 
   const getHref = () => {
     if (source === 'plans' && productId && productName && productPrice) {
@@ -46,17 +49,19 @@ export function SetupBankAuthorizationButton({
     return t('bankSetup.setupBankAuthorization');
   };
 
+  const handleClick = () => {
+    router.push(getHref());
+  };
+
   return (
     <Button
-      asChild
       variant={variant}
       size={size}
       className={className}
-      startIcon={<CreditCard />}
+      onClick={handleClick}
+      startIcon={!hideIcon ? <CreditCard className="h-4 w-4" /> : undefined}
     >
-      <Link href={getHref()}>
-        {getButtonText()}
-      </Link>
+      {getButtonText()}
     </Button>
   );
 }

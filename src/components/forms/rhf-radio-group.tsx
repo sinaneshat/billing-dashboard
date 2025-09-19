@@ -46,17 +46,39 @@ function RHFRadioGroup({
               defaultValue={
                 field.value !== undefined ? field.value : externalValue
               }
-              className="flex flex-col space-y-1"
+              className="flex flex-col space-y-3"
             >
-              {options.map(item => (
+              {options.map((item, index) => (
                 <FormItem
                   key={item.value}
-                  className="flex items-center space-x-3 space-y-0"
+                  className="space-y-0"
                 >
-                  <FormControl>
-                    <RadioGroupItem value={item.value} />
-                  </FormControl>
-                  <FormLabel className="font-normal">{item.label}</FormLabel>
+                  <FormLabel
+                    htmlFor={`${field.name}-${index}`}
+                    className="flex cursor-pointer items-start space-x-3 rounded-md border p-4 hover:bg-accent hover:text-accent-foreground transition-colors [&:has([data-state=checked])]:border-primary [&:has([data-state=checked])]:bg-primary/5"
+                  >
+                    <FormControl>
+                      <RadioGroupItem
+                        value={item.value}
+                        id={`${field.name}-${index}`}
+                        className="mt-1"
+                        aria-describedby={item.description ? `${field.name}-${index}-description` : undefined}
+                      />
+                    </FormControl>
+                    <div className="flex-1 space-y-1">
+                      <div className="font-medium text-sm leading-none">
+                        {typeof item.label === 'string' ? item.label : item.label}
+                      </div>
+                      {item.description && (
+                        <p
+                          id={`${field.name}-${index}-description`}
+                          className="text-sm text-muted-foreground leading-relaxed"
+                        >
+                          {item.description}
+                        </p>
+                      )}
+                    </div>
+                  </FormLabel>
                 </FormItem>
               ))}
             </RadioGroup>

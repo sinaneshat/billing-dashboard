@@ -34,6 +34,10 @@ export type SetDefaultPaymentMethodRequest = {
 };
 export type SetDefaultPaymentMethodResponse = InferResponseType<(typeof apiClient)['payment-methods'][':id']['default']['$patch']>;
 
+// Contract Status
+export type GetContractStatusRequest = InferRequestType<(typeof apiClient)['payment-methods']['contract-status']['$get']>;
+export type GetContractStatusResponse = InferResponseType<(typeof apiClient)['payment-methods']['contract-status']['$get']>;
+
 // ============================================================================
 //  Service Functions
 // ============================================================================
@@ -78,17 +82,27 @@ export async function setDefaultPaymentMethodService(paymentMethodId: string) {
   }));
 }
 
+/**
+ * Get direct debit contract status
+ * All types are inferred from the RPC client
+ */
+export async function getContractStatusService(args?: GetContractStatusRequest) {
+  return args
+    ? parseResponse(apiClient['payment-methods']['contract-status'].$get(args))
+    : parseResponse(apiClient['payment-methods']['contract-status'].$get());
+}
+
 // ============================================================================
 //  Direct Debit Contract Services (NEW - ZarinPal Payman API)
 // ============================================================================
 
 // Direct Debit Contract Setup
-export type InitiateDirectDebitContractRequest = InferRequestType<(typeof apiClient)['payment-methods']['direct-debit-setup']['$post']>;
-export type InitiateDirectDebitContractResponse = InferResponseType<(typeof apiClient)['payment-methods']['direct-debit-setup']['$post']>;
+export type InitiateDirectDebitContractRequest = InferRequestType<(typeof apiClient)['payment-methods']['direct-debit']['setup']['$post']>;
+export type InitiateDirectDebitContractResponse = InferResponseType<(typeof apiClient)['payment-methods']['direct-debit']['setup']['$post']>;
 
 // Direct Debit Contract Verification
-export type VerifyDirectDebitContractRequest = InferRequestType<(typeof apiClient)['payment-methods']['verify-direct-debit-contract']['$post']>;
-export type VerifyDirectDebitContractResponse = InferResponseType<(typeof apiClient)['payment-methods']['verify-direct-debit-contract']['$post']>;
+export type VerifyDirectDebitContractRequest = InferRequestType<(typeof apiClient)['payment-methods']['direct-debit']['verify']['$post']>;
+export type VerifyDirectDebitContractResponse = InferResponseType<(typeof apiClient)['payment-methods']['direct-debit']['verify']['$post']>;
 
 // Get Available Banks
 export type GetBankListRequest = InferRequestType<(typeof apiClient)['payment-methods']['direct-debit']['banks']['$get']>;
@@ -109,7 +123,7 @@ export type CancelDirectDebitContractResponse = InferResponseType<(typeof apiCli
  * Creates contract with ZarinPal and returns bank selection options
  */
 export async function initiateDirectDebitContractService(args: InitiateDirectDebitContractRequest) {
-  return parseResponse(apiClient['payment-methods']['direct-debit-setup'].$post(args));
+  return parseResponse(apiClient['payment-methods']['direct-debit'].setup.$post(args));
 }
 
 /**
@@ -117,7 +131,7 @@ export async function initiateDirectDebitContractService(args: InitiateDirectDeb
  * Called after user signs contract with bank to get signature
  */
 export async function verifyDirectDebitContractService(args: VerifyDirectDebitContractRequest) {
-  return parseResponse(apiClient['payment-methods']['verify-direct-debit-contract'].$post(args));
+  return parseResponse(apiClient['payment-methods']['direct-debit'].verify.$post(args));
 }
 
 /**

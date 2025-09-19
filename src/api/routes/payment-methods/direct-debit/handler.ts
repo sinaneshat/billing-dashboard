@@ -15,6 +15,7 @@ import {
   isZarinPalAuthError,
   isZarinPalServiceError,
 } from '@/api/common/zarinpal-error-utils';
+import type { ZarinPalErrorCode } from '@/api/common/zarinpal-schemas';
 import { createHandler, createHandlerWithTransaction, Responses } from '@/api/core';
 import { CurrencyExchangeService } from '@/api/services/currency-exchange';
 import { ZarinPalService } from '@/api/services/zarinpal';
@@ -215,8 +216,9 @@ export const initiateDirectDebitContractHandler: RouteHandler<
           ) {
             const zarinpalCode = cause.zarinpal_code;
 
-            // Handle specific ZarinPal error cases
-            if (isZarinPalAuthError(zarinpalCode)) {
+            // Handle specific ZarinPal error cases (convert to string format)
+            const zarinpalCodeStr = zarinpalCode.toString() as ZarinPalErrorCode;
+            if (isZarinPalAuthError(zarinpalCodeStr)) {
               if (zarinpalCode === -74) {
                 throw createError.unauthorized('Invalid merchant configuration');
               } else if (zarinpalCode === -80) {
@@ -224,7 +226,7 @@ export const initiateDirectDebitContractHandler: RouteHandler<
               }
             }
 
-            if (isZarinPalServiceError(zarinpalCode)) {
+            if (isZarinPalServiceError(zarinpalCodeStr)) {
               throw createError.zarinpal('ZarinPal service temporarily unavailable');
             }
 
@@ -417,8 +419,9 @@ export const verifyDirectDebitContractHandler: RouteHandler<
           ) {
             const zarinpalCode = cause.zarinpal_code;
 
-            // Handle specific ZarinPal error cases
-            if (isZarinPalAuthError(zarinpalCode)) {
+            // Handle specific ZarinPal error cases (convert to string format)
+            const zarinpalCodeStr = zarinpalCode.toString() as ZarinPalErrorCode;
+            if (isZarinPalAuthError(zarinpalCodeStr)) {
               if (zarinpalCode === -74) {
                 throw createError.unauthorized('Invalid merchant configuration');
               } else if (zarinpalCode === -80) {
@@ -426,7 +429,7 @@ export const verifyDirectDebitContractHandler: RouteHandler<
               }
             }
 
-            if (isZarinPalServiceError(zarinpalCode)) {
+            if (isZarinPalServiceError(zarinpalCodeStr)) {
               throw createError.zarinpal('ZarinPal service temporarily unavailable');
             }
 

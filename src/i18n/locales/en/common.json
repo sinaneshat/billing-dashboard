@@ -1696,6 +1696,23 @@
     "statuses": {
       "creating": "Creating...",
       "continue": "Continue"
+    },
+    "errors": {
+      "-9": {
+        "title": "Transaction failure",
+        "message": "Payment transaction failed. Please try again.",
+        "action": "Retry payment with same or different payment method"
+      },
+      "-10": {
+        "title": "Invalid IP or merchant configuration",
+        "message": "Payment system configuration error. Please contact support.",
+        "action": "Contact technical support to verify merchant configuration"
+      },
+      "-11": {
+        "title": "Merchant is not active",
+        "message": "Merchant account is not active. Please contact support.",
+        "action": "Contact support to activate your merchant account"
+      }
     }
   },
   "billingActions": {
@@ -1745,6 +1762,13 @@
       "selectPlaceholder": "Select a bank...",
       "dailyLimit": "Daily Limit",
       "dailyCount": "Daily Transaction Count",
+      "transactionsPerDay": "transactions per day",
+      "unlimitedTransactions": "Unlimited transactions per day",
+      "bankCode": "Bank Code",
+      "maxAmount": "Maximum Amount",
+      "perTransaction": "per transaction",
+      "highLimit": "High Limit",
+      "unlimited": "Unlimited",
       "continueToAuthorization": "Continue to Bank Authorization"
     },
     "authorization": {
@@ -1776,7 +1800,8 @@
       "authorizationCheckFailed": "Failed to check authorization status"
     },
     "setupBankAuthorization": "Setup Bank Authorization",
-    "setupForPlan": "Setup Payment for Plan"
+    "setupForPlan": "Setup Payment for Plan",
+    "stepIndicator": "Step {current} of {total}"
   },
   "errors": {
     "generic": {
@@ -1802,129 +1827,5 @@
   },
   "toast": {
     "genericError": "An error occurred"
-  },
-  "zarinpal": {
-    "errors": {
-      "-9": {
-        "title": "Transaction failure",
-        "message": "Payment transaction failed. Please try again.",
-        "action": "Retry payment with same or different payment method"
-      },
-      "-10": {
-        "title": "Invalid IP or merchant configuration",
-        "message": "Payment system configuration error. Please contact support.",
-        "action": "Contact technical support to verify merchant configuration"
-      },
-      "-11": {
-        "title": "Merchant is not active",
-        "message": "Payment gateway is currently inactive. Please contact support.",
-        "action": "Contact support to activate merchant account"
-      },
-      "-12": {
-        "title": "Attempts limit exceeded",
-        "message": "Too many payment attempts. Please try again later.",
-        "action": "Wait and retry after some time"
-      },
-      "-15": {
-        "title": "Merchant access denied",
-        "message": "Payment gateway access is restricted. Please contact support.",
-        "action": "Contact support to restore merchant access"
-      },
-      "-16": {
-        "title": "Invalid merchant level",
-        "message": "Payment gateway does not support this operation. Please contact support.",
-        "action": "Upgrade merchant account level or contact support"
-      },
-      "-17": {
-        "title": "Merchant must be active",
-        "message": "Payment gateway must be activated first. Please contact support.",
-        "action": "Activate merchant account through ZarinPal"
-      },
-      "-30": {
-        "title": "Service not allowed",
-        "message": "This payment service is not available. Please try a different payment method.",
-        "action": "Use alternative payment method or contact support"
-      },
-      "-31": {
-        "title": "Transaction not found",
-        "message": "Payment transaction not found. Please start a new payment.",
-        "action": "Start new payment process"
-      },
-      "-33": {
-        "title": "Transaction not successful",
-        "message": "Payment was not successful. Please try again.",
-        "action": "Retry payment or use different payment method"
-      },
-      "-34": {
-        "title": "Transaction not found",
-        "message": "Payment record not found. Please start a new payment.",
-        "action": "Start new payment process"
-      },
-      "-40": {
-        "title": "Merchant access denied",
-        "message": "Payment gateway access is denied. Please contact support.",
-        "action": "Contact support to restore access"
-      },
-      "-41": {
-        "title": "Invalid amount",
-        "message": "Payment amount is invalid. Please check and try again.",
-        "action": "Verify payment amount and retry"
-      },
-      "-42": {
-        "title": "Refund limit exceeded",
-        "message": "Refund limit has been exceeded for this transaction.",
-        "action": "Contact support for partial refund options"
-      },
-      "-50": {
-        "title": "Refund limit exceeded",
-        "message": "Cannot process refund due to limit restrictions.",
-        "action": "Contact support for refund assistance"
-      },
-      "-51": {
-        "title": "Transaction not refundable",
-        "message": "This transaction cannot be refunded.",
-        "action": "Contact support if you believe this is an error"
-      },
-      "-52": {
-        "title": "Bank error",
-        "message": "Bank processing error occurred. Please try again.",
-        "action": "Retry payment or try different payment method"
-      },
-      "-53": {
-        "title": "Transaction cancelled",
-        "message": "Payment was cancelled by user or system.",
-        "action": "Start new payment if needed"
-      },
-      "-54": {
-        "title": "Transaction not verified",
-        "message": "Payment verification failed. Transaction may be incomplete.",
-        "action": "Contact support to verify payment status"
-      },
-      "-74": {
-        "title": "Invalid merchant ID",
-        "message": "Payment system configuration error. Please contact support to resolve this issue.",
-        "action": "Contact technical support to update merchant configuration"
-      },
-      "-80": {
-        "title": "Merchant does not have access to direct debit service",
-        "message": "Direct debit service is not activated for this account. Please contact support to enable this feature.",
-        "action": "Request direct debit service activation from ZarinPal support"
-      },
-      "100": {
-        "title": "Verified successfully",
-        "message": "Payment verified successfully.",
-        "action": "No action required"
-      },
-      "101": {
-        "title": "Transaction already verified",
-        "message": "This payment has already been verified.",
-        "action": "No action required"
-      },
-      "unknown": {
-        "title": "Unknown error occurred",
-        "message": "An unexpected payment error occurred. Please try again or contact support.",
-        "action": "Contact technical support for assistance"
-      }
-    }
   }
 }

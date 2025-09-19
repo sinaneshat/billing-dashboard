@@ -56,6 +56,9 @@ import {
   uploadCompanyImageRoute,
   uploadUserAvatarRoute,
 } from './routes/images/route';
+// Contract status route
+import { getContractStatusHandler } from './routes/payment-methods/contract-status/handler';
+import { getContractStatusRoute } from './routes/payment-methods/contract-status/route';
 // Direct debit routes (ZarinPal Payman API) - Enhanced with performance optimizations
 import {
   cancelDirectDebitContractHandler,
@@ -350,6 +353,7 @@ const appRoutes = app
   .openapi(createPaymentMethodRoute, createPaymentMethodHandler)
   .openapi(deletePaymentMethodRoute, deletePaymentMethodHandler)
   .openapi(setDefaultPaymentMethodRoute, setDefaultPaymentMethodHandler)
+  .openapi(getContractStatusRoute, getContractStatusHandler)
   // Contract signing routes
   .openapi(getContractSigningInfoRoute, getContractSigningInfoHandler)
   .openapi(generateSigningUrlRoute, generateSigningUrlHandler)

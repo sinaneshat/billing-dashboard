@@ -15,7 +15,6 @@ import { BillingActionMenu } from '@/components/billing/shared/billing-action-me
 import { BillingCardContainer } from '@/components/billing/shared/billing-card-container';
 import { useBillingActions } from '@/components/billing/shared/use-billing-actions';
 import { StatusCard } from '@/components/dashboard/dashboard-cards';
-import { FadeIn } from '@/components/ui/motion';
 import { PaymentStatusBadge } from '@/components/ui/status-badge';
 import { useDownloadInvoiceMutation, useDownloadReceiptMutation, useRetryPaymentMutation } from '@/hooks/mutations/payments';
 import { formatTomanCurrency } from '@/lib/format';
@@ -137,36 +136,34 @@ export const PaymentHistoryCards = memo(({
       className={className}
     >
       {(payment: PaymentHistoryItem, _index: number) => (
-        <FadeIn>
-          <StatusCard
-            title={payment.productName}
-            subtitle={payment.status === 'failed' && payment.failureReason ? payment.failureReason : undefined}
-            status={<PaymentStatusBadge status={payment.status} size="sm" />}
-            icon={<ShoppingBag className="h-4 w-4" />}
-            primaryInfo={(
-              <span className="text-2xl font-semibold text-foreground">
-                {formatTomanCurrency(payment.amount)}
+        <StatusCard
+          title={payment.productName}
+          subtitle={payment.status === 'failed' && payment.failureReason ? payment.failureReason : undefined}
+          status={<PaymentStatusBadge status={payment.status} size="sm" />}
+          icon={<ShoppingBag className="h-4 w-4" />}
+          primaryInfo={(
+            <span className="text-2xl font-semibold text-foreground">
+              {formatTomanCurrency(payment.amount)}
+            </span>
+          )}
+          secondaryInfo={(
+            <div className="flex items-center justify-between text-sm text-muted-foreground">
+              <span>
+                {new Date(payment.paidAt || payment.createdAt).toLocaleDateString(locale, {
+                  month: 'short',
+                  day: 'numeric',
+                })}
               </span>
-            )}
-            secondaryInfo={(
-              <div className="flex items-center justify-between text-sm text-muted-foreground">
-                <span>
-                  {new Date(payment.paidAt || payment.createdAt).toLocaleDateString(locale, {
-                    month: 'short',
-                    day: 'numeric',
-                  })}
+              {payment.zarinpalRefId && (
+                <span className="text-xs" title={payment.zarinpalRefId}>
+                  #
+                  {payment.zarinpalRefId.slice(-6)}
                 </span>
-                {payment.zarinpalRefId && (
-                  <span className="text-xs" title={payment.zarinpalRefId}>
-                    #
-                    {payment.zarinpalRefId.slice(-6)}
-                  </span>
-                )}
-              </div>
-            )}
-            action={createActionMenu(payment)}
-          />
-        </FadeIn>
+              )}
+            </div>
+          )}
+          action={createActionMenu(payment)}
+        />
       )}
     </BillingCardContainer>
   );

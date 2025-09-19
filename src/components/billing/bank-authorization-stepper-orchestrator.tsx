@@ -1,16 +1,15 @@
 'use client';
 
-import { Building2, CreditCard, User } from 'lucide-react';
+import { CreditCard } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import React, { useCallback, useState } from 'react';
 
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { StepIndicator } from '@/components/ui/step-indicator';
 import { useInitiateDirectDebitContractMutation } from '@/hooks/mutations/payment-methods';
 import { useMutationUIState } from '@/hooks/utils/query-helpers';
 import { formatTomanCurrency } from '@/lib/format';
 import { toastManager } from '@/lib/toast/toast-manager';
 import { cn } from '@/lib/ui/cn';
+import { getContractStatusService } from '@/services/api/payment-methods';
 
 import type { BankSelectionFormData } from '../forms/bank-selection-form';
 import { BankSelectionForm } from '../forms/bank-selection-form';
@@ -109,28 +108,12 @@ export function BankAuthorizationStepperOrchestrator({
         return;
       }
 
-      const contractInfo = JSON.parse(storedContract);
+      const result = await getContractStatusService();
 
-      const response = await fetch('/api/v1/payment-methods/check-direct-debit-status', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          paymanAuthority: contractInfo.paymanAuthority,
-        }),
-      });
+      if (result.success && result.data) {
+        const { status, contractId } = result.data;
 
-      if (response.ok) {
-        const result = await response.json() as {
-          success: boolean;
-          data?: {
-            status: string;
-            contractId?: string;
-          };
-        };
-
-        if (result.success && result.data?.status === 'active') {
+        if (status === 'active') {
           setAuthorizationStatus('verified');
           setCurrentStep('completed');
           toastManager.success(t('bankSetup.messages.authorizationCompleted'));
@@ -138,18 +121,25 @@ export function BankAuthorizationStepperOrchestrator({
           localStorage.removeItem('bank-authorization-contract');
 
           setTimeout(() => {
-            onSuccess?.(result.data?.contractId || 'success');
+            onSuccess?.(contractId || 'success');
           }, 2000);
-        } else if (result.data?.status === 'cancelled' || result.data?.status === 'failed') {
+        } else if (status === 'cancelled' || status === 'invalid') {
           setAuthorizationStatus('failed');
           toastManager.error(t('bankSetup.errors.authorizationFailed'));
           localStorage.removeItem('bank-authorization-contract');
-        } else {
+        } else if (status === 'pending') {
+          // Still waiting for user to complete authorization
           setTimeout(() => {
             checkAuthorizationStatus();
           }, 5000);
+        } else {
+          // No contract or other states
+          setTimeout(() => {
+            checkAuthorizationStatus();
+          }, 10000);
         }
       } else {
+        // API call failed, retry after a longer delay
         setTimeout(() => {
           checkAuthorizationStatus();
         }, 10000);
@@ -234,8 +224,7 @@ export function BankAuthorizationStepperOrchestrator({
         return (
           <div className="space-y-6">
             <div className="text-center">
-              <User className="h-12 w-12 mx-auto text-primary mb-4" />
-              <p className="text-sm text-muted-foreground">
+              <p className="text-muted-foreground">
                 {t('bankSetup.contact.description')}
               </p>
             </div>
@@ -245,18 +234,6 @@ export function BankAuthorizationStepperOrchestrator({
               onCancel={onCancel}
               isLoading={mutationUI.isPending}
             />
-
-            {selectedProduct && (
-              <Alert>
-                <CreditCard className="h-4 w-4" />
-                <AlertDescription>
-                  {t('bankSetup.contact.selectedPlan', {
-                    planName: selectedProduct.name,
-                    price: formatTomanCurrency(selectedProduct.price),
-                  })}
-                </AlertDescription>
-              </Alert>
-            )}
           </div>
         );
 
@@ -264,8 +241,7 @@ export function BankAuthorizationStepperOrchestrator({
         return (
           <div className="space-y-6">
             <div className="text-center">
-              <Building2 className="h-12 w-12 mx-auto text-primary mb-4" />
-              <p className="text-sm text-muted-foreground">
+              <p className="text-muted-foreground">
                 {t('bankSetup.bank.description')}
               </p>
             </div>
@@ -297,20 +273,66 @@ export function BankAuthorizationStepperOrchestrator({
   };
 
   return (
-    <div className="space-y-8">
-      <div className="text-center">
-        <h2 className="text-xl font-semibold">{t('bankSetup.title')}</h2>
-        <p className="text-sm text-muted-foreground mt-1">
+    <div className="space-y-6 max-w-2xl mx-auto">
+      {/* Header */}
+      <div className="text-center space-y-2">
+        <h2 className="text-2xl font-semibold">{t('bankSetup.title')}</h2>
+        <p className="text-muted-foreground">
           {t('bankSetup.subtitle')}
         </p>
       </div>
 
-      <StepIndicator
-        steps={steps}
-        className={cn('justify-center', currentStep === 'completed' && 'opacity-75')}
-      />
+      {/* Progress indicator - minimal dots */}
+      <div className="flex items-center justify-center space-x-2">
+        {steps.map(step => (
+          <div
+            key={step.id}
+            className={cn(
+              'h-2 w-8 rounded-full transition-all duration-200',
+              step.status === 'completed'
+                ? 'bg-primary'
+                : step.status === 'current'
+                  ? 'bg-primary/60'
+                  : 'bg-muted',
+            )}
+          />
+        ))}
+      </div>
 
-      <div className="min-h-[400px]">
+      {/* Selected product info */}
+      {selectedProduct && (
+        <div className="border rounded-lg p-4 bg-muted/30">
+          <div className="flex items-center gap-3">
+            <CreditCard className="h-5 w-5 text-primary" />
+            <div>
+              <p className="font-medium">{t('bankSetup.contact.selectedPlan')}</p>
+              <p className="text-sm text-muted-foreground">
+                {selectedProduct.name}
+                {' '}
+                -
+                {' '}
+                {formatTomanCurrency(selectedProduct.price)}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Current step title */}
+      <div className="text-center">
+        <h3 className="text-lg font-medium">
+          {steps.find(step => step.status === 'current')?.title}
+        </h3>
+        <p className="text-sm text-muted-foreground mt-1">
+          {t('bankSetup.stepIndicator', {
+            current: steps.findIndex(step => step.status === 'current') + 1,
+            total: steps.length,
+          })}
+        </p>
+      </div>
+
+      {/* Content area */}
+      <div className="w-full">
         {renderStepContent()}
       </div>
     </div>

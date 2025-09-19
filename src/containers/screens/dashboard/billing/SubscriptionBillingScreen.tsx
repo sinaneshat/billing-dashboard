@@ -2,7 +2,7 @@
 
 import { useTranslations } from 'next-intl';
 
-import { BillingHistory } from '@/components/billing/billing-history';
+import BillingHistory from '@/components/billing/billing-history';
 import { DashboardPageHeader } from '@/components/dashboard/dashboard-header';
 import { DashboardPage, DashboardSection } from '@/components/dashboard/dashboard-states';
 
