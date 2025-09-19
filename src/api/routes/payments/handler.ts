@@ -103,12 +103,12 @@ export const paymentCallbackHandler: RouteHandler<typeof paymentCallbackRoute, A
   },
   async (c, tx) => {
     const { Authority, Status } = c.validated.query;
-    const db = await getDbAsync();
+    // Use transaction context 'tx' instead of creating duplicate connection
 
     c.logger.info('Processing payment callback', { logType: 'operation', operationName: 'paymentCallback', resource: Authority });
 
-    // Find payment using direct DB access
-    const paymentResults = await db.select().from(payment).where(eq(payment.zarinpalAuthority, Authority)).limit(1);
+    // Find payment using transaction context (CRITICAL FIX)
+    const paymentResults = await tx.select().from(payment).where(eq(payment.zarinpalAuthority, Authority)).limit(1);
     const paymentRecord = paymentResults[0];
 
     if (!paymentRecord) {
@@ -190,8 +190,8 @@ export const paymentCallbackHandler: RouteHandler<typeof paymentCallbackRoute, A
       // Handle subscription activation if needed
       if (paymentRecord.subscriptionId) {
         const [subscriptionResults, productResults] = await Promise.all([
-          db.select().from(subscription).where(eq(subscription.id, paymentRecord.subscriptionId)).limit(1),
-          db.select().from(product).where(eq(product.id, paymentRecord.productId)).limit(1),
+          tx.select().from(subscription).where(eq(subscription.id, paymentRecord.subscriptionId)).limit(1),
+          tx.select().from(product).where(eq(product.id, paymentRecord.productId)).limit(1),
         ]);
 
         const subscriptionRecord = subscriptionResults[0];

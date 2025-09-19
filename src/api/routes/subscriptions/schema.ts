@@ -4,7 +4,18 @@ import { CoreSchemas } from '@/api/core/schemas';
 import { productSelectSchema, subscriptionSelectSchema } from '@/db/validation/billing';
 
 // Single source of truth - use drizzle-zod schemas with OpenAPI metadata
-const SubscriptionSchema = subscriptionSelectSchema.openapi({
+// Override timestamp fields to be strings (as they are serialized in API responses)
+const SubscriptionSchema = subscriptionSelectSchema.extend({
+  startDate: CoreSchemas.timestamp(),
+  endDate: CoreSchemas.timestamp().nullable(),
+  nextBillingDate: CoreSchemas.timestamp().nullable(),
+  createdAt: CoreSchemas.timestamp(),
+  updatedAt: CoreSchemas.timestamp(),
+  trialEndDate: CoreSchemas.timestamp().nullable(),
+  gracePeriodEndDate: CoreSchemas.timestamp().nullable(),
+  upgradeDowngradeAt: CoreSchemas.timestamp().nullable(),
+  lastBillingAttempt: CoreSchemas.timestamp().nullable(),
+}).openapi({
   example: {
     id: 'sub_123',
     userId: 'user_123',

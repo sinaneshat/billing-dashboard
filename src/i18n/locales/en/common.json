@@ -1,17 +1,17 @@
 {
   "common": {
-    "or": "Or"
+    "or": "Or",
+    "upTo": "Up to",
+    "optional": "(optional)"
   },
   "navigation": {
     "navigation": "Navigation",
-    "home": "Home",
     "about": "About",
     "contact": "Contact",
     "signIn": "Sign In",
     "signUp": "Sign Up",
     "signOut": "Sign Out",
     "dashboard": "Dashboard",
-    "profile": "Profile",
     "settings": "Settings",
     "billing": "Billing",
     "paymentMethods": "Payment Methods",
@@ -19,7 +19,7 @@
     "plans": "Plans",
     "overview": "Overview",
     "account": "Account",
-    "billingHistory": "Payment History",
+    "billingHistory": "Billing History",
     "paymentHistory": "Payment History"
   },
   "actions": {
@@ -60,7 +60,9 @@
     "billingSettings": "Billing Settings",
     "manage": "Manage",
     "addPaymentMethod": "Add Payment Method",
-    "viewAll": "View All"
+    "viewAll": "View All",
+    "clearSelection": "Clear Selection",
+    "more": "More Actions"
   },
   "validation": {
     "required": "This field is required",
@@ -77,6 +79,7 @@
     "futureDate": "Date must be in the future",
     "pastDate": "Date must be in the past",
     "iranianMobile": "Please enter a valid Iranian mobile number (09xxxxxxxxx)",
+    "iranianNationalCode": "Please enter a valid 10-digit Iranian national code",
     "iranianPostalCode": "Please enter a valid Iranian postal code",
     "iranianBankAccount": "Please enter a valid Iranian bank account",
     "creditCardNumber": "Please enter a valid credit card number",
@@ -212,10 +215,8 @@
     "active": "Active",
     "inactive": "Inactive",
     "expired": "Expired",
-    "suspended": "Suspended",
     "processing": "Processing",
     "verified": "Verified",
-    "unverified": "Unverified",
     "approved": "Approved",
     "rejected": "Rejected",
     "paid": "Paid",
@@ -227,7 +228,6 @@
     "premium": "Premium",
     "basic": "Basic",
     "pro": "Pro",
-    "enterprise": "Enterprise",
     "subscription": {
       "active": "Active Subscription",
       "canceled": "Canceled Subscription",
@@ -278,7 +278,6 @@
     "theme": {
       "title": "Theme",
       "mode": "Theme mode",
-      "darkMode": "Dark mode",
       "description": "Toggle between light and dark themes"
     },
     "language": {
@@ -287,10 +286,19 @@
       "description": "Change your display language"
     },
     "accessibility": {
-      "title": "Accessibility",
-      "reducedMotion": "Reduced motion",
-      "highContrast": "High contrast",
-      "description": "Adjust accessibility options for better usability"
+      "breadcrumb": "breadcrumb",
+      "pagination": "pagination",
+      "previousPage": "Go to previous page",
+      "nextPage": "Go to next page",
+      "selectAll": "Select all",
+      "selectRow": "Select row",
+      "selectAllRows": "Select all rows",
+      "toggleSidebar": "Toggle Sidebar",
+      "openFiltersMenu": "Open filters menu",
+      "notSetAsDefault": "Not set as default",
+      "continueToBankSigning": "Continue to bank for contract signing",
+      "settingUpContract": "Setting up contract...",
+      "setupDirectDebitContract": "Setup direct debit contract"
     }
   },
   "user": {
@@ -306,11 +314,6 @@
     "unknownProduct": "Unknown Product"
   },
   "pages": {
-    "myBilling": "My Billing",
-    "termsOfService": "Terms of Service",
-    "privacyPolicy": "Privacy Policy",
-    "error": "Error",
-    "home": "Home",
     "notFound": {
       "title": "Oops, page not found!",
       "description": "The page you were looking for could not be found. Please check the URL or try navigating back to the homepage.",
@@ -318,16 +321,8 @@
     }
   },
   "time": {
-    "now": "Now",
-    "justNow": "Just now",
     "today": "Today",
-    "yesterday": "Yesterday",
     "tomorrow": "Tomorrow",
-    "daysCount": "{count} days",
-    "thisWeek": "This Week",
-    "lastWeek": "Last Week",
-    "thisMonth": "This Month",
-    "lastMonth": "Last Month",
     "minute": "{count} minute",
     "minute_other": "{count} minutes",
     "hour": "{count} hour",
@@ -350,10 +345,7 @@
     "annually": "Annually"
   },
   "currency": {
-    "toman": "Toman",
-    "usd": "USD",
-    "rial": "Rial",
-    "dollar": "$"
+    "toman": "Toman"
   },
   "auth": {
     "email": "Email",
@@ -494,6 +486,8 @@
   "billing": {
     "title": "Billing",
     "subtitle": "Manage your subscription and billing information",
+    "plansTitle": "Subscription Plans",
+    "plansDescription": "Choose the perfect plan for your needs and upgrade or downgrade anytime.",
     "paymentSuccess": "Payment Success Rate",
     "currentPlan": "Current Plan",
     "nextBilling": "Next Billing Date",
@@ -591,6 +585,7 @@
     "loadingSubscription": "Loading subscription...",
     "subscriptionCount_one": "subscription",
     "subscriptionCount_other": "subscriptions",
+    "billingInDays": "Billing in {days} days",
     "managementFailed": "Failed to open subscription management",
     "usageViewFailed": "Failed to view subscription usage",
     "invoiceDownloaded": "Invoice downloaded successfully",
@@ -604,7 +599,30 @@
     "noActive": "No Active Subscription",
     "default": "Subscription",
     "createSuccess": "Your subscription has been created successfully!",
-    "createFailed": "Failed to create subscription"
+    "createFailed": "Failed to create subscription",
+    "success": {
+      "title": "Subscription Activated Successfully!",
+      "description": "Your subscription has been successfully activated and payment method is set up. You can now access all features.",
+      "goToDashboard": "Go to Dashboard"
+    },
+    "description": "طرح‌های اشتراک مناسب برای نیازهای خود انتخاب کنید و با روش‌های پرداخت امن زرین‌پال پرداخت کنید",
+    "monthly": "ماهانه",
+    "annual": "سالانه",
+    "annualComingSoon": "طرح‌های سالانه به زودی",
+    "annualDescription": "طرح‌های اشتراک سالانه با تخفیف‌های ویژه به زودی در دسترس خواهند بود.",
+    "setupPayment": "راه‌اندازی روش پرداخت",
+    "setupPaymentMethod": "راه‌اندازی روش پرداخت",
+    "paymentSetupSuccess": "روش پرداخت با موفقیت راه‌اندازی شد",
+    "noPlans": "طرحی در دسترس نیست",
+    "noPlansDescription": "در حال حاضر طرح اشتراکی موجود نیست. لطفاً بعداً بررسی کنید.",
+    "paymentMethodRequired": "راه‌اندازی روش پرداخت لازم است",
+    "paymentMethodRequiredDescription": "برای ایجاد اشتراک، ابتدا باید روش پرداخت خود را راه‌اندازی کنید.",
+    "setupPaymentFirst": "ابتدا روش پرداخت راه‌اندازی کنید",
+    "continueWithSetup": "ادامه راه‌اندازی",
+    "selectedPlan": "طرح انتخابی",
+    "paymentSetupComplete": "راه‌اندازی پرداخت تکمیل شد",
+    "activateSubscription": "فعال‌سازی اشتراک",
+    "premiumPlan": "طرح ویژه با امکانات پیشرفته"
   },
   "plans": {
     "title": "Choose your plan",
@@ -739,10 +757,6 @@
     "removePaymentMethod": "Remove Payment Method",
     "setAsDefault": "Set as Default",
     "defaultMethod": "Default",
-    "creditCard": "Credit Card",
-    "debitCard": "Debit Card",
-    "bankAccount": "Bank Account",
-    "digitalWallet": "Digital Wallet",
     "directDebit": "Direct Debit",
     "zarinpal": "ZarinPal",
     "cardNumber": "Card Number",
@@ -758,9 +772,7 @@
     "phoneNumber": "Phone Number",
     "bankName": "Bank Name",
     "accountNumber": "Account Number",
-    "routingNumber": "Routing Number",
     "iban": "IBAN",
-    "swiftCode": "SWIFT Code",
     "accountHolderName": "Account Holder Name",
     "verified": "Verified",
     "unverified": "Unverified",
@@ -923,6 +935,82 @@
       "maxAmountPerTransaction": "Maximum Amount per Transaction",
       "maxAmountPerTransactionValue": "500,000 Toman"
     },
+    "modal": {
+      "title": "Setup Direct Debit Payment",
+      "planTitle": "Purchase {planName} Plan",
+      "description": "Setup direct debit contract for subscription billing",
+      "intro": {
+        "title": "Setup Direct Debit Payment",
+        "description": "With direct debit setup, you can renew your subscriptions without entering card details.",
+        "planDescription": "To purchase the {planName} plan, you first need to setup a direct debit contract.",
+        "features": {
+          "secure": {
+            "title": "Secure & Reliable",
+            "description": "Supervised by Central Bank"
+          },
+          "easy": {
+            "title": "Easy & Fast",
+            "description": "One-time setup"
+          }
+        },
+        "startButton": "Start Setup"
+      },
+      "mobile": {
+        "title": "Mobile Number",
+        "description": "Enter your mobile number to setup the contract",
+        "label": "Mobile Number",
+        "placeholder": "09123456789",
+        "helperText": "This number will be used for contract information and payment confirmations.",
+        "continueButton": "Continue",
+        "retryButton": "Retry ({count}/3)"
+      },
+      "bankSelection": {
+        "title": "Select Bank",
+        "description": "Choose your preferred bank for contract signing",
+        "loading": "Loading banks...",
+        "error": "Error loading bank list",
+        "errorDescription": "Failed to load bank list. Please try again.",
+        "retryButton": "Retry",
+        "bankCard": {
+          "dailyLimit": "Max daily: {amount}",
+          "transactionLimit": "Max {count} transactions"
+        }
+      },
+      "redirect": {
+        "title": "Redirecting to Bank",
+        "description": "Redirecting you to {bankName} contract signing page...",
+        "helperText": "A new page will open. After completing the signing process, return to this page."
+      },
+      "verification": {
+        "title": "Awaiting Verification",
+        "titleChecking": "Checking Status...",
+        "description": "Your contract has been signed at the bank. Awaiting final verification...",
+        "descriptionChecking": "Checking contract status from server...",
+        "helperText": "This process usually takes a few minutes. You can close this page.",
+        "checkStatusButton": "Check Status",
+        "checkingButton": "Checking...",
+        "closeButton": "Close"
+      },
+      "completed": {
+        "title": "Congratulations!",
+        "description": "Direct debit contract has been successfully setup. You can now purchase your subscriptions.",
+        "planMessage": "You can now purchase the {planName} plan."
+      },
+      "steps": {
+        "intro": "Start",
+        "mobile": "Mobile Number",
+        "bankSelection": "Bank Selection",
+        "verification": "Verification"
+      },
+      "errors": {
+        "contractCancelled": "Contract was cancelled or is in invalid state",
+        "contractTimeout": "Verification timeout reached",
+        "contractTimeoutMessage": "Process took too long. You can check the status later.",
+        "contractError": "Error checking contract status",
+        "retryExhausted": "Maximum retry attempts reached",
+        "networkError": "Network error occurred"
+      }
+    },
     "validation": {
       "mobileRequired": "Mobile number is required",
       "invalidMobile": "Please enter a valid Iranian mobile number (09xxxxxxxxx)",
@@ -984,8 +1072,6 @@
     "retryFailed": "Failed to retry payment"
   },
   "forms": {
-    "firstName": "First Name",
-    "lastName": "Last Name",
     "fullName": "Full Name",
     "email": "Email Address",
     "phone": "Phone Number",
@@ -993,12 +1079,6 @@
     "confirmPassword": "Confirm Password",
     "currentPassword": "Current Password",
     "newPassword": "New Password",
-    "username": "Username",
-    "company": "Company",
-    "jobTitle": "Job Title",
-    "website": "Website",
-    "bio": "Bio",
-    "notes": "Notes",
     "message": "Message",
     "subject": "Subject",
     "category": "Category",
@@ -1057,14 +1137,6 @@
   "states": {
     "loading": {
       "default": "Loading...",
-      "page": "Loading page...",
-      "data": "Loading data...",
-      "saving": "Saving...",
-      "updating": "Updating...",
-      "deleting": "Deleting...",
-      "processing": "Processing...",
-      "uploading": "Uploading...",
-      "downloading": "Downloading...",
       "please_wait": "Please wait while we fetch your data...",
       "upcoming_bills": "Loading upcoming bills...",
       "payment_history": "Loading payment history...",
@@ -1079,7 +1151,8 @@
       "payments": "No payment history found",
       "paymentsDescription": "Your payment transactions will appear here once you make your first purchase.",
       "plans": "No plans available",
-      "plansDescription": "No subscription plans are currently available. Please check back later.",
+      "plansTitle": "Subscription Plans",
+      "plansDescription": "Choose the perfect plan for your needs and upgrade or downgrade anytime.",
       "methods": "No payment methods",
       "methodsDescription": "Add a payment method to enable automatic billing for your subscriptions.",
       "bills": "No upcoming bills",
@@ -1130,16 +1203,7 @@
     "deleteConfirmDescription": "This action cannot be undone.",
     "saveChanges": "Save Changes",
     "discardChanges": "Discard Changes",
-    "unsavedChanges": "You have unsaved changes. Do you want to save them before leaving?",
-    "yes": "Yes",
-    "no": "No"
-  },
-  "toast": {
-    "success": "Success",
-    "error": "Error",
-    "warning": "Warning",
-    "info": "Info",
-    "loading": "Loading"
+    "unsavedChanges": "You have unsaved changes. Do you want to save them before leaving?"
   },
   "legal": {
     "terms": {
@@ -1220,9 +1284,6 @@
     }
   },
   "meta": {
-    "defaultTitle": "Billing Dashboard",
-    "defaultDescription": "Manage your subscriptions and billing information",
-    "keywords": "billing, subscription, payment, dashboard",
     "signIn": {
       "title": "Sign In",
       "description": "Sign in to your account"
@@ -1230,9 +1291,6 @@
     "signUp": {
       "title": "Sign Up",
       "description": "Create your account to get started"
-    },
-    "authCallback": {
-      "description": "Completing sign in process"
     },
     "legal": {
       "terms": {
@@ -1448,26 +1506,6 @@
       "onlineMode": "Connection restored"
     }
   },
-  "fileUpload": {
-    "dragAndDrop": "Drag and drop files here",
-    "orClickToSelect": "or click to select files",
-    "supportedFormats": "Supported formats: {formats}",
-    "maxFileSize": "Maximum file size: {size}",
-    "maxFiles": "Maximum {count} files",
-    "uploading": "Uploading {filename}...",
-    "uploaded": "Uploaded {filename}",
-    "failed": "Failed to upload {filename}",
-    "removing": "Removing {filename}...",
-    "removed": "Removed {filename}",
-    "fileTooLarge": "File is too large",
-    "unsupportedFormat": "Unsupported file format",
-    "tooManyFiles": "Too many files selected",
-    "selectFiles": "Select Files",
-    "replaceFile": "Replace File",
-    "removeFile": "Remove File",
-    "viewFile": "View File",
-    "downloadFile": "Download File"
-  },
   "dataFilters": {
     "filterBy": "Filter by",
     "sortBy": "Sort by",
@@ -1497,22 +1535,6 @@
     "loadFilter": "Load filter"
   },
   "screenReader": {
-    "loading": "Content is loading",
-    "loaded": "Content has loaded",
-    "error": "An error occurred",
-    "empty": "No content available",
-    "selected": "Selected",
-    "unselected": "Unselected",
-    "expanded": "Expanded",
-    "collapsed": "Collapsed",
-    "opened": "Opened",
-    "closed": "Closed",
-    "enabled": "Enabled",
-    "disabled": "Disabled",
-    "required": "Required field",
-    "optional": "Optional field",
-    "invalid": "Invalid input",
-    "valid": "Valid input",
     "sortedAscending": "Sorted in ascending order",
     "sortedDescending": "Sorted in descending order",
     "currentPage": "Current page {page} of {total}",
@@ -1543,5 +1565,366 @@
     "columns": "Columns",
     "openFiltersMenu": "Open filters menu",
     "searchPlaceholder": "Search {field}..."
+  },
+  "paymentWizard": {
+    "steps": {
+      "planConfirmation": {
+        "title": "Confirm Selected Plan",
+        "description": "Review details of selected plan"
+      },
+      "paymentSetup": {
+        "title": "Payment Setup",
+        "description": "Connect to ZarinPal and setup direct payment"
+      },
+      "completion": {
+        "title": "Complete Process",
+        "description": "Final confirmation and subscription activation"
+      }
+    },
+    "stepIndicator": "Step {current} of {total}",
+    "monthlyPrice": "Monthly price:",
+    "currency": "Toman",
+    "perMonth": "/month",
+    "features": {
+      "securePayment": "Secure payment with ZarinPal",
+      "cancelAnytime": "Cancel anytime",
+      "support247": "24/7 support",
+      "moneyBackGuarantee": "14-day money back guarantee"
+    },
+    "security": {
+      "title": "High Security with ZarinPal",
+      "description": "All payments are processed using high security protocols through ZarinPal."
+    },
+    "paymentSetupTitle": "Setup Direct Payment",
+    "paymentSetupDescription": "Setup direct payment with ZarinPal for easier service usage",
+    "paymentSetupSuccess": "Direct payment setup successfully",
+    "paymentSetupSuccessDescription": "You can now proceed to the next step and activate your subscription.",
+    "allReady": "Everything is ready!",
+    "allReadyDescription": "Your direct payment has been successfully set up. You can now activate your subscription.",
+    "selectedPlan": "Selected plan:",
+    "paymentMethod": "Payment method:",
+    "zarinpalDirectPayment": "ZarinPal (Direct Payment)"
+  },
+  "pricing": {
+    "currency": "Toman",
+    "perMonth": "/month",
+    "trust": {
+      "securePayment": "Secure payment with ZarinPal",
+      "liveRates": "Prices with live exchange rates",
+      "support247": "24/7 support"
+    },
+    "guarantees": {
+      "moneyBack": "14-day money back guarantee",
+      "cancelAnytime": "Easy cancellation anytime",
+      "freeUpdates": "Free updates"
+    },
+    "usage": {
+      "messages": "Messages:",
+      "conversations": "Conversations:",
+      "aiModels": "AI Models:",
+      "models": "models"
+    }
+  },
+  "zarinpal": {
+    "setup": {
+      "startSetup": "Start Setup",
+      "setupDirectPayment": "Setup Direct Payment ZarinPal",
+      "easySecurePayment": "Easy and secure payment without entering card details"
+    },
+    "steps": {
+      "about": "About Direct Payment",
+      "bankSelection": "Bank Selection",
+      "bankSelectionDescription": "Select your bank",
+      "contractSigning": "Contract Signing",
+      "contractSigningDescription": "Confirm with bank"
+    },
+    "features": {
+      "secure": {
+        "title": "Secure and Reliable",
+        "description": "Approved by Central Bank"
+      },
+      "easy": {
+        "title": "Easy Payment",
+        "description": "No need to enter card details"
+      },
+      "control": {
+        "title": "Full Control",
+        "description": "Cancel anytime"
+      }
+    },
+    "process": {
+      "steps": "Setup Steps",
+      "selectBank": "Select your preferred bank",
+      "signContract": "Sign contract on bank website",
+      "returnConfirm": "Return and final confirmation"
+    },
+    "contract": {
+      "duration": "Contract duration:",
+      "dailyTransaction": "Daily transaction:",
+      "monthlyTransaction": "Monthly transaction:",
+      "amount": "500,000 Toman",
+      "ready": "Contract is ready!",
+      "readyDescription": "Now select your preferred bank to be transferred to the bank website.",
+      "selectBank": "Select Bank",
+      "selectBankPlaceholder": "Select your bank...",
+      "dailyLimit": "Daily limit:",
+      "securityGuaranteed": "Guaranteed Security",
+      "securityDescription": "After selecting a bank, you will be transferred to the official bank website and sign the contract in the bank's secure environment.",
+      "transferToBank": "Transfer to Bank"
+    },
+    "transfer": {
+      "title": "Transferring to Bank",
+      "description": "Please wait, you are being transferred to the secure bank website...",
+      "instructions": [
+        "• Sign the contract on the bank website",
+        "• After signing, you will return to this page"
+      ]
+    },
+    "verification": {
+      "title": "Verifying Contract",
+      "description": "Your contract is being reviewed and verified..."
+    },
+    "success": {
+      "title": "Contract Successfully Activated!",
+      "description": "Your direct payment has been set up and is ready to use.",
+      "benefits": [
+        "• Direct payment contract with bank activated",
+        "• Your subscriptions will be automatically renewed",
+        "• You can cancel the contract anytime"
+      ]
+    },
+    "statuses": {
+      "creating": "Creating...",
+      "continue": "Continue"
+    }
+  },
+  "billingActions": {
+    "receiptDownloaded": "Receipt downloaded successfully",
+    "receiptDownloadFailed": "Failed to download receipt",
+    "invoiceDownloaded": "Invoice downloaded successfully",
+    "invoiceDownloadFailed": "Failed to download invoice",
+    "retryInitiated": "Retry initiated successfully",
+    "retryFailed": "Failed to retry operation",
+    "paymentMethodDeleted": "Payment method deleted successfully",
+    "paymentMethodDeleteFailed": "Failed to delete payment method"
+  },
+  "bankSetup": {
+    "title": "Bank Authorization Setup",
+    "subtitle": "Set up secure bank authorization for automated payments",
+    "steps": {
+      "contact": {
+        "title": "Contact Info",
+        "description": "Phone & ID verification"
+      },
+      "bank": {
+        "title": "Bank Selection",
+        "description": "Choose your bank"
+      },
+      "authorization": {
+        "title": "Authorization",
+        "description": "Bank verification"
+      },
+      "completed": {
+        "title": "Completed",
+        "description": "Setup successful"
+      }
+    },
+    "contact": {
+      "description": "Please provide your contact information for bank verification",
+      "mobileLabel": "Mobile Number",
+      "mobilePlaceholder": "09XX XXX XXXX",
+      "mobileHelper": "Required for bank authorization SMS verification",
+      "nationalCodeLabel": "National ID Code",
+      "nationalCodePlaceholder": "10-digit national code",
+      "nationalCodeHelper": "Optional but recommended for enhanced security",
+      "selectedPlan": "Selected Plan: {planName} - {price}"
+    },
+    "bank": {
+      "description": "Select your bank to proceed with authorization setup",
+      "selectLabel": "Choose Your Bank",
+      "selectPlaceholder": "Select a bank...",
+      "dailyLimit": "Daily Limit",
+      "dailyCount": "Daily Transaction Count",
+      "continueToAuthorization": "Continue to Bank Authorization"
+    },
+    "authorization": {
+      "waitingTitle": "Waiting for Bank Authorization",
+      "waitingDescription": "Please complete the authorization process in the bank window that opened",
+      "checkingTitle": "Checking Authorization Status",
+      "checkingDescription": "Verifying your bank authorization...",
+      "verifiedTitle": "Authorization Verified",
+      "verifiedDescription": "Your bank authorization has been successfully completed",
+      "failedTitle": "Authorization Failed",
+      "failedDescription": "The bank authorization process was not completed successfully"
+    },
+    "completed": {
+      "title": "Setup Completed Successfully",
+      "description": "Your bank authorization is now active and ready for automatic payments",
+      "nextSteps": "You can now use this payment method for subscriptions and automatic billing"
+    },
+    "messages": {
+      "contactSubmitted": "Contact information submitted successfully",
+      "redirectingToBank": "Redirecting to {bankName} authorization...",
+      "authorizationCompleted": "Bank authorization completed successfully",
+      "setupCompleted": "Bank authorization setup completed successfully"
+    },
+    "errors": {
+      "contactSubmitFailed": "Failed to submit contact information",
+      "selectBank": "Please select a bank to continue",
+      "invalidBank": "Selected bank is not valid",
+      "authorizationFailed": "Bank authorization was cancelled or failed",
+      "authorizationCheckFailed": "Failed to check authorization status"
+    },
+    "setupBankAuthorization": "Setup Bank Authorization",
+    "setupForPlan": "Setup Payment for Plan"
+  },
+  "errors": {
+    "generic": {
+      "title": "Application Error",
+      "message": "An error occurred",
+      "sectionUnavailable": "Section Unavailable",
+      "componentError": "Component Error"
+    },
+    "payment": {
+      "setupDirectDebitFailed": "Failed to setup direct debit contract. Please try again.",
+      "signInRequired": "Please sign in again to continue with the setup.",
+      "unknownError": "An unexpected error occurred. Please try again or contact support."
+    },
+    "email": {
+      "welcomeSubject": "Welcome to {brand}, {userName}!",
+      "verificationInstructions": "Please verify your email by visiting: {verificationUrl}",
+      "magicLinkInstructions": "Sign in to {brand} using this link: {magicLink}"
+    },
+    "button": {
+      "saveDocument": "Save Document",
+      "saving": "Saving..."
+    }
+  },
+  "toast": {
+    "genericError": "An error occurred"
+  },
+  "zarinpal": {
+    "errors": {
+      "-9": {
+        "title": "Transaction failure",
+        "message": "Payment transaction failed. Please try again.",
+        "action": "Retry payment with same or different payment method"
+      },
+      "-10": {
+        "title": "Invalid IP or merchant configuration",
+        "message": "Payment system configuration error. Please contact support.",
+        "action": "Contact technical support to verify merchant configuration"
+      },
+      "-11": {
+        "title": "Merchant is not active",
+        "message": "Payment gateway is currently inactive. Please contact support.",
+        "action": "Contact support to activate merchant account"
+      },
+      "-12": {
+        "title": "Attempts limit exceeded",
+        "message": "Too many payment attempts. Please try again later.",
+        "action": "Wait and retry after some time"
+      },
+      "-15": {
+        "title": "Merchant access denied",
+        "message": "Payment gateway access is restricted. Please contact support.",
+        "action": "Contact support to restore merchant access"
+      },
+      "-16": {
+        "title": "Invalid merchant level",
+        "message": "Payment gateway does not support this operation. Please contact support.",
+        "action": "Upgrade merchant account level or contact support"
+      },
+      "-17": {
+        "title": "Merchant must be active",
+        "message": "Payment gateway must be activated first. Please contact support.",
+        "action": "Activate merchant account through ZarinPal"
+      },
+      "-30": {
+        "title": "Service not allowed",
+        "message": "This payment service is not available. Please try a different payment method.",
+        "action": "Use alternative payment method or contact support"
+      },
+      "-31": {
+        "title": "Transaction not found",
+        "message": "Payment transaction not found. Please start a new payment.",
+        "action": "Start new payment process"
+      },
+      "-33": {
+        "title": "Transaction not successful",
+        "message": "Payment was not successful. Please try again.",
+        "action": "Retry payment or use different payment method"
+      },
+      "-34": {
+        "title": "Transaction not found",
+        "message": "Payment record not found. Please start a new payment.",
+        "action": "Start new payment process"
+      },
+      "-40": {
+        "title": "Merchant access denied",
+        "message": "Payment gateway access is denied. Please contact support.",
+        "action": "Contact support to restore access"
+      },
+      "-41": {
+        "title": "Invalid amount",
+        "message": "Payment amount is invalid. Please check and try again.",
+        "action": "Verify payment amount and retry"
+      },
+      "-42": {
+        "title": "Refund limit exceeded",
+        "message": "Refund limit has been exceeded for this transaction.",
+        "action": "Contact support for partial refund options"
+      },
+      "-50": {
+        "title": "Refund limit exceeded",
+        "message": "Cannot process refund due to limit restrictions.",
+        "action": "Contact support for refund assistance"
+      },
+      "-51": {
+        "title": "Transaction not refundable",
+        "message": "This transaction cannot be refunded.",
+        "action": "Contact support if you believe this is an error"
+      },
+      "-52": {
+        "title": "Bank error",
+        "message": "Bank processing error occurred. Please try again.",
+        "action": "Retry payment or try different payment method"
+      },
+      "-53": {
+        "title": "Transaction cancelled",
+        "message": "Payment was cancelled by user or system.",
+        "action": "Start new payment if needed"
+      },
+      "-54": {
+        "title": "Transaction not verified",
+        "message": "Payment verification failed. Transaction may be incomplete.",
+        "action": "Contact support to verify payment status"
+      },
+      "-74": {
+        "title": "Invalid merchant ID",
+        "message": "Payment system configuration error. Please contact support to resolve this issue.",
+        "action": "Contact technical support to update merchant configuration"
+      },
+      "-80": {
+        "title": "Merchant does not have access to direct debit service",
+        "message": "Direct debit service is not activated for this account. Please contact support to enable this feature.",
+        "action": "Request direct debit service activation from ZarinPal support"
+      },
+      "100": {
+        "title": "Verified successfully",
+        "message": "Payment verified successfully.",
+        "action": "No action required"
+      },
+      "101": {
+        "title": "Transaction already verified",
+        "message": "This payment has already been verified.",
+        "action": "No action required"
+      },
+      "unknown": {
+        "title": "Unknown error occurred",
+        "message": "An unexpected payment error occurred. Please try again or contact support.",
+        "action": "Contact technical support for assistance"
+      }
+    }
   }
 }

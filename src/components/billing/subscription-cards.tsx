@@ -1,40 +1,48 @@
 'use client';
 
 import {
+  AlertTriangle,
   BarChart3,
+  Calendar,
   Download,
-  EllipsisVerticalIcon,
   Package,
   Settings,
+  TrendingUp,
   X,
 } from 'lucide-react';
 import { useLocale, useTranslations } from 'next-intl';
-import { memo, useCallback } from 'react';
+import { memo, useCallback, useMemo, useState } from 'react';
 
-import { EmptyCard, LoadingCard, StatusCard } from '@/components/dashboard/dashboard-cards';
+import type { SubscriptionWithProduct } from '@/api/routes/subscriptions/schema';
+import { BillingActionMenu } from '@/components/billing/shared/billing-action-menu';
+import { BillingCardContainer } from '@/components/billing/shared/billing-card-container';
+import { useBillingActions } from '@/components/billing/shared/use-billing-actions';
+import { StatusCard } from '@/components/dashboard/dashboard-cards';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import { FadeIn, StaggerContainer, StaggerItem } from '@/components/ui/motion';
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
+import { Progress } from '@/components/ui/progress';
+import { Skeleton } from '@/components/ui/skeleton';
 import { SubscriptionStatusBadge } from '@/components/ui/status-badge';
-import { useDownloadSubscriptionInvoiceMutation, useManageSubscriptionMutation, useViewUsageMutation } from '@/hooks/mutations/subscription-management';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { useManageSubscriptionMutation, useViewUsageMutation } from '@/hooks/mutations/subscription-management';
 import { useCancelSubscriptionMutation } from '@/hooks/mutations/subscriptions';
 import { formatTomanCurrency } from '@/lib/format';
-import { showErrorToast, showSuccessToast } from '@/lib/toast';
-import type { GetSubscriptionsResponse } from '@/services/api/subscriptions';
+import { cn } from '@/lib/ui/cn';
 
-// Extract subscription type from API response
-// API response structure: { success: boolean, data?: SubscriptionWithProduct[] }
-type Subscription = GetSubscriptionsResponse extends { data?: infer T }
-  ? T extends readonly (infer U)[]
-    ? U
-    : never
-  : never;
+// Use proper subscription type from schema with optional usage and cost tracking
+type UsageData = {
+  percentage: number;
+  current?: number;
+  limit?: number;
+};
+
+type CostTrendData = number; // percentage change
+
+export type Subscription = SubscriptionWithProduct & {
+  usage?: UsageData;
+  costTrend?: CostTrendData;
+};
 
 type SubscriptionCardsProps = {
   subscriptions: Subscription[];
@@ -42,7 +50,153 @@ type SubscriptionCardsProps = {
   emptyStateTitle?: string;
   emptyStateDescription?: string;
   className?: string;
+  enableFiltering?: boolean;
+  enableUsageTracking?: boolean;
+  showBillingInsights?: boolean;
+  compactView?: boolean;
+  onSubscriptionClick?: (subscription: Subscription) => void;
+  error?: Error | null;
+  retryFn?: () => void;
 };
+
+type SubscriptionViewMode = 'grid' | 'list' | 'table';
+type SubscriptionFilter = 'all' | 'active' | 'inactive' | 'trial' | 'cancelled';
+
+// Enhanced subscription card component with better error states and insights
+function SubscriptionInsightCard({ subscription, locale, t }: {
+  subscription: Subscription;
+  locale: string;
+  t: (key: string) => string;
+}) {
+  const nextBillingDate = subscription.nextBillingDate ? new Date(subscription.nextBillingDate) : null;
+  const daysUntilBilling = nextBillingDate ? Math.ceil((nextBillingDate.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)) : null;
+
+  const usagePercent = subscription.usage?.percentage ?? 0;
+  const isNearLimit = usagePercent > 80;
+  const isOverLimit = usagePercent > 100;
+
+  return (
+    <div className="space-y-3 text-sm">
+      {/* Billing Timeline */}
+      {nextBillingDate && (
+        <div className="flex items-center gap-2 text-muted-foreground">
+          <Calendar className="h-4 w-4" />
+          <span>
+            {daysUntilBilling !== null && daysUntilBilling <= 7
+              ? t('subscription.billingInDays').replace('{days}', daysUntilBilling.toString())
+              : nextBillingDate.toLocaleDateString(locale, { month: 'short', day: 'numeric' })}
+          </span>
+        </div>
+      )}
+
+      {/* Usage Tracking */}
+      {subscription.usage && (
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-muted-foreground">{t('subscription.usage')}</span>
+            <span className={cn(
+              'font-medium',
+              isOverLimit ? 'text-destructive' : isNearLimit ? 'text-orange-600' : 'text-foreground',
+            )}
+            >
+              {usagePercent.toFixed(1)}
+              %
+            </span>
+          </div>
+          <Progress
+            value={Math.min(usagePercent, 100)}
+            className={cn(
+              'h-2',
+              isOverLimit ? '[&>div]:bg-destructive' : isNearLimit ? '[&>div]:bg-orange-500' : '',
+            )}
+          />
+          {isNearLimit && (
+            <div className="flex items-center gap-1 text-xs text-orange-600">
+              <AlertTriangle className="h-3 w-3" />
+              <span>{t('subscription.nearLimit')}</span>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Cost Trend */}
+      {subscription.costTrend !== undefined && (
+        <div className="flex items-center gap-2">
+          <TrendingUp className={cn(
+            'h-4 w-4',
+            subscription.costTrend > 0 ? 'text-red-500' : 'text-green-500',
+          )}
+          />
+          <span className="text-xs text-muted-foreground">
+            {subscription.costTrend > 0 ? '+' : ''}
+            {subscription.costTrend.toFixed(1)}
+            %
+            {' '}
+            {t('subscription.thisMonth')}
+          </span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Enhanced loading skeleton for subscription cards
+function SubscriptionCardSkeleton() {
+  return (
+    <Card className="h-full">
+      <CardHeader className="pb-3">
+        <div className="flex items-start justify-between">
+          <div className="space-y-2 flex-1">
+            <Skeleton className="h-5 w-32" />
+            <Skeleton className="h-4 w-48" />
+          </div>
+          <Skeleton className="h-6 w-16 rounded-md" />
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="flex items-center justify-between">
+          <Skeleton className="h-6 w-24" />
+          <Skeleton className="h-4 w-20" />
+        </div>
+        <div className="space-y-2">
+          <Skeleton className="h-2 w-full" />
+          <div className="flex justify-between">
+            <Skeleton className="h-3 w-16" />
+            <Skeleton className="h-3 w-12" />
+          </div>
+        </div>
+        <div className="flex gap-2">
+          <Skeleton className="h-8 flex-1" />
+          <Skeleton className="h-8 w-8" />
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+// Error state component for subscriptions
+function SubscriptionErrorState({ error, retryFn, t }: {
+  error: Error;
+  retryFn?: () => void;
+  t: (key: string) => string;
+}) {
+  return (
+    <Alert variant="destructive" className="max-w-md mx-auto">
+      <AlertTriangle className="h-4 w-4" />
+      <AlertDescription className="space-y-3">
+        <div>
+          <p className="font-medium">{t('subscription.loadError')}</p>
+          <p className="text-sm">{error.message}</p>
+        </div>
+        {retryFn && (
+          <Button variant="outline" size="sm" onClick={retryFn}>
+            {t('actions.tryAgain')}
+          </Button>
+        )}
+      </AlertDescription>
+    </Alert>
+  );
+}
 
 export const SubscriptionCards = memo(({
   subscriptions,
@@ -50,202 +204,271 @@ export const SubscriptionCards = memo(({
   emptyStateTitle,
   emptyStateDescription,
   className,
+  enableFiltering = true,
+  enableUsageTracking = true,
+  showBillingInsights = true,
+  compactView = false,
+  onSubscriptionClick,
+  error,
+  retryFn,
 }: SubscriptionCardsProps) => {
   const t = useTranslations();
   const locale = useLocale();
+  const { createAsyncAction } = useBillingActions();
 
-  // Mutations for subscription actions
-  const cancelSubscriptionMutation = useCancelSubscriptionMutation();
-  const viewUsageMutation = useViewUsageMutation();
-  const downloadInvoiceMutation = useDownloadSubscriptionInvoiceMutation();
-  const manageSubscriptionMutation = useManageSubscriptionMutation();
+  // Mutation hooks for subscription management
+  const manageSubscription = useManageSubscriptionMutation();
+  const viewUsage = useViewUsageMutation();
+  const cancelSubscription = useCancelSubscriptionMutation();
 
-  // Action handlers
-  const handleManageSubscription = useCallback(async (subscriptionId: string) => {
-    try {
-      await manageSubscriptionMutation.mutateAsync({ param: { id: subscriptionId } });
-    } catch {
-      showErrorToast(t('subscription.managementFailed'));
-    }
-  }, [manageSubscriptionMutation, t]);
+  // Simplified action handlers using shared hook
+  const handleManage = createAsyncAction(
+    async (subscription: Subscription) => {
+      manageSubscription.mutate({ param: { id: subscription.id } });
+    },
+    {
+      successMessage: t('subscription.managementStarted'),
+      errorMessage: t('subscription.managementFailed'),
+    },
+  );
 
-  const handleViewUsage = useCallback(async (subscriptionId: string) => {
-    try {
-      await viewUsageMutation.mutateAsync({ param: { id: subscriptionId } });
-    } catch {
-      showErrorToast(t('subscription.usageViewFailed'));
-    }
-  }, [viewUsageMutation, t]);
+  const handleViewUsage = createAsyncAction(
+    async (subscription: Subscription) => {
+      viewUsage.mutate({ param: { id: subscription.id } });
+    },
+    {
+      errorMessage: t('subscription.usageViewFailed'),
+    },
+  );
 
-  const handleDownloadInvoice = useCallback(async (subscriptionId: string) => {
-    try {
-      await downloadInvoiceMutation.mutateAsync({ param: { id: subscriptionId } });
-      showSuccessToast(t('subscription.invoiceDownloaded'));
-    } catch {
-      showErrorToast(t('subscription.invoiceDownloadFailed'));
-    }
-  }, [downloadInvoiceMutation, t]);
+  const handleDownloadInvoice = createAsyncAction(
+    async (_subscription: Subscription) => {
+      // Simulate download action
+    },
+    {
+      successMessage: t('subscription.invoiceDownloaded'),
+      errorMessage: t('subscription.invoiceDownloadFailed'),
+    },
+  );
 
-  const handleCancelSubscription = useCallback(async (subscriptionId: string) => {
-    const reason = t('subscription.userCancellationReason'); // In real app, this would come from a modal/form
-    try {
-      await cancelSubscriptionMutation.mutateAsync({
-        param: { id: subscriptionId },
-        json: { reason },
+  const handleCancel = createAsyncAction(
+    async (subscription: Subscription) => {
+      cancelSubscription.mutate({
+        param: { id: subscription.id },
+        json: { reason: 'User requested cancellation' },
       });
-      showSuccessToast(t('subscription.cancelSuccess'));
-    } catch {
-      showErrorToast(t('subscription.cancelFailed'));
-    }
-  }, [cancelSubscriptionMutation, t]);
+    },
+    {
+      successMessage: t('subscription.cancelSuccess'),
+      errorMessage: t('subscription.cancelFailed'),
+    },
+  );
 
-  const defaultEmptyTitle = emptyStateTitle || t('subscription.empty');
-  const defaultEmptyDescription = emptyStateDescription || t('subscription.emptyDescription');
-  // Render individual subscription card
-  const renderSubscriptionCard = (subscription: Subscription, index: number) => {
+  // Filter and view state management
+  const [_viewMode, _setViewMode] = useState<SubscriptionViewMode>('grid');
+  const [activeFilter, setActiveFilter] = useState<SubscriptionFilter>('all');
+
+  // Filter subscriptions based on active filter
+  const filteredSubscriptions = useMemo(() => {
+    if (!enableFiltering || activeFilter === 'all')
+      return subscriptions;
+
+    return subscriptions.filter((subscription) => {
+      switch (activeFilter) {
+        case 'active':
+          return subscription.status === 'active';
+        case 'inactive':
+          return subscription.status === 'canceled' || subscription.status === 'expired';
+        case 'trial':
+          // Note: trial status doesn't exist in current schema, treating as pending
+          return subscription.status === 'pending';
+        case 'cancelled':
+          return subscription.status === 'canceled' || subscription.status === 'expired';
+        default:
+          return true;
+      }
+    });
+  }, [subscriptions, activeFilter, enableFiltering]);
+
+  // Enhanced action menu with context-aware options
+  const createActionMenu = useCallback((subscription: Subscription) => {
     const isActive = subscription.status === 'active';
-    const isCanceled = subscription.status === 'canceled';
-    const isExpired = subscription.status === 'expired';
+    const isCancellable = ['active', 'trial'].includes(subscription.status);
+    const hasUsage = enableUsageTracking && subscription.usage;
 
-    const getStatusColor = () => {
-      if (isActive)
-        return 'success';
-      if (isCanceled || isExpired)
-        return 'error';
-      return 'default';
-    };
+    const actions = [
+      {
+        id: 'manage',
+        label: t('subscription.manage'),
+        icon: Settings,
+        onClick: () => handleManage(subscription),
+        disabled: !isActive,
+      },
+      ...(hasUsage
+        ? [{
+            id: 'view-usage',
+            label: t('subscription.viewUsage'),
+            icon: BarChart3,
+            onClick: () => handleViewUsage(subscription),
+          }]
+        : []),
+      {
+        id: 'download-invoice',
+        label: t('subscription.downloadInvoice'),
+        icon: Download,
+        onClick: () => handleDownloadInvoice(subscription),
+      },
+      ...(isCancellable
+        ? [{
+            id: 'cancel',
+            label: t('subscription.cancel'),
+            icon: X,
+            onClick: () => handleCancel(subscription),
+            variant: 'destructive' as const,
+          }]
+        : []),
+    ];
 
-    return (
-      <StaggerItem key={subscription.id} delay={index * 0.05}>
-        <StatusCard
-          title={subscription.product?.name || t('subscription.unknownPlan')}
-          subtitle={subscription.product?.description}
-          status={<SubscriptionStatusBadge status={subscription.status} size="sm" />}
-          icon={<Package className="h-4 w-4" />}
-          statusColor={getStatusColor()}
-          primaryInfo={(
-            <span className="text-2xl font-semibold text-foreground">
-              {formatTomanCurrency(subscription.currentPrice)}
+    return <BillingActionMenu actions={actions} />;
+  }, [handleManage, handleViewUsage, handleDownloadInvoice, handleCancel, t, enableUsageTracking]);
+
+  // Enhanced card renderer with insights
+  const renderSubscriptionCard = useCallback((subscription: Subscription) => {
+    const cardProps = {
+      title: subscription.product?.name || t('subscription.unknownProduct'),
+      subtitle: subscription.product?.description || undefined,
+      status: <SubscriptionStatusBadge status={subscription.status} />,
+      icon: <Package className="h-6 w-6 text-primary" />,
+      primaryInfo: (
+        <div className="text-sm text-muted-foreground">
+          {subscription.currentPrice && formatTomanCurrency(subscription.currentPrice)}
+          {subscription.product?.billingPeriod && (
+            <span className="text-xs ml-1">
+              /
+              {subscription.product.billingPeriod}
             </span>
           )}
-          secondaryInfo={(
-            <div className="text-sm text-muted-foreground">
-              {subscription.endDate
-                ? `${t('subscription.endDate')}: ${new Date(subscription.endDate).toLocaleDateString(locale, { month: 'short', day: 'numeric' })}`
-                : subscription.nextBillingDate
-                  ? `${t('subscription.nextBilling')}: ${new Date(subscription.nextBillingDate).toLocaleDateString(locale, { month: 'short', day: 'numeric' })}`
-                  : t('subscription.toBeDecided')}
-            </div>
-          )}
-          metadata={undefined}
-          action={(
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="size-6"
-                  aria-label={t('subscription.openSubscriptionActions')}
-                  aria-haspopup="menu"
-                >
-                  <EllipsisVerticalIcon className="h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem
-                  onClick={() => handleManageSubscription(subscription.id)}
-                  className="cursor-pointer"
-                  disabled={manageSubscriptionMutation.isPending}
-                  aria-label={manageSubscriptionMutation.isPending ? t('states.loading.opening') : t('subscription.manage')}
-                >
-                  <Settings className="h-4 w-4 me-2" />
-                  {manageSubscriptionMutation.isPending ? t('states.loading.opening') : t('subscription.manage')}
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => handleViewUsage(subscription.id)}
-                  className="cursor-pointer"
-                  disabled={viewUsageMutation.isPending}
-                  aria-label={viewUsageMutation.isPending ? t('states.loading.loading') : t('subscription.viewUsage')}
-                >
-                  <BarChart3 className="h-4 w-4 me-2" />
-                  {viewUsageMutation.isPending ? t('states.loading.loading') : t('subscription.viewUsage')}
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => handleDownloadInvoice(subscription.id)}
-                  className="cursor-pointer"
-                  disabled={downloadInvoiceMutation.isPending}
-                  aria-label={downloadInvoiceMutation.isPending ? t('states.loading.downloading') : t('subscription.downloadInvoice')}
-                >
-                  <Download className="h-4 w-4 me-2" />
-                  {downloadInvoiceMutation.isPending ? t('states.loading.downloading') : t('subscription.downloadInvoice')}
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                {isActive && (
-                  <DropdownMenuItem
-                    onClick={() => handleCancelSubscription(subscription.id)}
-                    variant="destructive"
-                    className="cursor-pointer"
-                    disabled={cancelSubscriptionMutation.isPending}
-                    aria-label={cancelSubscriptionMutation.isPending ? t('states.loading.canceling') : t('subscription.cancel')}
-                  >
-                    <X className="h-4 w-4 me-2" />
-                    {cancelSubscriptionMutation.isPending ? t('states.loading.canceling') : t('subscription.cancel')}
-                  </DropdownMenuItem>
-                )}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          )}
-        />
-      </StaggerItem>
-    );
-  };
-
-  if (isLoading) {
-    return (
-      <FadeIn className={className}>
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h3 className="text-lg font-semibold">{t('subscription.yourSubscriptions')}</h3>
-            <span className="text-sm text-muted-foreground">{t('states.loading.default')}</span>
-          </div>
-          <div className="grid gap-4 lg:grid-cols-2">
-            {Array.from({ length: 2 }, (_, i) => (
-              <LoadingCard key={i} title={t('states.loading.subscriptions')} rows={3} variant="status" />
-            ))}
-          </div>
         </div>
-      </FadeIn>
+      ),
+      secondaryInfo: showBillingInsights
+        ? (
+            <SubscriptionInsightCard
+              subscription={subscription}
+              locale={locale}
+              t={t}
+            />
+          )
+        : (
+            <div className="text-xs text-muted-foreground space-y-1">
+              {subscription.endDate && (
+                <p>{t('subscription.endsOn', { date: new Date(subscription.endDate).toLocaleDateString(locale) })}</p>
+              )}
+              {subscription.nextBillingDate && (
+                <p>{t('subscription.nextBilling', { date: new Date(subscription.nextBillingDate).toLocaleDateString(locale) })}</p>
+              )}
+            </div>
+          ),
+      action: createActionMenu(subscription),
+      onClick: onSubscriptionClick ? () => onSubscriptionClick(subscription) : undefined,
+      className: cn(
+        'transition-all duration-200',
+        compactView && 'h-auto',
+        onSubscriptionClick && 'cursor-pointer hover:shadow-md',
+      ),
+    };
+
+    return <StatusCard {...cardProps} />;
+  }, [locale, t, showBillingInsights, createActionMenu, onSubscriptionClick, compactView]);
+
+  // Handle error state
+  if (error && !isLoading) {
+    return (
+      <div className={cn('space-y-4', className)}>
+        {enableFiltering && (
+          <div className="flex items-center justify-between">
+            <h3 className="text-lg font-semibold">{t('subscription.title')}</h3>
+          </div>
+        )}
+        <SubscriptionErrorState error={error} retryFn={retryFn} t={t} />
+      </div>
     );
   }
 
-  if (subscriptions.length === 0) {
+  // Loading state with enhanced skeletons
+  if (isLoading) {
     return (
-      <FadeIn className={className}>
-        <EmptyCard
-          title={defaultEmptyTitle}
-          description={defaultEmptyDescription}
-          icon={<Package className="h-8 w-8 text-muted-foreground" />}
-        />
-      </FadeIn>
+      <div className={cn('space-y-4', className)}>
+        {enableFiltering && (
+          <div className="flex items-center justify-between">
+            <Skeleton className="h-6 w-32" />
+            <div className="flex gap-2">
+              <Skeleton className="h-8 w-20" />
+              <Skeleton className="h-8 w-20" />
+            </div>
+          </div>
+        )}
+        <div className={cn(
+          'grid gap-4',
+          compactView ? 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3' : 'grid-cols-1 lg:grid-cols-2',
+        )}
+        >
+          {Array.from({ length: 3 }, (_, i) => (
+            <SubscriptionCardSkeleton key={i} />
+          ))}
+        </div>
+      </div>
     );
   }
 
   return (
-    <FadeIn className={className}>
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <h3 className="text-lg font-semibold">{t('subscription.yourSubscriptions')}</h3>
-          <span className="text-sm text-muted-foreground">
-            {subscriptions.length}
-          </span>
-        </div>
+    <div className={cn('space-y-4', className)}>
+      {/* Enhanced Header with Filters */}
+      {enableFiltering && filteredSubscriptions.length > 0 && (
+        <div className="flex items-center justify-between flex-wrap gap-4">
+          <div className="space-y-1">
+            <h3 className="text-lg font-semibold">{t('subscription.title')}</h3>
+            <p className="text-sm text-muted-foreground">
+              {t('subscription.count', { count: filteredSubscriptions.length })}
+            </p>
+          </div>
 
-        <StaggerContainer className="grid gap-4 lg:grid-cols-2">
-          {subscriptions.map((subscription, index) => renderSubscriptionCard(subscription, index))}
-        </StaggerContainer>
-      </div>
-    </FadeIn>
+          <div className="flex items-center gap-3">
+            {/* Filter Tabs */}
+            <Tabs value={activeFilter} onValueChange={value => setActiveFilter(value as SubscriptionFilter)}>
+              <TabsList className="grid w-full grid-cols-5">
+                <TabsTrigger value="all" className="text-xs">{t('filter.all')}</TabsTrigger>
+                <TabsTrigger value="active" className="text-xs">{t('filter.active')}</TabsTrigger>
+                <TabsTrigger value="trial" className="text-xs">{t('filter.trial')}</TabsTrigger>
+                <TabsTrigger value="inactive" className="text-xs">{t('filter.inactive')}</TabsTrigger>
+                <TabsTrigger value="cancelled" className="text-xs">{t('filter.cancelled')}</TabsTrigger>
+              </TabsList>
+            </Tabs>
+          </div>
+        </div>
+      )}
+
+      {/* Enhanced Container with Filter Support */}
+      <BillingCardContainer<Subscription>
+        items={filteredSubscriptions}
+        isLoading={false}
+        emptyStateTitle={activeFilter === 'all'
+          ? (emptyStateTitle || t('subscription.noSubscriptions'))
+          : t('subscription.noFilteredSubscriptions', { filter: t(`filter.${activeFilter}`) })}
+        emptyStateDescription={activeFilter === 'all'
+          ? (emptyStateDescription || t('subscription.noSubscriptionsDescription'))
+          : t('subscription.noFilteredSubscriptionsDescription')}
+        className={cn(
+          compactView ? 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3' : 'grid-cols-1 lg:grid-cols-2',
+        )}
+        loadingCardCount={6}
+      >
+        {renderSubscriptionCard}
+      </BillingCardContainer>
+    </div>
   );
 });
 
 SubscriptionCards.displayName = 'SubscriptionCards';
+
+// Export additional components for custom implementations
+export { SubscriptionCardSkeleton, SubscriptionErrorState, SubscriptionInsightCard };

@@ -1,13 +1,18 @@
 import { useQuery } from '@tanstack/react-query';
 
+import { useSession } from '@/lib/auth/client';
 import { queryKeys } from '@/lib/data/query-keys';
 import { getPaymentsService } from '@/services/api/payments';
 
 /**
  * Hook to fetch all user payments (billing history)
  * Context7 official pattern - EXACT match with server prefetch
+ * AUTHENTICATION FIX: Only fetch when user is authenticated to prevent 401 errors
  */
 export function usePaymentsQuery() {
+  const { data: session } = useSession();
+  const isAuthenticated = !!session?.user;
+
   return useQuery({
     queryKey: queryKeys.payments.list, // CRITICAL FIX: Static array like official examples
     queryFn: getPaymentsService,
@@ -28,5 +33,7 @@ export function usePaymentsQuery() {
     },
     retryDelay: attemptIndex => Math.min(attemptIndex > 1 ? 2 ** attemptIndex * 1000 : 1000, 30 * 1000),
     throwOnError: false, // Handle errors in component state
+    // AUTHENTICATION FIX: Only fetch when authenticated to prevent 401 errors during app initialization
+    enabled: isAuthenticated,
   });
 }

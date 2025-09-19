@@ -8,7 +8,6 @@
  * - Maximum type safety with proper inference
  * - Integrated validation system
  * - Consistent error handling
- * - Performance monitoring
  * - Transaction management
  * - OpenAPI compatibility
  */
@@ -39,6 +38,30 @@ import {
 import { validateWithSchema } from './validation';
 
 // ============================================================================
+// PERFORMANCE UTILITIES
+// ============================================================================
+
+/**
+ * Simple performance tracking utility for request timing
+ */
+function createPerformanceTracker() {
+  const startTime = Date.now();
+  const marks: Record<string, number> = {};
+
+  return {
+    startTime,
+    getElapsed: () => Date.now() - startTime,
+    getDuration: () => Date.now() - startTime,
+    mark: (label: string) => {
+      const time = Date.now() - startTime;
+      marks[label] = time;
+      return { label, time };
+    },
+    getMarks: () => ({ ...marks }),
+  };
+}
+
+// ============================================================================
 // TYPE DEFINITIONS
 // ============================================================================
 
@@ -65,9 +88,6 @@ export type HandlerConfig<
   operationName?: string;
   logLevel?: 'debug' | 'info' | 'warn' | 'error';
 
-  // Performance
-  enableMetrics?: boolean;
-  timeout?: number;
 };
 
 // Enhanced context with validated data and logger
@@ -87,11 +107,6 @@ export type HandlerContext<
     info: (message: string, data?: LoggerData) => void;
     warn: (message: string, data?: LoggerData) => void;
     error: (message: string, error?: Error, data?: LoggerData) => void;
-  };
-  performance: {
-    startTime: number;
-    markTime: (label: string) => void;
-    getDuration: () => number;
   };
 };
 
@@ -114,7 +129,7 @@ export type TransactionHandler<
   TParams extends z.ZodSchema = never,
 > = (
   c: HandlerContext<TEnv, TBody, TQuery, TParams>,
-  database: Awaited<ReturnType<typeof getDbAsync>>
+  tx: Parameters<Parameters<Awaited<ReturnType<typeof getDbAsync>>['transaction']>[0]>[0]
 ) => Promise<Response>;
 
 // ============================================================================
@@ -159,23 +174,6 @@ function createOperationLogger(c: Context, operation: string) {
         ...data,
       });
     },
-  };
-}
-
-/**
- * Create performance tracking utilities
- */
-function createPerformanceTracker() {
-  const startTime = Date.now();
-  const marks: Record<string, number> = {};
-
-  return {
-    startTime,
-    markTime: (label: string) => {
-      marks[label] = Date.now() - startTime;
-    },
-    getDuration: () => Date.now() - startTime,
-    getMarks: () => ({ ...marks }),
   };
 }
 
@@ -351,42 +349,29 @@ export function createHandler<
     try {
       // Apply authentication
       if (config.auth && config.auth !== 'public') {
-        performance.markTime('auth_start');
         logger.debug('Applying authentication', { logType: 'auth', mode: config.auth });
         await applyAuthentication(c, config.auth);
-        performance.markTime('auth_complete');
       }
 
       // Validate request
-      performance.markTime('validation_start');
       logger.debug('Validating request');
       const validated = await validateRequest<TBody, TQuery, TParams>(c, config);
-      performance.markTime('validation_complete');
 
       // Create enhanced context
       const enhancedContext = Object.assign(c, {
         validated,
         logger,
-        performance,
       }) as HandlerContext<TEnv, TBody, TQuery, TParams>;
 
       // Execute handler implementation
-      performance.markTime('implementation_start');
       logger.debug('Executing handler implementation');
       const result = await implementation(enhancedContext);
-      performance.markTime('implementation_complete');
 
-      const duration = performance.getDuration();
-      logger.info('Handler completed successfully', {
-        logType: 'performance',
-        duration,
-        marks: performance.getMarks(),
-      });
+      logger.info('Handler completed successfully');
 
       return result;
     } catch (error) {
-      const duration = performance.getDuration();
-      logger.error('Handler failed', error as Error, { logType: 'performance', duration });
+      logger.error('Handler failed', error as Error);
 
       if (error instanceof HTTPException) {
         // Handle validation errors with our unified system
@@ -475,31 +460,29 @@ export function createHandlerWithTransaction<
     try {
       // Apply authentication
       if (config.auth && config.auth !== 'public') {
-        performance.markTime('auth_start');
         logger.debug('Applying authentication', { logType: 'auth', mode: config.auth });
         await applyAuthentication(c, config.auth);
-        performance.markTime('auth_complete');
       }
 
       // Validate request
-      performance.markTime('validation_start');
       logger.debug('Validating request');
       const validated = await validateRequest<TBody, TQuery, TParams>(c, config);
-      performance.markTime('validation_complete');
 
       // Create enhanced context
       const enhancedContext = Object.assign(c, {
         validated,
         logger,
-        performance,
       }) as HandlerContext<TEnv, TBody, TQuery, TParams>;
 
-      // Execute implementation (transaction handling moved to individual handlers)
-      performance.markTime('implementation_start');
-      logger.debug('Executing handler implementation');
+      // Execute implementation with proper database transaction
+      logger.debug('Executing handler implementation with transaction');
       const db = await getDbAsync();
-      const result = await implementation(enhancedContext, db);
-      performance.markTime('implementation_complete');
+
+      // According to Drizzle ORM best practices, wrap implementation in transaction
+      const result = await db.transaction(async (tx) => {
+        logger.debug('Transaction started');
+        return await implementation(enhancedContext, tx);
+      });
 
       const duration = performance.getDuration();
       logger.info('Transaction handler completed successfully', {

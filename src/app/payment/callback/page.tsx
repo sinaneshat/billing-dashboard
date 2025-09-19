@@ -72,13 +72,17 @@ function PaymentCallbackContent() {
             return;
           }
 
-          // Verify the contract
+          // Verify the contract using contract parameters (following new schema-first patterns)
           try {
             const contractResult = await verifyDirectDebitContractService({
               json: {
                 paymanAuthority,
                 status: status.toUpperCase() as 'OK' | 'NOK',
-                contractId: contractInfo.contractId,
+                mobile: contractInfo.contractParams.mobile,
+                ssn: contractInfo.contractParams.ssn,
+                maxDailyCount: contractInfo.contractParams.maxDailyCount,
+                maxMonthlyCount: contractInfo.contractParams.maxMonthlyCount,
+                maxAmount: contractInfo.contractParams.maxAmount,
               },
             });
 

@@ -524,10 +524,10 @@ export const zarinPalWebhookHandler: RouteHandler<typeof zarinPalWebhookRoute, A
     }),
     operationName: 'zarinPalWebhook',
   },
-  async (c, _tx) => {
+  async (c, tx) => {
     // Enhanced security validation using our error handling pattern
     await validateWebhookSecurity(c);
-    const db = await getDbAsync();
+    // Use transaction context 'tx' instead of creating duplicate connection
 
     const webhookPayload = c.validated.body;
 
@@ -557,7 +557,7 @@ export const zarinPalWebhookHandler: RouteHandler<typeof zarinPalWebhookRoute, A
     };
 
     try {
-      await db.insert(webhookEvent).values({
+      await tx.insert(webhookEvent).values({
         ...eventRecord,
         id: crypto.randomUUID(),
         createdAt: new Date(),
@@ -573,13 +573,13 @@ export const zarinPalWebhookHandler: RouteHandler<typeof zarinPalWebhookRoute, A
 
     // Find payment by authority
     if (webhookPayload.authority) {
-      const paymentResults = await db.select().from(payment).where(eq(payment.zarinpalAuthority, webhookPayload.authority)).limit(1);
+      const paymentResults = await tx.select().from(payment).where(eq(payment.zarinpalAuthority, webhookPayload.authority)).limit(1);
       paymentRecord = paymentResults[0];
 
       if (paymentRecord) {
       // Get subscription if exists
         if (paymentRecord.subscriptionId) {
-          const subscriptionResults = await db.select().from(subscription).where(eq(subscription.id, paymentRecord.subscriptionId)).limit(1);
+          const subscriptionResults = await tx.select().from(subscription).where(eq(subscription.id, paymentRecord.subscriptionId)).limit(1);
           subscriptionRecord = subscriptionResults[0];
         }
 
@@ -595,7 +595,7 @@ export const zarinPalWebhookHandler: RouteHandler<typeof zarinPalWebhookRoute, A
 
             if (verification.data?.code === 100 || verification.data?.code === 101) {
             // Update payment record using direct DB access
-              await db.update(payment)
+              await tx.update(payment)
                 .set({
                   status: 'completed',
                   zarinpalRefId: verification.data?.ref_id?.toString() || webhookPayload.ref_id,
@@ -606,7 +606,7 @@ export const zarinPalWebhookHandler: RouteHandler<typeof zarinPalWebhookRoute, A
                 .where(eq(payment.id, paymentRecord.id));
 
               // Get updated payment record
-              const updatedPaymentResults = await db.select().from(payment).where(eq(payment.id, paymentRecord.id)).limit(1);
+              const updatedPaymentResults = await tx.select().from(payment).where(eq(payment.id, paymentRecord.id)).limit(1);
               const updatedPayment = updatedPaymentResults[0];
               if (!updatedPayment) {
                 throw new Error('Payment record not found after update');
@@ -635,7 +635,7 @@ export const zarinPalWebhookHandler: RouteHandler<typeof zarinPalWebhookRoute, A
                     ? new Date(startDate.getTime() + 30 * 24 * 60 * 60 * 1000)
                     : null;
 
-                  await db.update(subscription)
+                  await tx.update(subscription)
                     .set({
                       status: 'active',
                       startDate,
@@ -646,7 +646,7 @@ export const zarinPalWebhookHandler: RouteHandler<typeof zarinPalWebhookRoute, A
                     .where(eq(subscription.id, subscriptionRecord.id));
 
                   // Get updated subscription record
-                  const updatedSubscriptionResults = await db.select().from(subscription).where(eq(subscription.id, subscriptionRecord.id)).limit(1);
+                  const updatedSubscriptionResults = await tx.select().from(subscription).where(eq(subscription.id, subscriptionRecord.id)).limit(1);
                   const updatedSubscription = updatedSubscriptionResults[0];
                   if (!updatedSubscription) {
                     throw new Error('Subscription record not found after update');
@@ -701,7 +701,7 @@ export const zarinPalWebhookHandler: RouteHandler<typeof zarinPalWebhookRoute, A
               processed = true;
             } else {
             // Verification failed
-              await db.update(payment)
+              await tx.update(payment)
                 .set({
                   status: 'failed',
                   failureReason: `Verification failed: ${verification.data?.message || 'Unknown error'}`,
@@ -711,7 +711,7 @@ export const zarinPalWebhookHandler: RouteHandler<typeof zarinPalWebhookRoute, A
                 .where(eq(payment.id, paymentRecord.id));
 
               // Get updated payment record
-              const updatedPaymentResults = await db.select().from(payment).where(eq(payment.id, paymentRecord.id)).limit(1);
+              const updatedPaymentResults = await tx.select().from(payment).where(eq(payment.id, paymentRecord.id)).limit(1);
               const updatedPayment = updatedPaymentResults[0];
               if (!updatedPayment) {
                 throw new Error('Payment record not found after update');
@@ -748,7 +748,7 @@ export const zarinPalWebhookHandler: RouteHandler<typeof zarinPalWebhookRoute, A
               paymentId: paymentRecord.id,
             });
 
-            await db.update(payment)
+            await tx.update(payment)
               .set({
                 status: 'failed',
                 failureReason: `Verification error: ${verificationError instanceof Error ? verificationError.message : 'Unknown error'}`,
@@ -758,7 +758,7 @@ export const zarinPalWebhookHandler: RouteHandler<typeof zarinPalWebhookRoute, A
               .where(eq(payment.id, paymentRecord.id));
 
             // Get updated payment record
-            const updatedPaymentResults = await db.select().from(payment).where(eq(payment.id, paymentRecord.id)).limit(1);
+            const updatedPaymentResults = await tx.select().from(payment).where(eq(payment.id, paymentRecord.id)).limit(1);
             const updatedPayment = updatedPaymentResults[0];
             if (!updatedPayment) {
               throw new Error('Payment record not found after update');
@@ -783,7 +783,7 @@ export const zarinPalWebhookHandler: RouteHandler<typeof zarinPalWebhookRoute, A
           }
         } else {
         // Payment failed from ZarinPal
-          await db.update(payment)
+          await tx.update(payment)
             .set({
               status: 'failed',
               failureReason: 'Payment was canceled or failed by user',
@@ -793,7 +793,7 @@ export const zarinPalWebhookHandler: RouteHandler<typeof zarinPalWebhookRoute, A
             .where(eq(payment.id, paymentRecord.id));
 
           // Get updated payment record
-          const updatedPaymentResults = await db.select().from(payment).where(eq(payment.id, paymentRecord.id)).limit(1);
+          const updatedPaymentResults = await tx.select().from(payment).where(eq(payment.id, paymentRecord.id)).limit(1);
           const updatedPayment = updatedPaymentResults[0];
           if (!updatedPayment) {
             throw new Error('Payment record not found after update');
@@ -832,7 +832,7 @@ export const zarinPalWebhookHandler: RouteHandler<typeof zarinPalWebhookRoute, A
     }
 
     // Update webhook event processing status
-    await db
+    await tx
       .update(webhookEvent)
       .set({
         processed,

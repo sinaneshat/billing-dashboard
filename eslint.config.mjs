@@ -16,7 +16,6 @@ export default antfu(
       'src/db/migrations/meta/*',
       'cloudflare-env.d.ts',
       '**/*.md',
-      '.claude-flow/**/*',
       '.claude/**/*',
       'scripts/**/*',
     ],

@@ -6,7 +6,7 @@
 
 import type { RouteHandler } from '@hono/zod-openapi';
 import { getCloudflareContext } from '@opennextjs/cloudflare';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, lt } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 
 import { createError } from '@/api/common/error-handling';
@@ -15,7 +15,7 @@ import {
   isZarinPalAuthError,
   isZarinPalServiceError,
 } from '@/api/common/zarinpal-error-utils';
-import { createHandler, Responses } from '@/api/core';
+import { createHandler, createHandlerWithTransaction, Responses } from '@/api/core';
 import { CurrencyExchangeService } from '@/api/services/currency-exchange';
 import { ZarinPalService } from '@/api/services/zarinpal';
 import { ZarinPalDirectDebitService } from '@/api/services/zarinpal-direct-debit';
@@ -59,7 +59,6 @@ export const initiateDirectDebitContractHandler: RouteHandler<
   },
   async (c) => {
     const user = c.get('user');
-    const db = await getDbAsync();
 
     if (!user) {
       throw createError.unauthenticated('User authentication required');
@@ -82,6 +81,59 @@ export const initiateDirectDebitContractHandler: RouteHandler<
       if (!mobileValidation.success) {
         const errorMessage = mobileValidation.errors[0]?.message || 'Invalid mobile number format';
         throw createError.validation(errorMessage);
+      }
+
+      // Step 0: Clean up old/expired contracts for this user
+      const db = await getDbAsync();
+
+      // Remove old pending contracts that were never completed (older than 24 hours)
+      const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+      await db
+        .delete(paymentMethod)
+        .where(
+          and(
+            eq(paymentMethod.userId, user.id),
+            eq(paymentMethod.contractStatus, 'pending_signature'),
+            eq(paymentMethod.contractType, 'pending_contract'),
+            lt(paymentMethod.createdAt, twentyFourHoursAgo),
+          ),
+        );
+
+      // Mark expired contracts as expired (where contractExpiresAt < now)
+      const now = new Date();
+      await db
+        .update(paymentMethod)
+        .set({
+          contractStatus: 'expired',
+          isActive: false,
+          updatedAt: now,
+        })
+        .where(
+          and(
+            eq(paymentMethod.userId, user.id),
+            eq(paymentMethod.contractStatus, 'active'),
+            lt(paymentMethod.contractExpiresAt, now),
+          ),
+        );
+
+      // Check if user already has an active direct debit contract
+      const existingActiveContracts = await db
+        .select()
+        .from(paymentMethod)
+        .where(
+          and(
+            eq(paymentMethod.userId, user.id),
+            eq(paymentMethod.contractStatus, 'active'),
+            eq(paymentMethod.contractType, 'direct_debit_contract'),
+            eq(paymentMethod.isActive, true),
+          ),
+        );
+
+      // If user has an active contract, inform them they need to cancel it first
+      if (existingActiveContracts.length > 0) {
+        throw createError.conflict(
+          'You already have an active direct debit contract. Please cancel your existing contract before creating a new one.',
+        );
       }
 
       const zarinpalService = ZarinPalDirectDebitService.create();
@@ -124,36 +176,10 @@ export const initiateDirectDebitContractHandler: RouteHandler<
 
       const banks = bankListResult.data.banks;
 
-      // Store contract request in database using payment_method table temporarily
-      const contractId = crypto.randomUUID();
-      const now = new Date();
+      // Store contract setup data temporarily in user session/cache (no database save yet)
+      // According to ZarinPal flow, we only save to database after signature verification
 
-      await db.insert(paymentMethod).values({
-        id: contractId,
-        userId: user.id,
-        contractType: 'pending_contract',
-        contractStatus: 'pending_signature',
-        paymanAuthority, // Store payman authority temporarily
-        contractDisplayName: 'Direct Debit Contract (Pending)',
-        contractMobile: mobile,
-        contractDurationDays,
-        maxDailyAmount: maxAmount,
-        maxDailyCount,
-        maxMonthlyCount,
-        isPrimary: false,
-        isActive: false, // Will be activated after signature verification
-        createdAt: now,
-        updatedAt: now,
-        metadata: {
-          type: 'direct_debit_contract',
-          ssn,
-          expireAt: expireAtString,
-          callbackUrl,
-          userMetadata: metadata,
-        },
-      });
-
-      // Return contract setup data
+      // Return contract setup data - no contractId yet since no contract exists
       return Responses.ok(c, {
         paymanAuthority,
         banks: banks.map(bank => ({
@@ -164,7 +190,16 @@ export const initiateDirectDebitContractHandler: RouteHandler<
           maxDailyCount: bank.max_daily_count,
         })),
         contractSigningUrl: 'https://www.zarinpal.com/pg/StartPayman/{PAYMAN_AUTHORITY}/{BANK_CODE}',
-        contractId,
+        contractParams: {
+          mobile,
+          ssn,
+          expireAt: expireAtString,
+          maxDailyCount,
+          maxMonthlyCount,
+          maxAmount,
+          callbackUrl,
+          metadata,
+        },
       });
     } catch (error) {
       if (error instanceof HTTPException) {
@@ -216,57 +251,38 @@ export const initiateDirectDebitContractHandler: RouteHandler<
 export const verifyDirectDebitContractHandler: RouteHandler<
   typeof verifyDirectDebitContractRoute,
   ApiEnv
-> = createHandler(
+> = createHandlerWithTransaction(
   {
     auth: 'session',
     operationName: 'verifyDirectDebitContract',
     validateBody: VerifyDirectDebitContractRequestSchema,
   },
-  async (c) => {
+  async (c, database) => {
     const user = c.get('user');
-    const db = await getDbAsync();
 
     if (!user) {
       throw createError.unauthenticated('User authentication required');
     }
 
-    const { paymanAuthority, status, contractId } = c.validated.body;
+    const { paymanAuthority, status, mobile, ssn, maxDailyCount, maxMonthlyCount, maxAmount } = c.validated.body;
 
     try {
-    // Get stored contract request
-      const storedContract = await db
-        .select()
-        .from(paymentMethod)
-        .where(
-          and(
-            eq(paymentMethod.id, contractId),
-            eq(paymentMethod.userId, user.id),
-            eq(paymentMethod.paymanAuthority, paymanAuthority),
-            eq(paymentMethod.contractType, 'pending_contract'),
-          ),
-        )
-        .limit(1);
-
-      if (!storedContract.length || !storedContract[0]) {
-        throw createError.notFound('Direct debit contract request');
-      }
-
-      const contract = storedContract[0];
+      // No need to look up stored contract since we don't save until after verification
+      c.logger.info('Verifying direct debit contract', {
+        logType: 'operation',
+        operationName: 'verifyDirectDebitContract',
+        userId: user.id,
+        resource: paymanAuthority,
+      });
 
       // Check if user cancelled the contract
       if (status === 'NOK') {
-        await db
-          .update(paymentMethod)
-          .set({
-            contractStatus: 'cancelled_by_user',
-            isActive: false,
-            updatedAt: new Date(),
-            metadata: {
-              ...parseMetadata(contract.metadata),
-              cancelledAt: new Date().toISOString(),
-            },
-          })
-          .where(eq(paymentMethod.id, contractId));
+        c.logger.info('Direct debit contract cancelled by user', {
+          logType: 'operation',
+          operationName: 'contractCancelled',
+          userId: user.id,
+          resource: paymanAuthority,
+        });
 
         return Responses.ok(c, {
           contractVerified: false,
@@ -285,19 +301,12 @@ export const verifyDirectDebitContractHandler: RouteHandler<
       });
 
       if (!signatureResult.data?.signature) {
-        await db
-          .update(paymentMethod)
-          .set({
-            contractStatus: 'verification_failed',
-            isActive: false,
-            updatedAt: new Date(),
-            metadata: {
-              ...parseMetadata(contract.metadata),
-              error: signatureResult.data?.message || 'Contract verification failed',
-              failedAt: new Date().toISOString(),
-            },
-          })
-          .where(eq(paymentMethod.id, contractId));
+        c.logger.warn('Direct debit contract verification failed', {
+          logType: 'operation',
+          operationName: 'verificationFailed',
+          userId: user.id,
+          resource: paymanAuthority,
+        });
 
         return Responses.ok(c, {
           contractVerified: false,
@@ -311,33 +320,35 @@ export const verifyDirectDebitContractHandler: RouteHandler<
       const signature = signatureResult.data.signature;
 
       // Check if this signature already exists for this user
-      const existingMethod = await db
+      const existingMethod = await database
         .select()
         .from(paymentMethod)
         .where(
           and(
             eq(paymentMethod.userId, user.id),
             eq(paymentMethod.isActive, true),
+            eq(paymentMethod.contractSignature, signature),
           ),
-        );
+        )
+        .limit(1);
 
-      const existingSignature = existingMethod.find(
-        pm => pm.contractSignature === signature,
-      );
-
-      if (existingSignature) {
-        // Remove the temporary contract record
-        await db.delete(paymentMethod).where(eq(paymentMethod.id, contractId));
+      if (existingMethod.length > 0) {
+        c.logger.info('Direct debit contract signature already exists', {
+          logType: 'operation',
+          operationName: 'existingSignature',
+          userId: user.id,
+          resource: existingMethod[0]!.id,
+        });
 
         return Responses.ok(c, {
           contractVerified: true,
           signature,
-          paymentMethodId: existingSignature.id,
+          paymentMethodId: existingMethod[0]!.id,
         });
       }
 
       // Check if this should be the primary payment method
-      const existingMethods = await db
+      const existingMethods = await database
         .select()
         .from(paymentMethod)
         .where(
@@ -350,27 +361,42 @@ export const verifyDirectDebitContractHandler: RouteHandler<
 
       const shouldBePrimary = existingMethods.length === 0;
 
-      // Update contract record to become active payment method
+      // NOW create the payment method in database (first time saving anything)
+      const contractId = crypto.randomUUID();
       const now = new Date();
-      await db
-        .update(paymentMethod)
-        .set({
-          contractType: 'direct_debit_contract',
-          contractStatus: 'active',
-          contractSignature: signature, // Store ZarinPal contract signature
-          contractDisplayName: 'Direct Debit Contract',
-          paymanAuthority: null, // Clear temporary authority
-          isPrimary: shouldBePrimary,
-          isActive: true,
-          lastUsedAt: now,
-          contractVerifiedAt: now,
-          updatedAt: now,
-          metadata: {
-            ...parseMetadata(contract.metadata),
-            paymanAuthority, // Keep in metadata for reference
-          },
-        })
-        .where(eq(paymentMethod.id, contractId));
+
+      await database.insert(paymentMethod).values({
+        id: contractId,
+        userId: user.id,
+        contractType: 'direct_debit_contract',
+        contractStatus: 'active',
+        contractSignature: signature, // Store ZarinPal contract signature
+        contractDisplayName: 'Direct Debit Contract',
+        contractMobile: mobile,
+        contractDurationDays: 365, // Default 1 year
+        maxDailyAmount: maxAmount,
+        maxDailyCount,
+        maxMonthlyCount,
+        isPrimary: shouldBePrimary,
+        isActive: true,
+        lastUsedAt: now,
+        contractVerifiedAt: now,
+        createdAt: now,
+        updatedAt: now,
+        metadata: {
+          type: 'direct_debit_contract',
+          paymanAuthority, // Keep for reference
+          ssn,
+          verifiedAt: now.toISOString(),
+        },
+      });
+
+      c.logger.info('Direct debit contract created successfully', {
+        logType: 'operation',
+        operationName: 'contractCreated',
+        userId: user.id,
+        resource: contractId,
+      });
 
       return Responses.ok(c, {
         contractVerified: true,
@@ -467,15 +493,14 @@ export const getBankListHandler: RouteHandler<typeof getBankListRoute, ApiEnv> =
 export const executeDirectDebitPaymentHandler: RouteHandler<
   typeof executeDirectDebitPaymentRoute,
   ApiEnv
-> = createHandler(
+> = createHandlerWithTransaction(
   {
     auth: 'session',
     operationName: 'executeDirectDebitPayment',
     validateBody: ExecuteDirectDebitPaymentRequestSchema,
   },
-  async (c) => {
+  async (c, database) => {
     const user = c.get('user');
-    const db = await getDbAsync();
 
     if (!user) {
       throw createError.unauthenticated('User authentication required');
@@ -491,7 +516,7 @@ export const executeDirectDebitPaymentHandler: RouteHandler<
 
     try {
       // 1. Verify payment method belongs to user and is active
-      const paymentMethodRecord = await db
+      const paymentMethodRecord = await database
         .select()
         .from(paymentMethod)
         .where(
@@ -511,7 +536,7 @@ export const executeDirectDebitPaymentHandler: RouteHandler<
       const contract = paymentMethodRecord[0];
 
       // 2. Verify subscription belongs to user
-      const subscriptionRecord = await db
+      const subscriptionRecord = await database
         .select()
         .from(subscription)
         .where(
@@ -567,7 +592,7 @@ export const executeDirectDebitPaymentHandler: RouteHandler<
         },
       };
 
-      await db.insert(payment).values(paymentRecord);
+      await database.insert(payment).values(paymentRecord);
 
       // 5. Create ZarinPal payment request first (Step 1)
       const zarinpalService = ZarinPalService.create();
@@ -593,7 +618,7 @@ export const executeDirectDebitPaymentHandler: RouteHandler<
       const authority = paymentRequest.data.authority;
 
       // 6. Update payment with authority
-      await db
+      await database
         .update(payment)
         .set({
           zarinpalAuthority: authority,
@@ -618,7 +643,7 @@ export const executeDirectDebitPaymentHandler: RouteHandler<
         // Payment successful
         const refId = directResult.data.refrence_id?.toString();
 
-        await db
+        await database
           .update(payment)
           .set({
             status: 'completed',
@@ -629,7 +654,7 @@ export const executeDirectDebitPaymentHandler: RouteHandler<
           .where(eq(payment.id, paymentId));
 
         // Update payment method last used
-        await db
+        await database
           .update(paymentMethod)
           .set({
             lastUsedAt: new Date(),
@@ -655,7 +680,7 @@ export const executeDirectDebitPaymentHandler: RouteHandler<
         // Payment failed
         const errorMessage = directResult.data?.message || 'Direct debit payment failed';
 
-        await db
+        await database
           .update(payment)
           .set({
             status: 'failed',
@@ -683,23 +708,22 @@ export const executeDirectDebitPaymentHandler: RouteHandler<
 export const cancelDirectDebitContractHandler: RouteHandler<
   typeof cancelDirectDebitContractRoute,
   ApiEnv
-> = createHandler(
+> = createHandlerWithTransaction(
   {
     auth: 'session',
     validateParams: DirectDebitContractParamsSchema,
     operationName: 'cancelDirectDebitContract',
   },
-  async (c) => {
+  async (c, database) => {
     const user = c.get('user');
     if (!user) {
       throw createError.unauthenticated('User authentication required');
     }
     const { contractId } = c.validated.params;
-    const db = await getDbAsync();
 
     try {
       // Find the contract
-      const contractRecord = await db
+      const contractRecord = await database
         .select()
         .from(paymentMethod)
         .where(
@@ -731,7 +755,7 @@ export const cancelDirectDebitContractHandler: RouteHandler<
 
       // Update contract status in database
       const cancelledAt = new Date();
-      await db
+      await database
         .update(paymentMethod)
         .set({
           contractStatus: 'cancelled_by_user',
@@ -746,7 +770,7 @@ export const cancelDirectDebitContractHandler: RouteHandler<
         .where(eq(paymentMethod.id, contractId));
 
       // Pause related active subscriptions
-      await db
+      await database
         .update(subscription)
         .set({
           status: 'canceled',
@@ -798,7 +822,7 @@ export const directDebitCallbackHandler: RouteHandler<
     // Redirect to frontend with status information
     // Frontend will then call verify-direct-debit-contract endpoint
     const { env } = getCloudflareContext();
-    const frontendUrl = new URL('/billing/payment-methods/direct-debit/callback', env.NEXT_PUBLIC_APP_URL);
+    const frontendUrl = new URL('/payment/callback', env.NEXT_PUBLIC_APP_URL);
     frontendUrl.searchParams.set('payman_authority', payman_authority);
     frontendUrl.searchParams.set('status', status);
 

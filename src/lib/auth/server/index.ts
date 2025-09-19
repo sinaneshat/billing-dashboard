@@ -1,14 +1,15 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
+import { getCloudflareContext } from '@opennextjs/cloudflare';
 import { betterAuth } from 'better-auth';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { nextCookies } from 'better-auth/next-js';
 import { admin, magicLink } from 'better-auth/plugins';
 import Database from 'better-sqlite3';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
+import { drizzle as drizzleD1 } from 'drizzle-orm/d1';
 
-import { getDb } from '@/db';
 import * as authSchema from '@/db/tables/auth';
 import { getBaseUrl } from '@/utils/helpers';
 
@@ -38,7 +39,7 @@ function getLocalDbPath(): string {
 
 /**
  * Get database configuration for Better Auth
- * Uses Drizzle adapter for both local and production for consistent column mapping
+ * Uses clean database instance to avoid transaction conflicts with our custom handlers
  */
 function getDatabaseConfig() {
   const isLocal = process.env.NODE_ENV === 'development' || process.env.NEXT_PUBLIC_WEBAPP_ENV === 'local';
@@ -60,8 +61,12 @@ function getDatabaseConfig() {
       schema: authSchema,
     });
   } else {
-    // Use Drizzle adapter with D1 for production
-    return drizzleAdapter(getDb(), {
+    // For production, create a clean D1 instance specifically for Better Auth
+    // This avoids conflicts with our custom transaction handlers
+    const { env } = getCloudflareContext();
+    const cleanDb = drizzleD1(env.DB, { schema: authSchema });
+
+    return drizzleAdapter(cleanDb, {
       provider: 'sqlite',
       schema: authSchema,
     });

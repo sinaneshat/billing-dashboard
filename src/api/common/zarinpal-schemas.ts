@@ -196,6 +196,7 @@ export const ApiFormattedBankSchema = z.object({
 
 /**
  * Contract initiation response from our API
+ * Updated: No contractId since we don't save to DB until verification
  */
 export const DirectDebitContractResponseSchema = z.object({
   paymanAuthority: z.string().openapi({
@@ -209,8 +210,17 @@ export const DirectDebitContractResponseSchema = z.object({
     example: 'https://www.zarinpal.com/pg/StartPayman/{PAYMAN_AUTHORITY}/{BANK_CODE}',
     description: 'URL template for contract signing',
   }),
-  contractId: CoreSchemas.uuid().openapi({
-    description: 'Unique contract ID for tracking',
+  contractParams: z.object({
+    mobile: z.string(),
+    ssn: z.string().optional(),
+    expireAt: z.string(),
+    maxDailyCount: z.number().int(),
+    maxMonthlyCount: z.number().int(),
+    maxAmount: z.number().int(),
+    callbackUrl: z.string(),
+    metadata: z.record(z.string(), z.unknown()).optional(),
+  }).openapi({
+    description: 'Contract parameters stored temporarily for verification',
   }),
 }).openapi('DirectDebitContractResponse');
 
@@ -218,6 +228,7 @@ export type DirectDebitContractResponse = z.infer<typeof DirectDebitContractResp
 
 /**
  * Contract verification request
+ * Updated to include contract parameters since we don't save to DB until verification
  */
 export const VerifyDirectDebitContractRequestSchema = z.object({
   paymanAuthority: z.string().openapi({
@@ -228,8 +239,25 @@ export const VerifyDirectDebitContractRequestSchema = z.object({
     example: 'OK',
     description: 'Contract signing status from ZarinPal callback',
   }),
-  contractId: CoreSchemas.uuid().openapi({
-    description: 'Contract ID from initial setup',
+  mobile: z.string().openapi({
+    example: '09123456789',
+    description: 'Mobile number used for contract setup',
+  }),
+  ssn: z.string().optional().openapi({
+    example: '0123456789',
+    description: 'National ID used for contract setup',
+  }),
+  maxDailyCount: z.number().int().positive().openapi({
+    example: 10,
+    description: 'Maximum daily transaction count',
+  }),
+  maxMonthlyCount: z.number().int().positive().openapi({
+    example: 100,
+    description: 'Maximum monthly transaction count',
+  }),
+  maxAmount: z.number().int().positive().openapi({
+    example: 50000000,
+    description: 'Maximum transaction amount in IRR',
   }),
 }).openapi('VerifyDirectDebitContractRequest');
 

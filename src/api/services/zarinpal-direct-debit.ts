@@ -5,6 +5,8 @@
  * https://docs.zarinpal.com/paymentGateway/directPayment.html
  */
 
+import { Buffer } from 'node:buffer';
+
 import { z } from '@hono/zod-openapi';
 import { getCloudflareContext } from '@opennextjs/cloudflare';
 import { HTTPException } from 'hono/http-exception';
@@ -12,7 +14,6 @@ import * as HttpStatusCodes from 'stoker/http-status-codes';
 
 import { createZarinPalHTTPException } from '@/api/common/zarinpal-error-utils';
 import { validateWithSchema } from '@/api/core/validation';
-import { BaseService } from '@/api/patterns/service-factory';
 
 // =============================================================================
 // ZOD SCHEMAS (Context7 Best Practices)
@@ -129,7 +130,7 @@ export const BankInfoSchema = z.object({
  */
 export const DirectDebitContractResponseSchema = z.object({
   data: z.object({
-    payman_authority: z.string().length(36, 'Payman authority must be exactly 36 characters'),
+    payman_authority: z.string().min(1, 'Payman authority is required'),
     code: z.number().int(),
     message: z.string(),
   }).optional(),
@@ -152,7 +153,7 @@ export const BankListResponseSchema = z.object({
  * Signature Verification Request Schema (Step 3)
  */
 export const SignatureRequestSchema = z.object({
-  payman_authority: z.string().length(36, 'Payman authority must be exactly 36 characters'),
+  payman_authority: z.string().min(1, 'Payman authority is required'),
 }).openapi('SignatureRequest');
 
 /**
@@ -215,9 +216,120 @@ export type BankInfo = z.infer<typeof BankInfoSchema>;
  * Extends BaseService for consistent HTTP handling, error management, and circuit breaking
  * Implements complete Payman (Direct Debit) workflow
  */
-export class ZarinPalDirectDebitService extends BaseService<ZarinPalDirectDebitConfig> {
+export class ZarinPalDirectDebitService {
+  private config: ZarinPalDirectDebitConfig;
+
   constructor(config: ZarinPalDirectDebitConfig) {
-    super(config);
+    this.config = config;
+  }
+
+  /**
+   * Make HTTP POST request with JSON payload
+   */
+  private async post<TPayload, TResponse>(
+    endpoint: string,
+    payload: TPayload,
+    headers: Record<string, string>,
+    operationName?: string,
+  ): Promise<TResponse> {
+    return this.makeRequest<TResponse>(
+      endpoint,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...headers,
+        },
+        body: JSON.stringify(payload),
+      },
+      operationName,
+    );
+  }
+
+  /**
+   * Make HTTP GET request
+   */
+  private async get<TResponse>(
+    endpoint: string,
+    headers: Record<string, string>,
+    operationName?: string,
+  ): Promise<TResponse> {
+    return this.makeRequest<TResponse>(
+      endpoint,
+      {
+        method: 'GET',
+        headers,
+      },
+      operationName,
+    );
+  }
+
+  /**
+   * Make HTTP request with error handling and retries
+   */
+  private async makeRequest<T>(
+    endpoint: string,
+    options: RequestInit,
+    operationName?: string,
+  ): Promise<T> {
+    const url = `${this.config.baseUrl}${endpoint}`;
+
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), this.config.timeout);
+
+      const response = await fetch(url, {
+        ...options,
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        throw new HTTPException(response.status as 500, {
+          message: `HTTP ${response.status}: ${response.statusText}`,
+        });
+      }
+
+      const data = await response.json();
+      return data as T;
+    } catch (error) {
+      throw this.handleError(error, operationName || 'make request', {
+        errorType: 'network' as const,
+        provider: 'zarinpal' as const,
+      });
+    }
+  }
+
+  /**
+   * Handle and transform errors into proper HTTP exceptions
+   */
+  private handleError(
+    error: unknown,
+    operationName: string,
+    _context: { errorType: 'payment' | 'network'; provider: 'zarinpal' },
+  ): HTTPException {
+    if (error instanceof HTTPException) {
+      return error;
+    }
+
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+
+    if (errorMessage.includes('timeout') || errorMessage.includes('abort')) {
+      return new HTTPException(HttpStatusCodes.REQUEST_TIMEOUT, {
+        message: `ZarinPal Direct Debit ${operationName} timed out: ${errorMessage}`,
+      });
+    }
+
+    if (errorMessage.includes('network') || errorMessage.includes('fetch')) {
+      return new HTTPException(HttpStatusCodes.BAD_GATEWAY, {
+        message: `ZarinPal Direct Debit ${operationName} network error: ${errorMessage}`,
+      });
+    }
+
+    return new HTTPException(HttpStatusCodes.INTERNAL_SERVER_ERROR, {
+      message: `ZarinPal Direct Debit ${operationName} failed: ${errorMessage}`,
+    });
   }
 
   /**
@@ -301,6 +413,14 @@ export class ZarinPalDirectDebitService extends BaseService<ZarinPalDirectDebitC
   }
 
   /**
+   * Factory method to create service instance with validated configuration
+   */
+  static create(): ZarinPalDirectDebitService {
+    const config = this.getConfig();
+    return new ZarinPalDirectDebitService(config);
+  }
+
+  /**
    * Step 1: Request Direct Debit Contract (Payman Request)
    * Using BaseService HTTP methods with Zod validation for type safety
    */
@@ -369,6 +489,37 @@ export class ZarinPalDirectDebitService extends BaseService<ZarinPalDirectDebitC
 
       return validatedResult;
     } catch (error) {
+      // Enhanced error handling for common direct debit setup issues
+      if (error instanceof Error || (error && typeof error === 'object' && 'message' in error)) {
+        const errorMessage = String(error.message || '').toLowerCase();
+
+        // Check for direct debit not enabled error (ZarinPal error code -80)
+        if (errorMessage.includes('merchant have not access')
+          || errorMessage.includes('access denied')
+          || errorMessage.includes('merchant does not have access to direct debit')
+          || errorMessage.includes('-80')) {
+          throw new HTTPException(HttpStatusCodes.FORBIDDEN, {
+            message: 'Direct debit service is not enabled for this merchant account. Please contact ZarinPal support to enable the direct debit (Payman) service first.',
+          });
+        }
+
+        // Check for invalid merchant credentials
+        if (errorMessage.includes('invalid merchant')
+          || errorMessage.includes('merchant not found')
+          || errorMessage.includes('-74')) {
+          throw new HTTPException(HttpStatusCodes.BAD_REQUEST, {
+            message: 'Invalid merchant credentials. Please check your ZarinPal configuration.',
+          });
+        }
+
+        // Check for invalid mobile number format
+        if (errorMessage.includes('invalid mobile') || errorMessage.includes('mobile')) {
+          throw new HTTPException(HttpStatusCodes.BAD_REQUEST, {
+            message: 'Invalid mobile number format. Please check the mobile number and try again.',
+          });
+        }
+      }
+
       throw this.handleError(error, 'request contract', {
         errorType: 'payment' as const,
         provider: 'zarinpal' as const,
@@ -431,7 +582,10 @@ export class ZarinPalDirectDebitService extends BaseService<ZarinPalDirectDebitC
       const validatedResult = responseResult.data;
       return validatedResult;
     } catch (error) {
-      throw this.handleError(error, 'get bank list');
+      throw this.handleError(error, 'get bank list', {
+        errorType: 'network' as const,
+        provider: 'zarinpal' as const,
+      });
     }
   }
 
@@ -457,15 +611,20 @@ export class ZarinPalDirectDebitService extends BaseService<ZarinPalDirectDebitC
     const validatedRequest = requestResult.data;
 
     // Handle sandbox/development mode
-    if (this.config.isPlaceholder) {
-      if (this.config.isSandbox && this.config.isSandboxValue) {
-        // Allow sandbox credentials in development - they'll fail gracefully at API level
-        console.warn('[ZarinPal] Using sandbox credentials in development mode - API calls will fail gracefully');
+    if (this.config.isPlaceholder || (this.config.isSandbox && this.config.isSandboxValue)) {
+      if (this.config.isSandbox) {
+        // In development mode with placeholder credentials, return mock response
+        return {
+          data: {
+            signature: `mock-signature-${Buffer.from(validatedRequest.payman_authority).toString('base64').substring(0, 50).padEnd(200, '0')}`,
+            code: 100,
+            message: 'Mock contract verification for development',
+          },
+          errors: [],
+        };
       } else {
         throw new HTTPException(HttpStatusCodes.BAD_REQUEST, {
-          message: this.config.isSandbox
-            ? 'Development mode: Configure real ZarinPal credentials for testing, or use mock mode.'
-            : 'Production mode: Invalid ZarinPal credentials. Configure real credentials from https://next.zarinpal.com/panel/',
+          message: 'Production mode: Invalid ZarinPal credentials. Configure real credentials from https://next.zarinpal.com/panel/',
         });
       }
     }
@@ -509,6 +668,26 @@ export class ZarinPalDirectDebitService extends BaseService<ZarinPalDirectDebitC
       const errorMessage = requestResult.errors[0]?.message || 'Direct transaction request validation failed';
       throw new Error(`Direct transaction request validation failed: ${errorMessage}`);
     }
+    // Handle sandbox/development mode
+    if (this.config.isPlaceholder || (this.config.isSandbox && this.config.isSandboxValue)) {
+      if (this.config.isSandbox) {
+        // In development mode, return mock successful payment
+        return {
+          data: {
+            refrence_id: Math.floor(Math.random() * 1000000000), // Mock reference ID
+            amount: 1000, // Mock amount
+            code: 100,
+            message: 'Mock direct payment success for development',
+          },
+          errors: [],
+        };
+      } else {
+        throw new HTTPException(HttpStatusCodes.BAD_REQUEST, {
+          message: 'Production mode: Invalid ZarinPal credentials. Configure real credentials from https://next.zarinpal.com/panel/',
+        });
+      }
+    }
+
     const payload = {
       merchant_id: this.config.merchantId,
       authority: request.authority,
@@ -547,6 +726,21 @@ export class ZarinPalDirectDebitService extends BaseService<ZarinPalDirectDebitC
    * Using BaseService HTTP methods for consistent error handling
    */
   async cancelContract(request: CancelContractRequest): Promise<{ code: number; message: string }> {
+    // Handle sandbox/development mode
+    if (this.config.isPlaceholder || (this.config.isSandbox && this.config.isSandboxValue)) {
+      if (this.config.isSandbox) {
+        // In development mode, return mock cancellation success
+        return {
+          code: 100,
+          message: 'Mock contract cancellation success for development',
+        };
+      } else {
+        throw new HTTPException(HttpStatusCodes.BAD_REQUEST, {
+          message: 'Production mode: Invalid ZarinPal credentials. Configure real credentials from https://next.zarinpal.com/panel/',
+        });
+      }
+    }
+
     const payload = {
       merchant_id: this.config.merchantId,
       signature: request.signature,

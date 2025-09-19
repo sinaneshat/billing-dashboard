@@ -1,5 +1,3 @@
-'use client';
-
 import { createJsonLd } from '@/utils/metadata';
 
 type StructuredDataProps = {
@@ -14,12 +12,15 @@ type StructuredDataProps = {
 export function StructuredData(props: StructuredDataProps) {
   const structuredData = createJsonLd(props);
 
+  // Create safe JSON-LD content using proper text content
+  const jsonLdContent = JSON.stringify(structuredData, null, 2);
+
   return (
     <script
       type="application/ld+json"
-      dangerouslySetInnerHTML={{
-        __html: JSON.stringify(structuredData, null, 2),
-      }}
-    />
+      suppressHydrationWarning
+    >
+      {jsonLdContent}
+    </script>
   );
 }

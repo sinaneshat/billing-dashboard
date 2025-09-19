@@ -4,6 +4,7 @@ import { SubscriptionPlansScreen } from '@/containers/screens/dashboard/billing'
 import { getQueryClient } from '@/lib/data/query-client';
 import { queryKeys } from '@/lib/data/query-keys';
 import {
+  getPaymentMethodsService,
   getProductsService,
   getSubscriptionsService,
 } from '@/services/api';
@@ -11,29 +12,21 @@ import {
 // ISR Configuration - Revalidate plans every 2 hours since they change infrequently
 export const revalidate = 7200; // 2 hours in seconds
 
-type PlansPageProps = {
-  searchParams: Promise<Record<string, string | string[] | undefined>>;
-};
-
-export default async function PlansPage(props: PlansPageProps) {
-  const searchParams = await props.searchParams;
+/**
+ * Subscription Plans Page - Server Component
+ * Following TanStack Query official SSR patterns from Context7 docs
+ *
+ * Features:
+ * - Server-side prefetching for instant loading
+ * - ISR with 2-hour revalidation for product plans
+ * - Prefetch related billing data for seamless navigation
+ * - Follows established billing page patterns
+ */
+export default async function PlansPage() {
   const queryClient = getQueryClient();
 
-  // Extract essential parameters only - no referrer
-  const priceId = typeof searchParams.priceId === 'string'
-    ? searchParams.priceId
-    : typeof searchParams.price === 'string'
-      ? searchParams.price
-      : undefined;
-  const productId = typeof searchParams.productId === 'string'
-    ? searchParams.productId
-    : typeof searchParams.product === 'string'
-      ? searchParams.product
-      : undefined;
-  const step = typeof searchParams.step === 'string' ? searchParams.step : undefined;
-
-  // ISR Strategy: Products are cached for 2 hours via ISR
-  // Prefetch data with extended stale times to align with ISR strategy
+  // Prefetch products and related billing data in parallel
+  // Products use longer stale time to match ISR revalidation
   await Promise.allSettled([
     queryClient.prefetchQuery({
       queryKey: queryKeys.products.list,
@@ -45,18 +38,16 @@ export default async function PlansPage(props: PlansPageProps) {
       queryFn: getSubscriptionsService,
       staleTime: 2 * 60 * 1000, // 2 minutes for subscription data
     }),
+    queryClient.prefetchQuery({
+      queryKey: queryKeys.paymentMethods.list,
+      queryFn: getPaymentMethodsService,
+      staleTime: 5 * 60 * 1000, // 5 minutes - needed for plan upgrades
+    }),
   ]);
-
-  // Clean SSO flow data with only essential parameters
-  const ssoFlowData = {
-    priceId,
-    productId,
-    step: step === '2' ? 'payment' : undefined, // Only set step if explicit
-  };
 
   return (
     <HydrationBoundary state={dehydrate(queryClient)}>
-      <SubscriptionPlansScreen ssoFlowData={ssoFlowData} />
+      <SubscriptionPlansScreen />
     </HydrationBoundary>
   );
 }

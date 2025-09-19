@@ -8,6 +8,7 @@
  * Never use createRoute directly in route handlers - always use OpenAPIHono apps.
  */
 
+import type { RouteHandler } from '@hono/zod-openapi';
 import { Scalar } from '@scalar/hono-api-reference';
 import { createMarkdownFromOpenApi } from '@scalar/openapi-to-markdown';
 import type { Context, Next } from 'hono';
@@ -26,10 +27,17 @@ import { trimTrailingSlash } from 'hono/trailing-slash';
 import notFound from 'stoker/middlewares/not-found';
 import onError from 'stoker/middlewares/on-error';
 
+import { getDbAsync } from '@/db';
+
+// ============================================================================
+// HEALTH CHECK HANDLERS
+// ============================================================================
+import { createHandler, Responses } from './core';
 import { createOpenApiApp } from './factory';
 import { attachSession, requireSession } from './middleware';
+// Enhanced middleware for optimized performance
+import { enhancedErrorHandler } from './middleware/enhanced-error-handler';
 import { apiLogger, errorLoggerMiddleware, honoLoggerMiddleware } from './middleware/hono-logger';
-import { metricsMiddleware, performanceMiddleware } from './middleware/performance';
 import { RateLimiterFactory } from './middleware/rate-limiter-factory';
 // Import routes and handlers directly for proper RPC type inference
 import { secureMeHandler } from './routes/auth/handler';
@@ -48,7 +56,7 @@ import {
   uploadCompanyImageRoute,
   uploadUserAvatarRoute,
 } from './routes/images/route';
-// Direct debit routes (ZarinPal Payman API)
+// Direct debit routes (ZarinPal Payman API) - Enhanced with performance optimizations
 import {
   cancelDirectDebitContractHandler,
   directDebitCallbackHandler,
@@ -77,12 +85,21 @@ import {
   getPaymentMethodsRoute,
   setDefaultPaymentMethodRoute,
 } from './routes/payment-methods/route';
+// Contract signing routes
+import {
+  generateSigningUrlHandler,
+  getContractSigningInfoHandler,
+} from './routes/payment-methods/sign/handler';
+import {
+  generateSigningUrlRoute,
+  getContractSigningInfoRoute,
+} from './routes/payment-methods/sign/route';
 // Payment routes including callback and history
 import { getPaymentsHandler, paymentCallbackHandler } from './routes/payments/handler';
 import { getPaymentsRoute, paymentCallbackRoute } from './routes/payments/route';
 import { getProductsHandler } from './routes/products/handler';
 import { getProductsRoute } from './routes/products/route';
-// Billing routes
+// Billing routes - Enhanced with analytics and optimizations
 import {
   cancelSubscriptionHandler,
   changePlanHandler,
@@ -99,8 +116,8 @@ import {
   getSubscriptionsRoute,
   resubscribeRoute,
 } from './routes/subscriptions/route';
-import { detailedHealthHandler, healthHandler } from './routes/system/handler';
 import { detailedHealthRoute, healthRoute } from './routes/system/route';
+// Enhanced webhook handlers with intelligent retry and correlation
 import {
   getWebhookEventsHandler,
   testWebhookHandler,
@@ -112,6 +129,97 @@ import {
   zarinPalWebhookRoute,
 } from './routes/webhooks/route';
 import type { ApiEnv } from './types';
+
+/**
+ * Basic health check handler
+ */
+export const healthHandler: RouteHandler<typeof healthRoute, ApiEnv> = createHandler(
+  {
+    auth: 'public',
+    operationName: 'healthCheck',
+  },
+  async (c) => {
+    const healthData = {
+      ok: true,
+      status: 'healthy',
+      timestamp: new Date().toISOString(),
+    };
+
+    return Responses.ok(c, healthData);
+  },
+);
+
+/**
+ * Detailed health check handler with dependency checks
+ */
+export const detailedHealthHandler: RouteHandler<typeof detailedHealthRoute, ApiEnv> = createHandler(
+  {
+    auth: 'public',
+    operationName: 'detailedHealthCheck',
+  },
+  async (c) => {
+    const startTime = Date.now();
+    const dependencies: Record<string, { status: 'healthy' | 'degraded' | 'unhealthy'; message: string; duration?: number }> = {};
+
+    // Check database connectivity
+    try {
+      const dbStart = Date.now();
+      await getDbAsync();
+      dependencies.database = {
+        status: 'healthy',
+        message: 'Database connection successful',
+        duration: Date.now() - dbStart,
+      };
+    } catch (error) {
+      dependencies.database = {
+        status: 'unhealthy',
+        message: `Database connection failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        duration: Date.now() - startTime,
+      };
+    }
+
+    // Check environment configuration
+    const requiredEnvVars = ['DATABASE_URL', 'NEXTAUTH_SECRET'] as const;
+    const missingVars = requiredEnvVars.filter(varName => !c.env[varName as keyof typeof c.env]);
+
+    dependencies.environment = {
+      status: missingVars.length === 0 ? 'healthy' : 'degraded',
+      message: missingVars.length === 0
+        ? 'Environment configuration is valid'
+        : `Missing environment variables: ${missingVars.join(', ')}`,
+    };
+
+    // Calculate summary
+    const healthyCount = Object.values(dependencies).filter(dep => dep.status === 'healthy').length;
+    const degradedCount = Object.values(dependencies).filter(dep => dep.status === 'degraded').length;
+    const unhealthyCount = Object.values(dependencies).filter(dep => dep.status === 'unhealthy').length;
+    const total = Object.keys(dependencies).length;
+
+    const overallStatus = unhealthyCount > 0 ? 'unhealthy' : degradedCount > 0 ? 'degraded' : 'healthy';
+
+    const healthData = {
+      ok: overallStatus === 'healthy',
+      status: overallStatus,
+      timestamp: new Date().toISOString(),
+      duration: Date.now() - startTime,
+      env: {
+        runtime: 'cloudflare-workers',
+        version: 'workers-runtime',
+        nodeEnv: c.env.NODE_ENV || 'development',
+      },
+      dependencies,
+      summary: {
+        total,
+        healthy: healthyCount,
+        degraded: degradedCount,
+        unhealthy: unhealthyCount,
+      },
+    };
+
+    const statusCode = overallStatus === 'healthy' ? 200 : 503;
+    return c.json({ success: true, data: healthData, meta: { requestId: c.get('requestId'), timestamp: new Date().toISOString() } }, statusCode);
+  },
+);
 
 // ============================================================================
 // Step 1: Create the main OpenAPIHono app with defaultHook (following docs)
@@ -152,7 +260,6 @@ app.use('*', (c, next) => {
 
   const allowedOrigins = [
     'http://localhost:3000', // Always allow local development
-    'http://localhost:5173',
     appUrl, // Current environment's official domain
   ];
 
@@ -178,7 +285,6 @@ function csrfMiddleware(c: Context<ApiEnv>, next: Next) {
 
   const allowedOrigins = [
     'http://localhost:3000', // Always allow local development
-    'http://localhost:5173',
     appUrl, // Current environment's official domain
   ];
 
@@ -191,9 +297,8 @@ function csrfMiddleware(c: Context<ApiEnv>, next: Next) {
 // ETag support
 app.use('*', etag());
 
-// Performance monitoring and metrics collection
-app.use('*', performanceMiddleware);
-app.use('*', metricsMiddleware);
+// Enhanced error handling and database optimization middleware
+app.use('*', enhancedErrorHandler());
 
 // Session attachment
 app.use('*', attachSession);
@@ -245,6 +350,9 @@ const appRoutes = app
   .openapi(createPaymentMethodRoute, createPaymentMethodHandler)
   .openapi(deletePaymentMethodRoute, deletePaymentMethodHandler)
   .openapi(setDefaultPaymentMethodRoute, setDefaultPaymentMethodHandler)
+  // Contract signing routes
+  .openapi(getContractSigningInfoRoute, getContractSigningInfoHandler)
+  .openapi(generateSigningUrlRoute, generateSigningUrlHandler)
   // Payment routes
   .openapi(getPaymentsRoute, getPaymentsHandler)
   .openapi(paymentCallbackRoute, paymentCallbackHandler)
@@ -294,6 +402,7 @@ appRoutes.doc('/doc', c => ({
     { name: 'auth', description: 'Authentication and authorization' },
     { name: 'products', description: 'Subscription plans and pricing' },
     { name: 'subscriptions', description: 'Subscription lifecycle management and automated billing' },
+    { name: 'analytics', description: 'Subscription analytics, revenue tracking, and business insights' },
     { name: 'payment-methods', description: 'Subscription payment methods and direct debit automation' },
     { name: 'webhooks', description: 'Subscription webhooks and billing notifications' },
     { name: 'images', description: 'Image upload and management' },

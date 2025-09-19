@@ -36,7 +36,7 @@ import { FadeIn } from '@/components/ui/motion';
 import { Skeleton } from '@/components/ui/skeleton';
 import { PaymentStatusBadge, SubscriptionStatusBadge } from '@/components/ui/status-badge';
 import { formatTomanCurrency } from '@/lib/format';
-import { showSuccessToast } from '@/lib/toast';
+import { toastManager } from '@/lib/toast/toast-manager';
 import { cn } from '@/lib/ui/cn';
 
 // Types for customer billing overview
@@ -632,7 +632,7 @@ export const CustomerBillingOverview = memo(({
     if (subscription) {
       router.push('/dashboard/billing/plans');
     } else {
-      showSuccessToast(t('subscription.noActive'));
+      toastManager.success(t('subscription.noActive'));
     }
   };
 
@@ -643,9 +643,9 @@ export const CustomerBillingOverview = memo(({
   const handleDownloadInvoice = () => {
     if (subscription) {
       // In a real app, this would download the latest invoice
-      showSuccessToast(t('actions.downloadInvoice'));
+      toastManager.success(t('actions.downloadInvoice'));
     } else {
-      showSuccessToast(t('subscription.noActive'));
+      toastManager.success(t('subscription.noActive'));
     }
   };
 

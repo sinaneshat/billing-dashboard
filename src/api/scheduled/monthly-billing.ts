@@ -32,38 +32,62 @@ type PaymentRecord = {
   createdAt?: Date;
 };
 
-type BatchResult = {
-  results: PaymentRecord[];
-};
-
 // Cloudflare Workers limits - following official documentation
 const WORKER_TIMEOUT_MS = 28000; // 28s to allow for cleanup before 30s limit
 const MAX_BATCH_SIZE = 25; // D1 batch limit per operation
 const CHUNK_SIZE = 10; // Process subscriptions in chunks to avoid memory issues
 
-// Helper to check if we're using D1 (production) vs BetterSQLite3 (development)
-function supportsDbBatch(db: Awaited<ReturnType<typeof getDbAsync>>): boolean {
-  return typeof (db as unknown as { batch?: unknown }).batch === 'function';
+/**
+ * Type guard to safely check if database supports batch operations (D1)
+ * According to D1 documentation, batch method is available on D1 instances
+ */
+function isDatabaseWithBatch(
+  db: Awaited<ReturnType<typeof getDbAsync>>,
+): db is Awaited<ReturnType<typeof getDbAsync>> & { batch: (operations: unknown[]) => Promise<unknown[]> } {
+  return 'batch' in db && typeof (db as unknown as { batch?: unknown }).batch === 'function';
 }
 
 /**
- * Execute multiple database operations efficiently
+ * Execute multiple database operations efficiently following D1/Drizzle best practices
  * Uses batch for D1 (production) or transaction for BetterSQLite3 (development)
+ *
+ * According to Context7 D1 docs: Use db.batch([prepared_statements]) for D1
+ * According to Context7 Drizzle docs: Use db.transaction(async (tx) => {...}) for transactions
  */
-async function executeDatabaseOperations(operations: unknown[], db: Awaited<ReturnType<typeof getDbAsync>>) {
+async function executeDatabaseOperations(
+  operations: unknown[], // Flexible type for Drizzle query builders
+  db: Awaited<ReturnType<typeof getDbAsync>>,
+) {
   if (operations.length === 0) {
     return;
   }
 
-  if (supportsDbBatch(db)) {
+  if (isDatabaseWithBatch(db)) {
     // Use batch operations for D1 (production)
-    await (db as unknown as { batch: (ops: unknown[]) => Promise<unknown> }).batch(operations);
+    // According to D1 Context7 docs, batch accepts array of prepared statements
+    try {
+      const results = await db.batch(operations);
+      return results;
+    } catch (error) {
+      apiLogger.error('D1 batch operation failed', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        operationCount: operations.length,
+        component: 'monthly-billing',
+      });
+      throw error;
+    }
   } else {
     // Use transaction for BetterSQLite3 (development)
-    await db.transaction(async (_tx) => {
+    // According to Drizzle Context7 docs, use transaction wrapper
+    return await db.transaction(async (_tx) => {
+      const results = [];
       for (const operation of operations) {
-        await operation;
+        // For BetterSQLite3, operations need to be executed with transaction context
+        // Note: The operations are Drizzle query builders, they get executed with tx context
+        const result = await operation;
+        results.push(result);
       }
+      return results;
     });
   }
 }
@@ -281,9 +305,9 @@ async function processSingleSubscription(
   let existingPendingPayments: PaymentRecord[];
   let failedPaymentsToday: PaymentRecord[];
 
-  if (supportsDbBatch(db)) {
-    // Use batch for D1 (production)
-    const paymentChecks = await (db as unknown as { batch: (ops: unknown[]) => Promise<BatchResult[]> }).batch([
+  if (isDatabaseWithBatch(db)) {
+    // Use batch for D1 (production) - according to Context7 D1 docs
+    const paymentChecks = await db.batch([
       db.select().from(payment).where(
         and(
           eq(payment.subscriptionId, sub.id),
@@ -298,8 +322,8 @@ async function processSingleSubscription(
         ),
       ),
     ]);
-    existingPendingPayments = paymentChecks[0]?.results || [];
-    failedPaymentsToday = paymentChecks[1]?.results || [];
+    existingPendingPayments = paymentChecks[0] || [];
+    failedPaymentsToday = paymentChecks[1] || [];
   } else {
     // Use Promise.all for BetterSQLite3 (development)
     const paymentChecks = await Promise.all([

@@ -1,18 +1,21 @@
 'use client';
 
 import { BanknoteIcon, CheckCircle, Clock, CreditCard, Plus, Shield, Star, Trash2 } from 'lucide-react';
+import Link from 'next/link';
 import { useTranslations } from 'next-intl';
+import React from 'react';
 
-import { DirectDebitContractSetup } from '@/components/billing/direct-debit-contract-setup';
+import type { ApiResponse } from '@/api/core/schemas';
 import { ContentCard, DashboardCard, DashboardDataCard } from '@/components/dashboard/dashboard-cards';
 import { DashboardPageHeader } from '@/components/dashboard/dashboard-header';
 import { DashboardPage, DashboardSection, EmptyState, ErrorState, LoadingState } from '@/components/dashboard/dashboard-states';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import type { PaymentMethod } from '@/db/validation/billing';
 import { useDeletePaymentMethodMutation, useSetDefaultPaymentMethodMutation } from '@/hooks/mutations/payment-methods';
 import { usePaymentMethodsQuery } from '@/hooks/queries/payment-methods';
-import { staleWhileRevalidate, useOptimisticMutationWithFeedback, useQueryUIState } from '@/hooks/utils/query-helpers';
-import { showErrorToast, showSuccessToast } from '@/lib/toast';
+import { staleWhileRevalidate, useMutationUIState, useQueryUIState } from '@/hooks/utils/query-helpers';
+import { toastManager } from '@/lib/toast/toast-manager';
 
 export default function PaymentMethodsScreen() {
   const t = useTranslations();
@@ -23,36 +26,32 @@ export default function PaymentMethodsScreen() {
   // Enhanced query and mutation state management
   const paymentMethodsUIState = useQueryUIState(paymentMethodsQuery);
   const paymentMethodsStaleState = staleWhileRevalidate(paymentMethodsQuery);
+  const deleteUIState = useMutationUIState(deletePaymentMethodMutation);
+  const setDefaultUIState = useMutationUIState(setDefaultPaymentMethodMutation);
 
-  const deleteWithFeedback = useOptimisticMutationWithFeedback(deletePaymentMethodMutation, {
-    successMessage: t('paymentMethods.successMessages.paymentMethodRemoved'),
-    errorMessage: t('paymentMethods.errorMessages.failedToRemove'),
-    loadingMessage: t('paymentMethods.loadingMessages.removingPaymentMethod'),
-    showToast: (type, message) => {
-      if (type === 'success')
-        showSuccessToast(message);
-      else if (type === 'error')
-        showErrorToast(message);
-      // Note: loading toasts not supported in this implementation
-    },
-  });
+  // Handle mutation feedback with centralized toast management
+  React.useEffect(() => {
+    if (deleteUIState.showSuccess) {
+      toastManager.success(t('paymentMethods.successMessages.paymentMethodRemoved'));
+    }
+    if (deleteUIState.showError && deleteUIState.error) {
+      toastManager.error(deleteUIState.error.message || t('paymentMethods.errorMessages.failedToRemove'));
+    }
+  }, [deleteUIState.showSuccess, deleteUIState.showError, deleteUIState.error, t]);
 
-  const setDefaultWithFeedback = useOptimisticMutationWithFeedback(setDefaultPaymentMethodMutation, {
-    successMessage: t('paymentMethods.successMessages.defaultPaymentMethodUpdated'),
-    errorMessage: t('paymentMethods.errorMessages.failedToUpdateDefault'),
-    loadingMessage: t('paymentMethods.loadingMessages.updatingDefault'),
-    showToast: (type, message) => {
-      if (type === 'success')
-        showSuccessToast(message);
-      else if (type === 'error')
-        showErrorToast(message);
-      // Note: loading toasts not supported in this implementation
-    },
-  });
+  React.useEffect(() => {
+    if (setDefaultUIState.showSuccess) {
+      toastManager.success(t('paymentMethods.successMessages.defaultPaymentMethodUpdated'));
+    }
+    if (setDefaultUIState.showError && setDefaultUIState.error) {
+      toastManager.error(setDefaultUIState.error.message || t('paymentMethods.errorMessages.failedToUpdateDefault'));
+    }
+  }, [setDefaultUIState.showSuccess, setDefaultUIState.showError, setDefaultUIState.error, t]);
 
-  const paymentMethodList = paymentMethodsStaleState.data?.success && Array.isArray(paymentMethodsStaleState.data.data)
-    ? paymentMethodsStaleState.data.data
-    : [];
+  const paymentMethodList: PaymentMethod[] = (() => {
+    const data = paymentMethodsStaleState.data as ApiResponse<PaymentMethod[]> | undefined;
+    return data?.success && Array.isArray(data.data) ? data.data : [];
+  })();
 
   const handleSetDefault = async (paymentMethodId: string) => {
     setDefaultPaymentMethodMutation.mutate({ param: { id: paymentMethodId } });
@@ -72,13 +71,25 @@ export default function PaymentMethodsScreen() {
     );
   }
 
-  // Show error state
+  // Show error state with improved error handling
   if (paymentMethodsUIState.showError) {
+    const isAuthError = paymentMethodsQuery.error?.message?.includes('Authentication')
+      || paymentMethodsQuery.error?.message?.includes('401');
+
     return (
       <ErrorState
-        title={t('states.error.default')}
-        description={t('states.error.networkDescription')}
-        onRetry={() => paymentMethodsQuery.refetch()}
+        title={isAuthError ? t('states.error.authenticationRequired') : t('states.error.default')}
+        description={isAuthError
+          ? t('states.error.authenticationDescription')
+          : t('states.error.networkDescription')}
+        onRetry={() => {
+          if (isAuthError) {
+            // For auth errors, don't retry automatically - user needs to refresh or sign in again
+            window.location.reload();
+          } else {
+            paymentMethodsQuery.refetch();
+          }
+        }}
         icon={<CreditCard className="h-8 w-8 text-destructive" />}
       />
     );
@@ -113,19 +124,15 @@ export default function PaymentMethodsScreen() {
                 description={`${paymentMethodList.length} ${paymentMethodList.length === 1 ? t('paymentMethods.activeContract') : t('paymentMethods.activeContracts')}`}
                 icon={<BanknoteIcon className="h-5 w-5 text-primary" />}
                 headerAction={(
-                  <DirectDebitContractSetup
-                    onSuccess={(_contractId) => {
-                      showSuccessToast(t('paymentMethods.successMessages.directDebitContractCreated'));
-                    }}
-                  >
-                    <Button size="sm" startIcon={<Plus className="h-4 w-4" />}>
+                  <Button asChild size="sm" startIcon={<Plus className="h-4 w-4" />}>
+                    <Link href="/dashboard/billing/methods/setup">
                       {t('paymentMethods.addContract')}
-                    </Button>
-                  </DirectDebitContractSetup>
+                    </Link>
+                  </Button>
                 )}
               >
                 <div className="space-y-4">
-                  {paymentMethodList.map(method => (
+                  {paymentMethodList.map((method: PaymentMethod) => (
                     <DashboardDataCard
                       key={method.id}
                       title={method.contractDisplayName || t('paymentMethods.directDebitContract')}
@@ -153,9 +160,14 @@ export default function PaymentMethodsScreen() {
                               variant="outline"
                               size="sm"
                               onClick={() => handleSetDefault(method.id)}
-                              loading={setDefaultWithFeedback.isPending && setDefaultWithFeedback.variables?.param.id === method.id}
+                              loading={setDefaultUIState.isPending && setDefaultUIState.variables?.param.id === method.id}
                               loadingText={t('paymentMethods.loadingMessages.setting')}
                               startIcon={<Star className="h-3 w-3" />}
+                              disabled={
+                                // Disable when any operation is running on this payment method
+                                (setDefaultUIState.isPending && setDefaultUIState.variables?.param.id === method.id)
+                                || (deleteUIState.isPending && deleteUIState.variables?.param.id === method.id)
+                              }
                             >
                               {t('paymentMethods.setPrimary')}
                             </Button>
@@ -164,10 +176,16 @@ export default function PaymentMethodsScreen() {
                             variant="ghost"
                             size="sm"
                             onClick={() => handleDelete(method.id)}
-                            loading={deleteWithFeedback.isPending && deleteWithFeedback.variables?.param.id === method.id}
+                            loading={deleteUIState.isPending && deleteUIState.variables?.param.id === method.id}
+                            loadingText={t('paymentMethods.loadingMessages.deleting')}
                             startIcon={<Trash2 className="h-4 w-4" />}
                             className="text-destructive hover:text-destructive hover:bg-destructive/10"
                             aria-label={t('actions.delete')}
+                            disabled={
+                              // Disable when any operation is running on this payment method
+                              (setDefaultUIState.isPending && setDefaultUIState.variables?.param.id === method.id)
+                              || (deleteUIState.isPending && deleteUIState.variables?.param.id === method.id)
+                            }
                           />
                         </div>
                       )}
@@ -182,15 +200,11 @@ export default function PaymentMethodsScreen() {
                 description={t('paymentMethods.emptyDescription')}
                 icon={<CreditCard className="h-8 w-8 text-muted-foreground" />}
                 action={(
-                  <DirectDebitContractSetup
-                    onSuccess={(_contractId) => {
-                      showSuccessToast(t('paymentMethods.successMessages.directDebitContractCreated'));
-                    }}
-                  >
-                    <Button size="lg" startIcon={<Plus className="h-5 w-5" />}>
+                  <Button asChild size="lg" startIcon={<Plus className="h-5 w-5" />}>
+                    <Link href="/dashboard/billing/methods/setup">
                       {t('paymentMethods.createFirstContract')}
-                    </Button>
-                  </DirectDebitContractSetup>
+                    </Link>
+                  </Button>
                 )}
               />
             )}

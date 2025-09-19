@@ -237,45 +237,40 @@ export const invalidationPatterns = {
     queryKeys.organizations.all,
   ],
 
-  // Billing invalidations
+  // Billing invalidations - using specific keys to avoid redundant requests
   products: [
-    queryKeys.products.all,
     queryKeys.products.list,
   ],
 
   subscriptions: [
-    queryKeys.subscriptions.all,
     queryKeys.subscriptions.list,
     queryKeys.subscriptions.current,
   ],
 
   subscriptionDetail: (subscriptionId: string) => [
     queryKeys.subscriptions.detail(subscriptionId),
-    queryKeys.subscriptions.all,
     queryKeys.subscriptions.list,
     queryKeys.subscriptions.current,
-    queryKeys.payments.all,
+    queryKeys.payments.list,
   ],
 
   payments: [
-    queryKeys.payments.all,
+    queryKeys.payments.list,
     queryKeys.payments.history,
   ],
 
   paymentDetail: (paymentId: string) => [
     queryKeys.payments.detail(paymentId),
-    queryKeys.payments.all,
+    queryKeys.payments.list,
     queryKeys.payments.history,
   ],
 
   paymentMethods: [
-    queryKeys.paymentMethods.all,
     queryKeys.paymentMethods.list,
   ],
 
   paymentMethodDetail: (paymentMethodId: string) => [
     queryKeys.paymentMethods.detail(paymentMethodId),
-    queryKeys.paymentMethods.all,
     queryKeys.paymentMethods.list,
   ],
 } as const;
