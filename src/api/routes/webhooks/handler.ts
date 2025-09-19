@@ -21,7 +21,7 @@ import { apiLogger } from '@/api/middleware/hono-logger';
 import { ZarinPalService } from '@/api/services/zarinpal';
 import type { ApiEnv } from '@/api/types';
 import { getDbAsync } from '@/db';
-import { payment, subscription, webhookEvent } from '@/db/tables/billing';
+import { payment, product, subscription, webhookEvent } from '@/db/tables/billing';
 
 import type {
   getWebhookEventsRoute,
@@ -90,7 +90,7 @@ const StripeWebhookEventSchema = z.discriminatedUnion('type', [
     api_version: z.string(),
   }),
   z.object({
-    type: z.literal('subscription.updated'),
+    type: z.literal('customer.subscription.updated'),
     id: z.string(),
     object: z.literal('event'),
     created: z.number().int().positive(),
@@ -226,7 +226,7 @@ class WebhookEventBuilders {
     const event = {
       id: this.generateEventId(),
       object: 'event' as const,
-      type: 'subscription.updated' as const,
+      type: 'customer.subscription.updated' as const,
       created: this.toUnixTimestamp(new Date()),
       data: {
         object: {
@@ -612,6 +612,15 @@ export const zarinPalWebhookHandler: RouteHandler<typeof zarinPalWebhookRoute, A
                 throw new Error('Payment record not found after update');
               }
 
+              // Get product details and user details for metadata
+              const productResults = await tx.select().from(product).where(eq(product.id, updatedPayment.productId)).limit(1);
+              const productRecord = productResults[0];
+
+              // Get user details for email mapping
+              const { user } = await import('@/db/tables/auth');
+              const userResults = await tx.select({ email: user.email }).from(user).where(eq(user.id, updatedPayment.userId)).limit(1);
+              const userRecord = userResults[0];
+
               // DISPATCH WEBHOOK EVENT: Payment succeeded
               const paymentEvent = WebhookEventBuilders.createPaymentSucceededEvent(
                 updatedPayment.id,
@@ -622,6 +631,11 @@ export const zarinPalWebhookHandler: RouteHandler<typeof zarinPalWebhookRoute, A
                   zarinpalRefId: verification.data?.ref_id?.toString() || '',
                   zarinpalAuthority: webhookPayload.authority,
                   billingUserId: updatedPayment.userId,
+                  userEmail: userRecord?.email || '', // Include user email for Roundtable mapping
+                  productId: updatedPayment.productId,
+                  productName: productRecord?.name || '',
+                  planName: (productRecord?.metadata as Record<string, unknown>)?.roundtable_plan_name as string || productRecord?.name || 'Pro',
+                  roundtableProductId: productRecord?.roundtableId || '',
                 },
                 verification.data?.card_hash || webhookPayload.card_hash, // payment method ID
               );
@@ -659,8 +673,13 @@ export const zarinPalWebhookHandler: RouteHandler<typeof zarinPalWebhookRoute, A
                     'active',
                     {
                       billingUserId: updatedPayment.userId,
+                      userEmail: userRecord?.email || '', // Include user email for Roundtable mapping
                       paymentId: updatedPayment.id,
                       zarinpalContractId: verification.data?.card_hash || webhookPayload.card_hash || '',
+                      productId: updatedPayment.productId,
+                      productName: productRecord?.name || '',
+                      planName: (productRecord?.metadata as Record<string, unknown>)?.roundtable_plan_name as string || productRecord?.name || 'Pro',
+                      roundtableProductId: productRecord?.roundtableId || '',
                     },
                     {
                       id: `plan_${subscriptionRecord.productId}`,
@@ -677,8 +696,12 @@ export const zarinPalWebhookHandler: RouteHandler<typeof zarinPalWebhookRoute, A
                       WebhookEventBuilders.generateVirtualStripeCustomerId(updatedPayment.userId),
                       {
                         billingUserId: updatedPayment.userId,
+                        userEmail: userRecord?.email || '', // Include user email for Roundtable mapping
                         productId: subscriptionRecord.productId || '',
                         plan: subscriptionRecord.billingPeriod || 'monthly',
+                        productName: productRecord?.name || '',
+                        planName: (productRecord?.metadata as Record<string, unknown>)?.roundtable_plan_name as string || productRecord?.name || 'Pro',
+                        roundtableProductId: productRecord?.roundtableId || '',
                       },
                     );
                     await RoundtableWebhookForwarder.forwardEvent(customerSubEvent);

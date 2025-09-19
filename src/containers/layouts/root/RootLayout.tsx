@@ -1,9 +1,9 @@
 'use client';
 
 import { NextIntlClientProvider } from 'next-intl';
-import { ThemeProvider } from 'next-themes';
 import { NuqsAdapter } from 'nuqs/adapters/next/app';
 
+import { ThemeProvider } from '@/components/providers/theme-provider';
 import { Toaster } from '@/components/ui/toaster';
 import {
   QueryClientProvider,
@@ -30,40 +30,37 @@ export function RootLayout({
   const direction = locale === 'fa' ? 'rtl' : 'ltr';
 
   return (
-    <div
-      className="min-h-screen bg-background font-sans antialiased"
-      dir={direction}
+    <ThemeProvider
+      attribute="class"
+      defaultTheme="system"
+      enableSystem
+      disableTransitionOnChange
     >
-      <ThemeProvider
-        attribute="class"
-        defaultTheme="system"
-        enableSystem={true}
-        disableTransitionOnChange
-        storageKey="theme"
+      <div
+        className="min-h-screen bg-background font-sans antialiased"
+        dir={direction}
       >
         <QueryClientProvider>
-          <>
-            <NuqsAdapter>
-              <NextIntlClientProvider
-                messages={translations}
-                locale={locale}
-                timeZone="UTC"
-              >
-                {env.NEXT_PUBLIC_MAINTENANCE !== 'true'
-                  ? (
-                      <main>{children}</main>
-                    )
-                  : (
-                      <div>Maintenance</div>
-                    )}
-                {modal}
-              </NextIntlClientProvider>
-            </NuqsAdapter>
-          </>
+          <NuqsAdapter>
+            <NextIntlClientProvider
+              messages={translations}
+              locale={locale}
+              timeZone="UTC"
+            >
+              {env.NEXT_PUBLIC_MAINTENANCE !== 'true'
+                ? (
+                    <main>{children}</main>
+                  )
+                : (
+                    <div>Maintenance</div>
+                  )}
+              {modal}
+            </NextIntlClientProvider>
+          </NuqsAdapter>
         </QueryClientProvider>
-      </ThemeProvider>
-      <Toaster />
-    </div>
+        <Toaster />
+      </div>
+    </ThemeProvider>
   );
 }
 

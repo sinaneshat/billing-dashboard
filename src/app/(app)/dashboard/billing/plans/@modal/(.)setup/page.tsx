@@ -28,7 +28,10 @@ export default function SetupPlansModal() {
 
   // Open modal after component mounts (intercepted route behavior)
   useEffect(() => {
-    setOpen(true);
+    const timer = setTimeout(() => {
+      setOpen(true);
+    }, 0);
+    return () => clearTimeout(timer);
   }, []);
 
   const handleSuccess = (_contractId: string) => {

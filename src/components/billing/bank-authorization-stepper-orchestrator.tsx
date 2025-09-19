@@ -158,7 +158,7 @@ export function BankAuthorizationStepperOrchestrator({
         json: {
           mobile: data.mobile,
           ssn: data.nationalCode || undefined,
-          callbackUrl: `${window.location.origin}/dashboard/billing/methods?setup=success`,
+          callbackUrl: `${window.location.origin}/api/v1/payment-methods/direct-debit/callback`,
           contractDurationDays: 365,
           maxDailyCount: 5,
           maxMonthlyCount: 50,
@@ -202,6 +202,9 @@ export function BankAuthorizationStepperOrchestrator({
       selectedBankName: selectedBank.name,
       mobile: contactData.mobile,
       nationalCode: contactData.nationalCode,
+      maxDailyCount: 5,
+      maxMonthlyCount: 50,
+      maxAmount: 50000000,
     }));
 
     const authUrl = `https://www.zarinpal.com/pg/StartPayman/${contractData.paymanAuthority}/${data.selectedBankCode}`;

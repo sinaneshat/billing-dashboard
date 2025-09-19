@@ -1,5 +1,7 @@
 'use client';
 
+import { useTranslations } from 'next-intl';
+
 import { Button } from '@/components/ui/button';
 import { authClient } from '@/lib/auth/client';
 
@@ -21,10 +23,11 @@ export function GoogleButton({
   callbackURL = '/dashboard',
   errorCallbackURL = '/auth/error',
   newUserCallbackURL = '/dashboard/welcome',
-  children = 'Sign in with Google',
+  children,
   className,
   disabled = false,
 }: GoogleButtonProps) {
+  const t = useTranslations();
   const handleGoogleSignIn = async () => {
     try {
       // Use Better Auth's social sign-in method for Google
@@ -65,7 +68,7 @@ export function GoogleButton({
           d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
         />
       </svg>
-      {children}
+      {children || t('auth.signInWithGoogle')}
     </Button>
   );
 }

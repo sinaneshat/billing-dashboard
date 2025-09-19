@@ -39,7 +39,7 @@ function SubscriptionCard({ subscription, locale, t }: {
   const handleCancel = () => {
     cancelSubscription.mutate({
       param: { id: subscription.id },
-      json: { reason: 'User requested cancellation' },
+      json: { reason: t('subscription.cancellationReason') },
     });
   };
 

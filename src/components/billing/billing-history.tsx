@@ -63,7 +63,7 @@ export default function BillingHistory() {
                   paidAt: payment.paidAt,
                   createdAt: payment.createdAt,
                   hasReceipt: payment.status === 'completed' || payment.status === 'paid',
-                  failureReason: payment.status === 'failed' ? 'Payment failed' : null,
+                  failureReason: payment.status === 'failed' ? t('states.error.paymentFailed') : null,
                   zarinpalRefId: payment.zarinpalRefId,
                 }))}
                 isLoading={false}

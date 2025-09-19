@@ -18,6 +18,26 @@ interface ErrorBoundaryProps {
   resetKeys?: Array<string | number>;
   resetOnPropsChange?: boolean;
   isolate?: boolean;
+  translations?: {
+    title: string;
+    description: string;
+    sectionTitle: string;
+    sectionMessage: string;
+    sectionUnavailable: string;
+    sectionDescription: string;
+    componentError: string;
+    componentUnavailable: string;
+    pageTitle: string;
+    pageDescription: string;
+    copyErrorDetails: string;
+    errorDetailsCopied: string;
+    errorDetailsCopyFailed: string;
+    refreshPage: string;
+    refreshing: string;
+    goHome: string;
+    retrying: string;
+    retry: string;
+  };
 }
 
 interface ErrorBoundaryState {
@@ -77,16 +97,17 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
 
     // Show toast notification based on error level
     const { level = 'component' } = this.props;
+    const { translations } = this.props;
     if (level === 'page') {
       toastManager.error(
-        'Application Error',
-        'A critical error occurred. Please refresh the page.',
+        translations?.title || 'Application Error',
+        translations?.description || 'A critical error occurred. Please refresh the page.',
         { duration: 10000 }
       );
     } else if (level === 'section') {
       toastManager.warning(
-        'Section Error',
-        'Part of the page encountered an error.',
+        translations?.sectionTitle || 'Section Error',
+        translations?.sectionMessage || 'Part of the page encountered an error.',
         { duration: 6000 }
       );
     }
@@ -188,12 +209,13 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
       url: window.location.href,
     };
 
+    const { translations } = this.props;
     navigator.clipboard.writeText(JSON.stringify(errorDetails, null, 2))
       .then(() => {
-        toastManager.success('Error details copied to clipboard');
+        toastManager.success(translations?.errorDetailsCopied || 'Error details copied to clipboard');
       })
       .catch(() => {
-        toastManager.error('Failed to copy error details');
+        toastManager.error(translations?.errorDetailsCopyFailed || 'Failed to copy error details');
       });
   };
 
@@ -239,6 +261,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
         isRecovering={isRecovering}
         retryCount={retryCount}
         isolate={isolate}
+        translations={this.props.translations}
       />;
     }
 
@@ -307,9 +330,9 @@ function PageErrorFallback({
             </Button>
           </div>
 
-          <Button 
-            variant="ghost" 
-            size="sm" 
+          <Button
+            variant="ghost"
+            size="sm"
             onClick={onReportError}
             className="w-full"
           >
@@ -323,12 +346,13 @@ function PageErrorFallback({
 }
 
 // Section-level error fallback
-function SectionErrorFallback({ 
-  error, 
-  onRetry, 
-  isRecovering, 
+function SectionErrorFallback({
+  error,
+  onRetry,
+  isRecovering,
   retryCount,
-  showDetails 
+  showDetails,
+  translations
 }: {
   error: Error | null;
   errorInfo?: React.ErrorInfo | null;
@@ -337,14 +361,15 @@ function SectionErrorFallback({
   isRecovering: boolean;
   retryCount: number;
   showDetails: boolean;
+  translations?: ErrorBoundaryProps['translations'];
 }) {
   return (
     <Alert variant="destructive" className="my-4">
       <AlertTriangle className="h-4 w-4" />
       <AlertDescription className="space-y-3">
         <div>
-          <p className="font-medium">Section Unavailable</p>
-          <p className="text-sm">This section encountered an error and couldn't load properly.</p>
+          <p className="font-medium">{translations?.sectionUnavailable || 'Section Unavailable'}</p>
+          <p className="text-sm">{translations?.sectionDescription || 'This section encountered an error and couldn\'t load properly.'}</p>
           {showDetails && error && (
             <p className="text-xs font-mono mt-2 opacity-75">{error.message}</p>
           )}
@@ -360,19 +385,19 @@ function SectionErrorFallback({
             {isRecovering ? (
               <>
                 <RefreshCw className="h-3 w-3 mr-1 animate-spin" />
-                Retrying...
+                {translations?.retrying || 'Retrying...'}
               </>
             ) : (
               <>
                 <RefreshCw className="h-3 w-3 mr-1" />
-                Retry {retryCount > 0 && `(${retryCount}/3)`}
+                {translations?.retry || 'Retry'} {retryCount > 0 && `(${retryCount}/3)`}
               </>
             )}
           </Button>
           
           {retryCount >= 3 && (
             <Button size="sm" variant="ghost" onClick={() => window.location.reload()}>
-              Refresh Page
+              {translations?.refreshPage || 'Refresh Page'}
             </Button>
           )}
         </div>
@@ -382,12 +407,13 @@ function SectionErrorFallback({
 }
 
 // Component-level error fallback
-function ComponentErrorFallback({ 
-  error, 
-  onRetry, 
-  isRecovering, 
+function ComponentErrorFallback({
+  error,
+  onRetry,
+  isRecovering,
   retryCount,
-  isolate 
+  isolate,
+  translations
 }: {
   error: Error | null;
   errorInfo?: React.ErrorInfo | null;
@@ -395,6 +421,7 @@ function ComponentErrorFallback({
   isRecovering: boolean;
   retryCount: number;
   isolate: boolean;
+  translations?: ErrorBoundaryProps['translations'];
 }) {
   if (isolate) {
     return (
@@ -404,7 +431,7 @@ function ComponentErrorFallback({
       )}>
         <div className="text-center space-y-2">
           <AlertTriangle className="h-5 w-5 text-destructive mx-auto" />
-          <p className="text-sm text-muted-foreground">Component Error</p>
+          <p className="text-sm text-muted-foreground">{translations?.componentError || 'Component Error'}</p>
           {retryCount < 3 && (
             <Button size="sm" variant="outline" onClick={onRetry} disabled={isRecovering}>
               {isRecovering ? (
@@ -423,7 +450,7 @@ function ComponentErrorFallback({
   return (
     <div className="flex items-center gap-2 p-2 text-sm text-muted-foreground">
       <AlertTriangle className="h-4 w-4 text-destructive" />
-      <span>Component unavailable</span>
+      <span>{translations?.componentUnavailable || 'Component unavailable'}</span>
       {retryCount < 3 && (
         <Button size="sm" variant="ghost" onClick={onRetry} disabled={isRecovering}>
           <RefreshCw className={cn("h-3 w-3", isRecovering && "animate-spin")} />
@@ -457,6 +484,14 @@ export function withErrorBoundary<P extends object>(
   WrappedComponent.displayName = `withErrorBoundary(${Component.displayName || Component.name})`;
   
   return WrappedComponent;
+}
+
+// Wrapper component that provides translations
+export function ErrorBoundaryWithTranslations(props: Omit<ErrorBoundaryProps, 'translations'>) {
+  // Since this is a component file, we'll need the translations to be passed down
+  // or use a different approach. For now, we'll keep the original class component
+  // and export both versions
+  return <ErrorBoundary {...props} />;
 }
 
 export default ErrorBoundary;

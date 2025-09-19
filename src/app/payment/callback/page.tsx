@@ -31,7 +31,7 @@ function PaymentCallbackContent() {
         // Check if this is a direct debit contract callback or regular payment callback
         const authority = searchParams.get('Authority'); // Regular payment
         const paymanAuthority = searchParams.get('payman_authority'); // Direct debit contract
-        const status = searchParams.get('Status') || searchParams.get('status'); // Both formats
+        const status = searchParams.get('status'); // ZarinPal docs: lowercase 'status'
 
         if (!authority && !paymanAuthority) {
           setResult({
@@ -52,7 +52,7 @@ function PaymentCallbackContent() {
         // Handle direct debit contract callback
         if (paymanAuthority) {
           // Get stored contract information from localStorage
-          const storedContract = localStorage.getItem('direct-debit-contract');
+          const storedContract = localStorage.getItem('bank-authorization-contract');
           if (!storedContract) {
             setResult({
               success: false,
@@ -78,16 +78,16 @@ function PaymentCallbackContent() {
               json: {
                 paymanAuthority,
                 status: status.toUpperCase() as 'OK' | 'NOK',
-                mobile: contractInfo.contractParams.mobile,
-                ssn: contractInfo.contractParams.ssn,
-                maxDailyCount: contractInfo.contractParams.maxDailyCount,
-                maxMonthlyCount: contractInfo.contractParams.maxMonthlyCount,
-                maxAmount: contractInfo.contractParams.maxAmount,
+                mobile: contractInfo.mobile,
+                ssn: contractInfo.nationalCode || undefined,
+                maxDailyCount: contractInfo.maxDailyCount,
+                maxMonthlyCount: contractInfo.maxMonthlyCount,
+                maxAmount: contractInfo.maxAmount,
               },
             });
 
             // Clean up localStorage
-            localStorage.removeItem('direct-debit-contract');
+            localStorage.removeItem('bank-authorization-contract');
 
             if (contractResult.success && contractResult.data) {
               if (contractResult.data.contractVerified) {

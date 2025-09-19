@@ -1,5 +1,6 @@
 'use client';
 
+import { useTranslations } from 'next-intl';
 import { memo } from 'react';
 
 import { EmptyCard, LoadingCard } from '@/components/dashboard/dashboard-cards';
@@ -24,6 +25,7 @@ function BillingCardContainerImpl<T>({
   loadingCardCount = 3,
   children,
 }: BillingCardContainerProps<T>) {
+  const t = useTranslations();
   // Loading state
   if (isLoading) {
     return (
@@ -41,8 +43,8 @@ function BillingCardContainerImpl<T>({
   if (items.length === 0) {
     return (
       <EmptyCard
-        title={emptyStateTitle || 'No items found'}
-        description={emptyStateDescription || 'There are no items to display at this time.'}
+        title={emptyStateTitle || t('states.empty.noItemsFound')}
+        description={emptyStateDescription || t('states.empty.noItemsDescription')}
         className={className}
       />
     );

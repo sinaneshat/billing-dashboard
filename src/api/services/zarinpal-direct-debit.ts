@@ -5,8 +5,6 @@
  * https://docs.zarinpal.com/paymentGateway/directPayment.html
  */
 
-import { Buffer } from 'node:buffer';
-
 import { z } from '@hono/zod-openapi';
 import { getCloudflareContext } from '@opennextjs/cloudflare';
 import { HTTPException } from 'hono/http-exception';
@@ -433,25 +431,6 @@ export class ZarinPalDirectDebitService {
     }
     const validatedRequest = requestResult.data;
 
-    // Handle sandbox/development mode
-    if (this.config.isPlaceholder || (this.config.isSandbox && this.config.isSandboxValue)) {
-      if (this.config.isSandbox) {
-        // In development mode with placeholder credentials, return mock response
-        return {
-          data: {
-            payman_authority: `mock-payman-authority-${Date.now()}`,
-            code: 100,
-            message: 'Mock direct debit contract for development',
-          },
-          errors: [],
-        };
-      } else {
-        throw new HTTPException(HttpStatusCodes.BAD_REQUEST, {
-          message: 'Production mode: Invalid ZarinPal credentials. Configure real credentials from https://next.zarinpal.com/panel/',
-        });
-      }
-    }
-
     const payload = {
       merchant_id: this.config.merchantId,
       mobile: validatedRequest.mobile,
@@ -532,40 +511,6 @@ export class ZarinPalDirectDebitService {
    * Using BaseService HTTP methods with Zod validation for type safety
    */
   async getBankList(): Promise<BankListResponse> {
-    // Handle sandbox/development mode
-    if (this.config.isPlaceholder || (this.config.isSandbox && this.config.isSandboxValue)) {
-      if (this.config.isSandbox) {
-        // In development mode with placeholder credentials, return mock response
-        return {
-          data: {
-            banks: [
-              {
-                name: 'Mock Bank 1 (Development)',
-                slug: 'mock-bank-1',
-                bank_code: '001',
-                max_daily_amount: 50000000,
-                max_daily_count: 10,
-              },
-              {
-                name: 'Mock Bank 2 (Development)',
-                slug: 'mock-bank-2',
-                bank_code: '002',
-                max_daily_amount: 25000000,
-                max_daily_count: 5,
-              },
-            ],
-            code: 100,
-            message: 'Mock bank list for development',
-          },
-          errors: [],
-        };
-      } else {
-        throw new HTTPException(HttpStatusCodes.BAD_REQUEST, {
-          message: 'Production mode: Invalid ZarinPal credentials. Configure real credentials from https://next.zarinpal.com/panel/',
-        });
-      }
-    }
-
     try {
       const rawResult = await this.get<BankListResponse>(
         '/pg/v4/payman/banksList.json',
@@ -610,25 +555,6 @@ export class ZarinPalDirectDebitService {
     }
     const validatedRequest = requestResult.data;
 
-    // Handle sandbox/development mode
-    if (this.config.isPlaceholder || (this.config.isSandbox && this.config.isSandboxValue)) {
-      if (this.config.isSandbox) {
-        // In development mode with placeholder credentials, return mock response
-        return {
-          data: {
-            signature: `mock-signature-${Buffer.from(validatedRequest.payman_authority).toString('base64').substring(0, 50).padEnd(200, '0')}`,
-            code: 100,
-            message: 'Mock contract verification for development',
-          },
-          errors: [],
-        };
-      } else {
-        throw new HTTPException(HttpStatusCodes.BAD_REQUEST, {
-          message: 'Production mode: Invalid ZarinPal credentials. Configure real credentials from https://next.zarinpal.com/panel/',
-        });
-      }
-    }
-
     const payload = {
       merchant_id: this.config.merchantId,
       payman_authority: validatedRequest.payman_authority,
@@ -667,25 +593,6 @@ export class ZarinPalDirectDebitService {
     if (!requestResult.success) {
       const errorMessage = requestResult.errors[0]?.message || 'Direct transaction request validation failed';
       throw new Error(`Direct transaction request validation failed: ${errorMessage}`);
-    }
-    // Handle sandbox/development mode
-    if (this.config.isPlaceholder || (this.config.isSandbox && this.config.isSandboxValue)) {
-      if (this.config.isSandbox) {
-        // In development mode, return mock successful payment
-        return {
-          data: {
-            refrence_id: Math.floor(Math.random() * 1000000000), // Mock reference ID
-            amount: 1000, // Mock amount
-            code: 100,
-            message: 'Mock direct payment success for development',
-          },
-          errors: [],
-        };
-      } else {
-        throw new HTTPException(HttpStatusCodes.BAD_REQUEST, {
-          message: 'Production mode: Invalid ZarinPal credentials. Configure real credentials from https://next.zarinpal.com/panel/',
-        });
-      }
     }
 
     const payload = {
@@ -726,21 +633,6 @@ export class ZarinPalDirectDebitService {
    * Using BaseService HTTP methods for consistent error handling
    */
   async cancelContract(request: CancelContractRequest): Promise<{ code: number; message: string }> {
-    // Handle sandbox/development mode
-    if (this.config.isPlaceholder || (this.config.isSandbox && this.config.isSandboxValue)) {
-      if (this.config.isSandbox) {
-        // In development mode, return mock cancellation success
-        return {
-          code: 100,
-          message: 'Mock contract cancellation success for development',
-        };
-      } else {
-        throw new HTTPException(HttpStatusCodes.BAD_REQUEST, {
-          message: 'Production mode: Invalid ZarinPal credentials. Configure real credentials from https://next.zarinpal.com/panel/',
-        });
-      }
-    }
-
     const payload = {
       merchant_id: this.config.merchantId,
       signature: request.signature,
