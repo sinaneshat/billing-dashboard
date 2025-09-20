@@ -182,14 +182,18 @@ export const detailedHealthHandler: RouteHandler<typeof detailedHealthRoute, Api
     }
 
     // Check environment configuration
-    const requiredEnvVars = ['DATABASE_URL', 'NEXTAUTH_SECRET'] as const;
+    const requiredEnvVars = ['BETTER_AUTH_SECRET'] as const;
     const missingVars = requiredEnvVars.filter(varName => !c.env[varName as keyof typeof c.env]);
 
+    // Check for database binding (D1 database)
+    const dbMissing = !c.env.DB;
+    const allMissingVars = [...missingVars, ...(dbMissing ? ['DB'] : [])];
+
     dependencies.environment = {
-      status: missingVars.length === 0 ? 'healthy' : 'degraded',
-      message: missingVars.length === 0
+      status: allMissingVars.length === 0 ? 'healthy' : 'degraded',
+      message: allMissingVars.length === 0
         ? 'Environment configuration is valid'
-        : `Missing environment variables: ${missingVars.join(', ')}`,
+        : `Missing environment variables: ${allMissingVars.join(', ')}`,
     };
 
     // Calculate summary

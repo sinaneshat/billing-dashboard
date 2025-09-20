@@ -8,7 +8,6 @@ import * as HttpStatusCodes from 'stoker/http-status-codes';
 
 type EnvironmentConfig = {
   NODE_ENV: string;
-  DATABASE_URL: string;
   BETTER_AUTH_SECRET: string;
   ZARINPAL_MERCHANT_ID: string;
   ZARINPAL_ACCESS_TOKEN: string;
@@ -56,7 +55,6 @@ export function validateEnvironmentConfig(env: Record<string, string | undefined
   // Required environment variables
   const required = [
     'NODE_ENV',
-    'DATABASE_URL',
     'BETTER_AUTH_SECRET',
     'ZARINPAL_MERCHANT_ID',
     'ZARINPAL_ACCESS_TOKEN',
@@ -106,11 +104,6 @@ export function validateEnvironmentConfig(env: Record<string, string | undefined
       if (WEAK_SECRETS.some(weak => secret.toLowerCase().includes(weak))) {
         errors.push('BETTER_AUTH_SECRET appears to be weak. Use a strong random string in production.');
       }
-    }
-
-    // Validate database URL in production
-    if (env.DATABASE_URL && (env.DATABASE_URL as string).startsWith('file:')) {
-      warnings.push('Using SQLite database in production. Consider using a proper database service.');
     }
   }
 

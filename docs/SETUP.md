@@ -59,7 +59,7 @@ cp .env.example .env
 
 # Edit .env file - only change these for basic setup:
 NODE_ENV=development
-DATABASE_URL=file:./local.db
+# Database: Uses ./local.db for local development, D1 bindings for production
 BETTER_AUTH_SECRET=your-random-32-character-secret-key-here
 ```
 
@@ -206,7 +206,7 @@ pnpm test
 ### Required Variables
 ```env
 NODE_ENV=development
-DATABASE_URL=file:./local.db
+# Database: Uses ./local.db for local development, D1 bindings for production
 BETTER_AUTH_SECRET=your-secret-key
 ```
 
@@ -474,11 +474,10 @@ pnpm build-stats
 
 #### Database Optimization
 ```bash
-# Use local database for development
-DATABASE_URL=file:./local.db
-
-# Use connection pooling for production
-DATABASE_URL=your-postgres-url-with-pooling
+# Database configuration:
+# - Local development: Uses ./local.db (SQLite)
+# - Production: Uses Cloudflare D1 bindings (env.DB)
+# - No DATABASE_URL needed - uses native database bindings
 ```
 
 ### VS Code Configuration

@@ -6,37 +6,13 @@
  * Used after complete database reset (day 0)
  */
 
-import * as fs from 'node:fs';
-import * as path from 'node:path';
-
 import Database from 'better-sqlite3';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
 
 import { product } from '../src/db/tables/billing';
 
-// Local database configuration
-const LOCAL_DB_DIR = '.wrangler/state/v3/d1/miniflare-D1DatabaseObject';
-const LOCAL_DB_PATH = path.join(process.cwd(), LOCAL_DB_DIR);
-
 function getLocalDbPath(): string {
-  // Create directory if it doesn't exist
-  if (!fs.existsSync(LOCAL_DB_PATH)) {
-    fs.mkdirSync(LOCAL_DB_PATH, { recursive: true });
-  }
-
-  // Look for existing SQLite file
-  try {
-    const files = fs.readdirSync(LOCAL_DB_PATH);
-    const dbFile = files.find(file => file.endsWith('.sqlite'));
-    if (dbFile) {
-      return path.join(LOCAL_DB_PATH, dbFile);
-    }
-  } catch {
-    // Directory doesn't exist or can't be read
-  }
-
-  // Return default path
-  return path.join(LOCAL_DB_PATH, 'database.sqlite');
+  return './local.db';
 }
 
 // Create database connection for seeding

@@ -190,7 +190,6 @@ export type SecurityValidation = z.infer<typeof SecurityValidationSchema>;
 export const EnvironmentVariablesSchema = z.object({
   // Core application
   NODE_ENV: z.enum(['development', 'production', 'test']),
-  DATABASE_URL: z.string().url(),
   BETTER_AUTH_SECRET: z.string().min(32),
   BETTER_AUTH_URL: z.string().url(),
 

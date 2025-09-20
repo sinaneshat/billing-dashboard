@@ -7,6 +7,7 @@ import * as schema from './schema';
 /**
  * Create database instance following official OpenNext.js patterns
  * Uses React cache for optimal performance in server components
+ * Always uses D1 database for consistency across environments
  */
 export const getDb = cache(() => {
   try {
