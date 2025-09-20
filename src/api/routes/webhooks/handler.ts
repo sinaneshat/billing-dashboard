@@ -617,8 +617,8 @@ export const zarinPalWebhookHandler: RouteHandler<typeof zarinPalWebhookRoute, A
               const productRecord = productResults[0];
 
               // Get user details for email mapping
-              const { users } = await import('@/db/tables/auth');
-              const userResults = await tx.select({ email: users.email }).from(users).where(eq(users.id, updatedPayment.userId)).limit(1);
+              const { user } = await import('@/db/tables/auth');
+              const userResults = await tx.select({ email: user.email }).from(user).where(eq(user.id, updatedPayment.userId)).limit(1);
               const userRecord = userResults[0];
 
               // DISPATCH WEBHOOK EVENT: Payment succeeded

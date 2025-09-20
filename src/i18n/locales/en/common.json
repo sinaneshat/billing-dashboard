@@ -83,6 +83,8 @@
       "oauthSignin": "Sign In Error",
       "oauthSigninDesc": "There was a problem signing in with your social account. Please try again.",
       "passwordTooWeak": "Password must be at least 8 characters",
+      "restartProcess": "Authentication Process Reset Required",
+      "restartProcessDesc": "The authentication process needs to be restarted. Please try signing in again from the beginning.",
       "sessionExpired": "Your session has expired. Please sign in again.",
       "tryAgain": "Try Again",
       "verification": "Verification Required",

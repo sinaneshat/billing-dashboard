@@ -57,6 +57,11 @@ export default function AuthErrorScreen() {
           title: t('auth.errors.callback'),
           description: t('auth.errors.callbackDesc'),
         };
+      case 'please_restart_the_process':
+        return {
+          title: t('auth.errors.restartProcess'),
+          description: t('auth.errors.restartProcessDesc'),
+        };
       default:
         return {
           title: t('auth.errors.default'),

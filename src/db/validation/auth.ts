@@ -4,19 +4,19 @@ import { z } from 'zod';
 import { STRING_LIMITS } from '@/constants';
 
 import {
-  accounts,
-  sessions,
-  users,
-  verifications,
+  account,
+  session,
+  user,
+  verification,
 } from '../tables/auth';
 
 // User schemas
-export const userSelectSchema = createSelectSchema(users);
-export const userInsertSchema = createInsertSchema(users, {
+export const userSelectSchema = createSelectSchema(user);
+export const userInsertSchema = createInsertSchema(user, {
   email: schema => schema.email(),
   image: () => z.string().url().optional(),
 });
-export const userUpdateSchema = createUpdateSchema(users, {
+export const userUpdateSchema = createUpdateSchema(user, {
   email: schema => schema.email().optional(),
   image: () => z.string().url().optional(),
 });
@@ -42,13 +42,13 @@ export const profileUpdateSchema = z.object({
 export type ProfileUpdateValues = z.infer<typeof profileUpdateSchema>;
 
 // Session schemas
-export const sessionSelectSchema = createSelectSchema(sessions);
-export const sessionInsertSchema = createInsertSchema(sessions);
+export const sessionSelectSchema = createSelectSchema(session);
+export const sessionInsertSchema = createInsertSchema(session);
 
 // Account schemas
-export const accountSelectSchema = createSelectSchema(accounts);
-export const accountInsertSchema = createInsertSchema(accounts);
+export const accountSelectSchema = createSelectSchema(account);
+export const accountInsertSchema = createInsertSchema(account);
 
 // Verification schemas
-export const verificationSelectSchema = createSelectSchema(verifications);
-export const verificationInsertSchema = createInsertSchema(verifications);
+export const verificationSelectSchema = createSelectSchema(verification);
+export const verificationInsertSchema = createInsertSchema(verification);
