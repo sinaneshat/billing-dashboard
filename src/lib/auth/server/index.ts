@@ -43,6 +43,7 @@ function createAuth(env?: { DB: D1Database }) {
   // Create Drizzle adapter with D1
   const database = drizzleAdapter(drizzleD1(d1Database, { schema: authSchema }), {
     provider: 'sqlite',
+    usePlural: true, // Required for D1 database compatibility
     schema: authSchema,
   });
 

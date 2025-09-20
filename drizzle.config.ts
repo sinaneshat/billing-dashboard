@@ -39,12 +39,10 @@ export default defineConfig({
         dbCredentials: getRemoteConfig(),
       }
     : {
-        // Wrangler local D1 for development
-        // This integrates with `wrangler d1 migrations apply DB --local`
-        driver: 'wrangler',
+        // Local SQLite for schema generation
+        driver: 'libsql',
         dbCredentials: {
-          wranglerConfigPath: './wrangler.jsonc',
-          databaseName: 'DB',
+          url: 'file:./local.db',
         },
       }),
 });

@@ -2,7 +2,7 @@ import { relations } from 'drizzle-orm';
 import { index, integer, real, sqliteTable, text } from 'drizzle-orm/sqlite-core';
 
 import { timestamps } from '../utils';
-import { user } from './auth';
+import { users } from './auth';
 
 // Products table - defines what can be purchased
 export const product = sqliteTable('product', {
@@ -44,7 +44,7 @@ export const product = sqliteTable('product', {
 // Direct debit contracts table - stores ZarinPal Payman contracts only
 export const paymentMethod = sqliteTable('payment_method', {
   id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
-  userId: text('user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
+  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
 
   // ZarinPal Direct Debit Contract fields (Payman API)
   contractType: text('contract_type', {
@@ -89,7 +89,7 @@ export const paymentMethod = sqliteTable('payment_method', {
 // Subscriptions table - tracks user subscriptions to products
 export const subscription = sqliteTable('subscription', {
   id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
-  userId: text('user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
+  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   productId: text('product_id').notNull().references(() => product.id, { onDelete: 'cascade' }),
   status: text('status', {
     enum: ['active', 'canceled', 'expired', 'pending'],
@@ -140,7 +140,7 @@ export const subscription = sqliteTable('subscription', {
 // Payments table - transaction log for all payment attempts
 export const payment = sqliteTable('payment', {
   id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
-  userId: text('user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
+  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   subscriptionId: text('subscription_id').references(() => subscription.id, { onDelete: 'restrict' }),
   productId: text('product_id').notNull().references(() => product.id, { onDelete: 'restrict' }),
 
@@ -191,7 +191,7 @@ export const payment = sqliteTable('payment', {
 // Billing events table - comprehensive audit trail
 export const billingEvent = sqliteTable('billing_event', {
   id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
-  userId: text('user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
+  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   subscriptionId: text('subscription_id').references(() => subscription.id, { onDelete: 'cascade' }),
   paymentId: text('payment_id').references(() => payment.id, { onDelete: 'cascade' }),
   paymentMethodId: text('payment_method_id').references(() => paymentMethod.id, { onDelete: 'cascade' }),
@@ -245,9 +245,9 @@ export const productRelations = relations(product, ({ many }) => ({
 }));
 
 export const subscriptionRelations = relations(subscription, ({ one, many }) => ({
-  user: one(user, {
+  user: one(users, {
     fields: [subscription.userId],
-    references: [user.id],
+    references: [users.id],
   }),
   product: one(product, {
     fields: [subscription.productId],
@@ -262,9 +262,9 @@ export const subscriptionRelations = relations(subscription, ({ one, many }) => 
 }));
 
 export const paymentRelations = relations(payment, ({ one }) => ({
-  user: one(user, {
+  user: one(users, {
     fields: [payment.userId],
-    references: [user.id],
+    references: [users.id],
   }),
   subscription: one(subscription, {
     fields: [payment.subscriptionId],
@@ -285,9 +285,9 @@ export const webhookEventRelations = relations(webhookEvent, ({ one }) => ({
 
 // Payment method relations
 export const paymentMethodRelations = relations(paymentMethod, ({ one, many }) => ({
-  user: one(user, {
+  user: one(users, {
     fields: [paymentMethod.userId],
-    references: [user.id],
+    references: [users.id],
   }),
   subscriptions: many(subscription),
   billingEvents: many(billingEvent),
@@ -295,9 +295,9 @@ export const paymentMethodRelations = relations(paymentMethod, ({ one, many }) =
 
 // Billing event relations
 export const billingEventRelations = relations(billingEvent, ({ one }) => ({
-  user: one(user, {
+  user: one(users, {
     fields: [billingEvent.userId],
-    references: [user.id],
+    references: [users.id],
   }),
   subscription: one(subscription, {
     fields: [billingEvent.subscriptionId],
@@ -315,7 +315,7 @@ export const billingEventRelations = relations(billingEvent, ({ one }) => ({
 
 // Extended user relations to include billing tables
 // Note: This extends the existing userRelations from auth.ts
-export const userBillingRelations = relations(user, ({ many }) => ({
+export const userBillingRelations = relations(users, ({ many }) => ({
   subscriptions: many(subscription),
   payments: many(payment),
   paymentMethods: many(paymentMethod),
