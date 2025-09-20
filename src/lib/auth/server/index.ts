@@ -36,11 +36,10 @@ function createAuthAdapter() {
       transaction: false,
     });
   } catch {
-    // Fallback to regular db proxy
+    // Fallback to regular db proxy (keep transactions enabled for local SQLite)
     return drizzleAdapter(db, {
       provider: 'sqlite',
       schema: authSchema,
-      transaction: false,
     });
   }
 }

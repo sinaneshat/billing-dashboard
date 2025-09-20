@@ -13,8 +13,8 @@ import {
  * AUTHENTICATION FIX: Only fetch when user is authenticated to prevent 401 errors
  */
 export function useSubscriptionsQuery() {
-  const { data: session } = useSession();
-  const isAuthenticated = !!session?.user;
+  const { data: session, isPending } = useSession();
+  const isAuthenticated = !isPending && !!session?.user?.id;
 
   return useQuery({
     queryKey: queryKeys.subscriptions.list, // CRITICAL FIX: Static array like official examples
