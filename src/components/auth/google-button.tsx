@@ -22,7 +22,7 @@ type GoogleButtonProps = {
 export function GoogleButton({
   callbackURL = '/dashboard',
   errorCallbackURL = '/auth/error',
-  newUserCallbackURL = '/dashboard/welcome',
+  newUserCallbackURL = '/dashboard',
   children,
   className,
   disabled = false,
