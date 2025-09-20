@@ -60,8 +60,7 @@ const coreEnvironmentSchema = z.object({
  * Database configuration schema
  */
 const databaseEnvironmentSchema = z.object({
-  // Database URLs
-  DATABASE_URL: ValidationUtils.string.nonEmpty(),
+  // Database configuration (uses D1 bindings, not URL-based)
   DATABASE_AUTH_TOKEN: ValidationUtils.string.nonEmpty().optional(),
 
   // Local development database
@@ -238,7 +237,6 @@ function parseEnvironment() {
     API_VERSION: process.env.API_VERSION,
 
     // Database
-    DATABASE_URL: process.env.DATABASE_URL,
     DATABASE_AUTH_TOKEN: process.env.DATABASE_AUTH_TOKEN,
     LOCAL_DATABASE_PATH: process.env.LOCAL_DATABASE_PATH,
     DATABASE_CONNECTION_LIMIT: process.env.DATABASE_CONNECTION_LIMIT,
@@ -488,7 +486,6 @@ export function validateConfiguration(): void {
 export function getDatabaseConfig() {
   const cfg = getConfig();
   return {
-    url: cfg.DATABASE_URL,
     authToken: cfg.DATABASE_AUTH_TOKEN,
     localPath: cfg.LOCAL_DATABASE_PATH,
     connectionLimit: cfg.DATABASE_CONNECTION_LIMIT,

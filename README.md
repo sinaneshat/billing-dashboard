@@ -359,8 +359,7 @@ NEXT_PUBLIC_APP_URL=http://localhost:3000
 BETTER_AUTH_SECRET=your-32-character-secret-key-here
 BETTER_AUTH_URL=http://localhost:3000
 
-# Database
-DATABASE_URL=file:./local.db
+# Database (uses Cloudflare D1 bindings in production, ./local.db for local development)
 
 # ZarinPal Configuration (Required for payments)
 ZARINPAL_MERCHANT_ID=36e0ea98-43fa-400d-a421-f7593b1c73bc  # Sandbox

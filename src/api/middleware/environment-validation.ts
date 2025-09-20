@@ -28,7 +28,6 @@ import type { SafeEnvironmentSummary } from '@/api/types/http';
  * These are required for core application functionality
  */
 export const CRITICAL_ENV_VARS = [
-  'DATABASE_URL',
   'BETTER_AUTH_SECRET',
   'BETTER_AUTH_URL',
   'NODE_ENV',
@@ -150,10 +149,6 @@ export function validateEnvironmentConfiguration(env: CloudflareEnv): {
   // Validate specific environment variable formats
   if (env.BETTER_AUTH_URL && !isValidUrl(env.BETTER_AUTH_URL)) {
     errors.push('BETTER_AUTH_URL must be a valid URL');
-  }
-
-  if (env.DATABASE_URL && !isValidUrl(env.DATABASE_URL)) {
-    errors.push('DATABASE_URL must be a valid URL');
   }
 
   if (env.NEXT_PUBLIC_R2_PUBLIC_URL && !isValidUrl(env.NEXT_PUBLIC_R2_PUBLIC_URL)) {
@@ -418,8 +413,8 @@ export function getEnvironmentHealthStatus(env: CloudflareEnv): {
 export function createEnvironmentSummary(env: CloudflareEnv): SafeEnvironmentSummary {
   // Determine database connection status
   let databaseStatus: 'connected' | 'disconnected' | 'pending' = 'pending';
-  if (env.DATABASE_URL) {
-    // In a real implementation, you might test the connection
+  if (env.DB) {
+    // D1 database binding is available
     databaseStatus = 'connected';
   } else {
     databaseStatus = 'disconnected';
@@ -452,7 +447,7 @@ export function createEnvironmentSummary(env: CloudflareEnv): SafeEnvironmentSum
   return {
     NODE_ENV: env.NODE_ENV || 'development',
     LOG_LEVEL: 'info',
-    ENVIRONMENT_VERIFIED: !!(env.DATABASE_URL && env.BETTER_AUTH_SECRET && env.BETTER_AUTH_URL),
+    ENVIRONMENT_VERIFIED: !!(env.DB && env.BETTER_AUTH_SECRET && env.BETTER_AUTH_URL),
     DATABASE_CONNECTION_STATUS: databaseStatus,
     PAYMENT_GATEWAY_STATUS: paymentStatus,
     OAUTH_STATUS: oauthStatus,
