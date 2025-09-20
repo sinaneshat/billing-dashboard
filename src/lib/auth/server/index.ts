@@ -71,17 +71,23 @@ function getDatabaseConfig() {
         provider: 'sqlite',
         schema: authSchema,
       });
-    } catch {
-      // Fallback for build time - return a dummy adapter that will be replaced at runtime
-      // Better Auth will reinitialize the database connection when actually used
-      const dbPath = getLocalDbPath();
-      const sqlite = new Database(dbPath);
-      const localDb = drizzle(sqlite, { schema: authSchema });
+    } catch (error) {
+      // Only fallback to local database if we're in build/development mode
+      // In production runtime, re-throw the error to prevent silent failures
+      if (process.env.NODE_ENV === 'development' || process.env.NEXT_PHASE === 'phase-production-build') {
+        const dbPath = getLocalDbPath();
+        const sqlite = new Database(dbPath);
+        const localDb = drizzle(sqlite, { schema: authSchema });
 
-      return drizzleAdapter(localDb, {
-        provider: 'sqlite',
-        schema: authSchema,
-      });
+        return drizzleAdapter(localDb, {
+          provider: 'sqlite',
+          schema: authSchema,
+        });
+      }
+
+      // In production runtime, this should not happen
+      console.error('Failed to get Cloudflare context in production:', error);
+      throw new Error('Database configuration failed: Cloudflare context not available');
     }
   }
 }
