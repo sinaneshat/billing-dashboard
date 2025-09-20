@@ -1,60 +1,22 @@
-import * as fs from 'node:fs';
-import * as path from 'node:path';
-
 import { betterAuth } from 'better-auth';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { nextCookies } from 'better-auth/next-js';
 import { admin, magicLink } from 'better-auth/plugins';
-import Database from 'better-sqlite3';
-import { drizzle } from 'drizzle-orm/better-sqlite3';
 
+import { getDb } from '@/db/index';
 import * as authSchema from '@/db/tables/auth';
 import { getBaseUrl } from '@/utils/helpers';
 
-// Database configuration for Better Auth
-const LOCAL_DB_DIR = '.wrangler/state/v3/d1/miniflare-D1DatabaseObject';
-const LOCAL_DB_PATH = path.join(process.cwd(), LOCAL_DB_DIR);
-
-/**
- * Gets the path to the local SQLite database file for Better Auth
- */
-function getLocalDbPath(): string {
-  if (!fs.existsSync(LOCAL_DB_PATH)) {
-    fs.mkdirSync(LOCAL_DB_PATH, { recursive: true });
-  }
-
-  try {
-    const files = fs.readdirSync(LOCAL_DB_PATH);
-    const dbFile = files.find(file => file.endsWith('.sqlite'));
-    if (dbFile) {
-      return path.join(LOCAL_DB_PATH, dbFile);
-    }
-  } catch {
-    // Ignore errors
-  }
-
-  return path.join(LOCAL_DB_PATH, 'database.sqlite');
-}
-
 /**
  * Get database configuration for Better Auth
- * Always uses local SQLite to avoid D1 transaction issues in production
+ * Uses D1 database for production compatibility
  */
 function getDatabaseConfig() {
-  // Always use SQLite for now to avoid D1 transaction compatibility issues
-  // This is a temporary fix until Better Auth fully supports D1's transaction model
-  const dbPath = getLocalDbPath();
-  const sqlite = new Database(dbPath);
+  // Use the same D1 database instance as the rest of the app
+  const db = getDb();
 
-  // Configure SQLite for better performance and transaction handling
-  sqlite.pragma('journal_mode = WAL');
-  sqlite.pragma('synchronous = NORMAL');
-  sqlite.pragma('foreign_keys = ON');
-
-  const localDb = drizzle(sqlite, { schema: authSchema });
-
-  return drizzleAdapter(localDb, {
-    provider: 'sqlite',
+  return drizzleAdapter(db, {
+    provider: 'sqlite', // D1 is SQLite-compatible
     schema: authSchema,
   });
 }
