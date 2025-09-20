@@ -2,6 +2,7 @@
 
 import { useControllableState } from "@radix-ui/react-use-controllable-state";
 import { Portal } from "radix-ui";
+import { useTranslations } from "next-intl";
 import type {
   ButtonHTMLAttributes,
   Dispatch,
@@ -385,6 +386,7 @@ export const DialogStackNext = ({
   ...props
 }: DialogStackNextProps) => {
   const context = useContext(DialogStackContext);
+  const t = useTranslations('actions');
 
   if (!context) {
     throw new Error("DialogStackNext must be used within a DialogStack");
@@ -423,7 +425,7 @@ export const DialogStackNext = ({
       type="button"
       {...props}
     >
-      {children || "Next"}
+      {children || t('next')}
     </button>
   );
 };
@@ -440,6 +442,7 @@ export const DialogStackPrevious = ({
   ...props
 }: DialogStackPreviousProps) => {
   const context = useContext(DialogStackContext);
+  const t = useTranslations('actions');
 
   if (!context) {
     throw new Error("DialogStackPrevious must be used within a DialogStack");
@@ -478,7 +481,7 @@ export const DialogStackPrevious = ({
       type="button"
       {...props}
     >
-      {children || "Previous"}
+      {children || t('previous')}
     </button>
   );
 };

@@ -258,6 +258,9 @@
         "title": "Contact Info"
       }
     },
+    "status": {
+      "noContract": "No direct debit contract set up"
+    },
     "subtitle": "Set up secure bank authorization for automated payments",
     "title": "Bank Authorization Setup"
   },
