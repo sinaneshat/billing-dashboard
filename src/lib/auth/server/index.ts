@@ -1,35 +1,28 @@
+import type { D1Database } from '@cloudflare/workers-types';
+import { getCloudflareContext } from '@opennextjs/cloudflare';
 import { betterAuth } from 'better-auth';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { nextCookies } from 'better-auth/next-js';
 import { admin, magicLink } from 'better-auth/plugins';
+import { drizzle } from 'drizzle-orm/d1';
 
-import { getDb } from '@/db/index';
 import * as authSchema from '@/db/tables/auth';
 import { getBaseUrl } from '@/utils/helpers';
 
 /**
- * Get database configuration for Better Auth
- * Uses D1 database for production compatibility
+ * Create Better Auth configuration for Cloudflare Workers
+ * Handles both CLI schema generation and runtime scenarios
  */
-function getDatabaseConfig() {
-  // Use the same D1 database instance as the rest of the app
-  const db = getDb();
-
-  return drizzleAdapter(db, {
-    provider: 'sqlite', // D1 is SQLite-compatible
-    schema: authSchema,
-  });
-}
-
-/**
- * Better Auth Configuration - Simple User Authentication
- */
-export function getAuth() {
+function createAuth(env?: { DB: D1Database }) {
   return betterAuth({
     secret: process.env.BETTER_AUTH_SECRET,
     baseURL: process.env.BETTER_AUTH_URL || `${getBaseUrl()}/api/auth`,
-    database: getDatabaseConfig(),
 
+    // Use database adapter for both CLI and runtime
+    database: drizzleAdapter(drizzle(env?.DB as D1Database, { schema: authSchema }), {
+      provider: 'sqlite',
+      schema: authSchema,
+    }),
     socialProviders: {
       google: {
         clientId: process.env.AUTH_GOOGLE_ID || '',
@@ -88,7 +81,22 @@ export function getAuth() {
   });
 }
 
-// Export auth for backward compatibility
-export const auth = getAuth();
+/**
+ * Get Better Auth instance with Cloudflare context
+ * Uses lazy initialization for runtime compatibility
+ */
+export function getAuth() {
+  try {
+    const { env } = getCloudflareContext();
+    return createAuth(env);
+  } catch {
+    // Fallback for CLI or build-time usage
+    return createAuth();
+  }
+}
 
-// Auth types are exported from @/lib/auth/types for consistency
+// Export for CLI schema generation (without actual database)
+export const auth = createAuth();
+
+// Export createAuth for runtime usage
+export { createAuth };
