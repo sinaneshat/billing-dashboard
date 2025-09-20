@@ -7,7 +7,6 @@ import { useTranslations } from 'next-intl';
 import { EmptyState, ErrorState, LoadingState } from '@/components/dashboard/dashboard-states';
 import { Button } from '@/components/ui/button';
 import { usePaymentsQuery } from '@/hooks/queries/payments';
-import { useQueryUIState } from '@/hooks/utils/query-helpers';
 
 import { PaymentHistoryCards } from './payment-history-cards';
 
@@ -15,17 +14,16 @@ export default function BillingHistory() {
   const t = useTranslations();
   const router = useRouter();
   const paymentsQuery = usePaymentsQuery();
-  const queryUI = useQueryUIState(paymentsQuery);
 
   const payments = paymentsQuery.data?.success && Array.isArray(paymentsQuery.data.data)
     ? paymentsQuery.data.data
     : [];
 
-  if (queryUI.isLoading) {
+  if (paymentsQuery.isLoading) {
     return <LoadingState message={t('states.loading.paymentHistory')} />;
   }
 
-  if (queryUI.showError) {
+  if (paymentsQuery.isError && !paymentsQuery.isLoading) {
     return (
       <ErrorState
         title={t('states.error.loadPaymentHistory')}

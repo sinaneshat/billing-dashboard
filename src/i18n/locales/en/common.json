@@ -182,10 +182,13 @@
   },
   "bankSetup": {
     "authorization": {
+      "cancelContract": "Cancel Contract",
+      "cancelContractDescription": "Cancel the current contract and choose a different bank",
       "checkingDescription": "Verifying your bank authorization...",
       "checkingTitle": "Checking Authorization Status",
       "failedDescription": "The bank authorization process was not completed successfully",
       "failedTitle": "Authorization Failed",
+      "selectDifferentBank": "Select Different Bank",
       "verifiedDescription": "Your bank authorization has been successfully completed",
       "verifiedTitle": "Authorization Verified",
       "waitingDescription": "Please complete the authorization process in the bank window that opened",
@@ -1017,7 +1020,8 @@
     "emptyDescription": "Add a payment method to enable automatic billing for your subscriptions.",
     "errorMessages": {
       "failedToRemove": "Failed to remove payment method",
-      "failedToUpdateDefault": "Failed to update default payment method"
+      "failedToUpdateDefault": "Failed to update default payment method",
+      "failedToCancelContract": "Failed to cancel direct debit contract"
     },
     "expired": "Expired",
     "expires": "Expires {date}",
@@ -1043,6 +1047,7 @@
     "state": "State",
     "subtitle": "Manage your payment methods and billing information",
     "successMessages": {
+      "contractCancelled": "Direct debit contract cancelled successfully",
       "defaultPaymentMethodUpdated": "Default payment method updated",
       "directDebitContractCreated": "Direct debit contract created successfully!",
       "paymentMethodRemoved": "Payment method removed successfully"

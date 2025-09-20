@@ -12,12 +12,14 @@ type AuthorizationStatus = 'waiting' | 'checking' | 'verified' | 'failed';
 type AuthorizationStatusDisplayProps = {
   status: AuthorizationStatus;
   onRetry?: () => void;
+  onCancel?: () => void;
   className?: string;
 };
 
 export function AuthorizationStatusDisplay({
   status,
   onRetry,
+  onCancel,
   className,
 }: AuthorizationStatusDisplayProps) {
   const t = useTranslations();
@@ -75,6 +77,14 @@ export function AuthorizationStatusDisplay({
         <div className="flex justify-center">
           <Button onClick={onRetry}>
             {t('actions.tryAgain')}
+          </Button>
+        </div>
+      )}
+
+      {(status === 'waiting' || status === 'checking') && onCancel && (
+        <div className="flex justify-center">
+          <Button variant="outline" onClick={onCancel}>
+            {t('bankSetup.authorization.selectDifferentBank')}
           </Button>
         </div>
       )}

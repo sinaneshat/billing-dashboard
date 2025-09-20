@@ -6,12 +6,10 @@ import { SubscriptionCards } from '@/components/billing/subscription-cards';
 import { DashboardPageHeader } from '@/components/dashboard/dashboard-header';
 import { DashboardPage, DashboardSection } from '@/components/dashboard/dashboard-states';
 import { useSubscriptionsQuery } from '@/hooks/queries/subscriptions';
-import { useQueryUIState } from '@/hooks/utils/query-helpers';
 
 export default function SubscriptionManagementScreen() {
   const t = useTranslations();
   const subscriptionsQuery = useSubscriptionsQuery();
-  const queryUI = useQueryUIState(subscriptionsQuery);
 
   const subscriptions = subscriptionsQuery.data?.success && Array.isArray(subscriptionsQuery.data.data)
     ? subscriptionsQuery.data.data
@@ -27,7 +25,7 @@ export default function SubscriptionManagementScreen() {
       <DashboardSection delay={0.1}>
         <SubscriptionCards
           subscriptions={subscriptions}
-          isLoading={queryUI.isLoading}
+          isLoading={subscriptionsQuery.isLoading}
           className="w-full"
         />
       </DashboardSection>

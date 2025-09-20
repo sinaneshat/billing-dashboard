@@ -5,7 +5,6 @@ import { useTranslations } from 'next-intl';
 import React, { useCallback, useState } from 'react';
 
 import { useInitiateDirectDebitContractMutation } from '@/hooks/mutations/payment-methods';
-import { useMutationUIState } from '@/hooks/utils/query-helpers';
 import { formatTomanCurrency } from '@/lib/format';
 import { toastManager } from '@/lib/toast/toast-manager';
 import { cn } from '@/lib/ui/cn';
@@ -58,7 +57,6 @@ export function BankAuthorizationStepperOrchestrator({
   const [authorizationStatus, setAuthorizationStatus] = useState<AuthorizationStatus>('waiting');
 
   const initiateContractMutation = useInitiateDirectDebitContractMutation();
-  const mutationUI = useMutationUIState(initiateContractMutation);
 
   const steps = [
     {
@@ -221,6 +219,17 @@ export function BankAuthorizationStepperOrchestrator({
     setAuthorizationStatus('waiting');
   };
 
+  const handleCancelAuthorization = () => {
+    // Clear stored contract data
+    localStorage.removeItem('bank-authorization-contract');
+
+    // Reset to bank selection step
+    setCurrentStep('bank');
+    setAuthorizationStatus('waiting');
+
+    toastManager.info(t('bankSetup.authorization.cancelContractDescription'));
+  };
+
   const renderStepContent = () => {
     switch (currentStep) {
       case 'contact':
@@ -235,7 +244,7 @@ export function BankAuthorizationStepperOrchestrator({
             <BillingContactForm
               onSubmit={handleContactSubmit}
               onCancel={onCancel}
-              isLoading={mutationUI.isPending}
+              isLoading={initiateContractMutation.isPending}
             />
           </div>
         );
@@ -264,6 +273,7 @@ export function BankAuthorizationStepperOrchestrator({
           <AuthorizationStatusDisplay
             status={authorizationStatus}
             onRetry={handleRetryAuthorization}
+            onCancel={handleCancelAuthorization}
           />
         );
 

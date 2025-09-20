@@ -12,9 +12,8 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import type { PaymentMethod } from '@/db/validation/billing';
-import { useDeletePaymentMethodMutation, useSetDefaultPaymentMethodMutation } from '@/hooks/mutations/payment-methods';
+import { useCancelDirectDebitContractMutation, useSetDefaultPaymentMethodMutation } from '@/hooks/mutations/payment-methods';
 import { usePaymentMethodsQuery } from '@/hooks/queries/payment-methods';
-import { staleWhileRevalidate, useMutationUIState, useQueryUIState } from '@/hooks/utils/query-helpers';
 import { toastManager } from '@/lib/toast/toast-manager';
 
 // Simple PaymentMethodCard component
@@ -23,15 +22,15 @@ function PaymentMethodCard({
   t,
   onSetDefault,
   onDelete,
-  setDefaultUIState,
-  deleteUIState,
+  setDefaultMutation,
+  cancelContractMutation,
 }: {
   method: PaymentMethod;
   t: (key: string) => string;
   onSetDefault: (id: string) => void;
   onDelete: (id: string) => void;
-  setDefaultUIState: ReturnType<typeof useMutationUIState>;
-  deleteUIState: ReturnType<typeof useMutationUIState>;
+  setDefaultMutation: ReturnType<typeof useSetDefaultPaymentMethodMutation>;
+  cancelContractMutation: ReturnType<typeof useCancelDirectDebitContractMutation>;
 }) {
   return (
     <Card className="transition-all hover:shadow-md">
@@ -83,8 +82,8 @@ function PaymentMethodCard({
                 size="sm"
                 onClick={() => onSetDefault(method.id)}
                 disabled={
-                  (setDefaultUIState.isPending && (setDefaultUIState.variables as { param: { id: string } })?.param.id === method.id)
-                  || (deleteUIState.isPending && (deleteUIState.variables as { param: { id: string } })?.param.id === method.id)
+                  (setDefaultMutation.isPending && (setDefaultMutation.variables as { param: { id: string } })?.param.id === method.id)
+                  || (cancelContractMutation.isPending && (cancelContractMutation.variables as { param: { contractId: string } })?.param.contractId === method.id)
                 }
                 className="gap-1"
               >
@@ -97,13 +96,13 @@ function PaymentMethodCard({
               size="sm"
               onClick={() => onDelete(method.id)}
               disabled={
-                (setDefaultUIState.isPending && (setDefaultUIState.variables as { param: { id: string } })?.param.id === method.id)
-                || (deleteUIState.isPending && (deleteUIState.variables as { param: { id: string } })?.param.id === method.id)
+                (setDefaultMutation.isPending && (setDefaultMutation.variables as { param: { id: string } })?.param.id === method.id)
+                || (cancelContractMutation.isPending && (cancelContractMutation.variables as { param: { contractId: string } })?.param.contractId === method.id)
               }
               className="text-destructive hover:text-destructive hover:bg-destructive/10 gap-1"
             >
               <Trash2 className="h-3 w-3" />
-              {t('actions.delete')}
+              {t('paymentMethods.cancelContract')}
             </Button>
           </div>
         </div>
@@ -116,36 +115,38 @@ export default function PaymentMethodsScreen() {
   const t = useTranslations();
   const router = useRouter();
   const paymentMethodsQuery = usePaymentMethodsQuery();
-  const deletePaymentMethodMutation = useDeletePaymentMethodMutation();
+  const cancelContractMutation = useCancelDirectDebitContractMutation();
   const setDefaultPaymentMethodMutation = useSetDefaultPaymentMethodMutation();
 
-  // Enhanced query and mutation state management
-  const paymentMethodsUIState = useQueryUIState(paymentMethodsQuery);
-  const paymentMethodsStaleState = staleWhileRevalidate(paymentMethodsQuery);
-  const deleteUIState = useMutationUIState(deletePaymentMethodMutation);
-  const setDefaultUIState = useMutationUIState(setDefaultPaymentMethodMutation);
+  // Direct TanStack Query state management
 
-  // Handle mutation feedback with centralized toast management
+  // Handle mutation feedback with direct mutation state
   React.useEffect(() => {
-    if (deleteUIState.showSuccess) {
-      toastManager.success(t('paymentMethods.successMessages.paymentMethodRemoved'));
+    if (cancelContractMutation.isSuccess && !cancelContractMutation.isPending) {
+      toastManager.success(t('paymentMethods.successMessages.contractCancelled'));
     }
-    if (deleteUIState.showError && deleteUIState.error) {
-      toastManager.error(deleteUIState.error.message || t('paymentMethods.errorMessages.failedToRemove'));
+    if (cancelContractMutation.isError && !cancelContractMutation.isPending && cancelContractMutation.error) {
+      const errorMessage = cancelContractMutation.error instanceof Error
+        ? cancelContractMutation.error.message
+        : t('paymentMethods.errorMessages.failedToCancelContract');
+      toastManager.error(errorMessage);
     }
-  }, [deleteUIState.showSuccess, deleteUIState.showError, deleteUIState.error, t]);
+  }, [cancelContractMutation.isSuccess, cancelContractMutation.isError, cancelContractMutation.isPending, cancelContractMutation.error, t]);
 
   React.useEffect(() => {
-    if (setDefaultUIState.showSuccess) {
+    if (setDefaultPaymentMethodMutation.isSuccess && !setDefaultPaymentMethodMutation.isPending) {
       toastManager.success(t('paymentMethods.successMessages.defaultPaymentMethodUpdated'));
     }
-    if (setDefaultUIState.showError && setDefaultUIState.error) {
-      toastManager.error(setDefaultUIState.error.message || t('paymentMethods.errorMessages.failedToUpdateDefault'));
+    if (setDefaultPaymentMethodMutation.isError && !setDefaultPaymentMethodMutation.isPending && setDefaultPaymentMethodMutation.error) {
+      const errorMessage = setDefaultPaymentMethodMutation.error instanceof Error
+        ? setDefaultPaymentMethodMutation.error.message
+        : t('paymentMethods.errorMessages.failedToUpdateDefault');
+      toastManager.error(errorMessage);
     }
-  }, [setDefaultUIState.showSuccess, setDefaultUIState.showError, setDefaultUIState.error, t]);
+  }, [setDefaultPaymentMethodMutation.isSuccess, setDefaultPaymentMethodMutation.isError, setDefaultPaymentMethodMutation.isPending, setDefaultPaymentMethodMutation.error, t]);
 
   const paymentMethodList: PaymentMethod[] = (() => {
-    const data = paymentMethodsStaleState.data as ApiResponse<PaymentMethod[]> | undefined;
+    const data = paymentMethodsQuery.data as ApiResponse<PaymentMethod[]> | undefined;
     return data?.success && Array.isArray(data.data) ? data.data : [];
   })();
 
@@ -154,11 +155,11 @@ export default function PaymentMethodsScreen() {
   };
 
   const handleDelete = async (paymentMethodId: string) => {
-    deletePaymentMethodMutation.mutate({ param: { id: paymentMethodId } });
+    cancelContractMutation.mutate({ param: { contractId: paymentMethodId } });
   };
 
   // Show loading state on initial load
-  if (paymentMethodsUIState.showSkeleton) {
+  if (paymentMethodsQuery.isLoading && !paymentMethodsQuery.data) {
     return (
       <LoadingState
         title={t('states.loading.payment_methods')}
@@ -168,9 +169,11 @@ export default function PaymentMethodsScreen() {
   }
 
   // Show error state with improved error handling
-  if (paymentMethodsUIState.showError) {
-    const isAuthError = paymentMethodsQuery.error?.message?.includes('Authentication')
-      || paymentMethodsQuery.error?.message?.includes('401');
+  if (paymentMethodsQuery.isError && !paymentMethodsQuery.isLoading) {
+    const errorMessage = paymentMethodsQuery.error instanceof Error
+      ? paymentMethodsQuery.error.message
+      : 'An error occurred';
+    const isAuthError = errorMessage.includes('Authentication') || errorMessage.includes('401');
 
     return (
       <ErrorState
@@ -220,8 +223,8 @@ export default function PaymentMethodsScreen() {
                       t={t}
                       onSetDefault={handleSetDefault}
                       onDelete={handleDelete}
-                      setDefaultUIState={setDefaultUIState}
-                      deleteUIState={deleteUIState}
+                      setDefaultMutation={setDefaultPaymentMethodMutation}
+                      cancelContractMutation={cancelContractMutation}
                     />
                   ))}
                 </div>
