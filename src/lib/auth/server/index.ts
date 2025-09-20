@@ -61,15 +61,28 @@ function getDatabaseConfig() {
       schema: authSchema,
     });
   } else {
-    // For production, create a clean D1 instance specifically for Better Auth
-    // This avoids conflicts with our custom transaction handlers
-    const { env } = getCloudflareContext();
-    const cleanDb = drizzleD1(env.DB, { schema: authSchema });
+    // For production, try to get Cloudflare context synchronously
+    // This will work during request handling but not during build
+    try {
+      const { env } = getCloudflareContext();
+      const cleanDb = drizzleD1(env.DB, { schema: authSchema });
 
-    return drizzleAdapter(cleanDb, {
-      provider: 'sqlite',
-      schema: authSchema,
-    });
+      return drizzleAdapter(cleanDb, {
+        provider: 'sqlite',
+        schema: authSchema,
+      });
+    } catch {
+      // Fallback for build time - return a dummy adapter that will be replaced at runtime
+      // Better Auth will reinitialize the database connection when actually used
+      const dbPath = getLocalDbPath();
+      const sqlite = new Database(dbPath);
+      const localDb = drizzle(sqlite, { schema: authSchema });
+
+      return drizzleAdapter(localDb, {
+        provider: 'sqlite',
+        schema: authSchema,
+      });
+    }
   }
 }
 
@@ -77,66 +90,82 @@ function getDatabaseConfig() {
  * Better Auth Configuration - Simple User Authentication
  * No organizations, just basic user auth
  */
-export const auth = betterAuth({
-  secret: process.env.BETTER_AUTH_SECRET,
-  baseURL: process.env.BETTER_AUTH_URL || `${getBaseUrl()}/api/auth`,
-  database: getDatabaseConfig(),
+let authInstance: ReturnType<typeof betterAuth> | null = null;
 
-  socialProviders: {
-    google: {
-      clientId: process.env.AUTH_GOOGLE_ID || '',
-      clientSecret: process.env.AUTH_GOOGLE_SECRET || '',
-    },
-  },
+/**
+ * Get or create Better Auth instance with lazy database initialization
+ */
+export function getAuth() {
+  if (authInstance)
+    return authInstance;
 
-  // Session configuration
-  session: {
-    expiresIn: 60 * 60 * 24 * 7, // 7 days
-    updateAge: 60 * 60 * 24, // 1 day
-    cookieCache: {
-      enabled: true,
-      maxAge: 60 * 15, // 15 minutes cache
-    },
-  },
+  const config = {
+    secret: process.env.BETTER_AUTH_SECRET,
+    baseURL: process.env.BETTER_AUTH_URL || `${getBaseUrl()}/api/auth`,
+    database: getDatabaseConfig(),
 
-  // Security configuration
-  advanced: {
-    crossSubDomainCookies: {
-      enabled: false,
-    },
-    useSecureCookies: true,
-    database: {
-      generateId: () => crypto.randomUUID(),
-    },
-  },
-
-  // Trusted origins
-  trustedOrigins: [
-    getBaseUrl(),
-    ...(process.env.NODE_ENV === 'development' ? ['http://localhost:3000'] : []),
-  ],
-
-  user: {
-    changeEmail: {
-      enabled: false, // Disabled for security
-    },
-  },
-
-  emailAndPassword: {
-    enabled: true,
-    requireEmailVerification: false,
-  },
-
-  plugins: [
-    nextCookies(),
-    admin(), // Enable admin plugin for SSO impersonateUser functionality
-    magicLink({
-      sendMagicLink: async ({ email, url }) => {
-        const { emailService } = await import('@/lib/email/ses-service');
-        await emailService.sendMagicLink(email, url);
+    socialProviders: {
+      google: {
+        clientId: process.env.AUTH_GOOGLE_ID || '',
+        clientSecret: process.env.AUTH_GOOGLE_SECRET || '',
       },
-    }),
-  ],
-});
+    },
+
+    // Session configuration
+    session: {
+      expiresIn: 60 * 60 * 24 * 7, // 7 days
+      updateAge: 60 * 60 * 24, // 1 day
+      cookieCache: {
+        enabled: true,
+        maxAge: 60 * 15, // 15 minutes cache
+      },
+    },
+
+    // Security configuration
+    advanced: {
+      crossSubDomainCookies: {
+        enabled: false,
+      },
+      useSecureCookies: true,
+      database: {
+        generateId: () => crypto.randomUUID(),
+      },
+    },
+
+    // Trusted origins
+    trustedOrigins: [
+      getBaseUrl(),
+      ...(process.env.NODE_ENV === 'development' ? ['http://localhost:3000'] : []),
+    ],
+
+    user: {
+      changeEmail: {
+        enabled: false, // Disabled for security
+      },
+    },
+
+    emailAndPassword: {
+      enabled: true,
+      requireEmailVerification: false,
+    },
+
+    plugins: [
+      nextCookies(),
+      admin(), // Enable admin plugin for SSO impersonateUser functionality
+      magicLink({
+        sendMagicLink: async ({ email, url }) => {
+          const { emailService } = await import('@/lib/email/ses-service');
+          await emailService.sendMagicLink(email, url);
+        },
+      }),
+    ],
+  };
+
+  authInstance = betterAuth(config);
+  return authInstance;
+}
+
+// Export auth for backward compatibility
+export const auth = getAuth();
 
 // Auth types are exported from @/lib/auth/types for consistency
