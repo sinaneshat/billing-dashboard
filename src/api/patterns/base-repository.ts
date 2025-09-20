@@ -21,10 +21,11 @@ import type { SQLiteTable, TableConfig } from 'drizzle-orm/sqlite-core';
 
 import { createError } from '@/api/common/error-handling';
 import { apiLogger } from '@/api/middleware/hono-logger';
-import { db } from '@/db';
+import { getDbAsync } from '@/db';
 
 // Transaction type from Drizzle ORM following official patterns
-type DrizzleTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
+type DrizzleTransaction = Parameters<Parameters<Awaited<ReturnType<typeof getDbAsync>>['transaction']>[0]>[0];
+type DatabaseInstance = Awaited<ReturnType<typeof getDbAsync>>;
 
 // =============================================================================
 // ZOD VALIDATION SCHEMAS (Context7 Best Practices)
@@ -262,9 +263,9 @@ export abstract class BaseRepository<
    */
   async findById(
     id: string,
-    options: { includeDeleted?: boolean; tx?: typeof db | DrizzleTransaction } = {},
+    options: { includeDeleted?: boolean; tx?: DatabaseInstance | DrizzleTransaction } = {},
   ): Promise<TSelect | null> {
-    const { includeDeleted = false, tx = db } = options;
+    const { includeDeleted = false, tx = options.tx || await getDbAsync() } = options;
 
     try {
       const tableColumns = getTableColumns(this.table);
@@ -329,13 +330,13 @@ export abstract class BaseRepository<
    */
   async findByUserId(
     userId: string,
-    options: QueryOptions & { tx?: typeof db | DrizzleTransaction } = {},
+    options: QueryOptions & { tx?: DatabaseInstance | DrizzleTransaction } = {},
   ): Promise<{ items: TSelect[]; total: number }> {
     if (!this.config.hasUserId) {
       throw new Error(`Table ${this.config.tableName} does not have userId field`);
     }
 
-    const { tx = db, ...queryOptions } = options;
+    const { tx = options.tx || await getDbAsync(), ...queryOptions } = options;
 
     try {
       const tableColumns = getTableColumns(this.table);
@@ -374,9 +375,9 @@ export abstract class BaseRepository<
    * Find all records with optional filtering, sorting, and pagination
    */
   async findMany(
-    options: QueryOptions & { tx?: typeof db | DrizzleTransaction } = {},
+    options: QueryOptions & { tx?: DatabaseInstance | DrizzleTransaction } = {},
   ): Promise<{ items: TSelect[]; total: number }> {
-    const { tx = db, ...queryOptions } = options;
+    const { tx = options.tx || await getDbAsync(), ...queryOptions } = options;
 
     try {
       const conditions = [];
@@ -412,9 +413,9 @@ export abstract class BaseRepository<
    */
   async create(
     data: TInsert,
-    options: { tx?: typeof db | DrizzleTransaction; userId?: string } = {},
+    options: { tx?: DatabaseInstance | DrizzleTransaction; userId?: string } = {},
   ): Promise<TSelect> {
-    const { tx = db, userId } = options;
+    const { tx = options.tx || await getDbAsync(), userId } = options;
 
     try {
       // Create audit fields data using discriminated union
@@ -496,9 +497,9 @@ export abstract class BaseRepository<
   async update(
     id: string,
     data: TUpdate,
-    options: { tx?: typeof db | DrizzleTransaction; userId?: string } = {},
+    options: { tx?: DatabaseInstance | DrizzleTransaction; userId?: string } = {},
   ): Promise<TSelect> {
-    const { tx = db, userId } = options;
+    const { tx = options.tx || await getDbAsync(), userId } = options;
 
     try {
       // Create audit fields data using discriminated union
@@ -601,9 +602,9 @@ export abstract class BaseRepository<
    */
   async delete(
     id: string,
-    options: { tx?: typeof db | DrizzleTransaction; userId?: string; hard?: boolean } = {},
+    options: { tx?: DatabaseInstance | DrizzleTransaction; userId?: string; hard?: boolean } = {},
   ): Promise<void> {
-    const { tx = db, userId, hard = false } = options;
+    const { tx = options.tx || await getDbAsync(), userId, hard = false } = options;
 
     try {
       if (this.config.hasSoftDelete && !hard) {
@@ -704,13 +705,13 @@ export abstract class BaseRepository<
    */
   async restore(
     id: string,
-    options: { tx?: typeof db | DrizzleTransaction; userId?: string } = {},
+    options: { tx?: DatabaseInstance | DrizzleTransaction; userId?: string } = {},
   ): Promise<TSelect> {
     if (!this.config.hasSoftDelete) {
       throw new Error(`Table ${this.config.tableName} does not support soft delete`);
     }
 
-    const { tx = db, userId } = options;
+    const { tx = options.tx || await getDbAsync(), userId } = options;
 
     try {
       // Restore using discriminated union
@@ -808,7 +809,7 @@ export abstract class BaseRepository<
   private async executeQuery(
     whereClause: SQL | undefined,
     options: QueryOptions,
-    tx: typeof db | DrizzleTransaction,
+    tx: DatabaseInstance | DrizzleTransaction,
   ): Promise<{ items: TSelect[]; total: number }> {
     const { pagination, sort, filters } = options;
 
@@ -829,8 +830,8 @@ export abstract class BaseRepository<
 
     // Get total count using length approach
     const totalResult = finalWhere
-      ? await db.select().from(this.table).where(finalWhere)
-      : await db.select().from(this.table);
+      ? await tx.select().from(this.table).where(finalWhere)
+      : await tx.select().from(this.table);
 
     const total = totalResult.length;
 
@@ -944,7 +945,7 @@ export abstract class BaseRepository<
         throw new Error(`Primary key column '${this.config.primaryKey}' not found`);
       }
 
-      const result = await db
+      const result = await (await getDbAsync())
         .select()
         .from(this.table)
         .where(eq(primaryKeyColumn, id))
@@ -964,8 +965,8 @@ export abstract class BaseRepository<
   /**
    * Get count of records
    */
-  async count(options: { filters?: FilterOptions[]; tx?: typeof db | DrizzleTransaction } = {}): Promise<number> {
-    const { filters } = options;
+  async count(options: { filters?: FilterOptions[]; tx?: DatabaseInstance | DrizzleTransaction } = {}): Promise<number> {
+    const { filters, tx = options.tx || await getDbAsync() } = options;
 
     try {
       const conditions = [];
@@ -990,8 +991,8 @@ export abstract class BaseRepository<
       const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
       const result = whereClause
-        ? await db.select().from(this.table).where(whereClause)
-        : await db.select().from(this.table);
+        ? await tx.select().from(this.table).where(whereClause)
+        : await tx.select().from(this.table);
 
       return result.length;
     } catch (error) {

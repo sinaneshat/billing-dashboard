@@ -1,126 +1,89 @@
-import { Buffer } from 'node:buffer';
-import { timingSafeEqual } from 'node:crypto';
-
 import { createMiddleware } from 'hono/factory';
 import { HTTPException } from 'hono/http-exception';
 import * as HttpStatusCodes from 'stoker/http-status-codes';
 
 import { mapStatusCode } from '@/api/core/http-exceptions';
 import type { ApiEnv } from '@/api/types';
-
-/**
- * Constant-time string comparison to prevent timing attacks
- */
-function safeStringCompare(a: string, b: string): boolean {
-  // Ensure both strings are the same length to prevent timing attacks
-  if (a.length !== b.length) {
-    return false;
-  }
-
-  // Convert strings to buffers for timingSafeEqual
-  const bufferA = Buffer.from(a, 'utf8');
-  const bufferB = Buffer.from(b, 'utf8');
-
-  try {
-    return timingSafeEqual(bufferA, bufferB);
-  } catch {
-    // If timingSafeEqual fails, return false safely
-    return false;
-  }
-}
-
-export const requireMasterKey = createMiddleware<ApiEnv>(async (c, next) => {
-  const apiKey = c.req.header('x-api-key') || c.req.header('authorization')?.replace('Bearer ', '');
-  const masterKey = c.env?.API_MASTER_KEY;
-
-  if (!apiKey) {
-    const res = new Response(JSON.stringify({
-      code: HttpStatusCodes.UNAUTHORIZED,
-      message: 'Missing API key. Include your API key in the X-API-Key header or Authorization header.',
-    }), {
-      status: HttpStatusCodes.UNAUTHORIZED,
-      headers: {
-        'Content-Type': 'application/json',
-        'WWW-Authenticate': 'ApiKey',
-      },
-    });
-    throw new HTTPException(mapStatusCode(HttpStatusCodes.UNAUTHORIZED), { res });
-  }
-
-  if (!masterKey) {
-    const res = new Response(JSON.stringify({
-      code: HttpStatusCodes.INTERNAL_SERVER_ERROR,
-      message: 'API configuration error',
-    }), {
-      status: HttpStatusCodes.INTERNAL_SERVER_ERROR,
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
-    throw new HTTPException(mapStatusCode(HttpStatusCodes.INTERNAL_SERVER_ERROR), { res });
-  }
-
-  if (!safeStringCompare(apiKey, masterKey)) {
-    const res = new Response(JSON.stringify({
-      code: HttpStatusCodes.UNAUTHORIZED,
-      message: 'Invalid API key',
-    }), {
-      status: HttpStatusCodes.UNAUTHORIZED,
-      headers: {
-        'Content-Type': 'application/json',
-        'WWW-Authenticate': 'ApiKey',
-      },
-    });
-    throw new HTTPException(mapStatusCode(HttpStatusCodes.UNAUTHORIZED), { res });
-  }
-
-  c.set('apiKey', apiKey);
-  return next();
-});
-
-// Alias for compatibility
-export const requireApiKey = requireMasterKey;
+import { auth } from '@/lib/auth/server';
 
 // Attach session if present; does not enforce authentication
+// Following Better Auth best practices for middleware integration
 export const attachSession = createMiddleware<ApiEnv>(async (c, next) => {
   try {
-    const { auth } = await import('@/lib/auth');
-    const result = await auth.api.getSession({ headers: c.req.raw.headers });
-    c.set('session', result?.session ?? null);
-    c.set('user', result?.user ?? null);
-    c.set('requestId', c.req.header('x-request-id'));
-  } catch {
+    // Use Better Auth API to get session from request headers
+    // This follows the official Better Auth pattern for server-side session handling
+    const sessionData = await auth.api.getSession({
+      headers: c.req.raw.headers,
+    });
+
+    if (sessionData?.user && sessionData?.session) {
+      // Set session and user data from Better Auth response
+      c.set('session', sessionData.session);
+      c.set('user', sessionData.user);
+    } else {
+      // Explicitly set null when no session exists
+      c.set('session', null);
+      c.set('user', null);
+    }
+
+    // Set request ID for tracing
+    c.set('requestId', c.req.header('x-request-id') || crypto.randomUUID());
+  } catch (error) {
+    // Log error but don't throw - allow unauthenticated requests to proceed
+    console.error('[Auth Middleware] Error retrieving Better Auth session:', error);
     c.set('session', null);
+    c.set('user', null);
   }
   return next();
 });
 
 // Require an authenticated session using Better Auth
+// Following Better Auth recommended patterns for protected route middleware
 export const requireSession = createMiddleware<ApiEnv>(async (c, next) => {
   try {
-    const { auth } = await import('@/lib/auth');
-    const result = await auth.api.getSession({ headers: c.req.raw.headers });
+    // Use Better Auth API to validate session from request headers
+    const sessionData = await auth.api.getSession({
+      headers: c.req.raw.headers,
+    });
 
-    if (!result?.session) {
-      const res = new Response(JSON.stringify({ code: HttpStatusCodes.UNAUTHORIZED, message: 'Unauthorized' }), {
+    if (!sessionData?.user || !sessionData?.session) {
+      // Return standardized unauthorized response following Better Auth patterns
+      const res = new Response(JSON.stringify({
+        code: HttpStatusCodes.UNAUTHORIZED,
+        message: 'Authentication required',
+        details: 'Valid session required to access this resource',
+      }), {
         status: HttpStatusCodes.UNAUTHORIZED,
         headers: {
           'Content-Type': 'application/json',
-          'WWW-Authenticate': 'Session',
+          'WWW-Authenticate': 'Session realm="api"',
         },
       });
       throw new HTTPException(mapStatusCode(HttpStatusCodes.UNAUTHORIZED), { res });
     }
 
-    c.set('session', result.session);
-    c.set('user', result.user ?? null);
+    // Set authenticated session context from Better Auth
+    c.set('session', sessionData.session);
+    c.set('user', sessionData.user);
+    c.set('requestId', c.req.header('x-request-id') || crypto.randomUUID());
+
     return next();
   } catch (e) {
-    const res = new Response(JSON.stringify({ code: HttpStatusCodes.UNAUTHORIZED, message: 'Unauthorized' }), {
+    if (e instanceof HTTPException) {
+      throw e; // Re-throw HTTP exceptions as-is
+    }
+
+    // Handle unexpected authentication errors gracefully
+    console.error('[Auth Middleware] Unexpected Better Auth error:', e);
+    const res = new Response(JSON.stringify({
+      code: HttpStatusCodes.UNAUTHORIZED,
+      message: 'Authentication failed',
+      details: 'Session validation error',
+    }), {
       status: HttpStatusCodes.UNAUTHORIZED,
       headers: {
         'Content-Type': 'application/json',
-        'WWW-Authenticate': 'Session',
+        'WWW-Authenticate': 'Session realm="api"',
       },
     });
     throw new HTTPException(mapStatusCode(HttpStatusCodes.UNAUTHORIZED), { res, cause: e });

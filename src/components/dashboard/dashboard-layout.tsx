@@ -2,7 +2,7 @@
 
 import type { ReactNode } from 'react';
 
-import { cn } from '@/lib';
+import { cn } from '@/lib/ui/cn';
 
 // Following shadcn/ui dashboard-01 block official spacing patterns
 type DashboardContainerProps = {

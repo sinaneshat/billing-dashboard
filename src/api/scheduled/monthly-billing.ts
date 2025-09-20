@@ -12,7 +12,7 @@ import { CurrencyExchangeService } from '@/api/services/currency-exchange';
 import { ZarinPalService } from '@/api/services/zarinpal';
 import { ZarinPalDirectDebitService } from '@/api/services/zarinpal-direct-debit';
 import type { ApiEnv } from '@/api/types';
-import { db } from '@/db';
+import { getDbAsync } from '@/db';
 import { payment, paymentMethod, subscription } from '@/db/tables/billing';
 
 type BillingResult = {
@@ -32,38 +32,62 @@ type PaymentRecord = {
   createdAt?: Date;
 };
 
-type BatchResult = {
-  results: PaymentRecord[];
-};
-
 // Cloudflare Workers limits - following official documentation
 const WORKER_TIMEOUT_MS = 28000; // 28s to allow for cleanup before 30s limit
 const MAX_BATCH_SIZE = 25; // D1 batch limit per operation
 const CHUNK_SIZE = 10; // Process subscriptions in chunks to avoid memory issues
 
-// Helper to check if we're using D1 (production) vs BetterSQLite3 (development)
-function supportsDbBatch(): boolean {
-  return typeof (db as unknown as { batch?: unknown }).batch === 'function';
+/**
+ * Type guard to safely check if database supports batch operations (D1)
+ * According to D1 documentation, batch method is available on D1 instances
+ */
+function isDatabaseWithBatch(
+  db: Awaited<ReturnType<typeof getDbAsync>>,
+): db is Awaited<ReturnType<typeof getDbAsync>> & { batch: (operations: unknown[]) => Promise<unknown[]> } {
+  return 'batch' in db && typeof (db as unknown as { batch?: unknown }).batch === 'function';
 }
 
 /**
- * Execute multiple database operations efficiently
+ * Execute multiple database operations efficiently following D1/Drizzle best practices
  * Uses batch for D1 (production) or transaction for BetterSQLite3 (development)
+ *
+ * According to Context7 D1 docs: Use db.batch([prepared_statements]) for D1
+ * According to Context7 Drizzle docs: Use db.transaction(async (tx) => {...}) for transactions
  */
-async function executeDatabaseOperations(operations: unknown[]) {
+async function executeDatabaseOperations(
+  operations: unknown[], // Flexible type for Drizzle query builders
+  db: Awaited<ReturnType<typeof getDbAsync>>,
+) {
   if (operations.length === 0) {
     return;
   }
 
-  if (supportsDbBatch()) {
+  if (isDatabaseWithBatch(db)) {
     // Use batch operations for D1 (production)
-    await (db as unknown as { batch: (ops: unknown[]) => Promise<unknown> }).batch(operations);
+    // According to D1 Context7 docs, batch accepts array of prepared statements
+    try {
+      const results = await db.batch(operations);
+      return results;
+    } catch (error) {
+      apiLogger.error('D1 batch operation failed', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        operationCount: operations.length,
+        component: 'monthly-billing',
+      });
+      throw error;
+    }
   } else {
     // Use transaction for BetterSQLite3 (development)
-    await db.transaction(async (_tx) => {
+    // According to Drizzle Context7 docs, use transaction wrapper
+    return await db.transaction(async (_tx) => {
+      const results = [];
       for (const operation of operations) {
-        await operation;
+        // For BetterSQLite3, operations need to be executed with transaction context
+        // Note: The operations are Drizzle query builders, they get executed with tx context
+        const result = await operation;
+        results.push(result);
       }
+      return results;
     });
   }
 }
@@ -74,6 +98,7 @@ async function executeDatabaseOperations(operations: unknown[]) {
  */
 export async function processMonthlyBilling(env: ApiEnv['Bindings']): Promise<BillingResult> {
   const startTime = Date.now();
+  const db = await getDbAsync();
   const result: BillingResult = {
     processed: 0,
     successful: 0,
@@ -139,7 +164,7 @@ export async function processMonthlyBilling(env: ApiEnv['Bindings']): Promise<Bi
       }
 
       try {
-        await processSubscriptionChunk(chunk, env, result);
+        await processSubscriptionChunk(chunk, env, result, db);
         result.chunksProcessed++;
       } catch (error) {
         const errorMessage = `Chunk ${chunkIndex} failed: ${error instanceof Error ? error.message : 'Unknown error'}`;
@@ -185,6 +210,7 @@ async function processSubscriptionChunk(
   subscriptions: Array<typeof subscription.$inferSelect>,
   env: ApiEnv['Bindings'],
   result: BillingResult,
+  db: Awaited<ReturnType<typeof getDbAsync>>,
 ) {
   const processingResults: Array<{ subscription: typeof subscription.$inferSelect; success: boolean; error?: string }> = [];
 
@@ -192,7 +218,7 @@ async function processSubscriptionChunk(
     result.processed++;
 
     try {
-      await processSingleSubscription(sub, env, result);
+      await processSingleSubscription(sub, env, result, db);
       processingResults.push({ subscription: sub, success: true });
     } catch (error) {
       result.failed++;
@@ -227,7 +253,7 @@ async function processSubscriptionChunk(
 
   if (failedUpdates.length > 0 && failedUpdates.length <= MAX_BATCH_SIZE) {
     try {
-      await executeDatabaseOperations(failedUpdates);
+      await executeDatabaseOperations(failedUpdates, db);
     } catch (batchError) {
       apiLogger.error('Failed to update failed subscriptions', {
         error: batchError,
@@ -245,6 +271,7 @@ async function processSingleSubscription(
   sub: typeof subscription.$inferSelect,
   env: ApiEnv['Bindings'],
   result: BillingResult,
+  db: Awaited<ReturnType<typeof getDbAsync>>,
 ) {
   // Find the active direct debit contract for this subscription
   if (!sub.directDebitContractId) {
@@ -278,9 +305,9 @@ async function processSingleSubscription(
   let existingPendingPayments: PaymentRecord[];
   let failedPaymentsToday: PaymentRecord[];
 
-  if (supportsDbBatch()) {
-    // Use batch for D1 (production)
-    const paymentChecks = await (db as unknown as { batch: (ops: unknown[]) => Promise<BatchResult[]> }).batch([
+  if (isDatabaseWithBatch(db)) {
+    // Use batch for D1 (production) - according to Context7 D1 docs
+    const paymentChecks = await db.batch([
       db.select().from(payment).where(
         and(
           eq(payment.subscriptionId, sub.id),
@@ -295,8 +322,8 @@ async function processSingleSubscription(
         ),
       ),
     ]);
-    existingPendingPayments = paymentChecks[0]?.results || [];
-    failedPaymentsToday = paymentChecks[1]?.results || [];
+    existingPendingPayments = paymentChecks[0] || [];
+    failedPaymentsToday = paymentChecks[1] || [];
   } else {
     // Use Promise.all for BetterSQLite3 (development)
     const paymentChecks = await Promise.all([
@@ -349,13 +376,13 @@ async function processSingleSubscription(
         })
         .where(eq(subscription.id, sub.id));
 
-      await executeDatabaseOperations([suspendOperation]);
+      await executeDatabaseOperations([suspendOperation], db);
       throw new Error(`Max retries (${existingFailedPayment.maxRetries || 3}) reached, subscription suspended`);
     }
   }
 
   // Convert USD to IRR using centralized service
-  const currencyService = CurrencyExchangeService.create(env);
+  const currencyService = CurrencyExchangeService.create();
   const exchangeResult = await currencyService.convertUsdToToman(sub.currentPrice);
   const exchangeRate = exchangeResult.exchangeRate;
 
@@ -414,11 +441,11 @@ async function processSingleSubscription(
     paymentOperations.push(db.insert(payment).values(paymentRecord));
   }
 
-  await executeDatabaseOperations(paymentOperations);
+  await executeDatabaseOperations(paymentOperations, db);
 
   try {
     // Create ZarinPal payment request first
-    const zarinPal = ZarinPalService.create(env);
+    const zarinPal = ZarinPalService.create();
     const paymentRequest = await zarinPal.requestPayment({
       amount: irrAmount, // Use converted IRR amount
       currency: 'IRR',
@@ -450,7 +477,7 @@ async function processSingleSubscription(
     ];
 
     // Execute direct debit transaction using ZarinPal Direct Debit Service
-    const directDebitService = ZarinPalDirectDebitService.create(env);
+    const directDebitService = ZarinPalDirectDebitService.create();
     if (!contract.contractSignature) {
       throw new Error('Contract signature is required for direct debit transaction');
     }
@@ -492,7 +519,7 @@ async function processSingleSubscription(
           .where(eq(subscription.id, sub.id)),
       ];
 
-      await executeDatabaseOperations(successOperations);
+      await executeDatabaseOperations(successOperations, db);
 
       result.successful++;
       apiLogger.info('Subscription billed successfully with currency conversion', {
@@ -522,14 +549,14 @@ async function processSingleSubscription(
           .where(eq(payment.id, paymentId)),
       ];
 
-      await executeDatabaseOperations(failureOperations);
+      await executeDatabaseOperations(failureOperations, db);
       result.failed++;
       throw new Error(`ZarinPal Direct Debit failed: ${errorMessage}`);
     }
 
     // Execute the payment authority update if needed
     if (paymentUpdateOps.length > 0) {
-      await executeDatabaseOperations(paymentUpdateOps);
+      await executeDatabaseOperations(paymentUpdateOps, db);
     }
   } catch (error) {
     // Handle payment processing error
@@ -550,7 +577,7 @@ async function processSingleSubscription(
     ];
 
     try {
-      await executeDatabaseOperations(errorOperations);
+      await executeDatabaseOperations(errorOperations, db);
     } catch (batchError) {
       apiLogger.error('Failed to update payment error', {
         paymentId,
@@ -608,7 +635,7 @@ export default {
         });
 
         // Send alerts for failures or timeouts to external monitoring
-        if (env.Bindings.NEXT_PUBLIC_EXTERNAL_WEBHOOK_URL && (result.failed > 0 || result.timeoutReached || result.errors.length > 0)) {
+        if (env.Bindings.NEXT_PUBLIC_ROUNDTABLE_WEBHOOK_URL && (result.failed > 0 || result.timeoutReached || result.errors.length > 0)) {
           try {
             const alertPayload = {
               source: 'monthly-billing-cron',
@@ -629,7 +656,7 @@ export default {
               errors: result.errors.slice(0, 10), // Limit error details to prevent large payloads
             };
 
-            await fetch(env.Bindings.NEXT_PUBLIC_EXTERNAL_WEBHOOK_URL, {
+            await fetch(env.Bindings.NEXT_PUBLIC_ROUNDTABLE_WEBHOOK_URL, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify(alertPayload),

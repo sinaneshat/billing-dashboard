@@ -7,12 +7,12 @@
  */
 
 import type { RouteHandler } from '@hono/zod-openapi';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, inArray, not } from 'drizzle-orm';
 
 import { createError } from '@/api/common/error-handling';
 import { createHandler, createHandlerWithTransaction, Responses } from '@/api/core';
 import type { ApiEnv } from '@/api/types';
-import { db } from '@/db';
+import { getDbAsync } from '@/db';
 import { billingEvent, paymentMethod, subscription } from '@/db/tables/billing';
 
 import type {
@@ -27,6 +27,7 @@ import {
 
 /**
  * Get all payment methods for the authenticated user
+ * Following API Development Guide: clean data access without UI concerns
  */
 export const getPaymentMethodsHandler: RouteHandler<typeof getPaymentMethodsRoute, ApiEnv> = createHandler(
   {
@@ -35,15 +36,25 @@ export const getPaymentMethodsHandler: RouteHandler<typeof getPaymentMethodsRout
   },
   async (c) => {
     const user = c.get('user');
+    const db = await getDbAsync();
+
     if (!user) {
       throw createError.unauthenticated('User authentication required');
     }
-    c.logger.info('Fetching payment methods for user', { logType: 'operation', operationName: 'getPaymentMethods', userId: user.id });
 
-    // Direct database access for payment methods
+    c.logger.info('Fetching payment methods for user', {
+      logType: 'operation',
+      operationName: 'getPaymentMethods',
+      userId: user.id,
+    });
+
+    // Clean data access - exclude soft-deleted and cancelled/failed contracts
     const paymentMethods = await db.select().from(paymentMethod).where(and(
       eq(paymentMethod.userId, user.id),
-      eq(paymentMethod.isActive, true),
+      not(inArray(paymentMethod.contractStatus, [
+        'cancelled_by_user' as const,
+        'verification_failed' as const,
+      ])),
     ));
 
     c.logger.info('Payment methods retrieved successfully', {
@@ -68,6 +79,8 @@ export const createPaymentMethodHandler: RouteHandler<typeof createPaymentMethod
   },
   async (c, tx) => {
     const user = c.get('user');
+    // Use transaction context 'tx' instead of creating duplicate connection
+
     if (!user) {
       throw createError.unauthenticated('User authentication required');
     }
@@ -80,7 +93,7 @@ export const createPaymentMethodHandler: RouteHandler<typeof createPaymentMethod
     });
 
     // Check if card hash already exists
-    const existingMethod = await db.select().from(paymentMethod).where(eq(paymentMethod.contractSignature, zarinpalCardHash)).limit(1);
+    const existingMethod = await tx.select().from(paymentMethod).where(eq(paymentMethod.contractSignature, zarinpalCardHash)).limit(1);
 
     if (existingMethod.length > 0) {
       throw createError.conflict('Payment method with this card already exists');
@@ -159,6 +172,8 @@ export const deletePaymentMethodHandler: RouteHandler<typeof deletePaymentMethod
   async (c, tx) => {
     const { id } = c.req.param();
     const user = c.get('user');
+    // Use transaction context 'tx' instead of creating duplicate connection
+
     if (!user) {
       throw createError.unauthenticated('User authentication required');
     }
@@ -174,14 +189,13 @@ export const deletePaymentMethodHandler: RouteHandler<typeof deletePaymentMethod
       resource: id,
     });
 
-    // Find payment method using direct DB access
-    const paymentMethodResults = await db.select().from(paymentMethod).where(and(
+    // Find payment method using direct DB access - allow deletion of both active and pending contracts
+    const paymentMethodResults = await tx.select().from(paymentMethod).where(
       eq(paymentMethod.id, id),
-      eq(paymentMethod.isActive, true),
-    )).limit(1);
+    ).limit(1);
     const paymentMethodRecord = paymentMethodResults[0];
 
-    if (!paymentMethodRecord || paymentMethodRecord.userId !== user.id || !paymentMethodRecord.isActive) {
+    if (!paymentMethodRecord || paymentMethodRecord.userId !== user.id) {
       c.logger.warn('Payment method not found for deletion', {
         logType: 'operation',
         operationName: 'deletePaymentMethod',
@@ -192,7 +206,7 @@ export const deletePaymentMethodHandler: RouteHandler<typeof deletePaymentMethod
     }
 
     // Check if payment method is used by active subscriptions
-    const activeSubscriptions = await db.select().from(subscription).where(and(
+    const activeSubscriptions = await tx.select().from(subscription).where(and(
       eq(subscription.userId, user.id),
       eq(subscription.status, 'active'),
     ));
@@ -214,6 +228,7 @@ export const deletePaymentMethodHandler: RouteHandler<typeof deletePaymentMethod
       .set({
         isActive: false,
         isPrimary: false, // Remove primary status when deleting
+        contractStatus: 'cancelled_by_user', // Update status to exclude from GET results
         updatedAt: deletedAt,
       })
       .where(eq(paymentMethod.id, id));
@@ -257,6 +272,8 @@ export const setDefaultPaymentMethodHandler: RouteHandler<typeof setDefaultPayme
   async (c, tx) => {
     const { id } = c.req.param();
     const user = c.get('user');
+    // Use transaction context 'tx' instead of creating duplicate connection
+
     if (!user) {
       throw createError.unauthenticated('User authentication required');
     }
@@ -272,14 +289,14 @@ export const setDefaultPaymentMethodHandler: RouteHandler<typeof setDefaultPayme
       resource: id,
     });
 
-    // Find payment method using direct DB access
-    const paymentMethodResults = await db.select().from(paymentMethod).where(and(
+    // Find payment method using direct DB access - only active contracts can be set as default
+    const paymentMethodResults = await tx.select().from(paymentMethod).where(and(
       eq(paymentMethod.id, id),
-      eq(paymentMethod.isActive, true),
+      eq(paymentMethod.userId, user.id),
     )).limit(1);
     const paymentMethodRecord = paymentMethodResults[0];
 
-    if (!paymentMethodRecord || paymentMethodRecord.userId !== user.id || !paymentMethodRecord.isActive) {
+    if (!paymentMethodRecord) {
       c.logger.warn('Payment method not found for primary setting', {
         logType: 'operation',
         operationName: 'setPrimaryPaymentMethod',
@@ -287,6 +304,11 @@ export const setDefaultPaymentMethodHandler: RouteHandler<typeof setDefaultPayme
         resource: id,
       });
       throw createError.notFound('Payment method not found');
+    }
+
+    // Only active contracts can be set as default
+    if (!paymentMethodRecord.isActive || paymentMethodRecord.contractStatus !== 'active') {
+      throw createError.validation('Only active payment methods can be set as default. Please complete contract signing first.');
     }
 
     // Remove primary status from all other payment methods for this user

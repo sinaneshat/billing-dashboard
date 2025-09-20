@@ -1,69 +1,165 @@
 'use client';
 
-import { BanknoteIcon, CheckCircle, Clock, CreditCard, Plus, Shield, Star, Trash2 } from 'lucide-react';
+import { CheckCircle, CreditCard, Plus, Star, Trash2 } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
+import React from 'react';
 
-import { DirectDebitContractSetup } from '@/components/billing/direct-debit-contract-setup';
-import { ContentCard, DashboardCard, DashboardDataCard } from '@/components/dashboard/dashboard-cards';
+import type { ApiResponse } from '@/api/core/schemas';
 import { DashboardPageHeader } from '@/components/dashboard/dashboard-header';
 import { DashboardPage, DashboardSection, EmptyState, ErrorState, LoadingState } from '@/components/dashboard/dashboard-states';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { useDeletePaymentMethodMutation, useSetDefaultPaymentMethodMutation } from '@/hooks/mutations/payment-methods';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import type { PaymentMethod } from '@/db/validation/billing';
+import { useCancelDirectDebitContractMutation, useSetDefaultPaymentMethodMutation } from '@/hooks/mutations/payment-methods';
 import { usePaymentMethodsQuery } from '@/hooks/queries/payment-methods';
-import { staleWhileRevalidate, useOptimisticMutationWithFeedback, useQueryUIState } from '@/hooks/utils/query-helpers';
-import { showErrorToast, showSuccessToast } from '@/lib';
+import { toastManager } from '@/lib/toast/toast-manager';
+
+// Simple PaymentMethodCard component
+function PaymentMethodCard({
+  method,
+  t,
+  onSetDefault,
+  onDelete,
+  setDefaultMutation,
+  cancelContractMutation,
+}: {
+  method: PaymentMethod;
+  t: (key: string) => string;
+  onSetDefault: (id: string) => void;
+  onDelete: (id: string) => void;
+  setDefaultMutation: ReturnType<typeof useSetDefaultPaymentMethodMutation>;
+  cancelContractMutation: ReturnType<typeof useCancelDirectDebitContractMutation>;
+}) {
+  return (
+    <Card className="transition-all hover:shadow-md">
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <CreditCard className="h-5 w-5 text-primary" />
+            <div>
+              <CardTitle className="text-base">
+                {method.contractDisplayName || t('paymentMethods.directDebitContract')}
+              </CardTitle>
+              {method.contractMobile && (
+                <p className="text-sm text-muted-foreground mt-1">
+                  {method.contractMobile}
+                </p>
+              )}
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <Badge
+              variant={method.contractStatus === 'active' ? 'default' : 'secondary'}
+              className="gap-1"
+            >
+              {method.contractStatus === 'active'
+                ? (
+                    <CheckCircle className="h-3 w-3" />
+                  )
+                : null}
+              {method.contractStatus === 'active' ? t('status.active') : t('status.pending')}
+            </Badge>
+            {method.isPrimary && (
+              <Badge variant="outline" className="gap-1">
+                <Star className="h-3 w-3" />
+                {t('paymentMethods.primary')}
+              </Badge>
+            )}
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent className="pt-0">
+        <div className="flex items-center justify-between">
+          <span className="text-sm text-muted-foreground">
+            {t('paymentMethods.zarinpalDirectDebit')}
+          </span>
+          <div className="flex items-center gap-2">
+            {!method.isPrimary && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => onSetDefault(method.id)}
+                disabled={
+                  (setDefaultMutation.isPending && (setDefaultMutation.variables as { param: { id: string } })?.param.id === method.id)
+                  || (cancelContractMutation.isPending && (cancelContractMutation.variables as { param: { contractId: string } })?.param.contractId === method.id)
+                }
+                className="gap-1"
+              >
+                <Star className="h-3 w-3" />
+                {t('paymentMethods.setPrimary')}
+              </Button>
+            )}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => onDelete(method.id)}
+              disabled={
+                (setDefaultMutation.isPending && (setDefaultMutation.variables as { param: { id: string } })?.param.id === method.id)
+                || (cancelContractMutation.isPending && (cancelContractMutation.variables as { param: { contractId: string } })?.param.contractId === method.id)
+              }
+              className="text-destructive hover:text-destructive hover:bg-destructive/10 gap-1"
+            >
+              <Trash2 className="h-3 w-3" />
+              {t('paymentMethods.cancelContract')}
+            </Button>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
 
 export default function PaymentMethodsScreen() {
   const t = useTranslations();
+  const router = useRouter();
   const paymentMethodsQuery = usePaymentMethodsQuery();
-  const deletePaymentMethodMutation = useDeletePaymentMethodMutation();
+  const cancelContractMutation = useCancelDirectDebitContractMutation();
   const setDefaultPaymentMethodMutation = useSetDefaultPaymentMethodMutation();
 
-  // Enhanced query and mutation state management
-  const paymentMethodsUIState = useQueryUIState(paymentMethodsQuery);
-  const paymentMethodsStaleState = staleWhileRevalidate(paymentMethodsQuery);
+  // Direct TanStack Query state management
 
-  const deleteWithFeedback = useOptimisticMutationWithFeedback(deletePaymentMethodMutation, {
-    successMessage: t('paymentMethods.successMessages.paymentMethodRemoved'),
-    errorMessage: t('paymentMethods.errorMessages.failedToRemove'),
-    loadingMessage: t('paymentMethods.loadingMessages.removingPaymentMethod'),
-    showToast: (type, message) => {
-      if (type === 'success')
-        showSuccessToast(message);
-      else if (type === 'error')
-        showErrorToast(message);
-      // Note: loading toasts not supported in this implementation
-    },
-  });
+  // Handle mutation feedback with direct mutation state
+  React.useEffect(() => {
+    if (cancelContractMutation.isSuccess && !cancelContractMutation.isPending) {
+      toastManager.success(t('paymentMethods.successMessages.contractCancelled'));
+    }
+    if (cancelContractMutation.isError && !cancelContractMutation.isPending && cancelContractMutation.error) {
+      const errorMessage = cancelContractMutation.error instanceof Error
+        ? cancelContractMutation.error.message
+        : t('paymentMethods.errorMessages.failedToCancelContract');
+      toastManager.error(errorMessage);
+    }
+  }, [cancelContractMutation.isSuccess, cancelContractMutation.isError, cancelContractMutation.isPending, cancelContractMutation.error, t]);
 
-  const setDefaultWithFeedback = useOptimisticMutationWithFeedback(setDefaultPaymentMethodMutation, {
-    successMessage: t('paymentMethods.successMessages.defaultPaymentMethodUpdated'),
-    errorMessage: t('paymentMethods.errorMessages.failedToUpdateDefault'),
-    loadingMessage: t('paymentMethods.loadingMessages.updatingDefault'),
-    showToast: (type, message) => {
-      if (type === 'success')
-        showSuccessToast(message);
-      else if (type === 'error')
-        showErrorToast(message);
-      // Note: loading toasts not supported in this implementation
-    },
-  });
+  React.useEffect(() => {
+    if (setDefaultPaymentMethodMutation.isSuccess && !setDefaultPaymentMethodMutation.isPending) {
+      toastManager.success(t('paymentMethods.successMessages.defaultPaymentMethodUpdated'));
+    }
+    if (setDefaultPaymentMethodMutation.isError && !setDefaultPaymentMethodMutation.isPending && setDefaultPaymentMethodMutation.error) {
+      const errorMessage = setDefaultPaymentMethodMutation.error instanceof Error
+        ? setDefaultPaymentMethodMutation.error.message
+        : t('paymentMethods.errorMessages.failedToUpdateDefault');
+      toastManager.error(errorMessage);
+    }
+  }, [setDefaultPaymentMethodMutation.isSuccess, setDefaultPaymentMethodMutation.isError, setDefaultPaymentMethodMutation.isPending, setDefaultPaymentMethodMutation.error, t]);
 
-  const paymentMethodList = paymentMethodsStaleState.data?.success && Array.isArray(paymentMethodsStaleState.data.data)
-    ? paymentMethodsStaleState.data.data
-    : [];
+  const paymentMethodList: PaymentMethod[] = (() => {
+    const data = paymentMethodsQuery.data as ApiResponse<PaymentMethod[]> | undefined;
+    return data?.success && Array.isArray(data.data) ? data.data : [];
+  })();
 
   const handleSetDefault = async (paymentMethodId: string) => {
     setDefaultPaymentMethodMutation.mutate({ param: { id: paymentMethodId } });
   };
 
   const handleDelete = async (paymentMethodId: string) => {
-    deletePaymentMethodMutation.mutate({ param: { id: paymentMethodId } });
+    cancelContractMutation.mutate({ param: { contractId: paymentMethodId } });
   };
 
   // Show loading state on initial load
-  if (paymentMethodsUIState.showSkeleton) {
+  if (paymentMethodsQuery.isLoading && !paymentMethodsQuery.data) {
     return (
       <LoadingState
         title={t('states.loading.payment_methods')}
@@ -72,13 +168,27 @@ export default function PaymentMethodsScreen() {
     );
   }
 
-  // Show error state
-  if (paymentMethodsUIState.showError) {
+  // Show error state with improved error handling
+  if (paymentMethodsQuery.isError && !paymentMethodsQuery.isLoading) {
+    const errorMessage = paymentMethodsQuery.error instanceof Error
+      ? paymentMethodsQuery.error.message
+      : 'An error occurred';
+    const isAuthError = errorMessage.includes('Authentication') || errorMessage.includes('401');
+
     return (
       <ErrorState
-        title={t('states.error.default')}
-        description={t('states.error.networkDescription')}
-        onRetry={() => paymentMethodsQuery.refetch()}
+        title={isAuthError ? t('states.error.authenticationRequired') : t('states.error.default')}
+        description={isAuthError
+          ? t('states.error.authenticationDescription')
+          : t('states.error.networkDescription')}
+        onRetry={() => {
+          if (isAuthError) {
+            // For auth errors, don't retry automatically - user needs to refresh or sign in again
+            window.location.reload();
+          } else {
+            paymentMethodsQuery.refetch();
+          }
+        }}
         icon={<CreditCard className="h-8 w-8 text-destructive" />}
       />
     );
@@ -92,89 +202,33 @@ export default function PaymentMethodsScreen() {
       />
 
       <DashboardSection delay={0.1}>
-        <ContentCard
-          title={t('directDebit.title')}
-          description={t('directDebit.subtitle')}
-          icon={<Shield className="h-4 w-4" />}
-          primaryContent={(
-            <div className="text-sm text-muted-foreground">
-              {t('directDebit.contractSetup')}
-            </div>
-          )}
-        />
-      </DashboardSection>
-
-      <DashboardSection delay={0.15}>
-        {/* Existing Direct Debit Contracts */}
         {paymentMethodList.length > 0
           ? (
-              <DashboardCard
-                title={t('paymentMethods.title')}
-                description={`${paymentMethodList.length} ${paymentMethodList.length === 1 ? t('paymentMethods.activeContract') : t('paymentMethods.activeContracts')}`}
-                icon={<BanknoteIcon className="h-5 w-5 text-primary" />}
-                headerAction={(
-                  <DirectDebitContractSetup
-                    onSuccess={(_contractId) => {
-                      showSuccessToast(t('paymentMethods.successMessages.directDebitContractCreated'));
-                    }}
-                  >
-                    <Button size="sm" startIcon={<Plus className="h-4 w-4" />}>
-                      {t('paymentMethods.addContract')}
-                    </Button>
-                  </DirectDebitContractSetup>
-                )}
-              >
-                <div className="space-y-4">
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-medium">
+                    {t('paymentMethods.activeContracts')}
+                  </h3>
+                  <span className="text-sm text-muted-foreground">
+                    {paymentMethodList.length}
+                    {' '}
+                    {paymentMethodList.length === 1 ? t('paymentMethods.contract') : t('paymentMethods.contracts')}
+                  </span>
+                </div>
+                <div className="grid gap-4">
                   {paymentMethodList.map(method => (
-                    <DashboardDataCard
+                    <PaymentMethodCard
                       key={method.id}
-                      title={method.contractDisplayName || t('paymentMethods.directDebitContract')}
-                      subtitle={method.contractMobile || undefined}
-                      status={(
-                        <>
-                          <Badge variant={method.contractStatus === 'active' ? 'success' : 'secondary'} className="gap-1">
-                            {method.contractStatus === 'active' ? <CheckCircle className="h-3 w-3" /> : <Clock className="h-3 w-3" />}
-                            {method.contractStatus === 'active' ? t('status.active') : t('status.pending')}
-                          </Badge>
-                          {method.isPrimary && (
-                            <Badge variant="default" className="gap-1">
-                              <Star className="h-3 w-3" />
-                              {t('paymentMethods.primary')}
-                            </Badge>
-                          )}
-                        </>
-                      )}
-                      icon={<CreditCard className="h-6 w-6 text-primary" />}
-                      primaryInfo={<span className="text-sm text-muted-foreground">{t('paymentMethods.zarinpalDirectDebit')}</span>}
-                      actions={(
-                        <div className="flex items-center gap-2">
-                          {!method.isPrimary && (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => handleSetDefault(method.id)}
-                              loading={setDefaultWithFeedback.isPending && setDefaultWithFeedback.variables?.param.id === method.id}
-                              loadingText={t('paymentMethods.loadingMessages.setting')}
-                              startIcon={<Star className="h-3 w-3" />}
-                            >
-                              {t('paymentMethods.setPrimary')}
-                            </Button>
-                          )}
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleDelete(method.id)}
-                            loading={deleteWithFeedback.isPending && deleteWithFeedback.variables?.param.id === method.id}
-                            startIcon={<Trash2 className="h-4 w-4" />}
-                            className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                            aria-label={t('actions.delete')}
-                          />
-                        </div>
-                      )}
+                      method={method}
+                      t={t}
+                      onSetDefault={handleSetDefault}
+                      onDelete={handleDelete}
+                      setDefaultMutation={setDefaultPaymentMethodMutation}
+                      cancelContractMutation={cancelContractMutation}
                     />
                   ))}
                 </div>
-              </DashboardCard>
+              </div>
             )
           : (
               <EmptyState
@@ -182,87 +236,16 @@ export default function PaymentMethodsScreen() {
                 description={t('paymentMethods.emptyDescription')}
                 icon={<CreditCard className="h-8 w-8 text-muted-foreground" />}
                 action={(
-                  <DirectDebitContractSetup
-                    onSuccess={(_contractId) => {
-                      showSuccessToast(t('paymentMethods.successMessages.directDebitContractCreated'));
-                    }}
+                  <Button
+                    size="lg"
+                    startIcon={<Plus className="h-4 w-4" />}
+                    onClick={() => router.push('/dashboard/billing/methods/setup')}
                   >
-                    <Button size="lg" startIcon={<Plus className="h-5 w-5" />}>
-                      {t('paymentMethods.createFirstContract')}
-                    </Button>
-                  </DirectDebitContractSetup>
+                    {t('paymentMethods.createFirstContract')}
+                  </Button>
                 )}
               />
             )}
-      </DashboardSection>
-
-      <DashboardSection delay={0.2}>
-        <DashboardCard
-          title={t('directDebit.contractSetup')}
-          description={t('directDebit.subtitle')}
-        >
-          <div className="space-y-8">
-            <div className="grid gap-8 md:grid-cols-3">
-              {[
-                {
-                  icon: Shield,
-                  title: t('directDebit.setupSteps.step1.title'),
-                  description: t('directDebit.setupSteps.step1.description'),
-                  color: 'blue',
-                },
-                {
-                  icon: BanknoteIcon,
-                  title: t('directDebit.setupSteps.step2.title'),
-                  description: t('directDebit.setupSteps.step2.description'),
-                  color: 'green',
-                },
-                {
-                  icon: CheckCircle,
-                  title: t('directDebit.setupSteps.step3.title'),
-                  description: t('directDebit.setupSteps.step3.description'),
-                  color: 'purple',
-                },
-              ].map(step => (
-                <div key={step.title} className="text-center space-y-4 group">
-                  <div className="w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center mx-auto border border-primary/20 group-hover:scale-105 transition-transform">
-                    <step.icon className="h-8 w-8 text-primary" />
-                  </div>
-                  <div className="space-y-2">
-                    <h4 className="font-semibold text-lg">{step.title}</h4>
-                    <p className="text-sm text-muted-foreground leading-relaxed">
-                      {step.description}
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            <div className="bg-gradient-to-r from-muted/50 to-muted/30 rounded-2xl p-6 border border-border/50">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="w-8 h-8 bg-primary/10 rounded-lg flex items-center justify-center">
-                  <Shield className="h-4 w-4 text-primary" />
-                </div>
-                <h5 className="font-semibold text-lg">{t('directDebit.contractTermsTitle')}</h5>
-              </div>
-              <div className="grid gap-3 text-sm md:grid-cols-2">
-                {[
-                  { label: t('directDebit.contractTerms.contractDuration'), value: t('directDebit.contractTerms.contractDurationValue') },
-                  { label: t('directDebit.contractTerms.dailyTransactionLimit'), value: t('directDebit.contractTerms.dailyTransactionLimitValue') },
-                  { label: t('directDebit.contractTerms.monthlyTransactionLimit'), value: t('directDebit.contractTerms.monthlyTransactionLimitValue') },
-                  { label: t('directDebit.contractTerms.maxAmountPerTransaction'), value: t('directDebit.contractTerms.maxAmountPerTransactionValue') },
-                ].map(term => (
-                  <div key={term.label} className="flex items-center justify-between p-3 bg-background/50 rounded-lg border border-border/30">
-                    <span className="text-muted-foreground">
-                      {term.label}
-                      :
-                    </span>
-                    <Badge variant="secondary" className="font-mono text-xs">{term.value}</Badge>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </DashboardCard>
       </DashboardSection>
     </DashboardPage>
   );

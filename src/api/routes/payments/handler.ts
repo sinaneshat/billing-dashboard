@@ -11,10 +11,9 @@ import { eq } from 'drizzle-orm';
 
 import { createError } from '@/api/common/error-handling';
 import { createHandler, createHandlerWithTransaction, Responses } from '@/api/core';
-import { RoundtableIntegrationService } from '@/api/services/roundtable-integration';
 import { ZarinPalService } from '@/api/services/zarinpal';
 import type { ApiEnv } from '@/api/types';
-import { db } from '@/db';
+import { getDbAsync } from '@/db';
 import { billingEvent, payment, product, subscription } from '@/db/tables/billing';
 
 import type {
@@ -40,6 +39,8 @@ export const getPaymentsHandler: RouteHandler<typeof getPaymentsRoute, ApiEnv> =
   },
   async (c) => {
     const user = c.get('user');
+    const db = await getDbAsync();
+
     if (!user) {
       throw createError.unauthenticated('User authentication required');
     }
@@ -102,11 +103,12 @@ export const paymentCallbackHandler: RouteHandler<typeof paymentCallbackRoute, A
   },
   async (c, tx) => {
     const { Authority, Status } = c.validated.query;
+    // Use transaction context 'tx' instead of creating duplicate connection
 
     c.logger.info('Processing payment callback', { logType: 'operation', operationName: 'paymentCallback', resource: Authority });
 
-    // Find payment using direct DB access
-    const paymentResults = await db.select().from(payment).where(eq(payment.zarinpalAuthority, Authority)).limit(1);
+    // Find payment using transaction context (CRITICAL FIX)
+    const paymentResults = await tx.select().from(payment).where(eq(payment.zarinpalAuthority, Authority)).limit(1);
     const paymentRecord = paymentResults[0];
 
     if (!paymentRecord) {
@@ -159,7 +161,7 @@ export const paymentCallbackHandler: RouteHandler<typeof paymentCallbackRoute, A
     }
 
     // Verify payment with ZarinPal
-    const zarinPal = ZarinPalService.create(c.env);
+    const zarinPal = ZarinPalService.create();
     const verification = await zarinPal.verifyPayment({
       authority: Authority,
       amount: paymentRecord.amount,
@@ -188,8 +190,8 @@ export const paymentCallbackHandler: RouteHandler<typeof paymentCallbackRoute, A
       // Handle subscription activation if needed
       if (paymentRecord.subscriptionId) {
         const [subscriptionResults, productResults] = await Promise.all([
-          db.select().from(subscription).where(eq(subscription.id, paymentRecord.subscriptionId)).limit(1),
-          db.select().from(product).where(eq(product.id, paymentRecord.productId)).limit(1),
+          tx.select().from(subscription).where(eq(subscription.id, paymentRecord.subscriptionId)).limit(1),
+          tx.select().from(product).where(eq(product.id, paymentRecord.productId)).limit(1),
         ]);
 
         const subscriptionRecord = subscriptionResults[0];
@@ -219,63 +221,7 @@ export const paymentCallbackHandler: RouteHandler<typeof paymentCallbackRoute, A
         }
       }
 
-      // ROUNDTABLE1 INTEGRATION: Update user subscription in Roundtable1 database
-      try {
-        if (c.env?.ROUNDTABLE_SUPABASE_URL && c.env?.ROUNDTABLE_SUPABASE_SERVICE_KEY) {
-          const roundtableService = RoundtableIntegrationService.create(c.env);
-
-          // Get product information for plan mapping
-          const productResults = await db.select().from(product).where(eq(product.id, paymentRecord.productId)).limit(1);
-          const productRecord = productResults[0];
-
-          if (productRecord) {
-            // Calculate subscription end date based on billing period
-            let endsAt: string | undefined;
-            const startsAt = new Date().toISOString();
-
-            if (productRecord.billingPeriod === 'monthly') {
-              const endDate = new Date();
-              endDate.setMonth(endDate.getMonth() + 1);
-              endsAt = endDate.toISOString();
-            }
-            // For lifetime plans, leave endsAt as undefined
-
-            await roundtableService.updateUserSubscription({
-              userId: paymentRecord.userId,
-              planId: productRecord.id, // Use product ID directly (same IDs in both projects now)
-              subscriptionId: paymentRecord.subscriptionId || crypto.randomUUID(),
-              paymentId: paymentRecord.id,
-              amount: paymentRecord.amount,
-              currency: 'IRR',
-              isActive: true,
-              startsAt,
-              endsAt,
-            });
-
-            c.logger.info('Roundtable1 user subscription updated successfully via callback', {
-              logType: 'operation',
-              operationName: 'roundtableIntegrationCallback',
-              userId: paymentRecord.userId,
-              resource: paymentRecord.id,
-            });
-          }
-        } else {
-          c.logger.warn('Roundtable1 integration skipped via callback - environment variables not configured', {
-            logType: 'operation',
-            operationName: 'roundtableIntegrationCallback',
-            resource: paymentRecord.id,
-          });
-        }
-      } catch (roundtableError) {
-        c.logger.error('Failed to update Roundtable1 subscription via callback', roundtableError as Error, {
-          logType: 'operation',
-          operationName: 'roundtableIntegrationCallback',
-          userId: paymentRecord.userId,
-          resource: paymentRecord.id,
-        });
-        // Don't fail the whole payment process if roundtable update fails
-        // Just log the error and continue
-      }
+      // Note: Roundtable integration was removed as part of cleanup
 
       // Log successful payment event using direct DB access
       await tx.insert(billingEvent).values({

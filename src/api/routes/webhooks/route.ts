@@ -15,7 +15,7 @@ export const zarinPalWebhookRoute = createRoute({
   path: '/webhooks/zarinpal',
   tags: ['webhooks'],
   summary: 'Receive ZarinPal webhook',
-  description: 'Receive and process ZarinPal webhook events',
+  description: 'Receive and process ZarinPal payment events',
   request: {
     body: {
       content: {

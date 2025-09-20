@@ -9,7 +9,6 @@ import { DashboardPage, DashboardSection } from '@/components/dashboard/dashboar
 import { usePaymentMethodsQuery } from '@/hooks/queries/payment-methods';
 import { usePaymentsQuery } from '@/hooks/queries/payments';
 import { useCurrentSubscriptionQuery } from '@/hooks/queries/subscriptions';
-import { useQueryUIState } from '@/hooks/utils/query-helpers';
 
 /**
  * Customer-centric billing overview screen
@@ -21,15 +20,12 @@ export default function CustomerBillingOverviewScreen() {
 
   // Fetch user's current subscription
   const subscriptionQuery = useCurrentSubscriptionQuery();
-  const subscriptionUI = useQueryUIState(subscriptionQuery);
 
   // Fetch user's payment methods
   const paymentMethodsQuery = usePaymentMethodsQuery();
-  const paymentMethodsUI = useQueryUIState(paymentMethodsQuery);
 
   // Fetch user's payment history
   const paymentsQuery = usePaymentsQuery();
-  const paymentsUI = useQueryUIState(paymentsQuery);
 
   // Extract subscription data
   const subscription = subscriptionQuery.data || null;
@@ -56,7 +52,7 @@ export default function CustomerBillingOverviewScreen() {
     })).slice(0, 5); // Show recent 5 payments
   }, [paymentsQuery.data, t]);
 
-  const isLoading = subscriptionUI.isLoading || paymentMethodsUI.isLoading || paymentsUI.isLoading;
+  const isLoading = subscriptionQuery.isLoading || paymentMethodsQuery.isLoading || paymentsQuery.isLoading;
 
   return (
     <DashboardPage>

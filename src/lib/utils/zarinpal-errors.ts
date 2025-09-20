@@ -4,225 +4,178 @@
  * Integrates with structured logging following codebase patterns
  */
 
-import { logZarinPalError } from './error-logging';
+import type { ZarinPalErrorCode } from '@/api/common/zarinpal-schemas';
 
-export type ZarinPalErrorCode =
-  | -9 // Transaction failure
-  | -10 // Invalid IP or merchant
-  | -11 // Merchant is not active
-  | -12 // Attempts limit exceeded
-  | -15 // Merchant access denied
-  | -16 // Invalid merchant level
-  | -17 // Merchant must be active
-  | -30 // Service not allowed
-  | -31 // Transaction not found
-  | -33 // Transaction not successful
-  | -34 // Transaction not found
-  | -40 // Merchant access denied
-  | -41 // Invalid amount
-  | -42 // Refund limit exceeded
-  | -50 // Refund limit exceeded
-  | -51 // Transaction not refundable
-  | -52 // Bank error
-  | -53 // Transaction cancelled
-  | -54 // Transaction not verified
-  | -74 // Invalid merchant ID
-  | -80 // Merchant does not have access to direct debit
-  | 100 // Verified
-  | 101; // Already verified
+import { logZarinPalError } from './error-logging';
 
 type ZarinPalError = {
   code: ZarinPalErrorCode;
-  englishMessage: string;
-  persianMessage: string;
-  userFriendlyMessage: string;
-  actionRequired: string;
+  titleKey: string;
+  messageKey: string;
+  actionKey: string;
   severity: 'error' | 'warning' | 'info';
 };
 
 const ZARINPAL_ERROR_MAP: Record<ZarinPalErrorCode, ZarinPalError> = {
-  [-9]: {
-    code: -9,
-    englishMessage: 'Transaction failure',
-    persianMessage: 'خطا در تراکنش',
-    userFriendlyMessage: 'Payment transaction failed. Please try again.',
-    actionRequired: 'Retry payment with same or different payment method',
+  '-9': {
+    code: '-9',
+    titleKey: 'zarinpal.errors.-9.title',
+    messageKey: 'zarinpal.errors.-9.message',
+    actionKey: 'zarinpal.errors.-9.action',
     severity: 'error',
   },
-  [-10]: {
-    code: -10,
-    englishMessage: 'Invalid IP or merchant configuration',
-    persianMessage: 'آی‌پی یا تنظیمات درگاه نامعتبر',
-    userFriendlyMessage: 'Payment system configuration error. Please contact support.',
-    actionRequired: 'Contact technical support to verify merchant configuration',
+  '-10': {
+    code: '-10',
+    titleKey: 'zarinpal.errors.-10.title',
+    messageKey: 'zarinpal.errors.-10.message',
+    actionKey: 'zarinpal.errors.-10.action',
     severity: 'error',
   },
-  [-11]: {
-    code: -11,
-    englishMessage: 'Merchant is not active',
-    persianMessage: 'درگاه فعال نیست',
-    userFriendlyMessage: 'Payment gateway is currently inactive. Please contact support.',
-    actionRequired: 'Contact support to activate merchant account',
+  '-11': {
+    code: '-11',
+    titleKey: 'zarinpal.errors.-11.title',
+    messageKey: 'zarinpal.errors.-11.message',
+    actionKey: 'zarinpal.errors.-11.action',
     severity: 'error',
   },
-  [-12]: {
-    code: -12,
-    englishMessage: 'Attempts limit exceeded',
-    persianMessage: 'تعداد تلاش‌ها بیش از حد مجاز',
-    userFriendlyMessage: 'Too many payment attempts. Please try again later.',
-    actionRequired: 'Wait and retry after some time',
+  '-12': {
+    code: '-12',
+    titleKey: 'zarinpal.errors.-12.title',
+    messageKey: 'zarinpal.errors.-12.message',
+    actionKey: 'zarinpal.errors.-12.action',
     severity: 'warning',
   },
-  [-15]: {
-    code: -15,
-    englishMessage: 'Merchant access denied',
-    persianMessage: 'دسترسی درگاه مسدود شده',
-    userFriendlyMessage: 'Payment gateway access is restricted. Please contact support.',
-    actionRequired: 'Contact support to restore merchant access',
+  '-15': {
+    code: '-15',
+    titleKey: 'zarinpal.errors.-15.title',
+    messageKey: 'zarinpal.errors.-15.message',
+    actionKey: 'zarinpal.errors.-15.action',
     severity: 'error',
   },
-  [-16]: {
-    code: -16,
-    englishMessage: 'Invalid merchant level',
-    persianMessage: 'سطح دسترسی درگاه نامعتبر',
-    userFriendlyMessage: 'Payment gateway does not support this operation. Please contact support.',
-    actionRequired: 'Upgrade merchant account level or contact support',
+  '-16': {
+    code: '-16',
+    titleKey: 'zarinpal.errors.-16.title',
+    messageKey: 'zarinpal.errors.-16.message',
+    actionKey: 'zarinpal.errors.-16.action',
     severity: 'error',
   },
-  [-17]: {
-    code: -17,
-    englishMessage: 'Merchant must be active',
-    persianMessage: 'درگاه باید فعال باشد',
-    userFriendlyMessage: 'Payment gateway must be activated first. Please contact support.',
-    actionRequired: 'Activate merchant account through ZarinPal',
+  '-17': {
+    code: '-17',
+    titleKey: 'zarinpal.errors.-17.title',
+    messageKey: 'zarinpal.errors.-17.message',
+    actionKey: 'zarinpal.errors.-17.action',
     severity: 'error',
   },
-  [-30]: {
-    code: -30,
-    englishMessage: 'Service not allowed',
-    persianMessage: 'سرویس مجاز نیست',
-    userFriendlyMessage: 'This payment service is not available. Please try a different payment method.',
-    actionRequired: 'Use alternative payment method or contact support',
+  '-30': {
+    code: '-30',
+    titleKey: 'zarinpal.errors.-30.title',
+    messageKey: 'zarinpal.errors.-30.message',
+    actionKey: 'zarinpal.errors.-30.action',
     severity: 'error',
   },
-  [-31]: {
-    code: -31,
-    englishMessage: 'Transaction not found',
-    persianMessage: 'تراکنش یافت نشد',
-    userFriendlyMessage: 'Payment transaction not found. Please start a new payment.',
-    actionRequired: 'Start new payment process',
+  '-31': {
+    code: '-31',
+    titleKey: 'zarinpal.errors.-31.title',
+    messageKey: 'zarinpal.errors.-31.message',
+    actionKey: 'zarinpal.errors.-31.action',
     severity: 'error',
   },
-  [-33]: {
-    code: -33,
-    englishMessage: 'Transaction not successful',
-    persianMessage: 'تراکنش ناموفق',
-    userFriendlyMessage: 'Payment was not successful. Please try again.',
-    actionRequired: 'Retry payment or use different payment method',
+  '-33': {
+    code: '-33',
+    titleKey: 'zarinpal.errors.-33.title',
+    messageKey: 'zarinpal.errors.-33.message',
+    actionKey: 'zarinpal.errors.-33.action',
     severity: 'error',
   },
-  [-34]: {
-    code: -34,
-    englishMessage: 'Transaction not found',
-    persianMessage: 'تراکنش یافت نشد',
-    userFriendlyMessage: 'Payment record not found. Please start a new payment.',
-    actionRequired: 'Start new payment process',
+  '-34': {
+    code: '-34',
+    titleKey: 'zarinpal.errors.-34.title',
+    messageKey: 'zarinpal.errors.-34.message',
+    actionKey: 'zarinpal.errors.-34.action',
     severity: 'error',
   },
-  [-40]: {
-    code: -40,
-    englishMessage: 'Merchant access denied',
-    persianMessage: 'دسترسی درگاه مسدود',
-    userFriendlyMessage: 'Payment gateway access is denied. Please contact support.',
-    actionRequired: 'Contact support to restore access',
+  '-40': {
+    code: '-40',
+    titleKey: 'zarinpal.errors.-40.title',
+    messageKey: 'zarinpal.errors.-40.message',
+    actionKey: 'zarinpal.errors.-40.action',
     severity: 'error',
   },
-  [-41]: {
-    code: -41,
-    englishMessage: 'Invalid amount',
-    persianMessage: 'مبلغ نامعتبر',
-    userFriendlyMessage: 'Payment amount is invalid. Please check and try again.',
-    actionRequired: 'Verify payment amount and retry',
+  '-41': {
+    code: '-41',
+    titleKey: 'zarinpal.errors.-41.title',
+    messageKey: 'zarinpal.errors.-41.message',
+    actionKey: 'zarinpal.errors.-41.action',
     severity: 'error',
   },
-  [-42]: {
-    code: -42,
-    englishMessage: 'Refund limit exceeded',
-    persianMessage: 'حد مجاز برگشت وجه',
-    userFriendlyMessage: 'Refund limit has been exceeded for this transaction.',
-    actionRequired: 'Contact support for partial refund options',
+  '-42': {
+    code: '-42',
+    titleKey: 'zarinpal.errors.-42.title',
+    messageKey: 'zarinpal.errors.-42.message',
+    actionKey: 'zarinpal.errors.-42.action',
     severity: 'warning',
   },
-  [-50]: {
-    code: -50,
-    englishMessage: 'Refund limit exceeded',
-    persianMessage: 'حد مجاز برگشت وجه تجاوز شده',
-    userFriendlyMessage: 'Cannot process refund due to limit restrictions.',
-    actionRequired: 'Contact support for refund assistance',
+  '-50': {
+    code: '-50',
+    titleKey: 'zarinpal.errors.-50.title',
+    messageKey: 'zarinpal.errors.-50.message',
+    actionKey: 'zarinpal.errors.-50.action',
     severity: 'warning',
   },
-  [-51]: {
-    code: -51,
-    englishMessage: 'Transaction not refundable',
-    persianMessage: 'تراکنش قابل برگشت نیست',
-    userFriendlyMessage: 'This transaction cannot be refunded.',
-    actionRequired: 'Contact support if you believe this is an error',
+  '-51': {
+    code: '-51',
+    titleKey: 'zarinpal.errors.-51.title',
+    messageKey: 'zarinpal.errors.-51.message',
+    actionKey: 'zarinpal.errors.-51.action',
     severity: 'info',
   },
-  [-52]: {
-    code: -52,
-    englishMessage: 'Bank error',
-    persianMessage: 'خطا از سمت بانک',
-    userFriendlyMessage: 'Bank processing error occurred. Please try again.',
-    actionRequired: 'Retry payment or try different payment method',
+  '-52': {
+    code: '-52',
+    titleKey: 'zarinpal.errors.-52.title',
+    messageKey: 'zarinpal.errors.-52.message',
+    actionKey: 'zarinpal.errors.-52.action',
     severity: 'error',
   },
-  [-53]: {
-    code: -53,
-    englishMessage: 'Transaction cancelled',
-    persianMessage: 'تراکنش لغو شده',
-    userFriendlyMessage: 'Payment was cancelled by user or system.',
-    actionRequired: 'Start new payment if needed',
+  '-53': {
+    code: '-53',
+    titleKey: 'zarinpal.errors.-53.title',
+    messageKey: 'zarinpal.errors.-53.message',
+    actionKey: 'zarinpal.errors.-53.action',
     severity: 'info',
   },
-  [-54]: {
-    code: -54,
-    englishMessage: 'Transaction not verified',
-    persianMessage: 'تراکنش تایید نشده',
-    userFriendlyMessage: 'Payment verification failed. Transaction may be incomplete.',
-    actionRequired: 'Contact support to verify payment status',
+  '-54': {
+    code: '-54',
+    titleKey: 'zarinpal.errors.-54.title',
+    messageKey: 'zarinpal.errors.-54.message',
+    actionKey: 'zarinpal.errors.-54.action',
     severity: 'error',
   },
-  [-74]: {
-    code: -74,
-    englishMessage: 'Invalid merchant ID',
-    persianMessage: 'شناسه درگاه نامعتبر',
-    userFriendlyMessage: 'Payment system configuration error. Please contact support to resolve this issue.',
-    actionRequired: 'Contact technical support to update merchant configuration',
+  '-74': {
+    code: '-74',
+    titleKey: 'zarinpal.errors.-74.title',
+    messageKey: 'zarinpal.errors.-74.message',
+    actionKey: 'zarinpal.errors.-74.action',
     severity: 'error',
   },
-  [-80]: {
-    code: -80,
-    englishMessage: 'Merchant does not have access to direct debit service',
-    persianMessage: 'درگاه دسترسی به سرویس برداشت مستقیم ندارد',
-    userFriendlyMessage: 'Direct debit service is not activated for this account. Please contact support to enable this feature.',
-    actionRequired: 'Request direct debit service activation from ZarinPal support',
+  '-80': {
+    code: '-80',
+    titleKey: 'zarinpal.errors.-80.title',
+    messageKey: 'zarinpal.errors.-80.message',
+    actionKey: 'zarinpal.errors.-80.action',
     severity: 'error',
   },
-  100: {
-    code: 100,
-    englishMessage: 'Verified successfully',
-    persianMessage: 'تایید شده',
-    userFriendlyMessage: 'Payment verified successfully.',
-    actionRequired: 'No action required',
+  '100': {
+    code: '100',
+    titleKey: 'zarinpal.errors.100.title',
+    messageKey: 'zarinpal.errors.100.message',
+    actionKey: 'zarinpal.errors.100.action',
     severity: 'info',
   },
-  101: {
-    code: 101,
-    englishMessage: 'Transaction already verified',
-    persianMessage: 'تراکنش قبلا تایید شده',
-    userFriendlyMessage: 'This payment has already been verified.',
-    actionRequired: 'No action required',
+  '101': {
+    code: '101',
+    titleKey: 'zarinpal.errors.101.title',
+    messageKey: 'zarinpal.errors.101.message',
+    actionKey: 'zarinpal.errors.101.action',
     severity: 'info',
   },
 };
@@ -233,6 +186,7 @@ const ZARINPAL_ERROR_MAP: Record<ZarinPalErrorCode, ZarinPalError> = {
  */
 export function parseZarinPalError(
   error: unknown,
+  t?: (key: string) => string,
   context?: {
     operation?: string;
     userId?: string;
@@ -241,6 +195,9 @@ export function parseZarinPalError(
   },
 ): {
     code: ZarinPalErrorCode | null;
+    titleKey: string;
+    messageKey: string;
+    actionKey: string;
     userMessage: string;
     technicalMessage: string;
     actionRequired: string;
@@ -251,8 +208,10 @@ export function parseZarinPalError(
 
   // Try to extract error code from different possible formats
   if (typeof error === 'object' && error !== null) {
-    // Direct error code
+    // Direct error code (convert to string format)
     if ('code' in error && typeof error.code === 'number') {
+      code = error.code.toString() as ZarinPalErrorCode;
+    } else if ('code' in error && typeof error.code === 'string') {
       code = error.code as ZarinPalErrorCode;
     }
 
@@ -263,13 +222,13 @@ export function parseZarinPalError(
       // Extract code from message like "Code: -74" or "error code -80"
       const codeMatch = error.message.match(/[Cc]ode[:\s]*(-?\d+)/);
       if (codeMatch && codeMatch[1]) {
-        code = Number.parseInt(codeMatch[1], 10) as ZarinPalErrorCode;
+        code = codeMatch[1] as ZarinPalErrorCode;
       }
     }
 
     // ZarinPal response format
-    if ('errors' in error && 'code' in error && typeof error.code === 'number') {
-      code = error.code as ZarinPalErrorCode;
+    if ('errors' in error && 'code' in error && (typeof error.code === 'number' || typeof error.code === 'string')) {
+      code = (typeof error.code === 'number' ? error.code.toString() : error.code) as ZarinPalErrorCode;
       const message = 'message' in error && typeof error.message === 'string' ? error.message : '';
       const errors = JSON.stringify(error.errors);
       technicalMessage = message || errors;
@@ -280,18 +239,26 @@ export function parseZarinPalError(
     // Try to extract code from string
     const codeMatch = error.match(/[Cc]ode[:\s]*(-?\d+)/);
     if (codeMatch && codeMatch[1]) {
-      code = Number.parseInt(codeMatch[1], 10) as ZarinPalErrorCode;
+      code = codeMatch[1] as ZarinPalErrorCode;
     }
   }
 
   // Get mapped error information
   const errorInfo = code !== null ? ZARINPAL_ERROR_MAP[code] : null;
 
+  // Use translation function if provided, otherwise fallback to default messages
+  const titleKey = errorInfo?.titleKey || 'zarinpal.errors.unknown.title';
+  const messageKey = errorInfo?.messageKey || 'zarinpal.errors.unknown.message';
+  const actionKey = errorInfo?.actionKey || 'zarinpal.errors.unknown.action';
+
   const result = {
     code,
-    userMessage: errorInfo?.userFriendlyMessage || 'An unexpected payment error occurred. Please try again or contact support.',
+    titleKey,
+    messageKey,
+    actionKey,
+    userMessage: t ? t(messageKey) : 'An unexpected payment error occurred. Please try again or contact support.',
     technicalMessage,
-    actionRequired: errorInfo?.actionRequired || 'Contact technical support for assistance',
+    actionRequired: t ? t(actionKey) : 'Contact technical support for assistance',
     severity: errorInfo?.severity || 'error' as 'error' | 'warning' | 'info',
   };
 
@@ -310,14 +277,8 @@ export function parseZarinPalError(
 /**
  * Get user-friendly error message for display in UI
  */
-export function getZarinPalErrorMessage(error: unknown, locale: 'en' | 'fa' = 'en'): string {
-  const parsed = parseZarinPalError(error);
-
-  if (parsed.code && ZARINPAL_ERROR_MAP[parsed.code]) {
-    const errorInfo = ZARINPAL_ERROR_MAP[parsed.code];
-    return locale === 'fa' ? errorInfo.persianMessage : errorInfo.userFriendlyMessage;
-  }
-
+export function getZarinPalErrorMessage(error: unknown, t?: (key: string) => string): string {
+  const parsed = parseZarinPalError(error, t);
   return parsed.userMessage;
 }
 

@@ -1,5 +1,6 @@
 import type { R2ListOptions } from '@cloudflare/workers-types';
 import type { RouteHandler } from '@hono/zod-openapi';
+import { getCloudflareContext } from '@opennextjs/cloudflare';
 
 import { createError } from '@/api/common/error-handling';
 import type { ImageType } from '@/api/common/file-validation';
@@ -27,7 +28,8 @@ export const uploadUserAvatarHandler: RouteHandler<typeof uploadUserAvatarRoute,
     if (!currentUser) {
       throw createError.unauthenticated('User authentication required');
     }
-    const bucket = c.env.UPLOADS_R2_BUCKET;
+    const { env } = getCloudflareContext();
+    const bucket = env.UPLOADS_R2_BUCKET;
 
     // Parse multipart form data safely
     const formData = await c.req.formData();
@@ -124,7 +126,8 @@ export const uploadCompanyImageHandler: RouteHandler<typeof uploadCompanyImageRo
     if (!currentUser) {
       throw createError.unauthenticated('User authentication required');
     }
-    const bucket = c.env.UPLOADS_R2_BUCKET;
+    const { env } = getCloudflareContext();
+    const bucket = env.UPLOADS_R2_BUCKET;
 
     // Parse multipart form data safely
     const formData = await c.req.formData();
@@ -210,7 +213,8 @@ export const getImagesHandler: RouteHandler<typeof getImagesRoute, ApiEnv> = cre
     if (!currentUser) {
       throw createError.unauthenticated('User authentication required');
     }
-    const bucket = c.env.UPLOADS_R2_BUCKET;
+    const { env } = getCloudflareContext();
+    const bucket = env.UPLOADS_R2_BUCKET;
 
     // Build prefix for listing
     let prefix = 'images/';
@@ -282,7 +286,8 @@ export const getImageMetadataHandler: RouteHandler<typeof getImageMetadataRoute,
     if (!currentUser) {
       throw createError.unauthenticated('User authentication required');
     }
-    const bucket = c.env.UPLOADS_R2_BUCKET;
+    const { env } = getCloudflareContext();
+    const bucket = env.UPLOADS_R2_BUCKET;
 
     const object = await bucket.head(key!);
     if (!object) {
@@ -339,7 +344,8 @@ export const deleteImageHandler: RouteHandler<typeof deleteImageRoute, ApiEnv> =
     if (!currentUser) {
       throw createError.unauthenticated('User authentication required');
     }
-    const bucket = c.env.UPLOADS_R2_BUCKET;
+    const { env } = getCloudflareContext();
+    const bucket = env.UPLOADS_R2_BUCKET;
 
     // Get object metadata to check permissions
     const object = await bucket.head(key!);

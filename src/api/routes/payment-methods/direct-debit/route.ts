@@ -33,7 +33,7 @@ const CommonErrorResponses = {
 
 export const initiateDirectDebitContractRoute = createRoute({
   method: 'post',
-  path: '/payment-methods/direct-debit-setup',
+  path: '/payment-methods/direct-debit/setup',
   tags: ['payment-methods'],
   summary: 'Set up ZarinPal direct debit contract',
   description: `
@@ -47,7 +47,7 @@ export const initiateDirectDebitContractRoute = createRoute({
     2. Returns available banks and signing URL template
     3. User selects bank and signs contract on ZarinPal
     4. User returns to callback URL
-    5. Call verify-direct-debit-contract endpoint
+    5. Call /payment-methods/direct-debit/verify endpoint
     
     **Security Note:** Store paymanAuthority securely for verification step.
   `,
@@ -92,7 +92,7 @@ export const initiateDirectDebitContractRoute = createRoute({
 
 export const verifyDirectDebitContractRoute = createRoute({
   method: 'post',
-  path: '/payment-methods/verify-direct-debit-contract',
+  path: '/payment-methods/direct-debit/verify',
   tags: ['payment-methods'],
   summary: 'Verify signed direct debit contract',
   description: `

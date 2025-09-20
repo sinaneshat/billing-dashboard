@@ -8,7 +8,6 @@
  * - Maximum type safety with proper inference
  * - Integrated validation system
  * - Consistent error handling
- * - Performance monitoring
  * - Transaction management
  * - OpenAPI compatibility
  */
@@ -20,10 +19,10 @@ import * as HttpStatusCodes from 'stoker/http-status-codes';
 import type { z } from 'zod';
 
 import { AppError } from '@/api/common/error-handling';
-import { attachSession, requireMasterKey, requireSession } from '@/api/middleware/auth';
 import { apiLogger } from '@/api/middleware/hono-logger';
 import type { ApiEnv } from '@/api/types';
-import { db } from '@/db';
+// Database access should be handled by individual handlers
+import { getDbAsync } from '@/db';
 
 import { HTTPExceptionFactory } from './http-exceptions';
 import { Responses } from './responses';
@@ -39,10 +38,34 @@ import {
 import { validateWithSchema } from './validation';
 
 // ============================================================================
+// PERFORMANCE UTILITIES
+// ============================================================================
+
+/**
+ * Simple performance tracking utility for request timing
+ */
+function createPerformanceTracker() {
+  const startTime = Date.now();
+  const marks: Record<string, number> = {};
+
+  return {
+    startTime,
+    getElapsed: () => Date.now() - startTime,
+    getDuration: () => Date.now() - startTime,
+    mark: (label: string) => {
+      const time = Date.now() - startTime;
+      marks[label] = time;
+      return { label, time };
+    },
+    getMarks: () => ({ ...marks }),
+  };
+}
+
+// ============================================================================
 // TYPE DEFINITIONS
 // ============================================================================
 
-export type AuthMode = 'session' | 'api-key' | 'session-optional' | 'public';
+export type AuthMode = 'session' | 'session-optional' | 'public';
 
 export type HandlerConfig<
   _TRoute extends RouteConfig,
@@ -65,9 +88,6 @@ export type HandlerConfig<
   operationName?: string;
   logLevel?: 'debug' | 'info' | 'warn' | 'error';
 
-  // Performance
-  enableMetrics?: boolean;
-  timeout?: number;
 };
 
 // Enhanced context with validated data and logger
@@ -87,11 +107,6 @@ export type HandlerContext<
     info: (message: string, data?: LoggerData) => void;
     warn: (message: string, data?: LoggerData) => void;
     error: (message: string, error?: Error, data?: LoggerData) => void;
-  };
-  performance: {
-    startTime: number;
-    markTime: (label: string) => void;
-    getDuration: () => number;
   };
 };
 
@@ -114,7 +129,7 @@ export type TransactionHandler<
   TParams extends z.ZodSchema = never,
 > = (
   c: HandlerContext<TEnv, TBody, TQuery, TParams>,
-  database: typeof db
+  tx: Parameters<Parameters<Awaited<ReturnType<typeof getDbAsync>>['transaction']>[0]>[0]
 ) => Promise<Response>;
 
 // ============================================================================
@@ -163,38 +178,57 @@ function createOperationLogger(c: Context, operation: string) {
 }
 
 /**
- * Create performance tracking utilities
- */
-function createPerformanceTracker() {
-  const startTime = Date.now();
-  const marks: Record<string, number> = {};
-
-  return {
-    startTime,
-    markTime: (label: string) => {
-      marks[label] = Date.now() - startTime;
-    },
-    getDuration: () => Date.now() - startTime,
-    getMarks: () => ({ ...marks }),
-  };
-}
-
-/**
- * Apply authentication middleware based on mode
+ * Apply authentication check based on mode
+ * Properly implements authentication without incorrect middleware calls
  */
 async function applyAuthentication(c: Context, authMode: AuthMode): Promise<void> {
+  const { auth } = await import('@/lib/auth/server');
+
   switch (authMode) {
-    case 'session':
-      await requireSession(c, async () => {});
+    case 'session': {
+      // Require valid session - throw error if not authenticated
+      const sessionData = await auth.api.getSession({
+        headers: c.req.raw.headers,
+      });
+
+      if (!sessionData?.user || !sessionData?.session) {
+        throw new HTTPException(HttpStatusCodes.UNAUTHORIZED, {
+          message: 'Authentication required',
+        });
+      }
+
+      // Set authenticated session context
+      c.set('session', sessionData.session);
+      c.set('user', sessionData.user);
+      c.set('requestId', c.req.header('x-request-id') || crypto.randomUUID());
       break;
-    case 'api-key':
-      await requireMasterKey(c, async () => {});
+    }
+    case 'session-optional': {
+      // Optional session - don't throw error if not authenticated
+      try {
+        const sessionData = await auth.api.getSession({
+          headers: c.req.raw.headers,
+        });
+
+        if (sessionData?.user && sessionData?.session) {
+          c.set('session', sessionData.session);
+          c.set('user', sessionData.user);
+        } else {
+          c.set('session', null);
+          c.set('user', null);
+        }
+        c.set('requestId', c.req.header('x-request-id') || crypto.randomUUID());
+      } catch (error) {
+        // Log error but don't throw - allow unauthenticated requests
+        console.error('[Auth] Error retrieving session:', error);
+        c.set('session', null);
+        c.set('user', null);
+      }
       break;
-    case 'session-optional':
-      await attachSession(c, async () => {});
-      break;
+    }
     case 'public':
       // No authentication required
+      c.set('requestId', c.req.header('x-request-id') || crypto.randomUUID());
       break;
     default:
       throw new Error(`Unknown auth mode: ${authMode}`);
@@ -315,42 +349,29 @@ export function createHandler<
     try {
       // Apply authentication
       if (config.auth && config.auth !== 'public') {
-        performance.markTime('auth_start');
         logger.debug('Applying authentication', { logType: 'auth', mode: config.auth });
         await applyAuthentication(c, config.auth);
-        performance.markTime('auth_complete');
       }
 
       // Validate request
-      performance.markTime('validation_start');
       logger.debug('Validating request');
       const validated = await validateRequest<TBody, TQuery, TParams>(c, config);
-      performance.markTime('validation_complete');
 
       // Create enhanced context
       const enhancedContext = Object.assign(c, {
         validated,
         logger,
-        performance,
       }) as HandlerContext<TEnv, TBody, TQuery, TParams>;
 
       // Execute handler implementation
-      performance.markTime('implementation_start');
       logger.debug('Executing handler implementation');
       const result = await implementation(enhancedContext);
-      performance.markTime('implementation_complete');
 
-      const duration = performance.getDuration();
-      logger.info('Handler completed successfully', {
-        logType: 'performance',
-        duration,
-        marks: performance.getMarks(),
-      });
+      logger.info('Handler completed successfully');
 
       return result;
     } catch (error) {
-      const duration = performance.getDuration();
-      logger.error('Handler failed', error as Error, { logType: 'performance', duration });
+      logger.error('Handler failed', error as Error);
 
       if (error instanceof HTTPException) {
         // Handle validation errors with our unified system
@@ -439,30 +460,29 @@ export function createHandlerWithTransaction<
     try {
       // Apply authentication
       if (config.auth && config.auth !== 'public') {
-        performance.markTime('auth_start');
         logger.debug('Applying authentication', { logType: 'auth', mode: config.auth });
         await applyAuthentication(c, config.auth);
-        performance.markTime('auth_complete');
       }
 
       // Validate request
-      performance.markTime('validation_start');
       logger.debug('Validating request');
       const validated = await validateRequest<TBody, TQuery, TParams>(c, config);
-      performance.markTime('validation_complete');
 
       // Create enhanced context
       const enhancedContext = Object.assign(c, {
         validated,
         logger,
-        performance,
       }) as HandlerContext<TEnv, TBody, TQuery, TParams>;
 
-      // Execute implementation (transaction handling moved to individual handlers)
-      performance.markTime('implementation_start');
-      logger.debug('Executing handler implementation');
-      const result = await implementation(enhancedContext, db);
-      performance.markTime('implementation_complete');
+      // Execute implementation with proper database transaction
+      logger.debug('Executing handler implementation with transaction');
+      const db = await getDbAsync();
+
+      // According to Drizzle ORM best practices, wrap implementation in transaction
+      const result = await db.transaction(async (tx) => {
+        logger.debug('Transaction started');
+        return await implementation(enhancedContext, tx);
+      });
 
       const duration = performance.getDuration();
       logger.info('Transaction handler completed successfully', {

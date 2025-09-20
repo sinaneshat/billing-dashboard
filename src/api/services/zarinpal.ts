@@ -4,10 +4,9 @@
  */
 
 import { z } from '@hono/zod-openapi';
+import { getCloudflareContext } from '@opennextjs/cloudflare';
 import { HTTPException } from 'hono/http-exception';
 import * as HttpStatusCodes from 'stoker/http-status-codes';
-
-import { BaseService } from '@/api/patterns/service-factory';
 
 // =============================================================================
 // ZOD SCHEMAS (Context7 Best Practices)
@@ -156,16 +155,111 @@ export type VerifyResponse = z.infer<typeof VerifyResponseSchema>;
  * ZarinPal Service Class
  * Extends BaseService for consistent HTTP handling, error management, and circuit breaking
  */
-export class ZarinPalService extends BaseService<ZarinPalConfig> {
+export class ZarinPalService {
+  private config: ZarinPalConfig;
+
   constructor(config: ZarinPalConfig) {
-    super(config);
+    this.config = config;
+  }
+
+  /**
+   * Make HTTP POST request with JSON payload
+   */
+  private async post<TPayload, TResponse>(
+    endpoint: string,
+    payload: TPayload,
+    headers: Record<string, string>,
+    operationName?: string,
+  ): Promise<TResponse> {
+    return this.makeRequest<TResponse>(
+      endpoint,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...headers,
+        },
+        body: JSON.stringify(payload),
+      },
+      operationName,
+    );
+  }
+
+  /**
+   * Make HTTP request with error handling and retries
+   */
+  private async makeRequest<T>(
+    endpoint: string,
+    options: RequestInit,
+    operationName?: string,
+  ): Promise<T> {
+    const url = `${this.config.baseUrl}${endpoint}`;
+
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), this.config.timeout);
+
+      const response = await fetch(url, {
+        ...options,
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        throw new HTTPException(response.status as 500, {
+          message: `HTTP ${response.status}: ${response.statusText}`,
+        });
+      }
+
+      const data = await response.json();
+      return data as T;
+    } catch (error) {
+      throw this.handleError(error, operationName || 'make request', {
+        errorType: 'network' as const,
+        provider: 'zarinpal' as const,
+      });
+    }
+  }
+
+  /**
+   * Handle and transform errors into proper HTTP exceptions
+   */
+  private handleError(
+    error: unknown,
+    operationName: string,
+    _context: { errorType: 'payment' | 'network'; provider: 'zarinpal' },
+  ): HTTPException {
+    if (error instanceof HTTPException) {
+      return error;
+    }
+
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+
+    if (errorMessage.includes('timeout') || errorMessage.includes('abort')) {
+      return new HTTPException(HttpStatusCodes.REQUEST_TIMEOUT, {
+        message: `ZarinPal ${operationName} timed out: ${errorMessage}`,
+      });
+    }
+
+    if (errorMessage.includes('network') || errorMessage.includes('fetch')) {
+      return new HTTPException(HttpStatusCodes.BAD_GATEWAY, {
+        message: `ZarinPal ${operationName} network error: ${errorMessage}`,
+      });
+    }
+
+    return new HTTPException(HttpStatusCodes.INTERNAL_SERVER_ERROR, {
+      message: `ZarinPal ${operationName} failed: ${errorMessage}`,
+    });
   }
 
   /**
    * Get service configuration from environment with validation
    * Uses Zod schema validation for type safety
+   * Uses OpenNext.js Cloudflare context for consistent environment access
    */
-  static getConfig(env: CloudflareEnv): ZarinPalConfig {
+  static getConfig(): ZarinPalConfig {
+    const { env } = getCloudflareContext();
     // Validate ZarinPal specific configuration
     if (!env.NEXT_PUBLIC_ZARINPAL_MERCHANT_ID || !env.ZARINPAL_ACCESS_TOKEN) {
       throw new HTTPException(HttpStatusCodes.INTERNAL_SERVER_ERROR, {
@@ -193,6 +287,14 @@ export class ZarinPalService extends BaseService<ZarinPalConfig> {
 
     // Validate configuration using Zod schema
     return ZarinPalConfigSchema.parse(config);
+  }
+
+  /**
+   * Factory method to create service instance with validated configuration
+   */
+  static create(): ZarinPalService {
+    const config = this.getConfig();
+    return new ZarinPalService(config);
   }
 
   /**
@@ -397,5 +499,5 @@ export class ZarinPalService extends BaseService<ZarinPalConfig> {
   }
 }
 
-// Note: Use ZarinPalService.create(env) with proper Cloudflare environment
-// This follows proper env pattern for Cloudflare Workers
+// Note: Use ZarinPalService.create() with OpenNext.js Cloudflare context
+// This follows proper environment access pattern for OpenNext.js Workers

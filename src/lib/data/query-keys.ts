@@ -155,6 +155,14 @@ export const queryKeys = {
     detail: (paymentMethodId: string) => QueryKeyFactory.detail('paymentMethods', paymentMethodId),
     bankList: QueryKeyFactory.action('paymentMethods', 'bankList'), // ['paymentMethods', 'bankList'] - for direct debit banks
   },
+
+  /**
+   * DIRECT DEBIT - Contract status and capabilities
+   */
+  directDebit: {
+    all: QueryKeyFactory.base('directDebit'),
+    contractStatus: QueryKeyFactory.action('directDebit', 'contractStatus'), // ['directDebit', 'contractStatus'] - backend API call
+  },
 } as const;
 
 // ============================================================================
@@ -237,46 +245,46 @@ export const invalidationPatterns = {
     queryKeys.organizations.all,
   ],
 
-  // Billing invalidations
+  // Billing invalidations - using specific keys to avoid redundant requests
   products: [
-    queryKeys.products.all,
     queryKeys.products.list,
   ],
 
   subscriptions: [
-    queryKeys.subscriptions.all,
     queryKeys.subscriptions.list,
     queryKeys.subscriptions.current,
   ],
 
   subscriptionDetail: (subscriptionId: string) => [
     queryKeys.subscriptions.detail(subscriptionId),
-    queryKeys.subscriptions.all,
     queryKeys.subscriptions.list,
     queryKeys.subscriptions.current,
-    queryKeys.payments.all,
+    queryKeys.payments.list,
   ],
 
   payments: [
-    queryKeys.payments.all,
+    queryKeys.payments.list,
     queryKeys.payments.history,
   ],
 
   paymentDetail: (paymentId: string) => [
     queryKeys.payments.detail(paymentId),
-    queryKeys.payments.all,
+    queryKeys.payments.list,
     queryKeys.payments.history,
   ],
 
   paymentMethods: [
-    queryKeys.paymentMethods.all,
     queryKeys.paymentMethods.list,
   ],
 
   paymentMethodDetail: (paymentMethodId: string) => [
     queryKeys.paymentMethods.detail(paymentMethodId),
-    queryKeys.paymentMethods.all,
     queryKeys.paymentMethods.list,
+  ],
+
+  directDebit: [
+    queryKeys.directDebit.contractStatus,
+    queryKeys.paymentMethods.list, // Contract status affects payment methods
   ],
 } as const;
 
@@ -305,6 +313,7 @@ export const CommonQueries = {
   currentSubscription: queryKeys.subscriptions.current,
   paymentHistory: queryKeys.payments.history,
   paymentMethods: queryKeys.paymentMethods.list,
+  directDebitContractStatus: queryKeys.directDebit.contractStatus,
 } as const;
 
 // ============================================================================
@@ -328,7 +337,8 @@ export type ResourceType =
   | 'products'
   | 'subscriptions'
   | 'payments'
-  | 'paymentMethods';
+  | 'paymentMethods'
+  | 'directDebit';
 
 // ============================================================================
 // VALIDATION HELPERS - Runtime Safety

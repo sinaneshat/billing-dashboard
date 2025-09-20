@@ -1,17 +1,16 @@
 /**
- * Comprehensive Webhook System Handler - Refactored
+ * Enhanced Webhook System Handler
  *
- * Enhanced webhook processing with unified createHandler pattern.
- * Uses factory pattern for consistent authentication, validation, and error handling.
- * Includes endpoint management, event tracking, and standardized event schemas.
+ * Comprehensive webhook processing with unified createHandler pattern.
+ * Enhanced for seamless ZarinPal to Stripe webhook translation.
+ * Features: Multiple endpoints, retry logic, Stripe compatibility.
  */
 
 import crypto from 'node:crypto';
 
 import type { RouteHandler } from '@hono/zod-openapi';
+import { getCloudflareContext } from '@opennextjs/cloudflare';
 import { and, desc, eq } from 'drizzle-orm';
-import { HTTPException } from 'hono/http-exception';
-import * as HttpStatusCodes from 'stoker/http-status-codes';
 import { z } from 'zod';
 
 import { createError } from '@/api/common/error-handling';
@@ -19,10 +18,9 @@ import type { FetchConfig } from '@/api/common/fetch-utilities';
 import { postJSON } from '@/api/common/fetch-utilities';
 import { createHandler, createHandlerWithTransaction, Responses } from '@/api/core';
 import { apiLogger } from '@/api/middleware/hono-logger';
-import { RoundtableIntegrationService } from '@/api/services/roundtable-integration';
 import { ZarinPalService } from '@/api/services/zarinpal';
 import type { ApiEnv } from '@/api/types';
-import { db } from '@/db';
+import { getDbAsync } from '@/db';
 import { payment, product, subscription, webhookEvent } from '@/db/tables/billing';
 
 import type {
@@ -39,20 +37,23 @@ import type {
  * Discriminated union for webhook events (Context7 Pattern)
  * Maximum type safety replacing Record<string, unknown>
  */
-const WebhookEventSchema = z.discriminatedUnion('type', [
+const StripeWebhookEventSchema = z.discriminatedUnion('type', [
+  // Payment Intent Succeeded - Matches Stripe format exactly
   z.object({
-    type: z.literal('payment_intent.succeeded'),
-    id: z.string(),
+    id: z.string().startsWith('evt_'),
     object: z.literal('event'),
+    type: z.literal('payment_intent.succeeded'),
     created: z.number().int().positive(),
     data: z.object({
       object: z.object({
         id: z.string(),
         object: z.literal('payment_intent'),
-        customer: z.string(),
         amount: z.number().int().positive(),
         currency: z.literal('irr'),
+        customer: z.string().startsWith('cus_'),
         status: z.literal('succeeded'),
+        payment_method: z.string().optional(),
+        description: z.string().optional(),
         created: z.number().int().positive(),
         metadata: z.record(z.string(), z.string()),
       }),
@@ -60,23 +61,26 @@ const WebhookEventSchema = z.discriminatedUnion('type', [
     livemode: z.boolean(),
     api_version: z.string(),
   }),
+  // Payment Intent Failed - Matches Stripe format exactly
   z.object({
-    type: z.literal('payment_intent.payment_failed'),
-    id: z.string(),
+    id: z.string().startsWith('evt_'),
     object: z.literal('event'),
+    type: z.literal('payment_intent.payment_failed'),
     created: z.number().int().positive(),
     data: z.object({
       object: z.object({
         id: z.string(),
         object: z.literal('payment_intent'),
-        customer: z.string(),
         amount: z.number().int().positive(),
         currency: z.literal('irr'),
+        customer: z.string().startsWith('cus_'),
         status: z.literal('payment_failed'),
+        payment_method: z.string().optional(),
         last_payment_error: z.object({
           code: z.string(),
           message: z.string(),
           type: z.literal('api_error'),
+          decline_code: z.string().optional(),
         }).optional(),
         created: z.number().int().positive(),
         metadata: z.record(z.string(), z.string()),
@@ -86,7 +90,7 @@ const WebhookEventSchema = z.discriminatedUnion('type', [
     api_version: z.string(),
   }),
   z.object({
-    type: z.literal('subscription.updated'),
+    type: z.literal('customer.subscription.updated'),
     id: z.string(),
     object: z.literal('event'),
     created: z.number().int().positive(),
@@ -95,7 +99,26 @@ const WebhookEventSchema = z.discriminatedUnion('type', [
         id: z.string(),
         object: z.literal('subscription'),
         customer: z.string(),
-        status: z.string(),
+        status: z.enum(['active', 'canceled', 'incomplete', 'incomplete_expired', 'past_due', 'trialing', 'unpaid', 'paused']),
+        created: z.number().int().positive(),
+        metadata: z.record(z.string(), z.string()),
+      }),
+    }),
+    livemode: z.boolean(),
+    api_version: z.string(),
+  }),
+  // Customer Events
+  z.object({
+    type: z.literal('customer.subscription.created'),
+    id: z.string(),
+    object: z.literal('event'),
+    created: z.number().int().positive(),
+    data: z.object({
+      object: z.object({
+        id: z.string(),
+        object: z.literal('subscription'),
+        customer: z.string(),
+        status: z.enum(['active', 'trialing']),
         created: z.number().int().positive(),
         metadata: z.record(z.string(), z.string()),
       }),
@@ -105,17 +128,7 @@ const WebhookEventSchema = z.discriminatedUnion('type', [
   }),
 ]);
 
-const _WebhookEndpointSchema = z.object({
-  id: z.string(),
-  url: z.string().url(),
-  enabled_events: z.array(z.string()),
-  status: z.enum(['enabled', 'disabled']),
-  secret: z.string(),
-  created: z.number().int().positive(),
-});
-
-type WebhookEvent = z.infer<typeof WebhookEventSchema>;
-type WebhookEndpoint = z.infer<typeof _WebhookEndpointSchema>;
+type WebhookEvent = z.infer<typeof StripeWebhookEventSchema>;
 
 // ============================================================================
 // WEBHOOK EVENT BUILDERS (TYPE-SAFE VERSION)
@@ -140,7 +153,7 @@ class WebhookEventBuilders {
     return Math.floor(date.getTime() / 1000);
   }
 
-  static createPaymentSucceededEvent(paymentId: string, customerId: string, amount: number): WebhookEvent {
+  static createPaymentSucceededEvent(paymentId: string, customerId: string, amount: number, metadata?: Record<string, string>, paymentMethodId?: string): WebhookEvent {
     const event = {
       id: this.generateEventId(),
       object: 'event' as const,
@@ -150,26 +163,28 @@ class WebhookEventBuilders {
         object: {
           id: paymentId,
           object: 'payment_intent' as const,
-          customer: customerId,
           amount: Math.round(amount),
           currency: 'irr' as const,
+          customer: customerId,
           status: 'succeeded' as const,
+          payment_method: paymentMethodId,
+          description: `Payment for subscription ${metadata?.subscriptionId || ''}`.trim(),
           created: this.toUnixTimestamp(new Date()),
-          metadata: {},
+          metadata: metadata || {},
         },
       },
       livemode: process.env.NODE_ENV === 'production',
       api_version: '2024-01-01',
     };
 
-    const validation = WebhookEventSchema.safeParse(event);
+    const validation = StripeWebhookEventSchema.safeParse(event);
     if (!validation.success) {
       throw new Error(`Invalid webhook event schema: ${validation.error.message}`);
     }
     return validation.data;
   }
 
-  static createPaymentFailedEvent(paymentId: string, customerId: string, amount: number, errorMessage?: string): WebhookEvent {
+  static createPaymentFailedEvent(paymentId: string, customerId: string, amount: number, errorMessage?: string, metadata?: Record<string, string>, paymentMethodId?: string): WebhookEvent {
     const event = {
       id: this.generateEventId(),
       object: 'event' as const,
@@ -183,53 +198,99 @@ class WebhookEventBuilders {
           amount: Math.round(amount),
           currency: 'irr' as const,
           status: 'payment_failed' as const,
+          payment_method: paymentMethodId,
           last_payment_error: errorMessage
             ? {
                 code: 'payment_failed',
                 message: errorMessage,
                 type: 'api_error' as const,
+                decline_code: 'generic_decline',
               }
             : undefined,
           created: this.toUnixTimestamp(new Date()),
-          metadata: {},
+          metadata: metadata || {},
         },
       },
       livemode: process.env.NODE_ENV === 'production',
       api_version: '2024-01-01',
     };
 
-    const validation = WebhookEventSchema.safeParse(event);
+    const validation = StripeWebhookEventSchema.safeParse(event);
     if (!validation.success) {
       throw new Error(`Invalid webhook event schema: ${validation.error.message}`);
     }
     return validation.data;
   }
 
-  static createSubscriptionUpdatedEvent(subscriptionId: string, customerId: string, status: string): WebhookEvent {
+  static createSubscriptionUpdatedEvent(subscriptionId: string, customerId: string, status: string, metadata?: Record<string, string>, planDetails?: { id: string; amount: number; interval: 'month' | 'year' }): WebhookEvent {
     const event = {
       id: this.generateEventId(),
       object: 'event' as const,
-      type: 'subscription.updated' as const,
+      type: 'customer.subscription.updated' as const,
       created: this.toUnixTimestamp(new Date()),
       data: {
         object: {
           id: subscriptionId,
           object: 'subscription' as const,
           customer: customerId,
-          status: status as string,
+          status: status as 'active' | 'canceled' | 'incomplete' | 'incomplete_expired' | 'past_due' | 'trialing' | 'unpaid' | 'paused',
+          current_period_start: this.toUnixTimestamp(new Date()),
+          current_period_end: planDetails?.interval === 'month'
+            ? this.toUnixTimestamp(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000))
+            : this.toUnixTimestamp(new Date(Date.now() + 365 * 24 * 60 * 60 * 1000)),
+          plan: planDetails,
           created: this.toUnixTimestamp(new Date()),
-          metadata: {},
+          metadata: metadata || {},
         },
       },
       livemode: process.env.NODE_ENV === 'production',
       api_version: '2024-01-01',
     };
 
-    const validation = WebhookEventSchema.safeParse(event);
+    const validation = StripeWebhookEventSchema.safeParse(event);
     if (!validation.success) {
       throw new Error(`Invalid webhook event schema: ${validation.error.message}`);
     }
     return validation.data;
+  }
+
+  /**
+   * Create customer subscription created event
+   */
+  static createCustomerSubscriptionCreatedEvent(subscriptionId: string, customerId: string, metadata?: Record<string, string>): WebhookEvent {
+    const event = {
+      id: this.generateEventId(),
+      object: 'event' as const,
+      type: 'customer.subscription.created' as const,
+      created: this.toUnixTimestamp(new Date()),
+      data: {
+        object: {
+          id: subscriptionId,
+          object: 'subscription' as const,
+          customer: customerId,
+          status: 'active' as const,
+          created: this.toUnixTimestamp(new Date()),
+          metadata: metadata || {},
+        },
+      },
+      livemode: process.env.NODE_ENV === 'production',
+      api_version: '2024-01-01',
+    };
+
+    const validation = StripeWebhookEventSchema.safeParse(event);
+    if (!validation.success) {
+      throw new Error(`Invalid webhook event schema: ${validation.error.message}`);
+    }
+    return validation.data;
+  }
+
+  /**
+   * Generate virtual Stripe customer ID for compatibility
+   */
+  static generateVirtualStripeCustomerId(billingUserId: string): string {
+    // Create deterministic virtual customer ID that looks like Stripe format
+    const hash = crypto.createHash('sha256').update(`billing_${billingUserId}`).digest('hex').substring(0, 24);
+    return `cus_${hash}`;
   }
 }
 
@@ -238,73 +299,96 @@ class WebhookEventBuilders {
 // ============================================================================
 
 /**
- * Type-safe in-memory webhook endpoint storage
+ * Roundtable Webhook Forwarder
+ * Handles forwarding billing events to the Roundtable application
  */
-class WebhookEndpointManager {
-  private static endpoints = new Map<string, WebhookEndpoint>();
-
-  static async dispatchEvent(event: WebhookEvent): Promise<void> {
-    const endpoints = Array.from(this.endpoints.values()).filter(ep =>
-      ep.status === 'enabled' && (
-        ep.enabled_events.includes('*')
-        || ep.enabled_events.includes(event.type)
-      ),
-    );
-
-    if (endpoints.length === 0) {
-      apiLogger.info('No webhook endpoints configured', {
-        logType: 'api' as const,
-        method: 'POST' as const,
-        path: '/webhooks/dispatch',
-        responseSize: 0,
-      });
-      return;
+class RoundtableWebhookForwarder {
+  private static getRoundtableWebhookUrl(): string | null {
+    try {
+      const { env } = getCloudflareContext();
+      return env.NEXT_PUBLIC_ROUNDTABLE_WEBHOOK_URL || process.env.NEXT_PUBLIC_ROUNDTABLE_WEBHOOK_URL || null;
+    } catch {
+      return process.env.NEXT_PUBLIC_ROUNDTABLE_WEBHOOK_URL || null;
     }
-
-    // Dispatch to all endpoints in parallel
-    await Promise.allSettled(
-      endpoints.map(endpoint => this.deliverToEndpoint(endpoint, event)),
-    );
   }
 
-  private static async deliverToEndpoint(endpoint: WebhookEndpoint, event: WebhookEvent): Promise<void> {
+  private static getWebhookSecret(): string {
+    try {
+      const { env } = getCloudflareContext();
+      return env.WEBHOOK_SECRET || process.env.WEBHOOK_SECRET || 'default-secret';
+    } catch {
+      return process.env.WEBHOOK_SECRET || 'default-secret';
+    }
+  }
+
+  static async forwardEvent(event: WebhookEvent): Promise<boolean> {
+    const url = this.getRoundtableWebhookUrl();
+    if (!url) {
+      apiLogger.info('No Roundtable webhook URL configured', {
+        logType: 'api' as const,
+        method: 'POST' as const,
+        path: '/webhooks/roundtable',
+        responseSize: 0,
+      });
+      return false;
+    }
+
+    const secret = this.getWebhookSecret();
     const payload = JSON.stringify(event);
     const timestamp = Math.floor(Date.now() / 1000);
-    const signature = this.generateSignature(payload, endpoint.secret, timestamp);
+    const signature = this.generateSignature(payload, secret, timestamp);
 
-    const requestHeaders = {
+    const headers = {
       'Content-Type': 'application/json',
       'User-Agent': 'BillingDashboard-Webhooks/1.0',
       'X-Webhook-Signature': signature,
       'X-Webhook-Timestamp': timestamp.toString(),
       'X-Webhook-Event-Type': event.type,
       'X-Webhook-Event-Id': event.id,
+      'X-Webhook-Source': 'billing-dashboard',
     };
 
     const fetchConfig: FetchConfig = {
       timeoutMs: 15000,
-      maxRetries: 2,
-      correlationId: `webhook-${event.id}-${endpoint.id}`,
+      maxRetries: 3,
+      correlationId: `roundtable-webhook-${event.id}`,
     };
 
     try {
-      const result = await postJSON(endpoint.url, event, fetchConfig, requestHeaders);
+      const startTime = Date.now();
+      const result = await postJSON(url, event, fetchConfig, headers);
+      const duration = Date.now() - startTime;
 
-      apiLogger.info('Webhook delivered', {
-        logType: 'api' as const,
-        method: 'POST' as const,
-        path: endpoint.url,
-        statusCode: result.response?.status,
-        duration: 0, // Will be filled by actual timing
-      });
+      if (result.success) {
+        apiLogger.info('Roundtable webhook delivered successfully', {
+          logType: 'api' as const,
+          method: 'POST' as const,
+          path: url,
+          statusCode: result.response?.status,
+          duration,
+          eventType: event.type,
+        });
+        return true;
+      } else {
+        apiLogger.error('Roundtable webhook delivery failed', {
+          logType: 'api' as const,
+          method: 'POST' as const,
+          path: url,
+          statusCode: result.response?.status,
+          error: result.error,
+          eventType: event.type,
+        });
+        return false;
+      }
     } catch (error) {
-      apiLogger.error('Webhook delivery failed', {
+      apiLogger.error('Roundtable webhook delivery error', {
         logType: 'api' as const,
         method: 'POST' as const,
-        path: endpoint.url,
-        statusCode: 0,
+        path: url,
         error: error instanceof Error ? error.message : String(error),
+        eventType: event.type,
       });
+      return false;
     }
   }
 
@@ -350,9 +434,7 @@ async function validateWebhookSecurity(c: { req: { header: (name: string) => str
   const current = webhookRateLimiter.get(rateLimitKey);
   if (current && current.resetTime > now) {
     if (current.count >= maxRequests) {
-      throw new HTTPException(HttpStatusCodes.TOO_MANY_REQUESTS, {
-        message: 'Webhook rate limit exceeded',
-      });
+      throw createError.rateLimit('Webhook rate limit exceeded');
     }
     current.count++;
   } else {
@@ -369,9 +451,7 @@ async function validateWebhookSecurity(c: { req: { header: (name: string) => str
       clientIP,
       component: 'webhook-security',
     });
-    throw new HTTPException(HttpStatusCodes.FORBIDDEN, {
-      message: 'Invalid webhook source',
-    });
+    throw createError.unauthorized('Invalid webhook source');
   }
 
   // Timestamp validation
@@ -387,9 +467,7 @@ async function validateWebhookSecurity(c: { req: { header: (name: string) => str
         timeDiff,
         component: 'webhook-security',
       });
-      throw new HTTPException(HttpStatusCodes.UNAUTHORIZED, {
-        message: 'Webhook timestamp validation failed',
-      });
+      throw createError.unauthorized('Webhook timestamp validation failed');
     }
   }
 
@@ -407,18 +485,14 @@ async function validateWebhookSecurity(c: { req: { header: (name: string) => str
         clientIP,
         component: 'webhook-security',
       });
-      throw new HTTPException(HttpStatusCodes.FORBIDDEN, {
-        message: 'Webhook request from unauthorized IP',
-      });
+      throw createError.unauthorized('Webhook request from unauthorized IP');
     }
   }
 
   // Content-Type validation
   const contentType = c.req.header('content-type');
   if (!contentType || !contentType.includes('application/json')) {
-    throw new HTTPException(HttpStatusCodes.BAD_REQUEST, {
-      message: 'Invalid content type for webhook',
-    });
+    throw createError.badRequest('Invalid content type for webhook');
   }
 
   apiLogger.info('Webhook security validation passed', {
@@ -450,26 +524,10 @@ export const zarinPalWebhookHandler: RouteHandler<typeof zarinPalWebhookRoute, A
     }),
     operationName: 'zarinPalWebhook',
   },
-  async (c, _tx) => {
+  async (c, tx) => {
     // Enhanced security validation using our error handling pattern
-    try {
-      await validateWebhookSecurity(c);
-    } catch (error) {
-      if (error instanceof HTTPException) {
-        // Convert HTTPException to our error pattern
-        if (error.status === HttpStatusCodes.TOO_MANY_REQUESTS) {
-          throw createError.rateLimit('Webhook rate limit exceeded');
-        }
-        if (error.status === HttpStatusCodes.FORBIDDEN) {
-          throw createError.unauthorized('Invalid webhook source');
-        }
-        if (error.status === HttpStatusCodes.UNAUTHORIZED) {
-          throw createError.unauthorized('Webhook timestamp validation failed');
-        }
-        throw createError.internal(error.message);
-      }
-      throw error;
-    }
+    await validateWebhookSecurity(c);
+    // Use transaction context 'tx' instead of creating duplicate connection
 
     const webhookPayload = c.validated.body;
 
@@ -488,11 +546,18 @@ export const zarinPalWebhookHandler: RouteHandler<typeof zarinPalWebhookRoute, A
       rawPayload: webhookPayload,
       processed: false,
       forwardedToExternal: false,
-      externalWebhookUrl: c.env?.NEXT_PUBLIC_EXTERNAL_WEBHOOK_URL || null,
+      externalWebhookUrl: (() => {
+        try {
+          const { env } = getCloudflareContext();
+          return env.NEXT_PUBLIC_ROUNDTABLE_WEBHOOK_URL || null;
+        } catch {
+          return process.env.NEXT_PUBLIC_ROUNDTABLE_WEBHOOK_URL || null;
+        }
+      })(),
     };
 
     try {
-      await db.insert(webhookEvent).values({
+      await tx.insert(webhookEvent).values({
         ...eventRecord,
         id: crypto.randomUUID(),
         createdAt: new Date(),
@@ -508,19 +573,19 @@ export const zarinPalWebhookHandler: RouteHandler<typeof zarinPalWebhookRoute, A
 
     // Find payment by authority
     if (webhookPayload.authority) {
-      const paymentResults = await db.select().from(payment).where(eq(payment.zarinpalAuthority, webhookPayload.authority)).limit(1);
+      const paymentResults = await tx.select().from(payment).where(eq(payment.zarinpalAuthority, webhookPayload.authority)).limit(1);
       paymentRecord = paymentResults[0];
 
       if (paymentRecord) {
       // Get subscription if exists
         if (paymentRecord.subscriptionId) {
-          const subscriptionResults = await db.select().from(subscription).where(eq(subscription.id, paymentRecord.subscriptionId)).limit(1);
+          const subscriptionResults = await tx.select().from(subscription).where(eq(subscription.id, paymentRecord.subscriptionId)).limit(1);
           subscriptionRecord = subscriptionResults[0];
         }
 
         // Process payment based on webhook status
         if (webhookPayload.status === 'OK') {
-          const zarinPal = ZarinPalService.create(c.env);
+          const zarinPal = ZarinPalService.create();
 
           try {
             const verification = await zarinPal.verifyPayment({
@@ -530,7 +595,7 @@ export const zarinPalWebhookHandler: RouteHandler<typeof zarinPalWebhookRoute, A
 
             if (verification.data?.code === 100 || verification.data?.code === 101) {
             // Update payment record using direct DB access
-              await db.update(payment)
+              await tx.update(payment)
                 .set({
                   status: 'completed',
                   zarinpalRefId: verification.data?.ref_id?.toString() || webhookPayload.ref_id,
@@ -541,19 +606,40 @@ export const zarinPalWebhookHandler: RouteHandler<typeof zarinPalWebhookRoute, A
                 .where(eq(payment.id, paymentRecord.id));
 
               // Get updated payment record
-              const updatedPaymentResults = await db.select().from(payment).where(eq(payment.id, paymentRecord.id)).limit(1);
+              const updatedPaymentResults = await tx.select().from(payment).where(eq(payment.id, paymentRecord.id)).limit(1);
               const updatedPayment = updatedPaymentResults[0];
               if (!updatedPayment) {
                 throw new Error('Payment record not found after update');
               }
 
+              // Get product details and user details for metadata
+              const productResults = await tx.select().from(product).where(eq(product.id, updatedPayment.productId)).limit(1);
+              const productRecord = productResults[0];
+
+              // Get user details for email mapping
+              const { user } = await import('@/db/tables/auth');
+              const userResults = await tx.select({ email: user.email }).from(user).where(eq(user.id, updatedPayment.userId)).limit(1);
+              const userRecord = userResults[0];
+
               // DISPATCH WEBHOOK EVENT: Payment succeeded
               const paymentEvent = WebhookEventBuilders.createPaymentSucceededEvent(
                 updatedPayment.id,
-                updatedPayment.userId,
+                WebhookEventBuilders.generateVirtualStripeCustomerId(updatedPayment.userId),
                 updatedPayment.amount,
+                {
+                  subscriptionId: paymentRecord.subscriptionId || '',
+                  zarinpalRefId: verification.data?.ref_id?.toString() || '',
+                  zarinpalAuthority: webhookPayload.authority,
+                  billingUserId: updatedPayment.userId,
+                  userEmail: userRecord?.email || '', // Include user email for Roundtable mapping
+                  productId: updatedPayment.productId,
+                  productName: productRecord?.name || '',
+                  planName: (productRecord?.metadata as Record<string, unknown>)?.roundtable_plan_name as string || productRecord?.name || 'Pro',
+                  roundtableProductId: productRecord?.roundtableId || '',
+                },
+                verification.data?.card_hash || webhookPayload.card_hash, // payment method ID
               );
-              await WebhookEndpointManager.dispatchEvent(paymentEvent);
+              await RoundtableWebhookForwarder.forwardEvent(paymentEvent);
 
               // Update subscription if exists
               if (paymentRecord.subscriptionId && subscriptionRecord) {
@@ -563,7 +649,7 @@ export const zarinPalWebhookHandler: RouteHandler<typeof zarinPalWebhookRoute, A
                     ? new Date(startDate.getTime() + 30 * 24 * 60 * 60 * 1000)
                     : null;
 
-                  await db.update(subscription)
+                  await tx.update(subscription)
                     .set({
                       status: 'active',
                       startDate,
@@ -574,7 +660,7 @@ export const zarinPalWebhookHandler: RouteHandler<typeof zarinPalWebhookRoute, A
                     .where(eq(subscription.id, subscriptionRecord.id));
 
                   // Get updated subscription record
-                  const updatedSubscriptionResults = await db.select().from(subscription).where(eq(subscription.id, subscriptionRecord.id)).limit(1);
+                  const updatedSubscriptionResults = await tx.select().from(subscription).where(eq(subscription.id, subscriptionRecord.id)).limit(1);
                   const updatedSubscription = updatedSubscriptionResults[0];
                   if (!updatedSubscription) {
                     throw new Error('Subscription record not found after update');
@@ -583,72 +669,49 @@ export const zarinPalWebhookHandler: RouteHandler<typeof zarinPalWebhookRoute, A
                   // DISPATCH WEBHOOK EVENT: Subscription activated
                   const subscriptionEvent = WebhookEventBuilders.createSubscriptionUpdatedEvent(
                     updatedSubscription.id,
-                    updatedSubscription.userId,
+                    WebhookEventBuilders.generateVirtualStripeCustomerId(updatedPayment.userId),
                     'active',
+                    {
+                      billingUserId: updatedPayment.userId,
+                      userEmail: userRecord?.email || '', // Include user email for Roundtable mapping
+                      paymentId: updatedPayment.id,
+                      zarinpalContractId: verification.data?.card_hash || webhookPayload.card_hash || '',
+                      productId: updatedPayment.productId,
+                      productName: productRecord?.name || '',
+                      planName: (productRecord?.metadata as Record<string, unknown>)?.roundtable_plan_name as string || productRecord?.name || 'Pro',
+                      roundtableProductId: productRecord?.roundtableId || '',
+                    },
+                    {
+                      id: `plan_${subscriptionRecord.productId}`,
+                      amount: updatedPayment.amount,
+                      interval: subscriptionRecord.billingPeriod === 'monthly' ? 'month' : 'year',
+                    },
                   );
-                  await WebhookEndpointManager.dispatchEvent(subscriptionEvent);
+                  await RoundtableWebhookForwarder.forwardEvent(subscriptionEvent);
+
+                  // Also dispatch customer.subscription.created for new subscriptions
+                  if (subscriptionRecord.status === 'pending') {
+                    const customerSubEvent = WebhookEventBuilders.createCustomerSubscriptionCreatedEvent(
+                      updatedSubscription.id,
+                      WebhookEventBuilders.generateVirtualStripeCustomerId(updatedPayment.userId),
+                      {
+                        billingUserId: updatedPayment.userId,
+                        userEmail: userRecord?.email || '', // Include user email for Roundtable mapping
+                        productId: subscriptionRecord.productId || '',
+                        plan: subscriptionRecord.billingPeriod || 'monthly',
+                        productName: productRecord?.name || '',
+                        planName: (productRecord?.metadata as Record<string, unknown>)?.roundtable_plan_name as string || productRecord?.name || 'Pro',
+                        roundtableProductId: productRecord?.roundtableId || '',
+                      },
+                    );
+                    await RoundtableWebhookForwarder.forwardEvent(customerSubEvent);
+                  }
 
                   subscriptionRecord = updatedSubscription;
                 }
               }
 
-              // ROUNDTABLE1 INTEGRATION: Update user subscription in Roundtable1 database
-              try {
-                if (c.env?.ROUNDTABLE_SUPABASE_URL && c.env?.ROUNDTABLE_SUPABASE_SERVICE_KEY) {
-                  const roundtableService = RoundtableIntegrationService.create(c.env);
-
-                  // Get product information for plan mapping
-                  const productResults = await db.select().from(product).where(eq(product.id, paymentRecord.productId)).limit(1);
-                  const productRecord = productResults[0];
-
-                  if (productRecord) {
-                    // Calculate subscription end date based on billing period
-                    let endsAt: string | undefined;
-                    const startsAt = new Date().toISOString();
-
-                    if (productRecord.billingPeriod === 'monthly') {
-                      const endDate = new Date();
-                      endDate.setMonth(endDate.getMonth() + 1);
-                      endsAt = endDate.toISOString();
-                    }
-                    // For lifetime plans, leave endsAt as undefined
-
-                    await roundtableService.updateUserSubscription({
-                      userId: paymentRecord.userId,
-                      planId: productRecord.id, // Use product ID directly (same IDs in both projects now)
-                      subscriptionId: paymentRecord.subscriptionId || crypto.randomUUID(),
-                      paymentId: paymentRecord.id,
-                      amount: paymentRecord.amount,
-                      currency: 'IRR',
-                      isActive: true,
-                      startsAt,
-                      endsAt,
-                    });
-
-                    c.logger.info('Roundtable1 user subscription updated successfully', {
-                      logType: 'operation',
-                      operationName: 'roundtableIntegration',
-                      userId: paymentRecord.userId,
-                      resource: paymentRecord.id,
-                    });
-                  }
-                } else {
-                  c.logger.warn('Roundtable1 integration skipped - environment variables not configured', {
-                    logType: 'operation',
-                    operationName: 'roundtableIntegration',
-                    resource: paymentRecord.id,
-                  });
-                }
-              } catch (roundtableError) {
-                c.logger.error('Failed to update Roundtable1 subscription', roundtableError as Error, {
-                  logType: 'operation',
-                  operationName: 'roundtableIntegration',
-                  userId: paymentRecord.userId,
-                  resource: paymentRecord.id,
-                });
-                // Don't fail the whole payment process if roundtable update fails
-                // Just log the error and continue
-              }
+              // Roundtable webhook events have been forwarded
 
               apiLogger.info('Payment verified and webhook events dispatched', {
                 operation: 'payment_verification_success',
@@ -661,7 +724,7 @@ export const zarinPalWebhookHandler: RouteHandler<typeof zarinPalWebhookRoute, A
               processed = true;
             } else {
             // Verification failed
-              await db.update(payment)
+              await tx.update(payment)
                 .set({
                   status: 'failed',
                   failureReason: `Verification failed: ${verification.data?.message || 'Unknown error'}`,
@@ -671,7 +734,7 @@ export const zarinPalWebhookHandler: RouteHandler<typeof zarinPalWebhookRoute, A
                 .where(eq(payment.id, paymentRecord.id));
 
               // Get updated payment record
-              const updatedPaymentResults = await db.select().from(payment).where(eq(payment.id, paymentRecord.id)).limit(1);
+              const updatedPaymentResults = await tx.select().from(payment).where(eq(payment.id, paymentRecord.id)).limit(1);
               const updatedPayment = updatedPaymentResults[0];
               if (!updatedPayment) {
                 throw new Error('Payment record not found after update');
@@ -680,11 +743,18 @@ export const zarinPalWebhookHandler: RouteHandler<typeof zarinPalWebhookRoute, A
               // DISPATCH WEBHOOK EVENT: Payment failed
               const paymentEvent = WebhookEventBuilders.createPaymentFailedEvent(
                 updatedPayment.id,
-                updatedPayment.userId,
+                WebhookEventBuilders.generateVirtualStripeCustomerId(updatedPayment.userId),
                 updatedPayment.amount,
                 verification.data?.message || 'Verification failed',
+                {
+                  subscriptionId: paymentRecord.subscriptionId || '',
+                  zarinpalAuthority: webhookPayload.authority,
+                  billingUserId: updatedPayment.userId,
+                  verificationCode: verification.data?.code?.toString() || '',
+                },
+                verification.data?.card_hash || webhookPayload.card_hash,
               );
-              await WebhookEndpointManager.dispatchEvent(paymentEvent);
+              await RoundtableWebhookForwarder.forwardEvent(paymentEvent);
 
               apiLogger.warn('Payment verification failed with webhook events', {
                 operation: 'payment_verification_failed',
@@ -701,7 +771,7 @@ export const zarinPalWebhookHandler: RouteHandler<typeof zarinPalWebhookRoute, A
               paymentId: paymentRecord.id,
             });
 
-            await db.update(payment)
+            await tx.update(payment)
               .set({
                 status: 'failed',
                 failureReason: `Verification error: ${verificationError instanceof Error ? verificationError.message : 'Unknown error'}`,
@@ -711,7 +781,7 @@ export const zarinPalWebhookHandler: RouteHandler<typeof zarinPalWebhookRoute, A
               .where(eq(payment.id, paymentRecord.id));
 
             // Get updated payment record
-            const updatedPaymentResults = await db.select().from(payment).where(eq(payment.id, paymentRecord.id)).limit(1);
+            const updatedPaymentResults = await tx.select().from(payment).where(eq(payment.id, paymentRecord.id)).limit(1);
             const updatedPayment = updatedPaymentResults[0];
             if (!updatedPayment) {
               throw new Error('Payment record not found after update');
@@ -720,17 +790,23 @@ export const zarinPalWebhookHandler: RouteHandler<typeof zarinPalWebhookRoute, A
             // DISPATCH WEBHOOK EVENT: Payment failed due to error
             const paymentEvent = WebhookEventBuilders.createPaymentFailedEvent(
               updatedPayment.id,
-              updatedPayment.userId,
+              WebhookEventBuilders.generateVirtualStripeCustomerId(updatedPayment.userId),
               updatedPayment.amount,
               'Payment verification error',
+              {
+                subscriptionId: paymentRecord.subscriptionId || '',
+                zarinpalAuthority: webhookPayload.authority,
+                billingUserId: updatedPayment.userId,
+                errorType: 'verification_error',
+              },
             );
-            await WebhookEndpointManager.dispatchEvent(paymentEvent);
+            await RoundtableWebhookForwarder.forwardEvent(paymentEvent);
 
             processed = true;
           }
         } else {
         // Payment failed from ZarinPal
-          await db.update(payment)
+          await tx.update(payment)
             .set({
               status: 'failed',
               failureReason: 'Payment was canceled or failed by user',
@@ -740,7 +816,7 @@ export const zarinPalWebhookHandler: RouteHandler<typeof zarinPalWebhookRoute, A
             .where(eq(payment.id, paymentRecord.id));
 
           // Get updated payment record
-          const updatedPaymentResults = await db.select().from(payment).where(eq(payment.id, paymentRecord.id)).limit(1);
+          const updatedPaymentResults = await tx.select().from(payment).where(eq(payment.id, paymentRecord.id)).limit(1);
           const updatedPayment = updatedPaymentResults[0];
           if (!updatedPayment) {
             throw new Error('Payment record not found after update');
@@ -749,11 +825,18 @@ export const zarinPalWebhookHandler: RouteHandler<typeof zarinPalWebhookRoute, A
           // DISPATCH WEBHOOK EVENT: Payment failed
           const paymentEvent = WebhookEventBuilders.createPaymentFailedEvent(
             updatedPayment.id,
-            updatedPayment.userId,
+            WebhookEventBuilders.generateVirtualStripeCustomerId(updatedPayment.userId),
             updatedPayment.amount,
             'Payment failed',
+            {
+              subscriptionId: paymentRecord.subscriptionId || '',
+              zarinpalAuthority: webhookPayload.authority,
+              billingUserId: updatedPayment.userId,
+              errorType: 'user_cancelled',
+              zarinpalStatus: webhookPayload.status,
+            },
           );
-          await WebhookEndpointManager.dispatchEvent(paymentEvent);
+          await RoundtableWebhookForwarder.forwardEvent(paymentEvent);
 
           apiLogger.info('Payment failed with webhook events', {
             operation: 'payment_webhook_failed',
@@ -772,7 +855,7 @@ export const zarinPalWebhookHandler: RouteHandler<typeof zarinPalWebhookRoute, A
     }
 
     // Update webhook event processing status
-    await db
+    await tx
       .update(webhookEvent)
       .set({
         processed,
@@ -781,58 +864,13 @@ export const zarinPalWebhookHandler: RouteHandler<typeof zarinPalWebhookRoute, A
       })
       .where(eq(webhookEvent.id, eventId));
 
-    // Forward to external webhook URL if configured
-    let forwarded = false;
-    if (c.env?.NEXT_PUBLIC_EXTERNAL_WEBHOOK_URL) {
-      try {
-        const forwardPayload = {
-          source: 'zarinpal',
-          eventType: eventRecord.eventType,
-          timestamp: new Date().toISOString(),
-          data: webhookPayload,
-          paymentId: paymentRecord?.id,
-          subscriptionId: paymentRecord?.subscriptionId,
-        };
-
-        const fetchConfig: FetchConfig = {
-          timeoutMs: 15000,
-          maxRetries: 2,
-          correlationId: crypto.randomUUID(),
-        };
-
-        const fetchResult = await postJSON(c.env.NEXT_PUBLIC_EXTERNAL_WEBHOOK_URL, forwardPayload, fetchConfig, {
-          'X-Webhook-Source': 'billing-dashboard',
-          'X-Event-ID': eventId,
-        });
-
-        forwarded = fetchResult.success;
-
-        await db
-          .update(webhookEvent)
-          .set({
-            forwardedToExternal: forwarded,
-            forwardedAt: forwarded ? new Date() : null,
-            forwardingError: forwarded ? null : (!fetchResult.success ? (fetchResult as { error?: string }).error || 'Unknown error' : 'Unknown error'),
-          })
-          .where(eq(webhookEvent.id, eventId));
-      } catch (forwardError) {
-        apiLogger.error('Failed to forward webhook', { error: forwardError });
-
-        await db
-          .update(webhookEvent)
-          .set({
-            forwardedToExternal: false,
-            forwardingError: forwardError instanceof Error ? forwardError.message : 'Unknown error',
-          })
-          .where(eq(webhookEvent.id, eventId));
-      }
-    }
+    // Webhook processing completed with Roundtable forwarding
+    // Events are forwarded when processed - using 'processed' variable to track success
 
     return Responses.ok(c, {
       received: true,
       eventId,
       processed,
-      forwarded,
       webhook_events_dispatched: processed,
     });
   },
@@ -855,6 +893,7 @@ export const getWebhookEventsHandler: RouteHandler<typeof getWebhookEventsRoute,
   },
   async (c) => {
     const { source, processed, limit, offset } = c.validated.query;
+    const db = await getDbAsync();
 
     c.logger.info('Fetching webhook events', {
       logType: 'operation',

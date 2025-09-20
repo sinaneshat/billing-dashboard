@@ -1,11 +1,77 @@
+import * as fs from 'node:fs';
+import * as path from 'node:path';
+
+import { getCloudflareContext } from '@opennextjs/cloudflare';
 import { betterAuth } from 'better-auth';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { nextCookies } from 'better-auth/next-js';
 import { admin, magicLink } from 'better-auth/plugins';
+import Database from 'better-sqlite3';
+import { drizzle } from 'drizzle-orm/better-sqlite3';
+import { drizzle as drizzleD1 } from 'drizzle-orm/d1';
 
-import { db } from '@/db';
 import * as authSchema from '@/db/tables/auth';
 import { getBaseUrl } from '@/utils/helpers';
+
+// Database configuration for Better Auth
+const LOCAL_DB_DIR = '.wrangler/state/v3/d1/miniflare-D1DatabaseObject';
+const LOCAL_DB_PATH = path.join(process.cwd(), LOCAL_DB_DIR);
+
+/**
+ * Gets the path to the local SQLite database file for Better Auth
+ */
+function getLocalDbPath(): string {
+  if (!fs.existsSync(LOCAL_DB_PATH)) {
+    fs.mkdirSync(LOCAL_DB_PATH, { recursive: true });
+  }
+
+  try {
+    const files = fs.readdirSync(LOCAL_DB_PATH);
+    const dbFile = files.find(file => file.endsWith('.sqlite'));
+    if (dbFile) {
+      return path.join(LOCAL_DB_PATH, dbFile);
+    }
+  } catch {
+  }
+
+  return path.join(LOCAL_DB_PATH, 'database.sqlite');
+}
+
+/**
+ * Get database configuration for Better Auth
+ * Uses clean database instance to avoid transaction conflicts with our custom handlers
+ */
+function getDatabaseConfig() {
+  const isLocal = process.env.NODE_ENV === 'development' || process.env.NEXT_PUBLIC_WEBAPP_ENV === 'local';
+
+  if (isLocal) {
+    // Use Drizzle adapter with better-sqlite3 for local development
+    const dbPath = getLocalDbPath();
+    const sqlite = new Database(dbPath);
+
+    // Configure SQLite for better performance and transaction handling
+    sqlite.pragma('journal_mode = WAL');
+    sqlite.pragma('synchronous = NORMAL');
+    sqlite.pragma('foreign_keys = ON');
+
+    const localDb = drizzle(sqlite, { schema: authSchema });
+
+    return drizzleAdapter(localDb, {
+      provider: 'sqlite',
+      schema: authSchema,
+    });
+  } else {
+    // For production, create a clean D1 instance specifically for Better Auth
+    // This avoids conflicts with our custom transaction handlers
+    const { env } = getCloudflareContext();
+    const cleanDb = drizzleD1(env.DB, { schema: authSchema });
+
+    return drizzleAdapter(cleanDb, {
+      provider: 'sqlite',
+      schema: authSchema,
+    });
+  }
+}
 
 /**
  * Better Auth Configuration - Simple User Authentication
@@ -14,10 +80,14 @@ import { getBaseUrl } from '@/utils/helpers';
 export const auth = betterAuth({
   secret: process.env.BETTER_AUTH_SECRET,
   baseURL: process.env.BETTER_AUTH_URL || `${getBaseUrl()}/api/auth`,
-  database: drizzleAdapter(db, {
-    provider: 'sqlite',
-    schema: authSchema,
-  }),
+  database: getDatabaseConfig(),
+
+  socialProviders: {
+    google: {
+      clientId: process.env.AUTH_GOOGLE_ID || '',
+      clientSecret: process.env.AUTH_GOOGLE_SECRET || '',
+    },
+  },
 
   // Session configuration
   session: {
@@ -55,13 +125,6 @@ export const auth = betterAuth({
   emailAndPassword: {
     enabled: true,
     requireEmailVerification: false,
-  },
-
-  socialProviders: {
-    google: {
-      clientId: process.env.AUTH_GOOGLE_ID || '',
-      clientSecret: process.env.AUTH_GOOGLE_SECRET || '',
-    },
   },
 
   plugins: [

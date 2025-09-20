@@ -1,12 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 
-import type { ApiResponse } from '@/api/core/schemas';
-// Import proper Zod-inferred types - no more manual casting
-import type { PaymentMethod } from '@/db/validation/billing';
-import { showErrorToast } from '@/lib';
 import { queryKeys } from '@/lib/data/query-keys';
 import { logError } from '@/lib/utils/safe-logger';
-import { isZarinPalError, parseZarinPalError } from '@/lib/utils/zarinpal-errors';
 import type {
   CancelDirectDebitContractRequest,
   CreatePaymentMethodRequest,
@@ -28,13 +23,6 @@ import {
   verifyDirectDebitContractService,
 } from '@/services/api/payment-methods';
 
-// Type interface for errors with ZarinPal error information attached
-type ErrorWithZarinPalInfo = {
-  zarinPalError?: ReturnType<typeof parseZarinPalError>;
-  isZarinPalError?: boolean;
-  isAuthError?: boolean;
-} & Error;
-
 export function useCreatePaymentMethodMutation() {
   const queryClient = useQueryClient();
 
@@ -45,7 +33,7 @@ export function useCreatePaymentMethodMutation() {
     },
     onMutate: async (variables) => {
       // Cancel any outgoing refetches (so they don't overwrite our optimistic update)
-      await queryClient.cancelQueries({ queryKey: queryKeys.paymentMethods.all });
+      await queryClient.cancelQueries({ queryKey: queryKeys.paymentMethods.list });
 
       // Snapshot the previous value
       const previousPaymentMethods = queryClient.getQueryData(queryKeys.paymentMethods.list);
@@ -54,8 +42,7 @@ export function useCreatePaymentMethodMutation() {
       return { previousPaymentMethods, variables };
     },
     onSuccess: (data, _variables, _context) => {
-      // Invalidate relevant queries for fresh data
-      queryClient.invalidateQueries({ queryKey: queryKeys.paymentMethods.all });
+      // Only invalidate the specific query being used to avoid redundant requests
       queryClient.invalidateQueries({ queryKey: queryKeys.paymentMethods.list });
 
       // Update specific payment method in cache if we have the data
@@ -72,16 +59,12 @@ export function useCreatePaymentMethodMutation() {
         });
       }
     },
-    onError: (error, variables, context) => {
+    onError: (error, _variables, context) => {
       logError('Failed to create payment method', error);
       // If we had a previous value, revert to it on error
       if (context?.previousPaymentMethods) {
         queryClient.setQueryData(queryKeys.paymentMethods.list, context.previousPaymentMethods);
       }
-    },
-    onSettled: () => {
-      // Always refetch after error or success to ensure cache consistency
-      queryClient.invalidateQueries({ queryKey: queryKeys.paymentMethods.all });
     },
     retry: (failureCount, error) => {
       // Don't retry on authentication errors or client errors
@@ -108,7 +91,7 @@ export function useDeletePaymentMethodMutation() {
     },
     onMutate: async (args) => {
       // Cancel any outgoing refetches
-      await queryClient.cancelQueries({ queryKey: queryKeys.paymentMethods.all });
+      await queryClient.cancelQueries({ queryKey: queryKeys.paymentMethods.list });
 
       // Snapshot the previous value for rollback
       const previousPaymentMethods = queryClient.getQueryData(queryKeys.paymentMethods.list);
@@ -135,8 +118,7 @@ export function useDeletePaymentMethodMutation() {
       }
     },
     onSuccess: () => {
-      // Invalidate queries after successful deletion
-      queryClient.invalidateQueries({ queryKey: queryKeys.paymentMethods.all });
+      // Only invalidate the specific query being used to avoid redundant requests
       queryClient.invalidateQueries({ queryKey: queryKeys.paymentMethods.list });
     },
     retry: 1,
@@ -153,7 +135,7 @@ export function useSetDefaultPaymentMethodMutation() {
     },
     onMutate: async (args) => {
       // Cancel any outgoing refetches
-      await queryClient.cancelQueries({ queryKey: queryKeys.paymentMethods.all });
+      await queryClient.cancelQueries({ queryKey: queryKeys.paymentMethods.list });
 
       // Snapshot the previous value for rollback
       const previousPaymentMethods = queryClient.getQueryData(queryKeys.paymentMethods.list);
@@ -183,8 +165,7 @@ export function useSetDefaultPaymentMethodMutation() {
       }
     },
     onSuccess: () => {
-      // Invalidate queries after successful update
-      queryClient.invalidateQueries({ queryKey: queryKeys.paymentMethods.all });
+      // Only invalidate the specific query being used to avoid redundant requests
       queryClient.invalidateQueries({ queryKey: queryKeys.paymentMethods.list });
     },
     retry: 1,
@@ -210,52 +191,7 @@ export function useInitiateDirectDebitContractMutation() {
       return { variables, timestamp: Date.now() };
     },
     onError: (error, _variables, _context) => {
-      // Parse error message for better user experience
-      let errorMessage = 'Failed to setup direct debit contract. Please try again.';
-
-      if (error instanceof Error) {
-        // Check if it's a ZarinPal specific error
-        if (error.message.includes('Authentication required')) {
-          errorMessage = 'Please sign in again to continue with the setup.';
-        } else if (error.message.includes('Development mode')) {
-          errorMessage = 'Development Mode: ZarinPal is not configured with real credentials. This is expected in development.';
-        } else if (error.message.includes('placeholder ZarinPal credentials')) {
-          errorMessage = 'Development Mode: Payment service requires real credentials for testing. See console for setup instructions.';
-        } else if (error.message.includes('Invalid merchant') || error.message.includes('MERCHANT')) {
-          errorMessage = 'Payment service configuration issue. Please contact support.';
-        } else if (error.message.includes('Invalid mobile') || error.message.includes('MOBILE')) {
-          errorMessage = 'Please check your mobile number format and try again.';
-        } else if (error.message.includes('500') || error.message.includes('Internal Server Error')) {
-          errorMessage = 'Server error occurred. Please try again in a few moments.';
-        } else if (error.message.includes('Network') || error.message.includes('Failed to fetch')) {
-          errorMessage = 'Connection error. Please check your internet and try again.';
-        } else if (error.message.includes('Invalid ZarinPal merchant ID')) {
-          errorMessage = 'Payment service temporarily unavailable. Please try again later.';
-        }
-      }
-
-      // Show toast notification for all errors immediately
-      showErrorToast(errorMessage, {
-        component: 'direct-debit-setup',
-        actionType: 'contract-initiation',
-        error: error instanceof Error ? error.message : 'Unknown error',
-      });
-
-      // Parse ZarinPal error for structured error information (keep for component access)
-      if (isZarinPalError(error)) {
-        const parsedError = parseZarinPalError(error);
-
-        // Attach parsed error information to the error object for component access
-        if (error instanceof Error) {
-          (error as ErrorWithZarinPalInfo).zarinPalError = parsedError;
-          (error as ErrorWithZarinPalInfo).isZarinPalError = true;
-        }
-      }
-
-      // Handle authentication errors
-      if (error instanceof Error && error.message.includes('Authentication required')) {
-        (error as ErrorWithZarinPalInfo).isAuthError = true;
-      }
+      logError('Failed to initiate direct debit contract', error);
     },
     onSettled: (_data, _error, _variables, _context) => {
       // Log completion for debugging/analytics
@@ -278,8 +214,7 @@ export function useVerifyDirectDebitContractMutation() {
       return result;
     },
     onSuccess: (data) => {
-      // Invalidate payment methods queries to refetch latest data
-      queryClient.invalidateQueries({ queryKey: queryKeys.paymentMethods.all });
+      // Only invalidate the specific query being used to avoid redundant requests
       queryClient.invalidateQueries({ queryKey: queryKeys.paymentMethods.list });
 
       // Optionally add the new payment method to cache if contract was verified
@@ -295,16 +230,7 @@ export function useVerifyDirectDebitContractMutation() {
       }
     },
     onError: (error) => {
-      // Parse ZarinPal error for structured error information
-      if (isZarinPalError(error)) {
-        const parsedError = parseZarinPalError(error);
-
-        // Attach parsed error information to the error object for component access
-        if (error instanceof Error) {
-          (error as ErrorWithZarinPalInfo).zarinPalError = parsedError;
-          (error as ErrorWithZarinPalInfo).isZarinPalError = true;
-        }
-      }
+      logError('Failed to verify direct debit contract', error);
     },
     retry: false, // Contract verification should not auto-retry - it's a one-time callback
   });
@@ -334,10 +260,8 @@ export function useGetBankListMutation() {
         }
       }
 
-      showErrorToast(errorMessage, {
-        component: 'bank-list',
-        actionType: 'fetch-banks',
-      });
+      // Log error for debugging (toast will be handled by component layer)
+      logError('Bank list fetch failed', { errorMessage, component: 'bank-list' });
     },
     retry: 1,
   });
@@ -355,50 +279,14 @@ export function useExecuteDirectDebitPaymentMutation() {
       const result = await executeDirectDebitPaymentService(args);
       return result;
     },
-    onSuccess: (data) => {
-      // Invalidate relevant queries on successful payment
-      queryClient.invalidateQueries({ queryKey: queryKeys.payments.all });
-      queryClient.invalidateQueries({ queryKey: queryKeys.subscriptions.all });
-      queryClient.invalidateQueries({ queryKey: queryKeys.paymentMethods.all });
-
-      // Update payment method last used timestamp
-      if (data.success) {
-        queryClient.invalidateQueries({ queryKey: queryKeys.paymentMethods.list });
-      }
+    onSuccess: () => {
+      // Only invalidate the specific queries being used to avoid redundant requests
+      queryClient.invalidateQueries({ queryKey: queryKeys.payments.list });
+      queryClient.invalidateQueries({ queryKey: queryKeys.subscriptions.list });
+      queryClient.invalidateQueries({ queryKey: queryKeys.paymentMethods.list });
     },
     onError: (error) => {
       logError('Failed to execute direct debit payment', error);
-
-      // Parse ZarinPal error for structured error information
-      if (isZarinPalError(error)) {
-        const parsedError = parseZarinPalError(error);
-
-        // Attach parsed error information to the error object for component access
-        if (error instanceof Error) {
-          (error as ErrorWithZarinPalInfo).zarinPalError = parsedError;
-          (error as ErrorWithZarinPalInfo).isZarinPalError = true;
-        }
-      }
-
-      // Show user-friendly error message
-      let errorMessage = 'Payment failed. Please try again or contact support.';
-
-      if (error instanceof Error) {
-        if (error.message.includes('insufficient funds')) {
-          errorMessage = 'Insufficient funds in your account. Please check your balance.';
-        } else if (error.message.includes('card')) {
-          errorMessage = 'Card issue detected. Please check with your bank.';
-        } else if (error.message.includes('Network')) {
-          errorMessage = 'Connection error. Please try again.';
-        } else if (error.message.includes('Authentication')) {
-          errorMessage = 'Authentication required. Please sign in again.';
-        }
-      }
-
-      showErrorToast(errorMessage, {
-        component: 'direct-debit-payment',
-        actionType: 'execute-payment',
-      });
     },
     retry: false, // Payment operations should not auto-retry to avoid duplicate charges
   });
@@ -418,30 +306,15 @@ export function useCancelDirectDebitContractMutation() {
     },
     onMutate: async (args) => {
       // Cancel any outgoing refetches
-      await queryClient.cancelQueries({ queryKey: queryKeys.paymentMethods.all });
+      await queryClient.cancelQueries({ queryKey: queryKeys.paymentMethods.list });
 
       // Snapshot the previous value for rollback
       const previousPaymentMethods = queryClient.getQueryData(queryKeys.paymentMethods.list);
 
-      // Optimistically update using proper Zod-inferred types
+      // Optimistically update payment methods list
       queryClient.setQueryData(queryKeys.paymentMethods.list, (old: unknown) => {
-        // Type guard for ApiResponse<PaymentMethod[]>
-        function isPaymentMethodsResponse(data: unknown): data is ApiResponse<PaymentMethod[]> {
-          if (data === null || typeof data !== 'object')
-            return false;
-          if (!('success' in data) || !('data' in data))
-            return false;
-
-          const dataWithProps = data as { data: unknown };
-          return Array.isArray(dataWithProps.data);
-        }
-
-        if (!isPaymentMethodsResponse(old)) {
-          return old;
-        }
-
-        const oldData = old;
-        if (oldData.success && Array.isArray(oldData.data)) {
+        const oldData = old as { success?: boolean; data?: Array<{ id: string; isActive: boolean; contractStatus: string }> };
+        if (oldData?.success && Array.isArray(oldData.data)) {
           return {
             ...oldData,
             data: oldData.data.map(pm => ({
@@ -477,23 +350,17 @@ export function useCancelDirectDebitContractMutation() {
         }
       }
 
-      showErrorToast(errorMessage, {
-        component: 'contract-cancellation',
-        actionType: 'cancel-contract',
-      });
+      // Log error for debugging (toast will be handled by component layer)
+      logError('Contract cancellation failed', { errorMessage, component: 'contract-cancellation' });
     },
     onSuccess: (data) => {
-      // Invalidate queries after successful cancellation
-      queryClient.invalidateQueries({ queryKey: queryKeys.paymentMethods.all });
+      // Only invalidate the specific queries being used to avoid redundant requests
       queryClient.invalidateQueries({ queryKey: queryKeys.paymentMethods.list });
-      queryClient.invalidateQueries({ queryKey: queryKeys.subscriptions.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.subscriptions.list });
 
-      // Show success message
+      // Log success for debugging (toast will be handled by component layer)
       if (data.success) {
-        showErrorToast('Direct debit contract cancelled successfully', {
-          component: 'contract-cancellation',
-          actionType: 'cancel-success',
-        });
+        logError('Contract cancelled successfully', { component: 'contract-cancellation' });
       }
     },
     retry: 1,

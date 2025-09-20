@@ -9,7 +9,7 @@ import type { secureMeRoute } from './route';
 /**
  * Handler for secure /auth/me endpoint
  * Returns current authenticated user information
- * Refactored: Now uses unified factory pattern with consistent responses
+ * Following Better Auth patterns for user data retrieval
  */
 export const secureMeHandler: RouteHandler<typeof secureMeRoute, ApiEnv> = createHandler(
   {
@@ -17,24 +17,33 @@ export const secureMeHandler: RouteHandler<typeof secureMeRoute, ApiEnv> = creat
     operationName: 'getMe',
   },
   async (c) => {
+    // Get user from Better Auth session context set by middleware
     const user = c.get('user');
-    if (!user) {
-      throw createError.unauthenticated('User authentication required');
-    }
     const session = c.get('session');
 
-    c.logger.info('Fetching current user information', {
+    if (!user || !session) {
+      throw createError.unauthenticated('Valid session required for user information');
+    }
+
+    c.logger.info('Retrieving current user information from Better Auth session', {
       logType: 'operation',
       operationName: 'getMe',
       userId: user.id,
+      resource: session.id,
     });
 
+    // Return user data according to Better Auth user schema
     const payload = {
-      userId: user.id ?? session?.userId ?? 'unknown',
-      email: user.email ?? null,
+      userId: user.id,
+      email: user.email,
+      name: user.name,
+      emailVerified: user.emailVerified,
+      image: user.image,
+      createdAt: user.createdAt,
+      updatedAt: user.updatedAt,
     } as const;
 
-    c.logger.info('User information retrieved successfully', {
+    c.logger.info('User information retrieved successfully from Better Auth', {
       logType: 'operation',
       operationName: 'getMe',
       resource: user.id,

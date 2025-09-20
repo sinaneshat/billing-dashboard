@@ -5,22 +5,8 @@
     {
       "idx": 0,
       "version": "6",
-      "when": 1756852499269,
-      "tag": "0000_broad_the_twelve",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "6",
-      "when": 1757323263111,
-      "tag": "0001_far_taskmaster",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "6",
-      "when": 1757624875919,
-      "tag": "0002_married_colossus",
+      "when": 1758122568739,
+      "tag": "0000_spooky_frightful_four",
       "breakpoints": true
     }
   ]

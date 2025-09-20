@@ -3,7 +3,7 @@
 import { motion, type HTMLMotionProps, type Variants } from 'motion/react';
 import type { ReactNode } from 'react';
 
-import { cn } from '@/lib';
+import { cn } from '@/lib/ui/cn';
 
 // Subtle animation variants
 const defaultFadeIn: Variants = {

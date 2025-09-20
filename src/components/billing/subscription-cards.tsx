@@ -1,249 +1,187 @@
 'use client';
 
-import {
-  BarChart3,
-  Download,
-  EllipsisVerticalIcon,
-  Package,
-  Settings,
-  X,
-} from 'lucide-react';
+import { Calendar, Package, Settings, Trash2 } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
-import { memo, useCallback } from 'react';
+import { memo } from 'react';
 
-import { EmptyCard, LoadingCard, StatusCard } from '@/components/dashboard/dashboard-cards';
+import type { SubscriptionWithProduct } from '@/api/routes/subscriptions/schema';
+import { EmptyState } from '@/components/dashboard/dashboard-states';
 import { Button } from '@/components/ui/button';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import { FadeIn, StaggerContainer, StaggerItem } from '@/components/ui/motion';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { SubscriptionStatusBadge } from '@/components/ui/status-badge';
-import { useDownloadSubscriptionInvoiceMutation, useManageSubscriptionMutation, useViewUsageMutation } from '@/hooks/mutations/subscription-management';
+import { useManageSubscriptionMutation } from '@/hooks/mutations/subscription-management';
 import { useCancelSubscriptionMutation } from '@/hooks/mutations/subscriptions';
-import { formatTomanCurrency, showErrorToast, showSuccessToast } from '@/lib';
-import type { GetSubscriptionsResponse } from '@/services/api/subscriptions';
+import { formatTomanCurrency } from '@/lib/format';
+import { cn } from '@/lib/ui/cn';
 
-// Extract subscription type from API response
-// API response structure: { success: boolean, data?: SubscriptionWithProduct[] }
-type Subscription = GetSubscriptionsResponse extends { data?: infer T }
-  ? T extends readonly (infer U)[]
-    ? U
-    : never
-  : never;
+export type Subscription = SubscriptionWithProduct;
 
 type SubscriptionCardsProps = {
   subscriptions: Subscription[];
   isLoading?: boolean;
-  emptyStateTitle?: string;
-  emptyStateDescription?: string;
   className?: string;
 };
+
+// Simple SubscriptionCard component
+function SubscriptionCard({ subscription, locale, t }: {
+  subscription: Subscription;
+  locale: string;
+  t: (key: string) => string;
+}) {
+  const manageSubscription = useManageSubscriptionMutation();
+  const cancelSubscription = useCancelSubscriptionMutation();
+
+  const handleManage = () => {
+    manageSubscription.mutate({ param: { id: subscription.id } });
+  };
+
+  const handleCancel = () => {
+    cancelSubscription.mutate({
+      param: { id: subscription.id },
+      json: { reason: t('subscription.cancellationReason') },
+    });
+  };
+
+  return (
+    <Card className="transition-all hover:shadow-md">
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <Package className="h-5 w-5 text-primary" />
+            <div>
+              <CardTitle className="text-base">
+                {subscription.product?.name || t('subscription.unknownProduct')}
+              </CardTitle>
+              {subscription.product?.description && (
+                <p className="text-sm text-muted-foreground mt-1">
+                  {subscription.product.description}
+                </p>
+              )}
+            </div>
+          </div>
+          <SubscriptionStatusBadge status={subscription.status} />
+        </div>
+      </CardHeader>
+      <CardContent className="pt-0">
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-muted-foreground">
+              {t('subscription.price')}
+            </span>
+            <span className="font-medium">
+              {subscription.currentPrice && formatTomanCurrency(subscription.currentPrice)}
+              {subscription.product?.billingPeriod && (
+                <span className="text-xs text-muted-foreground ml-1">
+                  /
+                  {subscription.product.billingPeriod}
+                </span>
+              )}
+            </span>
+          </div>
+
+          {subscription.nextBillingDate && (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Calendar className="h-4 w-4" />
+              <span>
+                {t('subscription.nextBilling')}
+                :
+                {new Date(subscription.nextBillingDate).toLocaleDateString(locale)}
+              </span>
+            </div>
+          )}
+
+          <div className="flex items-center gap-2 pt-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleManage}
+              disabled={subscription.status !== 'active'}
+              className="gap-1 flex-1"
+            >
+              <Settings className="h-3 w-3" />
+              {t('subscription.manage')}
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleCancel}
+              disabled={!['active', 'trial'].includes(subscription.status)}
+              className="text-destructive hover:text-destructive hover:bg-destructive/10 gap-1"
+            >
+              <Trash2 className="h-3 w-3" />
+              {t('actions.cancel')}
+            </Button>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
 
 export const SubscriptionCards = memo(({
   subscriptions,
   isLoading = false,
-  emptyStateTitle,
-  emptyStateDescription,
   className,
 }: SubscriptionCardsProps) => {
   const t = useTranslations();
   const locale = useLocale();
-
-  // Mutations for subscription actions
-  const cancelSubscriptionMutation = useCancelSubscriptionMutation();
-  const viewUsageMutation = useViewUsageMutation();
-  const downloadInvoiceMutation = useDownloadSubscriptionInvoiceMutation();
-  const manageSubscriptionMutation = useManageSubscriptionMutation();
-
-  // Action handlers
-  const handleManageSubscription = useCallback(async (subscriptionId: string) => {
-    try {
-      await manageSubscriptionMutation.mutateAsync({ param: { id: subscriptionId } });
-    } catch {
-      showErrorToast(t('subscription.managementFailed'));
-    }
-  }, [manageSubscriptionMutation, t]);
-
-  const handleViewUsage = useCallback(async (subscriptionId: string) => {
-    try {
-      await viewUsageMutation.mutateAsync({ param: { id: subscriptionId } });
-    } catch {
-      showErrorToast(t('subscription.usageViewFailed'));
-    }
-  }, [viewUsageMutation, t]);
-
-  const handleDownloadInvoice = useCallback(async (subscriptionId: string) => {
-    try {
-      await downloadInvoiceMutation.mutateAsync({ param: { id: subscriptionId } });
-      showSuccessToast(t('subscription.invoiceDownloaded'));
-    } catch {
-      showErrorToast(t('subscription.invoiceDownloadFailed'));
-    }
-  }, [downloadInvoiceMutation, t]);
-
-  const handleCancelSubscription = useCallback(async (subscriptionId: string) => {
-    const reason = t('subscription.userCancellationReason'); // In real app, this would come from a modal/form
-    try {
-      await cancelSubscriptionMutation.mutateAsync({
-        param: { id: subscriptionId },
-        json: { reason },
-      });
-      showSuccessToast(t('subscription.cancelSuccess'));
-    } catch {
-      showErrorToast(t('subscription.cancelFailed'));
-    }
-  }, [cancelSubscriptionMutation, t]);
-
-  const defaultEmptyTitle = emptyStateTitle || t('subscription.empty');
-  const defaultEmptyDescription = emptyStateDescription || t('subscription.emptyDescription');
-  // Render individual subscription card
-  const renderSubscriptionCard = (subscription: Subscription, index: number) => {
-    const isActive = subscription.status === 'active';
-    const isCanceled = subscription.status === 'canceled';
-    const isExpired = subscription.status === 'expired';
-
-    const getStatusColor = () => {
-      if (isActive)
-        return 'success';
-      if (isCanceled || isExpired)
-        return 'error';
-      return 'default';
-    };
-
-    return (
-      <StaggerItem key={subscription.id} delay={index * 0.05}>
-        <StatusCard
-          title={subscription.product?.name || t('subscription.unknownPlan')}
-          subtitle={subscription.product?.description}
-          status={<SubscriptionStatusBadge status={subscription.status} size="sm" />}
-          icon={<Package className="h-4 w-4" />}
-          statusColor={getStatusColor()}
-          primaryInfo={(
-            <span className="text-2xl font-semibold text-foreground">
-              {formatTomanCurrency(subscription.currentPrice)}
-            </span>
-          )}
-          secondaryInfo={(
-            <div className="text-sm text-muted-foreground">
-              {subscription.endDate
-                ? `${t('subscription.endDate')}: ${new Date(subscription.endDate).toLocaleDateString(locale, { month: 'short', day: 'numeric' })}`
-                : subscription.nextBillingDate
-                  ? `${t('subscription.nextBilling')}: ${new Date(subscription.nextBillingDate).toLocaleDateString(locale, { month: 'short', day: 'numeric' })}`
-                  : t('subscription.toBeDecided')}
-            </div>
-          )}
-          metadata={undefined}
-          action={(
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="size-6"
-                  aria-label={t('subscription.openSubscriptionActions')}
-                  aria-haspopup="menu"
-                >
-                  <EllipsisVerticalIcon className="h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem
-                  onClick={() => handleManageSubscription(subscription.id)}
-                  className="cursor-pointer"
-                  disabled={manageSubscriptionMutation.isPending}
-                  aria-label={manageSubscriptionMutation.isPending ? t('states.loading.opening') : t('subscription.manage')}
-                >
-                  <Settings className="h-4 w-4 me-2" />
-                  {manageSubscriptionMutation.isPending ? t('states.loading.opening') : t('subscription.manage')}
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => handleViewUsage(subscription.id)}
-                  className="cursor-pointer"
-                  disabled={viewUsageMutation.isPending}
-                  aria-label={viewUsageMutation.isPending ? t('states.loading.loading') : t('subscription.viewUsage')}
-                >
-                  <BarChart3 className="h-4 w-4 me-2" />
-                  {viewUsageMutation.isPending ? t('states.loading.loading') : t('subscription.viewUsage')}
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => handleDownloadInvoice(subscription.id)}
-                  className="cursor-pointer"
-                  disabled={downloadInvoiceMutation.isPending}
-                  aria-label={downloadInvoiceMutation.isPending ? t('states.loading.downloading') : t('subscription.downloadInvoice')}
-                >
-                  <Download className="h-4 w-4 me-2" />
-                  {downloadInvoiceMutation.isPending ? t('states.loading.downloading') : t('subscription.downloadInvoice')}
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                {isActive && (
-                  <DropdownMenuItem
-                    onClick={() => handleCancelSubscription(subscription.id)}
-                    variant="destructive"
-                    className="cursor-pointer"
-                    disabled={cancelSubscriptionMutation.isPending}
-                    aria-label={cancelSubscriptionMutation.isPending ? t('states.loading.canceling') : t('subscription.cancel')}
-                  >
-                    <X className="h-4 w-4 me-2" />
-                    {cancelSubscriptionMutation.isPending ? t('states.loading.canceling') : t('subscription.cancel')}
-                  </DropdownMenuItem>
-                )}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          )}
-        />
-      </StaggerItem>
-    );
-  };
+  const router = useRouter();
 
   if (isLoading) {
     return (
-      <FadeIn className={className}>
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h3 className="text-lg font-semibold">{t('subscription.yourSubscriptions')}</h3>
-            <span className="text-sm text-muted-foreground">{t('states.loading.default')}</span>
-          </div>
-          <div className="grid gap-4 lg:grid-cols-2">
-            {Array.from({ length: 2 }, (_, i) => (
-              <LoadingCard key={i} title={t('states.loading.subscriptions')} rows={3} variant="status" />
-            ))}
-          </div>
-        </div>
-      </FadeIn>
+      <div className={cn('grid gap-4 grid-cols-1 lg:grid-cols-2', className)}>
+        {Array.from({ length: 3 }, (_, i) => (
+          <Card key={i} className="h-32">
+            <CardContent className="flex items-center justify-center h-full">
+              <div className="text-muted-foreground">{t('states.loading.subscriptions')}</div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
     );
   }
 
   if (subscriptions.length === 0) {
     return (
-      <FadeIn className={className}>
-        <EmptyCard
-          title={defaultEmptyTitle}
-          description={defaultEmptyDescription}
-          icon={<Package className="h-8 w-8 text-muted-foreground" />}
-        />
-      </FadeIn>
+      <EmptyState
+        title={t('states.empty.subscriptions')}
+        description={t('states.empty.subscriptionsDescription')}
+        icon={<Package className="h-8 w-8 text-muted-foreground" />}
+        action={(
+          <Button
+            size="lg"
+            startIcon={<Package className="h-4 w-4" />}
+            onClick={() => router.push('/dashboard/billing/plans')}
+          >
+            {t('billing.viewPlans')}
+          </Button>
+        )}
+      />
     );
   }
 
   return (
-    <FadeIn className={className}>
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <h3 className="text-lg font-semibold">{t('subscription.yourSubscriptions')}</h3>
-          <span className="text-sm text-muted-foreground">
-            {subscriptions.length}
-          </span>
-        </div>
-
-        <StaggerContainer className="grid gap-4 lg:grid-cols-2">
-          {subscriptions.map((subscription, index) => renderSubscriptionCard(subscription, index))}
-        </StaggerContainer>
+    <div className={cn('space-y-4', className)}>
+      <div className="flex items-center justify-between">
+        <h3 className="text-lg font-medium">{t('billing.subscriptionsTitle')}</h3>
+        <span className="text-sm text-muted-foreground">
+          {subscriptions.length}
+          {' '}
+          {subscriptions.length === 1 ? t('subscription.subscription') : t('subscription.subscriptions')}
+        </span>
       </div>
-    </FadeIn>
+      <div className="grid gap-4 grid-cols-1 lg:grid-cols-2">
+        {subscriptions.map(subscription => (
+          <SubscriptionCard
+            key={subscription.id}
+            subscription={subscription}
+            locale={locale}
+            t={t}
+          />
+        ))}
+      </div>
+    </div>
   );
 });
 

@@ -14,10 +14,9 @@ import { and, eq } from 'drizzle-orm';
 import { createError } from '@/api/common/error-handling';
 import { createHandler, createHandlerWithTransaction, Responses } from '@/api/core';
 import type { SubscriptionMetadata } from '@/api/core/schemas';
-import { RoundtableIntegrationService } from '@/api/services/roundtable-integration';
 import { ZarinPalService } from '@/api/services/zarinpal';
 import type { ApiEnv } from '@/api/types';
-import { db } from '@/db';
+import { getDbAsync } from '@/db';
 import { billingEvent, payment, paymentMethod as paymentMethodTable, product, subscription } from '@/db/tables/billing';
 
 import type {
@@ -50,6 +49,8 @@ export const getSubscriptionsHandler: RouteHandler<typeof getSubscriptionsRoute,
   },
   async (c) => {
     const user = c.get('user');
+    const db = await getDbAsync();
+
     if (!user) {
       throw createError.unauthenticated('User authentication required');
     }
@@ -100,6 +101,8 @@ export const getSubscriptionHandler: RouteHandler<typeof getSubscriptionRoute, A
   },
   async (c) => {
     const user = c.get('user');
+    const db = await getDbAsync();
+
     if (!user) {
       throw createError.unauthenticated('User authentication required');
     }
@@ -149,6 +152,7 @@ export const createSubscriptionHandler: RouteHandler<typeof createSubscriptionRo
   },
   async (c, tx) => {
     const user = c.get('user');
+
     if (!user) {
       throw createError.unauthenticated('User authentication required');
     }
@@ -250,34 +254,7 @@ export const createSubscriptionHandler: RouteHandler<typeof createSubscriptionRo
         updatedAt: new Date(),
       });
 
-      // Update Roundtable database with new subscription
-      try {
-        const roundtableService = RoundtableIntegrationService.create(c.env);
-        await roundtableService.updateUserSubscription({
-          userId: user.id,
-          planId: productRecord.id,
-          subscriptionId: newSubscriptionId,
-          paymentId: crypto.randomUUID(), // Generate payment ID for tracking
-          amount: productRecord.price,
-          currency: 'USD',
-          isActive: true,
-          startsAt: subscriptionData.startDate.toISOString(),
-          endsAt: subscriptionData.nextBillingDate?.toISOString(),
-        });
-
-        c.logger.info('Roundtable database updated successfully for direct debit subscription', {
-          logType: 'operation',
-          operationName: 'createSubscription',
-          resource: newSubscriptionId,
-        });
-      } catch (roundtableError) {
-        c.logger.error('Failed to update Roundtable database', roundtableError instanceof Error ? roundtableError : new Error(String(roundtableError)), {
-          logType: 'operation',
-          operationName: 'createSubscription',
-          resource: newSubscriptionId,
-        });
-        // Continue with response even if Roundtable update fails
-      }
+      // Note: Roundtable integration was removed as part of cleanup
 
       c.logger.info('Direct debit subscription created successfully', {
         logType: 'operation',
@@ -340,7 +317,7 @@ export const createSubscriptionHandler: RouteHandler<typeof createSubscriptionRo
       const paymentRecordId = paymentData.id;
 
       // Request payment from ZarinPal
-      const zarinPal = ZarinPalService.create(c.env);
+      const zarinPal = ZarinPalService.create();
       const paymentResponse = await zarinPal.requestPayment({
         amount: amountInRials,
         currency: 'IRR',
@@ -425,6 +402,8 @@ export const cancelSubscriptionHandler: RouteHandler<typeof cancelSubscriptionRo
   },
   async (c) => {
     const user = c.get('user');
+    const db = await getDbAsync();
+
     if (!user) {
       throw createError.unauthenticated('User authentication required');
     }
@@ -486,24 +465,7 @@ export const cancelSubscriptionHandler: RouteHandler<typeof cancelSubscriptionRo
       updatedAt: new Date(),
     });
 
-    // Update Roundtable database to cancel subscription
-    try {
-      const roundtableService = RoundtableIntegrationService.create(c.env);
-      await roundtableService.cancelUserSubscription(user.id);
-
-      c.logger.info('Roundtable database updated successfully for subscription cancellation', {
-        logType: 'operation',
-        operationName: 'cancelSubscription',
-        resource: id,
-      });
-    } catch (roundtableError) {
-      c.logger.error('Failed to update Roundtable database for cancellation', roundtableError instanceof Error ? roundtableError : new Error(String(roundtableError)), {
-        logType: 'operation',
-        operationName: 'cancelSubscription',
-        resource: id,
-      });
-      // Continue with response even if Roundtable update fails
-    }
+    // Note: Roundtable integration was removed as part of cleanup
 
     c.logger.info('Subscription canceled successfully', { logType: 'operation', operationName: 'cancelSubscription', resource: id });
 
@@ -528,6 +490,8 @@ export const resubscribeHandler: RouteHandler<typeof resubscribeRoute, ApiEnv> =
   },
   async (c) => {
     const user = c.get('user');
+    const db = await getDbAsync();
+
     if (!user) {
       throw createError.unauthenticated('User authentication required');
     }
@@ -599,7 +563,7 @@ export const resubscribeHandler: RouteHandler<typeof resubscribeRoute, ApiEnv> =
     }
 
     // Request payment from ZarinPal
-    const zarinPal = ZarinPalService.create(c.env);
+    const zarinPal = ZarinPalService.create();
     const paymentResponse = await zarinPal.requestPayment({
       amount: amountInRials,
       currency: 'IRR',
@@ -689,6 +653,8 @@ export const changePlanHandler: RouteHandler<typeof changePlanRoute, ApiEnv> = c
   },
   async (c) => {
     const user = c.get('user');
+    const db = await getDbAsync();
+
     if (!user) {
       throw createError.unauthenticated('User authentication required');
     }
@@ -783,7 +749,7 @@ export const changePlanHandler: RouteHandler<typeof changePlanRoute, ApiEnv> = c
         const paymentRecordId = paymentData.id;
 
         // Request payment from ZarinPal
-        const zarinPal = ZarinPalService.create(c.env);
+        const zarinPal = ZarinPalService.create();
         const paymentResponse = await zarinPal.requestPayment({
           amount: amountToCharge,
           currency: 'IRR',

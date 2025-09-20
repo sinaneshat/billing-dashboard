@@ -8,8 +8,6 @@
 
 import { z } from '@hono/zod-openapi';
 
-import { BaseService } from '@/api/patterns/service-factory';
-
 // =============================================================================
 // ZOD SCHEMAS
 // =============================================================================
@@ -58,15 +56,54 @@ export type CurrencyConversionResult = z.infer<typeof CurrencyConversionResultSc
 // CURRENCY EXCHANGE SERVICE
 // =============================================================================
 
-export class CurrencyExchangeService extends BaseService<CurrencyExchangeConfig> {
+export class CurrencyExchangeService {
+  private config: CurrencyExchangeConfig;
   private cachedRate: number | null = null;
   private lastFetch: number = 0;
   private readonly FALLBACK_RATE = 1073016; // From the API screenshot
 
+  constructor(config: CurrencyExchangeConfig) {
+    this.config = config;
+  }
+
+  /**
+   * Make HTTP request with error handling and retries
+   */
+  private async makeRequest<T>(
+    endpoint: string,
+    options: RequestInit,
+    operationName?: string,
+  ): Promise<T> {
+    const url = `${this.config.baseUrl}${endpoint}`;
+
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), this.config.timeout);
+
+      const response = await fetch(url, {
+        ...options,
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      return data as T;
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      throw new Error(`Failed to ${operationName || 'make request'}: ${errorMessage}`);
+    }
+  }
+
   /**
    * Get service configuration from environment
+   * Uses OpenNext.js Cloudflare context for consistent environment access
    */
-  static getConfig(_env: CloudflareEnv): CurrencyExchangeConfig {
+  static getConfig(): CurrencyExchangeConfig {
     const configData = {
       serviceName: 'currency-exchange',
       baseUrl: 'https://services.chatqt.com/public',
@@ -84,6 +121,14 @@ export class CurrencyExchangeService extends BaseService<CurrencyExchangeConfig>
       throw new Error(`Currency exchange config validation failed: ${result.error.message}`);
     }
     return result.data;
+  }
+
+  /**
+   * Factory method to create service instance with validated configuration
+   */
+  static create(): CurrencyExchangeService {
+    const config = this.getConfig();
+    return new CurrencyExchangeService(config);
   }
 
   /**
@@ -107,6 +152,7 @@ export class CurrencyExchangeService extends BaseService<CurrencyExchangeConfig>
             'User-Agent': 'DeadPixel-Billing-Dashboard/1.0',
           },
         },
+        'fetch exchange rate',
       );
 
       const rate = response.rate;
@@ -252,7 +298,8 @@ export class CurrencyExchangeService extends BaseService<CurrencyExchangeConfig>
 
 /**
  * Create CurrencyExchangeService instance
+ * Uses OpenNext.js Cloudflare context for consistent environment access
  */
-export function createCurrencyExchangeService(env: CloudflareEnv): CurrencyExchangeService {
-  return CurrencyExchangeService.create(env);
+export function createCurrencyExchangeService(): CurrencyExchangeService {
+  return CurrencyExchangeService.create();
 }

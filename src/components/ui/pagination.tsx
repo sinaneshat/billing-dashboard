@@ -4,7 +4,7 @@ import { useTranslations } from "next-intl";
 import * as React from "react";
 
 import { buttonVariants } from "@/components/ui/button";
-import { cn } from "@/lib";
+import { cn } from "@/lib/ui/cn";
 
 type ButtonProps = React.ComponentProps<"button"> & VariantProps<typeof buttonVariants>;
 

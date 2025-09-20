@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "411864e7-01a9-44d9-8ef0-71ee923e91d7",
+  "id": "28078eed-cd86-41aa-a572-0dc25d1c0137",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
     "account": {
@@ -89,7 +89,8 @@
           "type": "integer",
           "primaryKey": false,
           "notNull": true,
-          "autoincrement": false
+          "autoincrement": false,
+          "default": "(cast((julianday('now') - 2440587.5)*86400000 as integer))"
         },
         "updated_at": {
           "name": "updated_at",
@@ -99,23 +100,7 @@
           "autoincrement": false
         }
       },
-      "indexes": {
-        "account_user_id_idx": {
-          "name": "account_user_id_idx",
-          "columns": [
-            "user_id"
-          ],
-          "isUnique": false
-        },
-        "account_provider_id_account_id_idx": {
-          "name": "account_provider_id_account_id_idx",
-          "columns": [
-            "provider_id",
-            "account_id"
-          ],
-          "isUnique": false
-        }
-      },
+      "indexes": {},
       "foreignKeys": {
         "account_user_id_user_id_fk": {
           "name": "account_user_id_user_id_fk",
@@ -159,6 +144,21 @@
           "notNull": true,
           "autoincrement": false
         },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(cast((julianday('now') - 2440587.5)*86400000 as integer))"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
         "ip_address": {
           "name": "ip_address",
           "type": "text",
@@ -180,18 +180,11 @@
           "notNull": true,
           "autoincrement": false
         },
-        "created_at": {
-          "name": "created_at",
-          "type": "integer",
+        "impersonated_by": {
+          "name": "impersonated_by",
+          "type": "text",
           "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
+          "notNull": false,
           "autoincrement": false
         }
       },
@@ -202,20 +195,6 @@
             "token"
           ],
           "isUnique": true
-        },
-        "session_user_id_idx": {
-          "name": "session_user_id_idx",
-          "columns": [
-            "user_id"
-          ],
-          "isUnique": false
-        },
-        "session_token_idx": {
-          "name": "session_token_idx",
-          "columns": [
-            "token"
-          ],
-          "isUnique": false
         }
       },
       "foreignKeys": {
@@ -261,66 +240,17 @@
           "notNull": true,
           "autoincrement": false
         },
-        "username": {
-          "name": "username",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "display_username": {
-          "name": "display_username",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
         "email_verified": {
           "name": "email_verified",
           "type": "integer",
           "primaryKey": false,
           "notNull": true,
-          "autoincrement": false
+          "autoincrement": false,
+          "default": false
         },
         "image": {
           "name": "image",
           "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "phone": {
-          "name": "phone",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "is_anonymous": {
-          "name": "is_anonymous",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "last_login_at": {
-          "name": "last_login_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "failed_login_attempts": {
-          "name": "failed_login_attempts",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": 0
-        },
-        "locked_until": {
-          "name": "locked_until",
-          "type": "integer",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
@@ -330,13 +260,44 @@
           "type": "integer",
           "primaryKey": false,
           "notNull": true,
-          "autoincrement": false
+          "autoincrement": false,
+          "default": "(cast((julianday('now') - 2440587.5)*86400000 as integer))"
         },
         "updated_at": {
           "name": "updated_at",
           "type": "integer",
           "primaryKey": false,
           "notNull": true,
+          "autoincrement": false,
+          "default": "(cast((julianday('now') - 2440587.5)*86400000 as integer))"
+        },
+        "role": {
+          "name": "role",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "banned": {
+          "name": "banned",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false,
+          "default": false
+        },
+        "ban_reason": {
+          "name": "ban_reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "ban_expires": {
+          "name": "ban_expires",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
           "autoincrement": false
         }
       },
@@ -347,27 +308,6 @@
             "email"
           ],
           "isUnique": true
-        },
-        "user_username_unique": {
-          "name": "user_username_unique",
-          "columns": [
-            "username"
-          ],
-          "isUnique": true
-        },
-        "user_email_idx": {
-          "name": "user_email_idx",
-          "columns": [
-            "email"
-          ],
-          "isUnique": false
-        },
-        "user_username_idx": {
-          "name": "user_username_idx",
-          "columns": [
-            "username"
-          ],
-          "isUnique": false
         }
       },
       "foreignKeys": {},
@@ -411,25 +351,19 @@
           "type": "integer",
           "primaryKey": false,
           "notNull": true,
-          "autoincrement": false
+          "autoincrement": false,
+          "default": "(cast((julianday('now') - 2440587.5)*86400000 as integer))"
         },
         "updated_at": {
           "name": "updated_at",
           "type": "integer",
           "primaryKey": false,
           "notNull": true,
-          "autoincrement": false
+          "autoincrement": false,
+          "default": "(cast((julianday('now') - 2440587.5)*86400000 as integer))"
         }
       },
-      "indexes": {
-        "verification_identifier_idx": {
-          "name": "verification_identifier_idx",
-          "columns": [
-            "identifier"
-          ],
-          "isUnique": false
-        }
-      },
+      "indexes": {},
       "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
@@ -1195,6 +1129,69 @@
           "autoincrement": false,
           "default": true
         },
+        "roundtable_id": {
+          "name": "roundtable_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "message_quota": {
+          "name": "message_quota",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "conversation_limit": {
+          "name": "conversation_limit",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "model_limit": {
+          "name": "model_limit",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "features": {
+          "name": "features",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "stripe_product_id": {
+          "name": "stripe_product_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "stripe_price_id": {
+          "name": "stripe_price_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "usage_type": {
+          "name": "usage_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "system_prompt_id": {
+          "name": "system_prompt_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
         "metadata": {
           "name": "metadata",
           "type": "text",
@@ -1218,6 +1215,13 @@
         }
       },
       "indexes": {
+        "product_roundtable_id_unique": {
+          "name": "product_roundtable_id_unique",
+          "columns": [
+            "roundtable_id"
+          ],
+          "isUnique": true
+        },
         "product_name_idx": {
           "name": "product_name_idx",
           "columns": [
@@ -1236,6 +1240,41 @@
           "name": "product_is_active_idx",
           "columns": [
             "is_active"
+          ],
+          "isUnique": false
+        },
+        "product_roundtable_id_idx": {
+          "name": "product_roundtable_id_idx",
+          "columns": [
+            "roundtable_id"
+          ],
+          "isUnique": false
+        },
+        "product_stripe_product_id_idx": {
+          "name": "product_stripe_product_id_idx",
+          "columns": [
+            "stripe_product_id"
+          ],
+          "isUnique": false
+        },
+        "product_stripe_price_id_idx": {
+          "name": "product_stripe_price_id_idx",
+          "columns": [
+            "stripe_price_id"
+          ],
+          "isUnique": false
+        },
+        "product_message_quota_idx": {
+          "name": "product_message_quota_idx",
+          "columns": [
+            "message_quota"
+          ],
+          "isUnique": false
+        },
+        "product_model_limit_idx": {
+          "name": "product_model_limit_idx",
+          "columns": [
+            "model_limit"
           ],
           "isUnique": false
         },
@@ -1686,6 +1725,348 @@
           "tableTo": "payment",
           "columnsFrom": [
             "payment_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "external_webhook_endpoint": {
+      "name": "external_webhook_endpoint",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "url": {
+          "name": "url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "secret_key": {
+          "name": "secret_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "is_active": {
+          "name": "is_active",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": true
+        },
+        "enabled_events": {
+          "name": "enabled_events",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'[\"*\"]'"
+        },
+        "max_retries": {
+          "name": "max_retries",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 3
+        },
+        "retry_backoff_multiplier": {
+          "name": "retry_backoff_multiplier",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 2
+        },
+        "timeout_ms": {
+          "name": "timeout_ms",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 15000
+        },
+        "total_deliveries": {
+          "name": "total_deliveries",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
+        },
+        "successful_deliveries": {
+          "name": "successful_deliveries",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
+        },
+        "failed_deliveries": {
+          "name": "failed_deliveries",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
+        },
+        "last_success_at": {
+          "name": "last_success_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "last_failure_at": {
+          "name": "last_failure_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "metadata": {
+          "name": "metadata",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "external_webhook_endpoint_name_idx": {
+          "name": "external_webhook_endpoint_name_idx",
+          "columns": [
+            "name"
+          ],
+          "isUnique": false
+        },
+        "external_webhook_endpoint_is_active_idx": {
+          "name": "external_webhook_endpoint_is_active_idx",
+          "columns": [
+            "is_active"
+          ],
+          "isUnique": false
+        },
+        "external_webhook_endpoint_url_idx": {
+          "name": "external_webhook_endpoint_url_idx",
+          "columns": [
+            "url"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "webhook_delivery_attempt": {
+      "name": "webhook_delivery_attempt",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "webhook_event_id": {
+          "name": "webhook_event_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "endpoint_id": {
+          "name": "endpoint_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "attempt_number": {
+          "name": "attempt_number",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 1
+        },
+        "http_status_code": {
+          "name": "http_status_code",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "response_body": {
+          "name": "response_body",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "response_headers": {
+          "name": "response_headers",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "delivered_at": {
+          "name": "delivered_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "response_time_ms": {
+          "name": "response_time_ms",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "success": {
+          "name": "success",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": false
+        },
+        "error_message": {
+          "name": "error_message",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "error_type": {
+          "name": "error_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "next_retry_at": {
+          "name": "next_retry_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "retry_after_ms": {
+          "name": "retry_after_ms",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "webhook_delivery_attempt_event_idx": {
+          "name": "webhook_delivery_attempt_event_idx",
+          "columns": [
+            "webhook_event_id"
+          ],
+          "isUnique": false
+        },
+        "webhook_delivery_attempt_endpoint_idx": {
+          "name": "webhook_delivery_attempt_endpoint_idx",
+          "columns": [
+            "endpoint_id"
+          ],
+          "isUnique": false
+        },
+        "webhook_delivery_attempt_success_idx": {
+          "name": "webhook_delivery_attempt_success_idx",
+          "columns": [
+            "success"
+          ],
+          "isUnique": false
+        },
+        "webhook_delivery_attempt_next_retry_idx": {
+          "name": "webhook_delivery_attempt_next_retry_idx",
+          "columns": [
+            "next_retry_at"
+          ],
+          "isUnique": false
+        },
+        "webhook_delivery_attempt_event_endpoint_idx": {
+          "name": "webhook_delivery_attempt_event_endpoint_idx",
+          "columns": [
+            "webhook_event_id",
+            "endpoint_id"
+          ],
+          "isUnique": false
+        },
+        "webhook_delivery_attempt_retry_queue_idx": {
+          "name": "webhook_delivery_attempt_retry_queue_idx",
+          "columns": [
+            "next_retry_at",
+            "success"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "webhook_delivery_attempt_endpoint_id_external_webhook_endpoint_id_fk": {
+          "name": "webhook_delivery_attempt_endpoint_id_external_webhook_endpoint_id_fk",
+          "tableFrom": "webhook_delivery_attempt",
+          "tableTo": "external_webhook_endpoint",
+          "columnsFrom": [
+            "endpoint_id"
           ],
           "columnsTo": [
             "id"

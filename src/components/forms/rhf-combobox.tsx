@@ -3,7 +3,7 @@ import { Check, ChevronsUpDown, Loader2 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useFormContext } from 'react-hook-form';
 
-import { cn } from '@/lib';
+import { cn } from '@/lib/ui/cn';
 import type { FormOptions, GeneralFormProps } from '@/types/general';
 
 import { Button } from '../ui/button';

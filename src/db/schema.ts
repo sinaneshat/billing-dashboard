@@ -8,3 +8,6 @@ export * from './tables/auth';
 
 // Billing tables
 export * from './tables/billing';
+
+// External integration tables
+export * from './tables/external-integrations';

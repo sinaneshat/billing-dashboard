@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { useTranslations } from 'next-intl';
 
 import { Logo } from '@/components/logo';
 import { BRAND } from '@/constants/brand';
@@ -10,6 +11,8 @@ type AuthLayoutProps = {
 };
 
 export default function AuthLayout({ children }: AuthLayoutProps) {
+  const t = useTranslations();
+
   return (
     <div className="relative min-h-svh bg-gradient-to-br from-background via-muted/30 to-background">
       {/* Animated background elements */}
@@ -41,12 +44,10 @@ export default function AuthLayout({ children }: AuthLayoutProps) {
             </Link>
             <div className="flex flex-col items-center gap-1 text-center">
               <h1 className="text-2xl font-semibold tracking-tight text-foreground">
-                Welcome to
-                {' '}
-                {BRAND.name}
+                {t('auth.layout.welcomeTo', { brand: BRAND.name })}
               </h1>
               <p className="text-sm text-muted-foreground">
-                Your billing dashboard
+                {t('auth.layout.subtitle')}
               </p>
             </div>
           </div>
@@ -65,14 +66,13 @@ export default function AuthLayout({ children }: AuthLayoutProps) {
                 href={BRAND.legal.terms}
                 className="transition-colors hover:text-primary underline underline-offset-4"
               >
-                Terms of Service
+                {t('legal.terms.title')}
               </Link>
               <Link
                 href={BRAND.legal.privacy}
                 className="transition-colors hover:text-primary underline underline-offset-4"
-
               >
-                Privacy Policy
+                {t('legal.privacy.title')}
               </Link>
             </div>
             <p className="opacity-70">

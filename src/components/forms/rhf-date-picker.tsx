@@ -5,7 +5,7 @@ import { useTranslations } from 'next-intl';
 import { useMemo } from 'react';
 import { Controller, useFormContext } from 'react-hook-form';
 
-import { cn } from '@/lib';
+import { cn } from '@/lib/ui/cn';
 import type { GeneralFormProps } from '@/types/general';
 
 import { Button } from '../ui/button';

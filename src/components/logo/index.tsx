@@ -5,7 +5,7 @@ import { useTheme } from 'next-themes';
 import { useEffect, useState } from 'react';
 
 import { BRAND } from '@/constants/brand';
-import { cn } from '@/lib';
+import { cn } from '@/lib/ui/cn';
 
 type Props = {
   size?: 'sm' | 'md' | 'lg';
