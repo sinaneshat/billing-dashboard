@@ -35,7 +35,7 @@ export function AuthForm() {
       await authClient.signIn.magicLink({
         email,
         callbackURL: '/dashboard',
-        newUserCallbackURL: '/dashboard/welcome',
+        newUserCallbackURL: '/dashboard',
         errorCallbackURL: '/auth/error',
       });
       setMagicLinkSent(true);
