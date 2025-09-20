@@ -2,6 +2,7 @@
 
 import { AlertTriangle, RefreshCw, Bug, Home } from 'lucide-react';
 import React, { Component, ReactNode } from 'react';
+import { useTranslations } from 'next-intl';
 
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -488,10 +489,30 @@ export function withErrorBoundary<P extends object>(
 
 // Wrapper component that provides translations
 export function ErrorBoundaryWithTranslations(props: Omit<ErrorBoundaryProps, 'translations'>) {
-  // Since this is a component file, we'll need the translations to be passed down
-  // or use a different approach. For now, we'll keep the original class component
-  // and export both versions
-  return <ErrorBoundary {...props} />;
+  const t = useTranslations('errors.generic');
+
+  const translations = {
+    title: t('title'),
+    description: t('description'),
+    sectionTitle: t('sectionTitle'),
+    sectionMessage: t('sectionMessage'),
+    sectionUnavailable: t('sectionUnavailable'),
+    sectionDescription: t('sectionDescription'),
+    componentError: t('componentError'),
+    componentUnavailable: t('componentUnavailable'),
+    pageTitle: t('pageTitle'),
+    pageDescription: t('pageDescription'),
+    copyErrorDetails: t('copyErrorDetails'),
+    errorDetailsCopied: t('errorDetailsCopied'),
+    errorDetailsCopyFailed: t('errorDetailsCopyFailed'),
+    refreshPage: t('refreshPage'),
+    refreshing: t('refreshing'),
+    goHome: t('goHome'),
+    retrying: t('retrying'),
+    retry: t('retry'),
+  };
+
+  return <ErrorBoundary {...props} translations={translations} />;
 }
 
 export default ErrorBoundary;
