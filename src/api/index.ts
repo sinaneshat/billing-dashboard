@@ -259,12 +259,22 @@ app.use('*', bodyLimit({
 // CORS configuration - Use environment variables for dynamic origin configuration
 app.use('*', (c, next) => {
   // Get the current environment's allowed origin from NEXT_PUBLIC_APP_URL
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+  const appUrl = c.env.NEXT_PUBLIC_APP_URL;
+  const webappEnv = c.env.NEXT_PUBLIC_WEBAPP_ENV || 'local';
+  const isDevelopment = webappEnv === 'local' || c.env.NODE_ENV === 'development';
 
-  const allowedOrigins = [
-    'http://localhost:3000', // Always allow local development
-    appUrl, // Current environment's official domain
-  ];
+  // Build allowed origins dynamically based on environment
+  const allowedOrigins: string[] = [];
+
+  // Only allow localhost in development environment
+  if (isDevelopment) {
+    allowedOrigins.push('http://localhost:3000', 'http://127.0.0.1:3000');
+  }
+
+  // Add current environment URL if available and not localhost
+  if (appUrl && !appUrl.includes('localhost') && !appUrl.includes('127.0.0.1')) {
+    allowedOrigins.push(appUrl);
+  }
 
   const middleware = cors({
     origin: (origin) => {
@@ -276,6 +286,8 @@ app.use('*', (c, next) => {
       return allowedOrigins.includes(origin) ? origin : null;
     },
     credentials: true,
+    allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+    allowHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
   });
   return middleware(c, next);
 });
@@ -284,12 +296,22 @@ app.use('*', (c, next) => {
 // Following Hono best practices: exclude public endpoints from CSRF protection
 function csrfMiddleware(c: Context<ApiEnv>, next: Next) {
   // Get the current environment's allowed origin from NEXT_PUBLIC_APP_URL
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+  const appUrl = c.env.NEXT_PUBLIC_APP_URL;
+  const webappEnv = c.env.NEXT_PUBLIC_WEBAPP_ENV || 'local';
+  const isDevelopment = webappEnv === 'local' || c.env.NODE_ENV === 'development';
 
-  const allowedOrigins = [
-    'http://localhost:3000', // Always allow local development
-    appUrl, // Current environment's official domain
-  ];
+  // Build allowed origins dynamically based on environment
+  const allowedOrigins: string[] = [];
+
+  // Only allow localhost in development environment
+  if (isDevelopment) {
+    allowedOrigins.push('http://localhost:3000', 'http://127.0.0.1:3000');
+  }
+
+  // Add current environment URL if available and not localhost
+  if (appUrl && !appUrl.includes('localhost') && !appUrl.includes('127.0.0.1')) {
+    allowedOrigins.push(appUrl);
+  }
 
   const middleware = csrf({
     origin: allowedOrigins,
