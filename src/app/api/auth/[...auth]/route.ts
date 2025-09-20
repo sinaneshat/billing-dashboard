@@ -1,12 +1,5 @@
-import { getAuth } from '@/lib/auth/server';
+import { toNextJsHandler } from 'better-auth/next-js';
 
-// Create handlers that initialize auth at request time
-export async function GET(request: Request) {
-  const auth = await getAuth();
-  return auth.handler(request);
-}
+import { auth } from '@/lib/auth/server';
 
-export async function POST(request: Request) {
-  const auth = await getAuth();
-  return auth.handler(request);
-}
+export const { GET, POST } = toNextJsHandler(auth.handler);

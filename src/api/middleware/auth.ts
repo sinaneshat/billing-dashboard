@@ -4,7 +4,7 @@ import * as HttpStatusCodes from 'stoker/http-status-codes';
 
 import { mapStatusCode } from '@/api/core/http-exceptions';
 import type { ApiEnv } from '@/api/types';
-import { getAuth } from '@/lib/auth/server';
+import { auth } from '@/lib/auth/server';
 
 // Attach session if present; does not enforce authentication
 // Following Better Auth best practices for middleware integration
@@ -12,7 +12,6 @@ export const attachSession = createMiddleware<ApiEnv>(async (c, next) => {
   try {
     // Use Better Auth API to get session from request headers
     // This follows the official Better Auth pattern for server-side session handling
-    const auth = await getAuth();
     const sessionData = await auth.api.getSession({
       headers: c.req.raw.headers,
     });
@@ -43,7 +42,6 @@ export const attachSession = createMiddleware<ApiEnv>(async (c, next) => {
 export const requireSession = createMiddleware<ApiEnv>(async (c, next) => {
   try {
     // Use Better Auth API to validate session from request headers
-    const auth = await getAuth();
     const sessionData = await auth.api.getSession({
       headers: c.req.raw.headers,
     });

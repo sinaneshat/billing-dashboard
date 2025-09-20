@@ -66,7 +66,7 @@
     "lint:file": "eslint --fix --max-warnings 10 --format unix",
     "lint:errors-only": "eslint --format compact | grep -E 'error' | wc -l | xargs",
     "lint:modified": "git diff --name-only --diff-filter=ACM | grep -E '\\.(ts|tsx|js|jsx)$' | xargs -I {} sh -c 'echo \"Checking {}...\" && eslint {} --max-warnings 10'",
-    "check-types": "pnpm run clean && tsc --noEmit --pretty",
+    "check-types": "tsc --noEmit --pretty",
     "generate:icons": "npx @svgr/cli --memo --ref --typescript --prettier-config .prettierrc --out-dir src/icons/component --icon --replace-attr-values -- src/icons/svg --ignore-existing",
     "cf-typegen": "wrangler types --env-interface CloudflareEnv cloudflare-env.d.ts",
     "cf-setup": "echo 'Setting up Cloudflare types...' && pnpm cf-typegen && echo 'Types generated successfully!'",
