@@ -1,11 +1,49 @@
+import { getCloudflareContext } from '@opennextjs/cloudflare';
 import { betterAuth } from 'better-auth';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { nextCookies } from 'better-auth/next-js';
 import { admin, magicLink } from 'better-auth/plugins';
+import { drizzle as drizzleD1 } from 'drizzle-orm/d1';
 
 import { db } from '@/db';
 import * as authSchema from '@/db/tables/auth';
 import { getBaseUrl } from '@/utils/helpers';
+
+/**
+ * Create Better Auth database adapter based on environment
+ */
+function createAuthAdapter() {
+  const isNextDev = process.env.NODE_ENV === 'development' && !process.env.CLOUDFLARE_ENV;
+  const isLocal = process.env.NEXT_PUBLIC_WEBAPP_ENV === 'local';
+
+  // For Next.js development - use local SQLite which supports transactions
+  if (isNextDev || isLocal) {
+    return drizzleAdapter(db, {
+      provider: 'sqlite',
+      schema: authSchema,
+    });
+  }
+
+  // For Cloudflare Workers (production/preview) - use D1 with batch operations
+  try {
+    const { env } = getCloudflareContext();
+    const d1Db = drizzleD1(env.DB, { schema: authSchema });
+
+    return drizzleAdapter(d1Db, {
+      provider: 'sqlite',
+      schema: authSchema,
+      // Disable transactions for D1 compatibility (D1 doesn't support BEGIN/COMMIT)
+      transaction: false,
+    });
+  } catch {
+    // Fallback to regular db proxy
+    return drizzleAdapter(db, {
+      provider: 'sqlite',
+      schema: authSchema,
+      transaction: false,
+    });
+  }
+}
 
 /**
  * Better Auth Configuration - Simple User Authentication
@@ -14,10 +52,7 @@ import { getBaseUrl } from '@/utils/helpers';
 export const auth = betterAuth({
   secret: process.env.BETTER_AUTH_SECRET,
   baseURL: process.env.BETTER_AUTH_URL || `${getBaseUrl()}/api/auth`,
-  database: drizzleAdapter(db, {
-    provider: 'sqlite',
-    schema: authSchema,
-  }),
+  database: createAuthAdapter(),
 
   // Session configuration
   session: {
