@@ -19,54 +19,16 @@ export type GetSubscriptionsRequest = InferRequestType<typeof apiClient.subscrip
 export type GetSubscriptionsResponse = InferResponseType<typeof apiClient.subscriptions.$get>;
 
 // Get Single Subscription
-export type GetSubscriptionRequest = {
-  param: { id: string };
-};
-export type GetSubscriptionResponse = InferResponseType<typeof apiClient.subscriptions.$get>;
+export type GetSubscriptionRequest = InferRequestType<(typeof apiClient.subscriptions)[':id']['$get']>;
+export type GetSubscriptionResponse = InferResponseType<(typeof apiClient.subscriptions)[':id']['$get']>;
 
 // Create Subscription
 export type CreateSubscriptionRequest = InferRequestType<typeof apiClient.subscriptions.$post>;
 export type CreateSubscriptionResponse = InferResponseType<typeof apiClient.subscriptions.$post>;
 
 // Cancel Subscription
-export type CancelSubscriptionRequest = {
-  param: { id: string };
-  json: { reason?: string };
-};
-export type CancelSubscriptionResponse = {
-  success: boolean;
-  data?: { subscriptionId: string; status: 'canceled'; canceledAt: string } | undefined;
-};
-
-// Resubscribe
-export type ResubscribeRequest = {
-  param: { id: string };
-  json: { callbackUrl: string };
-};
-export type ResubscribeResponse = {
-  success: boolean;
-  data?: { subscriptionId: string; paymentUrl: string; authority: string } | undefined;
-};
-
-// Change Plan
-export type ChangePlanRequest = {
-  param: { id: string };
-  json: {
-    newProductId: string;
-    callbackUrl: string;
-    effectiveDate?: 'immediate' | 'next_billing_cycle';
-  };
-};
-export type ChangePlanResponse = {
-  success: boolean;
-  data?: {
-    subscriptionId: string;
-    changeType: 'upgrade' | 'downgrade';
-    prorationAmount?: number;
-    paymentUrl?: string;
-    authority?: string;
-  } | undefined;
-};
+export type CancelSubscriptionRequest = InferRequestType<(typeof apiClient.subscriptions)[':id']['cancel']['$patch']>;
+export type CancelSubscriptionResponse = InferResponseType<(typeof apiClient.subscriptions)[':id']['cancel']['$patch']>;
 
 // ============================================================================
 //  Service Functions
@@ -111,23 +73,4 @@ export async function cancelSubscriptionService(subscriptionId: string, reason?:
     param: { id: subscriptionId },
     json: { reason },
   }));
-}
-
-/**
- * Resubscribe to a canceled subscription
- * All types are inferred from the RPC client
- */
-export async function resubscribeService(subscriptionId: string, callbackUrl: string) {
-  return parseResponse(apiClient.subscriptions[':id'].resubscribe.$post({
-    param: { id: subscriptionId },
-    json: { callbackUrl },
-  }));
-}
-
-/**
- * Change subscription plan (upgrade or downgrade)
- * All types are inferred from the RPC client
- */
-export async function changePlanService(args: ChangePlanRequest) {
-  return parseResponse(apiClient.subscriptions[':id']['change-plan'].$post(args));
 }

@@ -8,6 +8,7 @@ import { createMiddleware } from 'hono/factory';
 import { HTTPException } from 'hono/http-exception';
 import * as HttpStatusCodes from 'stoker/http-status-codes';
 
+import { apiLogger } from '@/api/middleware/hono-logger';
 import type { ApiEnv } from '@/api/types';
 
 export type RateLimitConfig = {
@@ -29,11 +30,6 @@ export const RATE_LIMIT_PRESETS = {
     windowMs: 60 * 60 * 1000, // 1 hour
     maxRequests: 100,
     message: 'Too many upload requests. Please try again later.',
-  },
-  imageUpload: {
-    windowMs: 60 * 60 * 1000, // 1 hour
-    maxRequests: 20,
-    message: 'Image upload limit reached. Please try again later.',
   },
 
   // Read operations
@@ -135,7 +131,12 @@ function defaultKeyGenerator(c: Context<ApiEnv>): string {
 
   // Only log warning if we couldn't get any IP at all
   if (ip === 'fallback') {
-    console.warn('No IP address found for rate limiting, using fallback identifier');
+    apiLogger.warn('No IP address found for rate limiting, using fallback identifier', {
+      logType: 'performance',
+      duration: 0,
+      component: 'rate-limiter',
+      fallbackReason: 'no-ip-headers',
+    });
   }
 
   return `ip:${ip}`;
@@ -152,7 +153,12 @@ function ipKeyGenerator(c: Context<ApiEnv>): string {
 
   // Only log warning if we couldn't get any IP at all
   if (ip === 'fallback') {
-    console.warn('No IP address found for rate limiting, using fallback identifier');
+    apiLogger.warn('No IP address found for rate limiting, using fallback identifier', {
+      logType: 'performance',
+      duration: 0,
+      component: 'rate-limiter',
+      fallbackReason: 'no-ip-headers',
+    });
   }
 
   return `ip:${ip}`;
@@ -352,11 +358,6 @@ export class RateLimiterFactory {
   static createForStorage() {
     return this.createDynamic((c) => {
       const method = c.req.method;
-      const path = c.req.path;
-
-      if (path.includes('/images/')) {
-        return 'imageUpload';
-      }
 
       switch (method) {
         case 'PUT':

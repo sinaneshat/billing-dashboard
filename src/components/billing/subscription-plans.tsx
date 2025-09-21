@@ -12,7 +12,6 @@ import { useCreateSubscriptionMutation } from '@/hooks/mutations/subscriptions';
 import { useDirectDebitContract } from '@/hooks/queries/direct-debit';
 import { useProductsQuery } from '@/hooks/queries/products';
 import { toastManager } from '@/lib/toast/toast-manager';
-import { getEnvironmentVariables } from '@/utils';
 
 /**
  * Subscription Plans Component
@@ -42,13 +41,18 @@ export function SubscriptionPlans() {
   const createSubscription = useCreateSubscriptionMutation();
 
   const handleCreateSubscription = useCallback(async (product: Product) => {
-    const { callbackUrl } = getEnvironmentVariables();
-
     try {
+      if (!directDebitContract.data?.contractId) {
+        toastManager.error(t('subscription.noValidContract'));
+        return;
+      }
+
       const result = await createSubscription.mutateAsync({
         json: {
           productId: product.id,
-          callbackUrl: callbackUrl || `${window.location.origin}/payment/callback`,
+          contractId: directDebitContract.data.contractId,
+          paymentMethod: 'direct-debit-contract' as const,
+          enableAutoRenew: true,
         },
       });
 
@@ -60,7 +64,7 @@ export function SubscriptionPlans() {
     } catch {
       toastManager.error(t('subscription.createFailed'));
     }
-  }, [createSubscription, t]);
+  }, [createSubscription, directDebitContract.data?.contractId, t]);
 
   const handlePlanSelect = useCallback((productId: string) => {
     const product = sortedProducts.find(p => p.id === productId);
@@ -88,6 +92,9 @@ export function SubscriptionPlans() {
   if (isLoading) {
     return (
       <LoadingState
+        variant="card"
+        style="dashed"
+        size="lg"
         title={t('states.loading.products')}
         message={t('states.loading.please_wait')}
       />

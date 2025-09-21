@@ -32,7 +32,6 @@ export const DEFAULT_SIZE_LIMITS = {
 
   // File upload limits (stricter for security)
   fileUpload: 50 * 1024 * 1024, // 50MB for file uploads
-  imageUpload: 10 * 1024 * 1024, // 10MB for image uploads
   documentUpload: 25 * 1024 * 1024, // 25MB for document uploads
 
   // JSON payload limits (stricter for API endpoints)
@@ -51,7 +50,6 @@ export type SizeLimitConfig = {
   responseBody?: number;
   responseHeaders?: number;
   fileUpload?: number;
-  imageUpload?: number;
   documentUpload?: number;
   jsonPayload?: number;
   formData?: number;
@@ -104,7 +102,7 @@ function getContentCategory(contentType: string): keyof typeof DEFAULT_SIZE_LIMI
   if (type.includes('application/x-www-form-urlencoded'))
     return 'formData';
   if (type.startsWith('image/'))
-    return 'imageUpload';
+    return 'fileUpload';
   if (type.includes('application/pdf') || type.includes('application/msword')
     || type.includes('application/vnd.openxmlformats')) {
     return 'documentUpload';

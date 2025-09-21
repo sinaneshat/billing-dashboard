@@ -50,7 +50,7 @@ export const paymentMethod = sqliteTable('payment_method', {
   contractType: text('contract_type', {
     enum: ['direct_debit_contract', 'pending_contract'],
   }).notNull().default('pending_contract'),
-  contractSignature: text('contract_signature').unique(), // ZarinPal contract signature
+  contractSignature: text('contract_signature', { length: 200 }).unique(), // ZarinPal contract signature (exactly 200 chars)
   contractStatus: text('contract_status', {
     enum: ['pending_signature', 'active', 'cancelled_by_user', 'verification_failed', 'expired'],
   }).notNull().default('pending_signature'),
@@ -59,10 +59,13 @@ export const paymentMethod = sqliteTable('payment_method', {
   // Contract details
   contractDisplayName: text('contract_display_name').notNull().default('Direct Debit Contract'),
   contractMobile: text('contract_mobile'), // Mobile number used for contract
+  contractSsn: text('contract_ssn'), // Iranian national ID (SSN)
   contractDurationDays: integer('contract_duration_days').default(365),
   maxDailyAmount: integer('max_daily_amount'),
   maxDailyCount: integer('max_daily_count'),
   maxMonthlyCount: integer('max_monthly_count'),
+  maxTransactionAmount: integer('max_transaction_amount'), // Maximum per-transaction amount (ZarinPal max_amount)
+  bankCode: text('bank_code'), // Bank code for contract signing URL
 
   // Status fields
   isPrimary: integer('is_primary', { mode: 'boolean' }).default(false),

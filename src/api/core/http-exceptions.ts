@@ -22,6 +22,8 @@ import type { ErrorCode, ErrorSeverity } from '@/api/common/error-handling';
 import { ERROR_CODES, ERROR_SEVERITY } from '@/api/common/error-handling';
 import type { ErrorContext } from '@/api/core';
 
+import { apiLogger } from '../middleware/hono-logger';
+
 // ============================================================================
 // TYPE-SAFE STATUS CODE MAPPING
 // ============================================================================
@@ -87,8 +89,15 @@ function mapStatusCode(stokerStatus: number): ContentfulStatusCode {
     return stokerStatus as ContentfulStatusCode;
   }
 
-  // TODO: Add structured logging when logger context is available
-  // Unmapped status code: falling back to 500 for safety
+  // Log unmapped status code for debugging with structured logging
+
+  apiLogger.warn('Unmapped HTTP status code detected, falling back to 500', {
+    logType: 'api',
+    method: 'GET',
+    path: '/status-mapping',
+    originalStatus: stokerStatus,
+    fallbackStatus: 500,
+  });
 
   // Default fallback for unmapped status codes
   return 500 as const; // INTERNAL_SERVER_ERROR

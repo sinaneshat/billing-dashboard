@@ -3,7 +3,7 @@
 import { useTranslations } from 'next-intl';
 import { memo } from 'react';
 
-import { EmptyCard, LoadingCard } from '@/components/dashboard/dashboard-cards';
+import { EmptyState, LoadingState } from '@/components/dashboard/dashboard-states';
 import { StaggerContainer, StaggerItem } from '@/components/ui/motion';
 
 type BillingCardContainerProps<T> = {
@@ -12,7 +12,6 @@ type BillingCardContainerProps<T> = {
   emptyStateTitle?: string;
   emptyStateDescription?: string;
   className?: string;
-  loadingCardCount?: number;
   children: (item: T, index: number) => React.ReactNode;
 };
 
@@ -22,29 +21,30 @@ function BillingCardContainerImpl<T>({
   emptyStateTitle,
   emptyStateDescription,
   className,
-  loadingCardCount = 3,
   children,
 }: BillingCardContainerProps<T>) {
   const t = useTranslations();
   // Loading state
   if (isLoading) {
     return (
-      <StaggerContainer className={className}>
-        {Array.from({ length: loadingCardCount }, (_, index) => (
-          <StaggerItem key={`loading-card-${index}`} delay={index * 0.1}>
-            <LoadingCard />
-          </StaggerItem>
-        ))}
-      </StaggerContainer>
+      <LoadingState
+        variant="card"
+        style="dashed"
+        size="lg"
+        className={className}
+      />
     );
   }
 
   // Empty state
   if (items.length === 0) {
     return (
-      <EmptyCard
+      <EmptyState
         title={emptyStateTitle || t('states.empty.noItemsFound')}
         description={emptyStateDescription || t('states.empty.noItemsDescription')}
+        variant="general"
+        size="lg"
+        style="dashed"
         className={className}
       />
     );

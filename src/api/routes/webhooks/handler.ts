@@ -10,22 +10,19 @@ import crypto from 'node:crypto';
 
 import type { RouteHandler } from '@hono/zod-openapi';
 import { getCloudflareContext } from '@opennextjs/cloudflare';
-import { and, desc, eq } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { z } from 'zod';
 
 import { createError } from '@/api/common/error-handling';
 import type { FetchConfig } from '@/api/common/fetch-utilities';
 import { postJSON } from '@/api/common/fetch-utilities';
-import { createHandler, createHandlerWithTransaction, Responses } from '@/api/core';
+import { createHandlerWithTransaction, Responses } from '@/api/core';
 import { apiLogger } from '@/api/middleware/hono-logger';
 import { ZarinPalService } from '@/api/services/zarinpal';
 import type { ApiEnv } from '@/api/types';
-import { getDbAsync } from '@/db';
 import { payment, product, subscription, webhookEvent } from '@/db/tables/billing';
 
 import type {
-  getWebhookEventsRoute,
-  testWebhookRoute,
   zarinPalWebhookRoute,
 } from './route';
 
@@ -36,6 +33,7 @@ import type {
 /**
  * Discriminated union for webhook events (Context7 Pattern)
  * Maximum type safety replacing Record<string, unknown>
+ * Includes all Stripe event types needed for complete compatibility
  */
 const StripeWebhookEventSchema = z.discriminatedUnion('type', [
   // Payment Intent Succeeded - Matches Stripe format exactly
@@ -89,25 +87,7 @@ const StripeWebhookEventSchema = z.discriminatedUnion('type', [
     livemode: z.boolean(),
     api_version: z.string(),
   }),
-  z.object({
-    type: z.literal('customer.subscription.updated'),
-    id: z.string(),
-    object: z.literal('event'),
-    created: z.number().int().positive(),
-    data: z.object({
-      object: z.object({
-        id: z.string(),
-        object: z.literal('subscription'),
-        customer: z.string(),
-        status: z.enum(['active', 'canceled', 'incomplete', 'incomplete_expired', 'past_due', 'trialing', 'unpaid', 'paused']),
-        created: z.number().int().positive(),
-        metadata: z.record(z.string(), z.string()),
-      }),
-    }),
-    livemode: z.boolean(),
-    api_version: z.string(),
-  }),
-  // Customer Events
+  // Customer Subscription Created
   z.object({
     type: z.literal('customer.subscription.created'),
     id: z.string(),
@@ -126,6 +106,146 @@ const StripeWebhookEventSchema = z.discriminatedUnion('type', [
     livemode: z.boolean(),
     api_version: z.string(),
   }),
+  // Customer Subscription Updated
+  z.object({
+    type: z.literal('customer.subscription.updated'),
+    id: z.string(),
+    object: z.literal('event'),
+    created: z.number().int().positive(),
+    data: z.object({
+      object: z.object({
+        id: z.string(),
+        object: z.literal('subscription'),
+        customer: z.string(),
+        status: z.enum(['active', 'canceled', 'incomplete', 'incomplete_expired', 'past_due', 'trialing', 'unpaid', 'paused']),
+        created: z.number().int().positive(),
+        metadata: z.record(z.string(), z.string()),
+      }),
+    }),
+    livemode: z.boolean(),
+    api_version: z.string(),
+  }),
+  // Customer Subscription Deleted
+  z.object({
+    type: z.literal('customer.subscription.deleted'),
+    id: z.string(),
+    object: z.literal('event'),
+    created: z.number().int().positive(),
+    data: z.object({
+      object: z.object({
+        id: z.string(),
+        object: z.literal('subscription'),
+        customer: z.string(),
+        status: z.literal('canceled'),
+        created: z.number().int().positive(),
+        canceled_at: z.number().int().positive(),
+        metadata: z.record(z.string(), z.string()),
+      }),
+    }),
+    livemode: z.boolean(),
+    api_version: z.string(),
+  }),
+  // Checkout Session Completed
+  z.object({
+    type: z.literal('checkout.session.completed'),
+    id: z.string(),
+    object: z.literal('event'),
+    created: z.number().int().positive(),
+    data: z.object({
+      object: z.object({
+        id: z.string(),
+        object: z.literal('checkout.session'),
+        customer: z.string(),
+        subscription: z.string(),
+        client_reference_id: z.string(),
+        line_items: z.object({
+          data: z.array(z.object({
+            price: z.object({
+              id: z.string(),
+            }),
+          })),
+        }),
+        metadata: z.record(z.string(), z.string()),
+      }),
+    }),
+    livemode: z.boolean(),
+    api_version: z.string(),
+  }),
+  // Invoice Payment Succeeded
+  z.object({
+    type: z.literal('invoice.payment_succeeded'),
+    id: z.string(),
+    object: z.literal('event'),
+    created: z.number().int().positive(),
+    data: z.object({
+      object: z.object({
+        id: z.string(),
+        object: z.literal('invoice'),
+        customer: z.string(),
+        subscription: z.string(),
+        amount_paid: z.number().int().positive(),
+        currency: z.literal('irr'),
+        status: z.literal('paid'),
+        paid: z.literal(true),
+        created: z.number().int().positive(),
+        metadata: z.record(z.string(), z.string()),
+      }),
+    }),
+    livemode: z.boolean(),
+    api_version: z.string(),
+  }),
+  // Invoice Payment Failed
+  z.object({
+    type: z.literal('invoice.payment_failed'),
+    id: z.string(),
+    object: z.literal('event'),
+    created: z.number().int().positive(),
+    data: z.object({
+      object: z.object({
+        id: z.string(),
+        object: z.literal('invoice'),
+        customer: z.string(),
+        subscription: z.string(),
+        amount_due: z.number().int().positive(),
+        currency: z.literal('irr'),
+        status: z.literal('open'),
+        paid: z.literal(false),
+        payment_intent: z.object({
+          id: z.string(),
+          last_payment_error: z.object({
+            code: z.string(),
+            message: z.string(),
+            type: z.string(),
+          }).optional(),
+        }),
+        created: z.number().int().positive(),
+        metadata: z.record(z.string(), z.string()),
+      }),
+    }),
+    livemode: z.boolean(),
+    api_version: z.string(),
+  }),
+  // Setup Intent Succeeded
+  z.object({
+    type: z.literal('setup_intent.succeeded'),
+    id: z.string(),
+    object: z.literal('event'),
+    created: z.number().int().positive(),
+    data: z.object({
+      object: z.object({
+        id: z.string(),
+        object: z.literal('setup_intent'),
+        customer: z.string(),
+        payment_method: z.string(),
+        status: z.literal('succeeded'),
+        usage: z.literal('off_session'),
+        created: z.number().int().positive(),
+        metadata: z.record(z.string(), z.string()),
+      }),
+    }),
+    livemode: z.boolean(),
+    api_version: z.string(),
+  }),
 ]);
 
 type WebhookEvent = z.infer<typeof StripeWebhookEventSchema>;
@@ -137,7 +257,7 @@ type WebhookEvent = z.infer<typeof StripeWebhookEventSchema>;
 /**
  * Type-safe webhook event builders for common billing events
  */
-class WebhookEventBuilders {
+export class WebhookEventBuilders {
   static generateEventId(): string {
     const prefix = 'evt_';
     const timestamp = Date.now().toString(36);
@@ -285,6 +405,189 @@ class WebhookEventBuilders {
   }
 
   /**
+   * Create customer subscription deleted event - for cancellations
+   */
+  static createCustomerSubscriptionDeletedEvent(subscriptionId: string, customerId: string, metadata?: Record<string, string>): WebhookEvent {
+    const event = {
+      id: this.generateEventId(),
+      object: 'event' as const,
+      type: 'customer.subscription.deleted' as const,
+      created: this.toUnixTimestamp(new Date()),
+      data: {
+        object: {
+          id: subscriptionId,
+          object: 'subscription' as const,
+          customer: customerId,
+          status: 'canceled' as const,
+          created: this.toUnixTimestamp(new Date()),
+          canceled_at: this.toUnixTimestamp(new Date()),
+          metadata: metadata || {},
+        },
+      },
+      livemode: process.env.NODE_ENV === 'production',
+      api_version: '2024-01-01',
+    };
+
+    return event as WebhookEvent;
+  }
+
+  /**
+   * Create checkout session completed event - for initial subscriptions
+   */
+  static createCheckoutSessionCompletedEvent(
+    sessionId: string,
+    customerId: string,
+    subscriptionId: string,
+    priceId: string,
+    clientReferenceId: string,
+    metadata?: Record<string, string>,
+  ): WebhookEvent {
+    const event = {
+      id: this.generateEventId(),
+      object: 'event' as const,
+      type: 'checkout.session.completed' as const,
+      created: this.toUnixTimestamp(new Date()),
+      data: {
+        object: {
+          id: sessionId,
+          object: 'checkout.session' as const,
+          customer: customerId,
+          subscription: subscriptionId,
+          client_reference_id: clientReferenceId,
+          line_items: {
+            data: [{
+              price: {
+                id: priceId,
+              },
+            }],
+          },
+          metadata: metadata || {},
+        },
+      },
+      livemode: process.env.NODE_ENV === 'production',
+      api_version: '2024-01-01',
+    };
+
+    return event as WebhookEvent;
+  }
+
+  /**
+   * Create invoice payment succeeded event - for recurring payments
+   */
+  static createInvoicePaymentSucceededEvent(
+    invoiceId: string,
+    customerId: string,
+    subscriptionId: string,
+    amount: number,
+    metadata?: Record<string, string>,
+  ): WebhookEvent {
+    const event = {
+      id: this.generateEventId(),
+      object: 'event' as const,
+      type: 'invoice.payment_succeeded' as const,
+      created: this.toUnixTimestamp(new Date()),
+      data: {
+        object: {
+          id: invoiceId,
+          object: 'invoice' as const,
+          customer: customerId,
+          subscription: subscriptionId,
+          amount_paid: Math.round(amount),
+          currency: 'irr' as const,
+          status: 'paid' as const,
+          paid: true,
+          created: this.toUnixTimestamp(new Date()),
+          metadata: metadata || {},
+        },
+      },
+      livemode: process.env.NODE_ENV === 'production',
+      api_version: '2024-01-01',
+    };
+
+    return event as WebhookEvent;
+  }
+
+  /**
+   * Create invoice payment failed event - for failed recurring payments
+   */
+  static createInvoicePaymentFailedEvent(
+    invoiceId: string,
+    customerId: string,
+    subscriptionId: string,
+    amount: number,
+    errorMessage?: string,
+    metadata?: Record<string, string>,
+  ): WebhookEvent {
+    const event = {
+      id: this.generateEventId(),
+      object: 'event' as const,
+      type: 'invoice.payment_failed' as const,
+      created: this.toUnixTimestamp(new Date()),
+      data: {
+        object: {
+          id: invoiceId,
+          object: 'invoice' as const,
+          customer: customerId,
+          subscription: subscriptionId,
+          amount_due: Math.round(amount),
+          currency: 'irr' as const,
+          status: 'open' as const,
+          paid: false,
+          payment_intent: {
+            id: `pi_${crypto.randomUUID().replace(/-/g, '')}`,
+            last_payment_error: errorMessage
+              ? {
+                  code: 'card_declined',
+                  message: errorMessage,
+                  type: 'card_error',
+                }
+              : undefined,
+          },
+          created: this.toUnixTimestamp(new Date()),
+          metadata: metadata || {},
+        },
+      },
+      livemode: process.env.NODE_ENV === 'production',
+      api_version: '2024-01-01',
+    };
+
+    return event as WebhookEvent;
+  }
+
+  /**
+   * Create setup intent succeeded event - for payment method setup
+   */
+  static createSetupIntentSucceededEvent(
+    setupIntentId: string,
+    customerId: string,
+    paymentMethodId: string,
+    metadata?: Record<string, string>,
+  ): WebhookEvent {
+    const event = {
+      id: this.generateEventId(),
+      object: 'event' as const,
+      type: 'setup_intent.succeeded' as const,
+      created: this.toUnixTimestamp(new Date()),
+      data: {
+        object: {
+          id: setupIntentId,
+          object: 'setup_intent' as const,
+          customer: customerId,
+          payment_method: paymentMethodId,
+          status: 'succeeded' as const,
+          usage: 'off_session' as const,
+          created: this.toUnixTimestamp(new Date()),
+          metadata: metadata || {},
+        },
+      },
+      livemode: process.env.NODE_ENV === 'production',
+      api_version: '2024-01-01',
+    };
+
+    return event as WebhookEvent;
+  }
+
+  /**
    * Generate virtual Stripe customer ID for compatibility
    */
   static generateVirtualStripeCustomerId(billingUserId: string): string {
@@ -302,7 +605,7 @@ class WebhookEventBuilders {
  * Roundtable Webhook Forwarder
  * Handles forwarding billing events to the Roundtable application
  */
-class RoundtableWebhookForwarder {
+export class RoundtableWebhookForwarder {
   private static getRoundtableWebhookUrl(): string | null {
     try {
       const { env } = getCloudflareContext();
@@ -872,121 +1175,6 @@ export const zarinPalWebhookHandler: RouteHandler<typeof zarinPalWebhookRoute, A
       eventId,
       processed,
       webhook_events_dispatched: processed,
-    });
-  },
-);
-
-/**
- * Get webhook events handler - Refactored
- * Now uses unified createHandler pattern
- */
-export const getWebhookEventsHandler: RouteHandler<typeof getWebhookEventsRoute, ApiEnv> = createHandler(
-  {
-    auth: 'session', // Admin access required
-    validateQuery: z.object({
-      source: z.string().optional(),
-      processed: z.enum(['true', 'false']).optional(),
-      limit: z.coerce.number().min(1).max(100).default(50),
-      offset: z.coerce.number().min(0).default(0),
-    }),
-    operationName: 'getWebhookEvents',
-  },
-  async (c) => {
-    const { source, processed, limit, offset } = c.validated.query;
-    const db = await getDbAsync();
-
-    c.logger.info('Fetching webhook events', {
-      logType: 'operation',
-      operationName: 'getWebhookEvents',
-      resource: `events[${limit}]`,
-    });
-
-    const whereConditions = [];
-    if (source) {
-      whereConditions.push(eq(webhookEvent.source, source));
-    }
-    if (processed !== undefined) {
-      whereConditions.push(eq(webhookEvent.processed, processed === 'true'));
-    }
-
-    const events = await db
-      .select()
-      .from(webhookEvent)
-      .where(whereConditions.length > 0 ? and(...whereConditions) : undefined)
-      .orderBy(desc(webhookEvent.createdAt))
-      .limit(limit)
-      .offset(offset);
-
-    const transformedEvents = events.map(event => ({
-      id: event.id,
-      source: event.source,
-      eventType: event.eventType,
-      paymentId: event.paymentId,
-      processed: event.processed,
-      processedAt: event.processedAt ? new Date(event.processedAt).toISOString() : null,
-      forwardedToExternal: event.forwardedToExternal ?? false,
-      forwardedAt: event.forwardedAt ? new Date(event.forwardedAt).toISOString() : null,
-      externalWebhookUrl: event.externalWebhookUrl,
-      createdAt: new Date(event.createdAt).toISOString(),
-    }));
-
-    return Responses.ok(c, transformedEvents);
-  },
-);
-
-/**
- * Test webhook handler - Refactored
- * Now uses unified createHandler pattern
- */
-export const testWebhookHandler: RouteHandler<typeof testWebhookRoute, ApiEnv> = createHandler(
-  {
-    auth: 'session', // Admin access required for testing
-    validateBody: z.object({
-      url: z.string().url(),
-      payload: z.record(z.string(), z.unknown()).optional(),
-    }),
-    operationName: 'testWebhook',
-  },
-  async (c) => {
-    const { url, payload } = c.validated.body;
-
-    c.logger.info('Testing webhook delivery', {
-      logType: 'operation',
-      operationName: 'testWebhook',
-      resource: url,
-    });
-
-    const testPayload = payload || {
-      test: true,
-      timestamp: new Date().toISOString(),
-      message: 'Test webhook from billing dashboard',
-    };
-
-    const fetchConfig: FetchConfig = {
-      timeoutMs: 10000,
-      maxRetries: 1,
-      correlationId: crypto.randomUUID(),
-    };
-
-    const startTime = Date.now();
-    const fetchResult = await postJSON(url, testPayload, fetchConfig, {
-      'X-Webhook-Source': 'billing-dashboard-test',
-      'X-Test-Webhook': 'true',
-    });
-    const responseTime = Date.now() - startTime;
-
-    const success = fetchResult.success;
-    let error: string | undefined;
-
-    if (!success) {
-      error = fetchResult.error || 'Unknown error';
-    }
-
-    return Responses.ok(c, {
-      success,
-      statusCode: fetchResult.response?.status || 0,
-      responseTime,
-      error,
     });
   },
 );

@@ -10,8 +10,9 @@ import { getPaymentsService } from '@/services/api/payments';
  * AUTHENTICATION FIX: Only fetch when user is authenticated to prevent 401 errors
  */
 export function usePaymentsQuery() {
-  const { data: session } = useSession();
-  const isAuthenticated = !!session?.user;
+  const { data: session, isPending } = useSession();
+  // More robust authentication check - ensure session is loaded and user exists
+  const isAuthenticated = !isPending && !!session?.user?.id;
 
   return useQuery({
     queryKey: queryKeys.payments.list, // CRITICAL FIX: Static array like official examples
@@ -33,7 +34,7 @@ export function usePaymentsQuery() {
     },
     retryDelay: attemptIndex => Math.min(attemptIndex > 1 ? 2 ** attemptIndex * 1000 : 1000, 30 * 1000),
     throwOnError: false, // Handle errors in component state
-    // AUTHENTICATION FIX: Only fetch when authenticated to prevent 401 errors during app initialization
+    // AUTHENTICATION FIX: Only fetch when session is fully loaded and authenticated
     enabled: isAuthenticated,
   });
 }

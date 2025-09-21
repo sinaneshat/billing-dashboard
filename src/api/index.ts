@@ -8,7 +8,6 @@
  * Never use createRoute directly in route handlers - always use OpenAPIHono apps.
  */
 
-import type { RouteHandler } from '@hono/zod-openapi';
 import { Scalar } from '@scalar/hono-api-reference';
 import { createMarkdownFromOpenApi } from '@scalar/openapi-to-markdown';
 import type { Context, Next } from 'hono';
@@ -27,12 +26,6 @@ import { trimTrailingSlash } from 'hono/trailing-slash';
 import notFound from 'stoker/middlewares/not-found';
 import onError from 'stoker/middlewares/on-error';
 
-import { getDbAsync } from '@/db';
-
-// ============================================================================
-// HEALTH CHECK HANDLERS
-// ============================================================================
-import { createHandler, Responses } from './core';
 import { createOpenApiApp } from './factory';
 import { attachSession, requireSession } from './middleware';
 // Enhanced middleware for optimized performance
@@ -42,191 +35,45 @@ import { RateLimiterFactory } from './middleware/rate-limiter-factory';
 // Import routes and handlers directly for proper RPC type inference
 import { secureMeHandler } from './routes/auth/handler';
 import { secureMeRoute } from './routes/auth/route';
+// Payment methods routes - Consolidated 3-endpoint direct debit flow
 import {
-  deleteImageHandler,
-  getImageMetadataHandler,
-  getImagesHandler,
-  uploadCompanyImageHandler,
-  uploadUserAvatarHandler,
-} from './routes/images/handler';
-import {
-  deleteImageRoute,
-  getImageMetadataRoute,
-  getImagesRoute,
-  uploadCompanyImageRoute,
-  uploadUserAvatarRoute,
-} from './routes/images/route';
-// Contract status route
-import { getContractStatusHandler } from './routes/payment-methods/contract-status/handler';
-import { getContractStatusRoute } from './routes/payment-methods/contract-status/route';
-// Direct debit routes (ZarinPal Payman API) - Enhanced with performance optimizations
-import {
-  cancelDirectDebitContractHandler,
-  directDebitCallbackHandler,
-  executeDirectDebitPaymentHandler,
-  getBankListHandler,
-  initiateDirectDebitContractHandler,
-  verifyDirectDebitContractHandler,
-} from './routes/payment-methods/direct-debit/handler';
-import {
-  cancelDirectDebitContractRoute,
-  directDebitCallbackRoute,
-  executeDirectDebitPaymentRoute,
-  getBankListRoute,
-  initiateDirectDebitContractRoute,
-  verifyDirectDebitContractRoute,
-} from './routes/payment-methods/direct-debit/route';
-import {
-  createPaymentMethodHandler,
-  deletePaymentMethodHandler,
+  cancelContractHandler,
+  createContractHandler,
   getPaymentMethodsHandler,
-  setDefaultPaymentMethodHandler,
+  verifyContractHandler,
 } from './routes/payment-methods/handler';
 import {
-  createPaymentMethodRoute,
-  deletePaymentMethodRoute,
+  cancelContractRoute,
+  createContractRoute,
   getPaymentMethodsRoute,
-  setDefaultPaymentMethodRoute,
+  verifyContractRoute,
 } from './routes/payment-methods/route';
-// Contract signing routes
-import {
-  generateSigningUrlHandler,
-  getContractSigningInfoHandler,
-} from './routes/payment-methods/sign/handler';
-import {
-  generateSigningUrlRoute,
-  getContractSigningInfoRoute,
-} from './routes/payment-methods/sign/route';
 // Payment routes including callback and history
-import { getPaymentsHandler, paymentCallbackHandler } from './routes/payments/handler';
-import { getPaymentsRoute, paymentCallbackRoute } from './routes/payments/route';
+import { getPaymentsHandler } from './routes/payments/handler';
+import { getPaymentsRoute } from './routes/payments/route';
 import { getProductsHandler } from './routes/products/handler';
 import { getProductsRoute } from './routes/products/route';
 // Billing routes - Enhanced with analytics and optimizations
 import {
   cancelSubscriptionHandler,
-  changePlanHandler,
   createSubscriptionHandler,
   getSubscriptionHandler,
   getSubscriptionsHandler,
-  resubscribeHandler,
 } from './routes/subscriptions/handler';
 import {
   cancelSubscriptionRoute,
-  changePlanRoute,
   createSubscriptionRoute,
   getSubscriptionRoute,
   getSubscriptionsRoute,
-  resubscribeRoute,
 } from './routes/subscriptions/route';
-import { detailedHealthRoute, healthRoute } from './routes/system/route';
 // Enhanced webhook handlers with intelligent retry and correlation
 import {
-  getWebhookEventsHandler,
-  testWebhookHandler,
   zarinPalWebhookHandler,
 } from './routes/webhooks/handler';
 import {
-  getWebhookEventsRoute,
-  testWebhookRoute,
   zarinPalWebhookRoute,
 } from './routes/webhooks/route';
 import type { ApiEnv } from './types';
-
-/**
- * Basic health check handler
- */
-export const healthHandler: RouteHandler<typeof healthRoute, ApiEnv> = createHandler(
-  {
-    auth: 'public',
-    operationName: 'healthCheck',
-  },
-  async (c) => {
-    const healthData = {
-      ok: true,
-      status: 'healthy',
-      timestamp: new Date().toISOString(),
-    };
-
-    return Responses.ok(c, healthData);
-  },
-);
-
-/**
- * Detailed health check handler with dependency checks
- */
-export const detailedHealthHandler: RouteHandler<typeof detailedHealthRoute, ApiEnv> = createHandler(
-  {
-    auth: 'public',
-    operationName: 'detailedHealthCheck',
-  },
-  async (c) => {
-    const startTime = Date.now();
-    const dependencies: Record<string, { status: 'healthy' | 'degraded' | 'unhealthy'; message: string; duration?: number }> = {};
-
-    // Check database connectivity
-    try {
-      const dbStart = Date.now();
-      await getDbAsync();
-      dependencies.database = {
-        status: 'healthy',
-        message: 'Database connection successful',
-        duration: Date.now() - dbStart,
-      };
-    } catch (error) {
-      dependencies.database = {
-        status: 'unhealthy',
-        message: `Database connection failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
-        duration: Date.now() - startTime,
-      };
-    }
-
-    // Check environment configuration
-    const requiredEnvVars = ['BETTER_AUTH_SECRET'] as const;
-    const missingVars = requiredEnvVars.filter(varName => !c.env[varName as keyof typeof c.env]);
-
-    // Check for database binding (D1 database)
-    const dbMissing = !c.env.DB;
-    const allMissingVars = [...missingVars, ...(dbMissing ? ['DB'] : [])];
-
-    dependencies.environment = {
-      status: allMissingVars.length === 0 ? 'healthy' : 'degraded',
-      message: allMissingVars.length === 0
-        ? 'Environment configuration is valid'
-        : `Missing environment variables: ${allMissingVars.join(', ')}`,
-    };
-
-    // Calculate summary
-    const healthyCount = Object.values(dependencies).filter(dep => dep.status === 'healthy').length;
-    const degradedCount = Object.values(dependencies).filter(dep => dep.status === 'degraded').length;
-    const unhealthyCount = Object.values(dependencies).filter(dep => dep.status === 'unhealthy').length;
-    const total = Object.keys(dependencies).length;
-
-    const overallStatus = unhealthyCount > 0 ? 'unhealthy' : degradedCount > 0 ? 'degraded' : 'healthy';
-
-    const healthData = {
-      ok: overallStatus === 'healthy',
-      status: overallStatus,
-      timestamp: new Date().toISOString(),
-      duration: Date.now() - startTime,
-      env: {
-        runtime: 'cloudflare-workers',
-        version: 'workers-runtime',
-        nodeEnv: c.env.NODE_ENV || 'development',
-      },
-      dependencies,
-      summary: {
-        total,
-        healthy: healthyCount,
-        degraded: degradedCount,
-        unhealthy: unhealthyCount,
-      },
-    };
-
-    const statusCode = overallStatus === 'healthy' ? 200 : 503;
-    return c.json({ success: true, data: healthData, meta: { requestId: c.get('requestId'), timestamp: new Date().toISOString() } }, statusCode);
-  },
-);
 
 // ============================================================================
 // Step 1: Create the main OpenAPIHono app with defaultHook (following docs)
@@ -350,7 +197,6 @@ app.notFound(notFound);
 // Apply CSRF protection and authentication to protected routes
 // Following Hono best practices: apply CSRF only to authenticated routes
 app.use('/auth/me', csrfMiddleware, requireSession);
-app.use('/images/*', csrfMiddleware, requireSession);
 // Subscriptions require authentication and CSRF protection
 app.use('/subscriptions/*', csrfMiddleware, requireSession);
 // Payment methods require authentication and CSRF protection
@@ -360,9 +206,6 @@ app.use('/webhooks/test', csrfMiddleware, requireSession);
 
 // Register all routes directly on the app
 const appRoutes = app
-  // System routes (health checks)
-  .openapi(healthRoute, healthHandler)
-  .openapi(detailedHealthRoute, detailedHealthHandler)
   // Auth routes
   .openapi(secureMeRoute, secureMeHandler)
   // Products routes
@@ -372,37 +215,16 @@ const appRoutes = app
   .openapi(getSubscriptionRoute, getSubscriptionHandler)
   .openapi(createSubscriptionRoute, createSubscriptionHandler)
   .openapi(cancelSubscriptionRoute, cancelSubscriptionHandler)
-  .openapi(resubscribeRoute, resubscribeHandler)
-  .openapi(changePlanRoute, changePlanHandler)
-  // Payment methods routes
+  // Payment methods routes - Consolidated 3-endpoint direct debit flow
   .openapi(getPaymentMethodsRoute, getPaymentMethodsHandler)
-  .openapi(createPaymentMethodRoute, createPaymentMethodHandler)
-  .openapi(deletePaymentMethodRoute, deletePaymentMethodHandler)
-  .openapi(setDefaultPaymentMethodRoute, setDefaultPaymentMethodHandler)
-  .openapi(getContractStatusRoute, getContractStatusHandler)
-  // Contract signing routes
-  .openapi(getContractSigningInfoRoute, getContractSigningInfoHandler)
-  .openapi(generateSigningUrlRoute, generateSigningUrlHandler)
+  // Consolidated direct debit contract routes (3 endpoints)
+  .openapi(createContractRoute, createContractHandler)
+  .openapi(verifyContractRoute, verifyContractHandler)
+  .openapi(cancelContractRoute, cancelContractHandler)
   // Payment routes
   .openapi(getPaymentsRoute, getPaymentsHandler)
-  .openapi(paymentCallbackRoute, paymentCallbackHandler)
-  // Direct debit contract routes (ZarinPal Payman API)
-  .openapi(initiateDirectDebitContractRoute, initiateDirectDebitContractHandler)
-  .openapi(verifyDirectDebitContractRoute, verifyDirectDebitContractHandler)
-  .openapi(getBankListRoute, getBankListHandler)
-  .openapi(executeDirectDebitPaymentRoute, executeDirectDebitPaymentHandler)
-  .openapi(cancelDirectDebitContractRoute, cancelDirectDebitContractHandler)
-  .openapi(directDebitCallbackRoute, directDebitCallbackHandler)
   // Webhooks routes
   .openapi(zarinPalWebhookRoute, zarinPalWebhookHandler)
-  .openapi(getWebhookEventsRoute, getWebhookEventsHandler)
-  .openapi(testWebhookRoute, testWebhookHandler)
-  // Images routes
-  .openapi(uploadUserAvatarRoute, uploadUserAvatarHandler)
-  .openapi(uploadCompanyImageRoute, uploadCompanyImageHandler)
-  .openapi(getImagesRoute, getImagesHandler)
-  .openapi(getImageMetadataRoute, getImageMetadataHandler)
-  .openapi(deleteImageRoute, deleteImageHandler)
 ;
 
 // ============================================================================

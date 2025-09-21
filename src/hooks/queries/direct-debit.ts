@@ -3,7 +3,7 @@ import { useTranslations } from 'next-intl';
 
 import { queryKeys } from '@/lib/data/query-keys';
 import { logError } from '@/lib/utils/safe-logger';
-import { getContractStatusService } from '@/services/api/payment-methods';
+import { getPaymentMethodsService } from '@/services/api/payment-methods';
 
 // All types are now inferred from the backend API following established patterns
 
@@ -21,10 +21,10 @@ export function useDirectDebitContract() {
     queryKey: queryKeys.directDebit.contractStatus,
     queryFn: async () => {
       try {
-        const result = await getContractStatusService();
+        const result = await getPaymentMethodsService();
 
         if (!result.success) {
-          logError('Failed to get contract status', { error: result });
+          logError('Failed to get payment methods', { error: result });
           return {
             status: 'no_contract' as const,
             canMakePayments: false,
@@ -33,7 +33,31 @@ export function useDirectDebitContract() {
           };
         }
 
-        return result.data;
+        // Find active direct debit contract
+        const activeContract = result.data.find(
+          pm => pm.contractType === 'direct_debit_contract'
+            && pm.contractStatus === 'active'
+            && pm.isActive,
+        );
+
+        if (activeContract) {
+          return {
+            status: 'active' as const,
+            contractId: activeContract.id,
+            signature: activeContract.contractSignature,
+            mobile: activeContract.contractMobile,
+            canMakePayments: true,
+            needsSetup: false,
+            message: t('bankSetup.status.active'),
+          };
+        }
+
+        return {
+          status: 'no_contract' as const,
+          canMakePayments: false,
+          needsSetup: true,
+          message: t('bankSetup.status.noContract'),
+        };
       } catch (error) {
         logError('Failed to get contract status', error);
         return {

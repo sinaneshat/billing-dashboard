@@ -377,7 +377,7 @@ export class ZarinPalDirectDebitService {
       // In development, allow placeholder but warn
       if (isSandbox) {
         // Development mode: Using placeholder credentials
-        // TODO: Configure real ZarinPal merchant ID for production
+        // NOTE: Configure real ZarinPal merchant ID from https://next.zarinpal.com/panel/ for production
       } else {
         // In production, still throw error
         throw new HTTPException(HttpStatusCodes.INTERNAL_SERVER_ERROR, {
@@ -625,6 +625,82 @@ export class ZarinPalDirectDebitService {
         errorType: 'payment' as const,
         provider: 'zarinpal' as const,
       });
+    }
+  }
+
+  /**
+   * Direct charge from bank account using contract signature
+   * This is the core method for automated recurring payments
+   * Step 1: Create payment authority, Step 2: Execute direct transaction
+   */
+  async chargeDirectDebit(params: {
+    amount: number;
+    currency: 'IRR';
+    description: string;
+    contractSignature: string;
+    metadata?: Record<string, unknown>;
+  }): Promise<{
+      success: boolean;
+      data?: { refId: number; amount: number };
+      error?: string;
+    }> {
+    try {
+      // Step 1: Create payment authority for the amount (like a regular payment request)
+      const authPayload = {
+        merchant_id: this.config.merchantId,
+        amount: params.amount,
+        currency: params.currency,
+        description: params.description,
+        callback_url: 'https://api.zarinpal.com', // Not used for direct debit but required
+        metadata: {
+          payment_type: 'direct_debit',
+          ...params.metadata,
+        },
+      };
+
+      const authResult = await this.post<typeof authPayload, { data?: { authority: string; code: number } }>(
+        '/pg/v4/payment/request.json',
+        authPayload,
+        {},
+        'create payment authority for direct debit',
+      );
+
+      if (!authResult.data?.authority || authResult.data.code !== 100) {
+        return {
+          success: false,
+          error: `Failed to create payment authority: ${authResult.data?.code || 'unknown error'}`,
+        };
+      }
+
+      // Step 2: Execute direct transaction using the signature
+      const checkoutResult = await this.executeDirectTransaction({
+        authority: authResult.data.authority,
+        signature: params.contractSignature,
+      });
+
+      if (checkoutResult.data && checkoutResult.data.code === 100 && checkoutResult.data.refrence_id) {
+        return {
+          success: true,
+          data: {
+            refId: checkoutResult.data.refrence_id,
+            amount: checkoutResult.data.amount,
+          },
+        };
+      } else {
+        const errorMessage = checkoutResult.data?.message
+          || (checkoutResult.errors && checkoutResult.errors.length > 0 ? checkoutResult.errors[0]?.message : undefined)
+          || 'Direct debit transaction failed';
+
+        return {
+          success: false,
+          error: errorMessage,
+        };
+      }
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error during direct debit charge',
+      };
     }
   }
 

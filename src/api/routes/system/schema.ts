@@ -42,3 +42,13 @@ const DetailedHealthPayloadSchema = z.object({
 });
 
 export const DetailedHealthResponseSchema = createApiResponseSchema(DetailedHealthPayloadSchema).openapi('DetailedHealthResponse');
+
+// ============================================================================
+// TYPE EXPORTS FOR FRONTEND
+// ============================================================================
+
+export type HealthPayload = z.infer<typeof HealthPayloadSchema>;
+export type HealthResponse = z.infer<typeof HealthResponseSchema>;
+export type HealthCheckResult = z.infer<typeof HealthCheckResultSchema>;
+export type DetailedHealthPayload = z.infer<typeof DetailedHealthPayloadSchema>;
+export type DetailedHealthResponse = z.infer<typeof DetailedHealthResponseSchema>;

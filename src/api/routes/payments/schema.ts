@@ -46,34 +46,11 @@ const PaymentWithDetailsSchema = PaymentSchema.extend({
   }),
 });
 
-// Payment callback request from ZarinPal
-export const PaymentCallbackRequestSchema = z.object({
-  Authority: z.string().openapi({
-    example: 'A00000000000000000000000000123456789',
-    description: 'ZarinPal payment authority',
-  }),
-  Status: z.enum(['OK', 'NOK']).openapi({
-    example: 'OK',
-    description: 'Payment status from ZarinPal',
-  }),
-}).openapi('PaymentCallbackRequest');
-
 // Response schemas
 export const GetPaymentsResponseSchema = createApiResponseSchema(
   z.array(PaymentWithDetailsSchema),
 ).openapi('GetPaymentsResponse');
 
-export const PaymentCallbackResponseSchema = createApiResponseSchema(
-  z.object({
-    success: z.boolean(),
-    paymentId: z.string(),
-    subscriptionId: z.string().nullable(),
-    refId: z.string().optional(),
-    redirectUrl: z.string().optional(),
-  }),
-).openapi('PaymentCallbackResponse');
-
 // Export types - now consistent with database schema
 export type Payment = z.infer<typeof PaymentSchema>;
 export type PaymentWithDetails = z.infer<typeof PaymentWithDetailsSchema>;
-export type PaymentCallbackRequest = z.infer<typeof PaymentCallbackRequestSchema>;

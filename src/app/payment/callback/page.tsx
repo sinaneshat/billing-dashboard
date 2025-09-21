@@ -8,7 +8,6 @@ import { Suspense, useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { LoadingSpinner } from '@/components/ui/loading-spinner';
-import { processPaymentCallbackService } from '@/services/api';
 import { verifyDirectDebitContractService } from '@/services/api/payment-methods';
 
 type PaymentResult = {
@@ -61,13 +60,18 @@ function PaymentCallbackContent() {
             return;
           }
 
-          let contractInfo;
+          // Parse stored contract to get contract ID
+          let contractId: string;
           try {
-            contractInfo = JSON.parse(storedContract);
+            const parsedContract = JSON.parse(storedContract);
+            contractId = parsedContract.contractId;
+            if (!contractId) {
+              throw new Error('Contract ID not found in stored contract');
+            }
           } catch {
             setResult({
               success: false,
-              error: t('payment.callback.invalidContractInfo'),
+              error: t('payment.callback.contractInfoNotFound'),
             });
             return;
           }
@@ -75,14 +79,10 @@ function PaymentCallbackContent() {
           // Verify the contract using contract parameters (following new schema-first patterns)
           try {
             const contractResult = await verifyDirectDebitContractService({
+              param: { id: contractId },
               json: {
                 paymanAuthority,
                 status: status.toUpperCase() as 'OK' | 'NOK',
-                mobile: contractInfo.mobile,
-                ssn: contractInfo.nationalCode || undefined,
-                maxDailyCount: contractInfo.maxDailyCount,
-                maxMonthlyCount: contractInfo.maxMonthlyCount,
-                maxAmount: contractInfo.maxAmount,
               },
             });
 
@@ -90,16 +90,17 @@ function PaymentCallbackContent() {
             localStorage.removeItem('bank-authorization-contract');
 
             if (contractResult.success && contractResult.data) {
-              if (contractResult.data.contractVerified) {
+              // Contract verified successfully if we get signature and paymentMethod
+              if (contractResult.data.signature && contractResult.data.paymentMethod) {
                 setResult({
                   success: true,
-                  paymentId: contractResult.data.paymentMethodId,
-                  refId: contractResult.data.signature?.substring(0, 10), // Show first 10 chars of signature
+                  paymentId: contractResult.data.paymentMethod.id,
+                  refId: contractResult.data.signature.substring(0, 10), // Show first 10 chars of signature
                 });
               } else {
                 setResult({
                   success: false,
-                  error: contractResult.data.error?.message || t('payment.callback.contractVerificationFailed'),
+                  error: t('payment.callback.contractVerificationFailed'),
                 });
               }
             } else {
@@ -118,37 +119,12 @@ function PaymentCallbackContent() {
           return;
         }
 
-        // Handle regular payment callback (legacy)
+        // Handle regular payment callback (legacy) - DISABLED: service removed
         if (authority) {
-          const data = await processPaymentCallbackService({
-            Authority: authority,
-            Status: status as 'OK' | 'NOK',
+          setResult({
+            success: false,
+            error: t('payment.callback.legacyPaymentNotSupported'),
           });
-
-          // The API returns { success: boolean, paymentId?, subscriptionId?, refId? }
-          // But the inferred type shows different structure, so cast it properly
-          const result = data as unknown as {
-            success: boolean;
-            paymentId?: string;
-            subscriptionId?: string;
-            refId?: string;
-          };
-
-          if (result.success) {
-            setResult({
-              success: true,
-              paymentId: result.paymentId,
-              subscriptionId: result.subscriptionId,
-              refId: result.refId,
-            });
-          } else {
-            setResult({
-              success: false,
-              paymentId: result.paymentId,
-              subscriptionId: result.subscriptionId,
-              error: t('payment.callback.paymentNotCompleted'),
-            });
-          }
         }
       } catch {
         setResult({
