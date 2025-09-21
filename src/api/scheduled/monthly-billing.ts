@@ -12,6 +12,7 @@ import { CurrencyExchangeService } from '@/api/services/currency-exchange';
 import { ZarinPalService } from '@/api/services/zarinpal';
 import { ZarinPalDirectDebitService } from '@/api/services/zarinpal-direct-debit';
 import type { ApiEnv } from '@/api/types';
+import { decryptSignature } from '@/api/utils/crypto';
 import { getDbAsync } from '@/db';
 import { payment, paymentMethod, subscription } from '@/db/tables/billing';
 
@@ -285,7 +286,7 @@ async function processSingleSubscription(
     .where(
       and(
         eq(paymentMethod.userId, sub.userId),
-        eq(paymentMethod.contractSignature, sub.directDebitContractId),
+        eq(paymentMethod.id, sub.directDebitContractId),
         eq(paymentMethod.isActive, true),
         eq(paymentMethod.contractType, 'direct_debit_contract'),
       ),
@@ -297,7 +298,7 @@ async function processSingleSubscription(
   }
 
   const contract = contractRecord[0];
-  if (!contract.contractSignature) {
+  if (!contract.contractSignatureEncrypted) {
     throw new Error('Contract signature is missing');
   }
 
@@ -478,12 +479,15 @@ async function processSingleSubscription(
 
     // Execute direct debit transaction using ZarinPal Direct Debit Service
     const directDebitService = ZarinPalDirectDebitService.create();
-    if (!contract.contractSignature) {
+    if (!contract.contractSignatureEncrypted) {
       throw new Error('Contract signature is required for direct debit transaction');
     }
+
+    // Decrypt the signature for ZarinPal API call
+    const decryptedSignature = await decryptSignature(contract.contractSignatureEncrypted);
     const directDebitResult = await directDebitService.executeDirectTransaction({
       authority,
-      signature: contract.contractSignature,
+      signature: decryptedSignature,
     });
 
     if (directDebitResult.data?.code === 100) {

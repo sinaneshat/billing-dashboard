@@ -188,11 +188,22 @@ export const DirectTransactionResponseSchema = z.object({
 }).openapi('DirectTransactionResponse');
 
 /**
- * Contract Cancellation Request Schema
+ * Cancel Contract Request Schema (Step 5)
  */
 export const CancelContractRequestSchema = z.object({
   signature: z.string().length(200, 'Signature must be exactly 200 characters'),
 }).openapi('CancelContractRequest');
+
+/**
+ * Cancel Contract Response Schema
+ */
+export const CancelContractResponseSchema = z.object({
+  data: z.object({
+    code: z.number().int(),
+    message: z.string(),
+  }).optional(),
+  errors: z.array(ZarinPalApiErrorSchema).optional(),
+}).openapi('CancelContractResponse');
 
 // =============================================================================
 // TYPE INFERENCE FROM SCHEMAS
@@ -207,6 +218,7 @@ export type SignatureResponse = z.infer<typeof SignatureResponseSchema>;
 export type DirectTransactionRequest = z.infer<typeof DirectTransactionRequestSchema>;
 export type DirectTransactionResponse = z.infer<typeof DirectTransactionResponseSchema>;
 export type CancelContractRequest = z.infer<typeof CancelContractRequestSchema>;
+export type CancelContractResponse = z.infer<typeof CancelContractResponseSchema>;
 export type BankInfo = z.infer<typeof BankInfoSchema>;
 
 /**
@@ -629,6 +641,46 @@ export class ZarinPalDirectDebitService {
   }
 
   /**
+   * Step 5: Cancel Direct Debit Contract (officially supported by ZarinPal)
+   * Using BaseService HTTP methods with Zod validation for type safety
+   * NOTE: This is REQUIRED by ZarinPal terms - merchants must provide this functionality
+   */
+  async cancelContract(request: CancelContractRequest): Promise<CancelContractResponse> {
+    // Validate input using discriminated unions per API Development Guide
+    const requestResult = validateWithSchema(CancelContractRequestSchema, request);
+    if (!requestResult.success) {
+      const errorMessage = requestResult.errors[0]?.message || 'Cancel contract request validation failed';
+      throw new Error(`Cancel contract request validation failed: ${errorMessage}`);
+    }
+    const validatedRequest = requestResult.data;
+
+    const payload = {
+      merchant_id: this.config.merchantId,
+      signature: validatedRequest.signature,
+    };
+
+    try {
+      const result = await this.post<typeof payload, CancelContractResponse>(
+        '/pg/v4/payman/cancelContract.json',
+        payload,
+        {},
+        'cancel contract',
+      );
+
+      if (result.data && result.data.code !== 100) {
+        createZarinPalHTTPException('cancel contract', HttpStatusCodes.BAD_REQUEST, result.data?.message || 'Unknown error');
+      }
+
+      return result;
+    } catch (error) {
+      throw this.handleError(error, 'cancel contract', {
+        errorType: 'payment' as const,
+        provider: 'zarinpal' as const,
+      });
+    }
+  }
+
+  /**
    * Direct charge from bank account using contract signature
    * This is the core method for automated recurring payments
    * Step 1: Create payment authority, Step 2: Execute direct transaction
@@ -701,40 +753,6 @@ export class ZarinPalDirectDebitService {
         success: false,
         error: error instanceof Error ? error.message : 'Unknown error during direct debit charge',
       };
-    }
-  }
-
-  /**
-   * Cancel direct debit contract
-   * Using BaseService HTTP methods for consistent error handling
-   */
-  async cancelContract(request: CancelContractRequest): Promise<{ code: number; message: string }> {
-    const payload = {
-      merchant_id: this.config.merchantId,
-      signature: request.signature,
-    };
-
-    try {
-      const result = await this.post<typeof payload, { data?: { code: number; message: string } }>(
-        '/pg/v4/payman/cancelContract.json',
-        payload,
-        {},
-        'cancel contract',
-      );
-
-      if (result.data && result.data.code !== 100) {
-        createZarinPalHTTPException('contract cancellation', HttpStatusCodes.BAD_REQUEST, result.data?.message || 'Unknown error');
-      }
-
-      return {
-        code: result.data?.code || 0,
-        message: result.data?.message || 'Contract cancelled successfully',
-      };
-    } catch (error) {
-      throw this.handleError(error, 'cancel contract', {
-        errorType: 'payment' as const,
-        provider: 'zarinpal' as const,
-      });
     }
   }
 }

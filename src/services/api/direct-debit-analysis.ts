@@ -45,7 +45,7 @@ export function analyzeDirectDebitContract(
     return {
       status: 'active',
       contractId: activeContract.id,
-      signature: activeContract.contractSignature,
+      signature: activeContract.contractSignatureEncrypted ? '[ENCRYPTED]' : null,
       mobile: activeContract.contractMobile,
       canMakePayments: true,
       needsSetup: false,
@@ -63,7 +63,7 @@ export function analyzeDirectDebitContract(
     return {
       status: 'pending_signature',
       contractId: pendingContract.id,
-      signature: pendingContract.contractSignature,
+      signature: pendingContract.contractSignatureEncrypted ? '[ENCRYPTED]' : null,
       mobile: pendingContract.contractMobile,
       canMakePayments: false,
       needsSetup: true,
@@ -81,7 +81,7 @@ export function analyzeDirectDebitContract(
     return {
       status: 'cancelled_by_user',
       contractId: cancelledContract.id,
-      signature: cancelledContract.contractSignature,
+      signature: cancelledContract.contractSignatureEncrypted ? '[ENCRYPTED]' : null,
       mobile: cancelledContract.contractMobile,
       canMakePayments: false,
       needsSetup: true,

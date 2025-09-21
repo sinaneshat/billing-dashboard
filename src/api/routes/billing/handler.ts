@@ -16,6 +16,7 @@ import { createError } from '@/api/common/error-handling';
 import { createHandler, Responses } from '@/api/core';
 import { ZarinPalDirectDebitService } from '@/api/services/zarinpal-direct-debit';
 import type { ApiEnv } from '@/api/types';
+import { decryptSignature } from '@/api/utils/crypto';
 import { getDbAsync } from '@/db';
 import { user } from '@/db/tables/auth';
 import { billingEvent, payment, paymentMethod, product, subscription, webhookEvent } from '@/db/tables/billing';
@@ -131,12 +132,123 @@ export const processRecurringPaymentsHandler: RouteHandler<typeof processRecurri
         await db.insert(payment).values(paymentData);
 
         // Process direct debit payment - directly charge from authorized bank account
+        if (!pm.contractSignatureEncrypted) {
+          throw createError.badRequest('Payment method has no valid contract signature');
+        }
+
+        // Contract expiration monitoring and enforcement
+        if (pm.contractExpiresAt && pm.contractExpiresAt <= today) {
+          // Contract has expired - update status and prevent usage
+          await db.update(paymentMethod)
+            .set({
+              contractStatus: 'expired',
+              isActive: false,
+              updatedAt: new Date(),
+            })
+            .where(eq(paymentMethod.id, pm.id));
+
+          // Log expiration event
+          await db.insert(billingEvent).values({
+            id: crypto.randomUUID(),
+            userId: sub.userId,
+            paymentMethodId: pm.id,
+            eventType: 'contract_expired',
+            eventData: {
+              contractExpiresAt: pm.contractExpiresAt.toISOString(),
+              expiredOn: today.toISOString(),
+              contractDisplayName: pm.contractDisplayName,
+            },
+            severity: 'warning',
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          });
+
+          throw createError.badRequest(
+            `Direct debit contract expired on ${pm.contractExpiresAt.toLocaleDateString('fa-IR')}. Please create a new contract to continue billing.`,
+          );
+        }
+
+        // Real-time transaction limits validation
+        // 1. Check maximum per-transaction amount
+        if (pm.maxTransactionAmount && amountInRials > pm.maxTransactionAmount) {
+          throw createError.badRequest(
+            `Transaction amount (${amountInRials.toLocaleString('fa-IR')} IRR) exceeds contract maximum transaction limit (${pm.maxTransactionAmount.toLocaleString('fa-IR')} IRR)`,
+          );
+        }
+
+        // 2. Check daily limits (amount and count)
+        const startOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+        const endOfDay = new Date(startOfDay);
+        endOfDay.setDate(endOfDay.getDate() + 1);
+
+        const dailyPayments = await db
+          .select({
+            totalAmount: sum(payment.amount),
+            transactionCount: count(payment.id),
+          })
+          .from(payment)
+          .where(
+            and(
+              eq(payment.userId, sub.userId),
+              eq(payment.status, 'completed'),
+              gte(payment.createdAt, startOfDay),
+              lte(payment.createdAt, endOfDay),
+            ),
+          );
+
+        const dailyTotal = Number(dailyPayments[0]?.totalAmount || 0);
+        const dailyCount = Number(dailyPayments[0]?.transactionCount || 0);
+
+        if (pm.maxDailyAmount && (dailyTotal + amountInRials) > pm.maxDailyAmount) {
+          throw createError.badRequest(
+            `Transaction would exceed daily amount limit. Current: ${dailyTotal.toLocaleString('fa-IR')} IRR, Limit: ${pm.maxDailyAmount.toLocaleString('fa-IR')} IRR`,
+          );
+        }
+
+        if (pm.maxDailyCount && (dailyCount + 1) > pm.maxDailyCount) {
+          throw createError.badRequest(
+            `Transaction would exceed daily transaction count limit. Current: ${dailyCount}, Limit: ${pm.maxDailyCount}`,
+          );
+        }
+
+        // 3. Check monthly limits (count)
+        const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+        const endOfMonth = new Date(startOfMonth);
+        endOfMonth.setMonth(endOfMonth.getMonth() + 1);
+
+        if (pm.maxMonthlyCount) {
+          const monthlyPayments = await db
+            .select({
+              transactionCount: count(payment.id),
+            })
+            .from(payment)
+            .where(
+              and(
+                eq(payment.userId, sub.userId),
+                eq(payment.status, 'completed'),
+                gte(payment.createdAt, startOfMonth),
+                lte(payment.createdAt, endOfMonth),
+              ),
+            );
+
+          const monthlyCount = Number(monthlyPayments[0]?.transactionCount || 0);
+
+          if ((monthlyCount + 1) > pm.maxMonthlyCount) {
+            throw createError.badRequest(
+              `Transaction would exceed monthly transaction count limit. Current: ${monthlyCount}, Limit: ${pm.maxMonthlyCount}`,
+            );
+          }
+        }
+
+        // Decrypt the signature for ZarinPal API call
+        const decryptedSignature = await decryptSignature(pm.contractSignatureEncrypted);
+
         const zarinPalDirectDebit = ZarinPalDirectDebitService.create();
         const directDebitResult = await zarinPalDirectDebit.chargeDirectDebit({
           amount: amountInRials,
           currency: 'IRR',
           description: `Monthly subscription to ${prod.name}`,
-          contractSignature: pm.contractSignature!,
+          contractSignature: decryptedSignature,
           metadata: {
             subscriptionId: sub.id,
             paymentId,

@@ -16,6 +16,7 @@ import { createError } from '@/api/common/error-handling';
 import { createHandler, createHandlerWithTransaction, Responses } from '@/api/core';
 import { ZarinPalDirectDebitService } from '@/api/services/zarinpal-direct-debit';
 import type { ApiEnv } from '@/api/types';
+import { decryptSignature, encryptSignature } from '@/api/utils/crypto';
 import { getDbAsync } from '@/db';
 import { billingEvent, paymentMethod, subscription } from '@/db/tables/billing';
 
@@ -96,7 +97,7 @@ export const setDefaultPaymentMethodHandler: RouteHandler<typeof setDefaultPayme
       throw createError.badRequest('Payment method contract is not active');
     }
 
-    if (!targetMethod.contractSignature) {
+    if (!targetMethod.contractSignatureEncrypted) {
       throw createError.badRequest('Payment method contract signature is invalid');
     }
 
@@ -182,7 +183,40 @@ export const createContractHandler: RouteHandler<typeof createContractRoute, Api
 
     const zarinpalService = ZarinPalDirectDebitService.create();
 
-    // Create contract with ZarinPal
+    // Get available banks first to validate limits
+    const banksResult = await zarinpalService.getBankList();
+    if (!banksResult.data?.banks || banksResult.errors?.length) {
+      throw createError.badRequest('Failed to get banks list');
+    }
+
+    // Validate contract parameters against bank-specific limits
+    const requestedMaxAmount = Number.parseInt(contractRequest.maxAmount, 10);
+    const requestedMaxDailyCount = Number.parseInt(contractRequest.maxDailyCount, 10);
+
+    // Find the most restrictive bank limits to ensure contract works with all banks
+    const minSupportedDailyAmount = Math.min(
+      ...banksResult.data.banks.map(bank => bank.max_daily_amount),
+    );
+    const minSupportedDailyCount = Math.min(
+      ...banksResult.data.banks
+        .filter(bank => bank.max_daily_count !== null)
+        .map(bank => bank.max_daily_count!),
+    );
+
+    // Validate against bank limits
+    if (requestedMaxAmount > minSupportedDailyAmount) {
+      throw createError.badRequest(
+        `Maximum transaction amount (${requestedMaxAmount.toLocaleString('fa-IR')} IRR) exceeds the minimum supported by banks (${minSupportedDailyAmount.toLocaleString('fa-IR')} IRR). Please reduce the amount.`,
+      );
+    }
+
+    if (requestedMaxDailyCount > minSupportedDailyCount) {
+      throw createError.badRequest(
+        `Maximum daily transaction count (${requestedMaxDailyCount}) exceeds the minimum supported by banks (${minSupportedDailyCount}). Please reduce the count.`,
+      );
+    }
+
+    // Create contract with ZarinPal after validation passes
     const contractResult = await zarinpalService.requestContract({
       mobile: contractRequest.mobile,
       ssn: contractRequest.ssn,
@@ -195,12 +229,6 @@ export const createContractHandler: RouteHandler<typeof createContractRoute, Api
 
     if (!contractResult.data || contractResult.errors?.length) {
       throw createError.badRequest('Failed to create contract with ZarinPal');
-    }
-
-    // Get available banks
-    const banksResult = await zarinpalService.getBankList();
-    if (!banksResult.data?.banks || banksResult.errors?.length) {
-      throw createError.badRequest('Failed to get banks list');
     }
 
     // Transform banks data from snake_case to camelCase for frontend consistency
@@ -260,13 +288,17 @@ export const verifyContractHandler: RouteHandler<typeof verifyContractRoute, Api
       throw createError.badRequest('Failed to verify contract signature');
     }
 
-    // Create payment method with contract signature
+    // Encrypt the signature before storing
+    const { encrypted, hash } = await encryptSignature(verifyResult.data.signature);
+
+    // Create payment method with encrypted contract signature
     const [newPaymentMethod] = await db
       .insert(paymentMethod)
       .values({
         userId: user.id,
         contractType: 'direct_debit_contract',
-        contractSignature: verifyResult.data.signature,
+        contractSignatureEncrypted: encrypted,
+        contractSignatureHash: hash,
         contractDisplayName: 'پرداخت مستقیم', // Direct Payment
         contractMobile: '', // Could extract from stored contract info if needed
         contractStatus: 'active',
@@ -325,7 +357,7 @@ export const cancelContractHandler: RouteHandler<typeof cancelContractRoute, Api
       throw createError.notFound('Payment method not found');
     }
 
-    if (existingMethod.contractType !== 'direct_debit_contract' || !existingMethod.contractSignature) {
+    if (existingMethod.contractType !== 'direct_debit_contract' || !existingMethod.contractSignatureEncrypted) {
       throw createError.badRequest('Not a direct debit contract');
     }
 
@@ -342,14 +374,24 @@ export const cancelContractHandler: RouteHandler<typeof cancelContractRoute, Api
       throw createError.conflict('Cannot delete payment method: active subscriptions exist');
     }
 
-    // Cancel contract with ZarinPal
+    // Cancel contract with ZarinPal using official API (as required by ZarinPal terms)
     const zarinpalService = ZarinPalDirectDebitService.create();
-    const cancelResult = await zarinpalService.cancelContract({
-      signature: existingMethod.contractSignature,
-    });
 
-    if (cancelResult.code !== 100) {
-      throw createError.badRequest('Failed to cancel contract with ZarinPal');
+    // Decrypt signature to call ZarinPal cancel contract API
+    const decryptedSignature = await decryptSignature(existingMethod.contractSignatureEncrypted);
+
+    try {
+      const cancelResult = await zarinpalService.cancelContract({
+        signature: decryptedSignature,
+      });
+
+      if (!cancelResult.data || cancelResult.data.code !== 100) {
+        throw createError.badRequest('Failed to cancel contract with ZarinPal');
+      }
+    } catch (error) {
+      // Log the error but continue with local cancellation for user control
+      // This ensures users can still cancel contracts even if ZarinPal API is temporarily unavailable
+      console.error('ZarinPal contract cancellation failed:', error);
     }
 
     // Create billing event BEFORE deletion (important for audit trail)
@@ -358,7 +400,7 @@ export const cancelContractHandler: RouteHandler<typeof cancelContractRoute, Api
       paymentMethodId: id, // Will be deleted, so log it now
       eventType: 'payment_method_hard_deleted',
       eventData: {
-        contractSignature: existingMethod.contractSignature,
+        contractSignatureHash: existingMethod.contractSignatureHash, // Log hash instead of sensitive data
         contractDisplayName: existingMethod.contractDisplayName,
         contractMobile: existingMethod.contractMobile,
         deletionReason: 'user_requested',
