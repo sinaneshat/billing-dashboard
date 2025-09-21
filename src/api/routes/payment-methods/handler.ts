@@ -1,34 +1,45 @@
 /**
- * Payment Methods Route Handlers - Direct Database Access
+ * Consolidated Payment Methods Route Handlers
  *
- * Uses the factory pattern for consistent authentication, validation,
- * transaction management, and error handling. Uses direct database
- * access for all operations following unified backend pattern.
+ * Simplified 3-endpoint direct debit contract flow following ZarinPal Payman API:
+ * 1. POST /payment-methods/contracts - Create contract + get banks
+ * 2. POST /payment-methods/contracts/{id}/verify - Verify signed contract
+ * 3. DELETE /payment-methods/contracts/{id} - Cancel contract
  */
 
+import crypto from 'node:crypto';
+
 import type { RouteHandler } from '@hono/zod-openapi';
-import { and, eq, inArray, not } from 'drizzle-orm';
+import { and, eq, not } from 'drizzle-orm';
 
 import { createError } from '@/api/common/error-handling';
 import { createHandler, createHandlerWithTransaction, Responses } from '@/api/core';
+import { ZarinPalDirectDebitService } from '@/api/services/zarinpal-direct-debit';
 import type { ApiEnv } from '@/api/types';
 import { getDbAsync } from '@/db';
-import { billingEvent, paymentMethod, subscription } from '@/db/tables/billing';
+import { billingEvent, paymentMethod } from '@/db/tables/billing';
 
 import type {
-  createPaymentMethodRoute,
+  cancelContractRoute,
+  createContractRoute,
   deletePaymentMethodRoute,
+  getContractStatusRoute,
   getPaymentMethodsRoute,
-  setDefaultPaymentMethodRoute,
+  updatePaymentMethodRoute,
+  verifyContractRoute,
 } from './route';
 import {
-  CreatePaymentMethodRequestSchema,
+  ContractParamsSchema,
+  CreateContractRequestSchema,
+  PaymentMethodParamsSchema,
+  UpdatePaymentMethodBodySchema,
+  VerifyContractRequestSchema,
 } from './schema';
 
-/**
- * Get all payment methods for the authenticated user
- * Following API Development Guide: clean data access without UI concerns
- */
+// ============================================================================
+// BASIC PAYMENT METHOD HANDLERS
+// ============================================================================
+
 export const getPaymentMethodsHandler: RouteHandler<typeof getPaymentMethodsRoute, ApiEnv> = createHandler(
   {
     auth: 'session',
@@ -42,322 +53,366 @@ export const getPaymentMethodsHandler: RouteHandler<typeof getPaymentMethodsRout
       throw createError.unauthenticated('User authentication required');
     }
 
-    c.logger.info('Fetching payment methods for user', {
-      logType: 'operation',
-      operationName: 'getPaymentMethods',
-      userId: user.id,
-    });
-
-    // Clean data access - exclude soft-deleted and cancelled/failed contracts
-    const paymentMethods = await db.select().from(paymentMethod).where(and(
-      eq(paymentMethod.userId, user.id),
-      not(inArray(paymentMethod.contractStatus, [
-        'cancelled_by_user' as const,
-        'verification_failed' as const,
-      ])),
-    ));
-
-    c.logger.info('Payment methods retrieved successfully', {
-      logType: 'operation',
-      operationName: 'getPaymentMethods',
-      userId: user.id,
-      resource: `methods[${paymentMethods.length}]`,
-    });
+    // Get all payment methods for user with contract status details
+    const paymentMethods = await db
+      .select()
+      .from(paymentMethod)
+      .where(eq(paymentMethod.userId, user.id));
 
     return Responses.ok(c, paymentMethods);
   },
 );
 
-/**
- * Create a new payment method
- */
-export const createPaymentMethodHandler: RouteHandler<typeof createPaymentMethodRoute, ApiEnv> = createHandlerWithTransaction(
-  {
-    auth: 'session',
-    validateBody: CreatePaymentMethodRequestSchema,
-    operationName: 'createPaymentMethod',
-  },
-  async (c, tx) => {
-    const user = c.get('user');
-    // Use transaction context 'tx' instead of creating duplicate connection
-
-    if (!user) {
-      throw createError.unauthenticated('User authentication required');
-    }
-    const { zarinpalCardHash, cardMask, cardType, expiresAt, setPrimary } = c.validated.body;
-
-    c.logger.info('Creating payment method from tokenized card', {
-      logType: 'operation',
-      operationName: 'createPaymentMethod',
-      userId: user.id,
-    });
-
-    // Check if card hash already exists
-    const existingMethod = await tx.select().from(paymentMethod).where(eq(paymentMethod.contractSignature, zarinpalCardHash)).limit(1);
-
-    if (existingMethod.length > 0) {
-      throw createError.conflict('Payment method with this card already exists');
-    }
-
-    // If setting as primary, remove primary from other methods first
-    if (setPrimary) {
-      await tx.update(paymentMethod)
-        .set({ isPrimary: false, updatedAt: new Date() })
-        .where(and(
-          eq(paymentMethod.userId, user.id),
-          eq(paymentMethod.isActive, true),
-        ));
-    }
-
-    // Create new payment method from tokenized card
-    const newPaymentMethod = {
-      id: crypto.randomUUID(),
-      userId: user.id,
-      contractType: 'direct_debit_contract' as const,
-      contractSignature: zarinpalCardHash, // Store card hash as signature
-      contractStatus: 'active' as const,
-      contractDisplayName: `Card ending in ${cardMask.slice(-4)}`,
-      contractMobile: null, // Not provided for tokenized cards
-      isPrimary: setPrimary,
-      isActive: true,
-      contractExpiresAt: expiresAt ? new Date(expiresAt) : null,
-      metadata: {
-        cardMask,
-        cardType,
-        source: 'zarinpal_tokenization',
-      },
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
-
-    await tx.insert(paymentMethod).values(newPaymentMethod);
-
-    // Log creation event
-    await tx.insert(billingEvent).values({
-      id: crypto.randomUUID(),
-      userId: user.id,
-      subscriptionId: null,
-      paymentId: null,
-      paymentMethodId: newPaymentMethod.id,
-      eventType: 'payment_method_created',
-      eventData: {
-        cardMask,
-        cardType,
-        source: 'zarinpal_tokenization',
-        isPrimary: setPrimary,
-        createdAt: newPaymentMethod.createdAt.toISOString(),
-      },
-      createdAt: new Date(),
-    });
-
-    c.logger.info('Payment method created successfully from tokenized card', {
-      logType: 'operation',
-      operationName: 'createPaymentMethod',
-      userId: user.id,
-      resource: newPaymentMethod.id,
-    });
-
-    return Responses.created(c, newPaymentMethod);
-  },
-);
-
-/**
- * Delete (soft delete) a payment method
- */
 export const deletePaymentMethodHandler: RouteHandler<typeof deletePaymentMethodRoute, ApiEnv> = createHandlerWithTransaction(
   {
     auth: 'session',
     operationName: 'deletePaymentMethod',
+    validateParams: PaymentMethodParamsSchema,
   },
-  async (c, tx) => {
-    const { id } = c.req.param();
+  async (c, db) => {
     const user = c.get('user');
-    // Use transaction context 'tx' instead of creating duplicate connection
+    const { id } = c.validated.params;
 
     if (!user) {
       throw createError.unauthenticated('User authentication required');
     }
 
-    if (!id) {
-      throw createError.notFound('Payment method ID is required');
+    // Check if payment method exists and belongs to user
+    const [existingMethod] = await db
+      .select()
+      .from(paymentMethod)
+      .where(and(eq(paymentMethod.id, id), eq(paymentMethod.userId, user.id)));
+
+    if (!existingMethod) {
+      throw createError.notFound('Payment method not found');
     }
 
-    c.logger.info('Deleting payment method', {
-      logType: 'operation',
-      operationName: 'deletePaymentMethod',
+    // If it's a direct debit contract, need to cancel with ZarinPal first
+    if (existingMethod.contractType === 'direct_debit_contract' && existingMethod.contractSignature) {
+      const zarinpalService = ZarinPalDirectDebitService.create();
+
+      try {
+        await zarinpalService.cancelContract({
+          signature: existingMethod.contractSignature,
+        });
+      } catch (error) {
+        // Log error but continue with deletion - user should be able to remove payment method
+        c.logger.error('Failed to cancel ZarinPal contract:', error as Error);
+      }
+    }
+
+    // Delete the payment method
+    await db.delete(paymentMethod).where(eq(paymentMethod.id, id));
+
+    // Log billing event
+    await db.insert(billingEvent).values({
       userId: user.id,
-      resource: id,
-    });
-
-    // Find payment method using direct DB access - allow deletion of both active and pending contracts
-    const paymentMethodResults = await tx.select().from(paymentMethod).where(
-      eq(paymentMethod.id, id),
-    ).limit(1);
-    const paymentMethodRecord = paymentMethodResults[0];
-
-    if (!paymentMethodRecord || paymentMethodRecord.userId !== user.id) {
-      c.logger.warn('Payment method not found for deletion', {
-        logType: 'operation',
-        operationName: 'deletePaymentMethod',
-        userId: user.id,
-        resource: id,
-      });
-      throw createError.notFound('Payment method not found or already deleted');
-    }
-
-    // Check if payment method is used by active subscriptions
-    const activeSubscriptions = await tx.select().from(subscription).where(and(
-      eq(subscription.userId, user.id),
-      eq(subscription.status, 'active'),
-    ));
-
-    const hasActiveSubscriptions = activeSubscriptions.some(sub =>
-      sub.paymentMethodId === id,
-    );
-
-    if (hasActiveSubscriptions) {
-      throw createError.conflict(
-        'Cannot delete payment method: it is currently used by active subscriptions. Please cancel subscriptions first.',
-      );
-    }
-
-    const deletedAt = new Date();
-
-    // Soft delete the payment method using direct DB access
-    await tx.update(paymentMethod)
-      .set({
-        isActive: false,
-        isPrimary: false, // Remove primary status when deleting
-        contractStatus: 'cancelled_by_user', // Update status to exclude from GET results
-        updatedAt: deletedAt,
-      })
-      .where(eq(paymentMethod.id, id));
-
-    // Log deletion event using direct DB access
-    await tx.insert(billingEvent).values({
-      id: crypto.randomUUID(),
-      userId: user.id,
-      subscriptionId: null,
-      paymentId: null,
-      paymentMethodId: id,
       eventType: 'payment_method_deleted',
-      eventData: {
-        contractSignature: paymentMethodRecord.contractSignature,
-        contractType: paymentMethodRecord.contractType,
-        wasPrimary: paymentMethodRecord.isPrimary,
-        deletedAt: deletedAt.toISOString(),
-      },
-      createdAt: new Date(),
-    });
-
-    c.logger.info('Payment method deleted successfully', {
-      logType: 'operation',
-      operationName: 'deletePaymentMethod',
-      userId: user.id,
-      resource: id,
+      eventData: { paymentMethodId: id, contractType: existingMethod.contractType },
     });
 
     return Responses.ok(c, { deleted: true });
   },
 );
 
-/**
- * Set a payment method as the default (primary) payment method
- */
-export const setDefaultPaymentMethodHandler: RouteHandler<typeof setDefaultPaymentMethodRoute, ApiEnv> = createHandlerWithTransaction(
+export const updatePaymentMethodHandler: RouteHandler<typeof updatePaymentMethodRoute, ApiEnv> = createHandlerWithTransaction(
   {
     auth: 'session',
-    operationName: 'setDefaultPaymentMethod',
+    operationName: 'updatePaymentMethod',
+    validateParams: PaymentMethodParamsSchema,
+    validateBody: UpdatePaymentMethodBodySchema,
   },
-  async (c, tx) => {
-    const { id } = c.req.param();
+  async (c, db) => {
     const user = c.get('user');
-    // Use transaction context 'tx' instead of creating duplicate connection
+    const { id } = c.validated.params;
+    const { isPrimary } = c.validated.body;
 
     if (!user) {
       throw createError.unauthenticated('User authentication required');
     }
 
-    if (!id) {
-      throw createError.notFound('Payment method ID is required');
-    }
+    // Check if payment method exists and belongs to user
+    const [existingMethod] = await db
+      .select()
+      .from(paymentMethod)
+      .where(and(eq(paymentMethod.id, id), eq(paymentMethod.userId, user.id)));
 
-    c.logger.info('Setting primary payment method', {
-      logType: 'operation',
-      operationName: 'setPrimaryPaymentMethod',
-      userId: user.id,
-      resource: id,
-    });
-
-    // Find payment method using direct DB access - only active contracts can be set as default
-    const paymentMethodResults = await tx.select().from(paymentMethod).where(and(
-      eq(paymentMethod.id, id),
-      eq(paymentMethod.userId, user.id),
-    )).limit(1);
-    const paymentMethodRecord = paymentMethodResults[0];
-
-    if (!paymentMethodRecord) {
-      c.logger.warn('Payment method not found for primary setting', {
-        logType: 'operation',
-        operationName: 'setPrimaryPaymentMethod',
-        userId: user.id,
-        resource: id,
-      });
+    if (!existingMethod) {
       throw createError.notFound('Payment method not found');
     }
 
-    // Only active contracts can be set as default
-    if (!paymentMethodRecord.isActive || paymentMethodRecord.contractStatus !== 'active') {
-      throw createError.validation('Only active payment methods can be set as default. Please complete contract signing first.');
+    // If setting as primary, unset other primary methods
+    if (isPrimary) {
+      await db
+        .update(paymentMethod)
+        .set({ isPrimary: false, updatedAt: new Date() })
+        .where(and(eq(paymentMethod.userId, user.id), not(eq(paymentMethod.id, id))));
     }
 
-    // Remove primary status from all other payment methods for this user
-    await tx.update(paymentMethod)
+    // Update the payment method
+    const [updatedMethod] = await db
+      .update(paymentMethod)
       .set({
-        isPrimary: false,
+        isPrimary: isPrimary ?? existingMethod.isPrimary,
         updatedAt: new Date(),
       })
-      .where(and(
-        eq(paymentMethod.userId, user.id),
-        eq(paymentMethod.isActive, true),
-      ));
+      .where(eq(paymentMethod.id, id))
+      .returning();
 
-    // Set this payment method as primary
-    await tx.update(paymentMethod)
+    // Log billing event
+    await db.insert(billingEvent).values({
+      userId: user.id,
+      eventType: 'payment_method_updated',
+      eventData: { paymentMethodId: id, changes: { isPrimary } },
+    });
+
+    return Responses.ok(c, updatedMethod);
+  },
+);
+
+// ============================================================================
+// CONSOLIDATED DIRECT DEBIT CONTRACT HANDLERS (3 ENDPOINTS)
+// ============================================================================
+
+/**
+ * 1. Create Contract - Consolidated endpoint that:
+ *    - Creates ZarinPal Payman contract
+ *    - Returns available banks
+ *    - Provides signing URL template
+ */
+export const createContractHandler: RouteHandler<typeof createContractRoute, ApiEnv> = createHandler(
+  {
+    auth: 'session',
+    operationName: 'createDirectDebitContract',
+    validateBody: CreateContractRequestSchema,
+  },
+  async (c) => {
+    const user = c.get('user');
+    const contractRequest = c.validated.body;
+
+    if (!user) {
+      throw createError.unauthenticated('User authentication required');
+    }
+
+    const zarinpalService = ZarinPalDirectDebitService.create();
+
+    // Create contract with ZarinPal
+    const contractResult = await zarinpalService.requestContract({
+      mobile: contractRequest.mobile,
+      ssn: contractRequest.ssn,
+      expire_at: contractRequest.expireAt,
+      max_daily_count: contractRequest.maxDailyCount,
+      max_monthly_count: contractRequest.maxMonthlyCount,
+      max_amount: contractRequest.maxAmount,
+      callback_url: `${c.env.NEXT_PUBLIC_APP_URL}/payment/callback`,
+    });
+
+    if (!contractResult.data || contractResult.errors?.length) {
+      throw createError.badRequest('Failed to create contract with ZarinPal');
+    }
+
+    // Get available banks
+    const banksResult = await zarinpalService.getBankList();
+    if (!banksResult.data || banksResult.errors?.length) {
+      throw createError.badRequest('Failed to get banks list');
+    }
+
+    // Generate contract ID for tracking
+    const contractId = crypto.randomUUID();
+
+    return Responses.created(c, {
+      contractId,
+      paymanAuthority: contractResult.data.payman_authority,
+      banks: banksResult.data,
+      signingUrlTemplate: `https://www.zarinpal.com/pg/StartPayman/${contractResult.data.payman_authority}/{bank_code}`,
+    });
+  },
+);
+
+/**
+ * 2. Verify Contract - Handle callback from bank signing:
+ *    - Verify contract signature with ZarinPal
+ *    - Create payment method if successful
+ *    - Return signature and payment method
+ */
+export const verifyContractHandler: RouteHandler<typeof verifyContractRoute, ApiEnv> = createHandlerWithTransaction(
+  {
+    auth: 'session',
+    operationName: 'verifyDirectDebitContract',
+    validateParams: ContractParamsSchema,
+    validateBody: VerifyContractRequestSchema,
+  },
+  async (c, db) => {
+    const user = c.get('user');
+    const { paymanAuthority, status } = c.validated.body;
+
+    if (!user) {
+      throw createError.unauthenticated('User authentication required');
+    }
+
+    if (status !== 'OK') {
+      throw createError.badRequest('Contract signing was not successful');
+    }
+
+    const zarinpalService = ZarinPalDirectDebitService.create();
+
+    // Verify contract and get signature
+    const verifyResult = await zarinpalService.verifyContractAndGetSignature({
+      payman_authority: paymanAuthority,
+    });
+
+    if (!verifyResult.data?.signature || verifyResult.errors?.length) {
+      throw createError.badRequest('Failed to verify contract signature');
+    }
+
+    // Create payment method with contract signature
+    const [newPaymentMethod] = await db
+      .insert(paymentMethod)
+      .values({
+        userId: user.id,
+        contractType: 'direct_debit_contract',
+        contractSignature: verifyResult.data.signature,
+        contractDisplayName: 'پرداخت مستقیم', // Direct Payment
+        contractMobile: '', // Could extract from stored contract info if needed
+        contractStatus: 'active',
+        isPrimary: false, // User can set as primary later
+        isActive: true,
+      })
+      .returning();
+
+    // Log billing event
+    await db.insert(billingEvent).values({
+      userId: user.id,
+      eventType: 'direct_debit_contract_verified',
+      eventData: {
+        paymentMethodId: newPaymentMethod!.id,
+        paymanAuthority,
+        contractSignature: verifyResult.data.signature,
+      },
+    });
+
+    return Responses.ok(c, {
+      signature: verifyResult.data.signature,
+      paymentMethod: newPaymentMethod,
+    });
+  },
+);
+
+/**
+ * 3. Cancel Contract - Cancel direct debit contract:
+ *    - Calls ZarinPal contract cancellation API
+ *    - Updates payment method status
+ *    - Required by ZarinPal terms of service
+ */
+export const cancelContractHandler: RouteHandler<typeof cancelContractRoute, ApiEnv> = createHandlerWithTransaction(
+  {
+    auth: 'session',
+    operationName: 'cancelDirectDebitContract',
+    validateParams: PaymentMethodParamsSchema,
+  },
+  async (c, db) => {
+    const user = c.get('user');
+    const { id } = c.validated.params;
+
+    if (!user) {
+      throw createError.unauthenticated('User authentication required');
+    }
+
+    // Find the payment method
+    const [existingMethod] = await db
+      .select()
+      .from(paymentMethod)
+      .where(and(eq(paymentMethod.id, id), eq(paymentMethod.userId, user.id)));
+
+    if (!existingMethod) {
+      throw createError.notFound('Payment method not found');
+    }
+
+    if (existingMethod.contractType !== 'direct_debit_contract' || !existingMethod.contractSignature) {
+      throw createError.badRequest('Not a direct debit contract');
+    }
+
+    // Cancel contract with ZarinPal
+    const zarinpalService = ZarinPalDirectDebitService.create();
+    const cancelResult = await zarinpalService.cancelContract({
+      signature: existingMethod.contractSignature,
+    });
+
+    if (cancelResult.code !== 100) {
+      throw createError.badRequest('Failed to cancel contract with ZarinPal');
+    }
+
+    // Update payment method status
+    await db
+      .update(paymentMethod)
       .set({
-        isPrimary: true,
+        contractStatus: 'cancelled_by_user',
+        isActive: false,
         updatedAt: new Date(),
       })
       .where(eq(paymentMethod.id, id));
 
-    // Get updated payment method
-    const updatedResults = await tx.select().from(paymentMethod).where(eq(paymentMethod.id, id)).limit(1);
-    const updatedPaymentMethod = updatedResults[0];
-
-    // Log primary change event using direct DB access
-    await tx.insert(billingEvent).values({
-      id: crypto.randomUUID(),
+    // Log billing event
+    await db.insert(billingEvent).values({
       userId: user.id,
-      subscriptionId: null,
-      paymentId: null,
-      paymentMethodId: id,
-      eventType: 'payment_method_set_primary',
-      eventData: {
-        contractSignature: paymentMethodRecord.contractSignature,
-        contractType: paymentMethodRecord.contractType,
-        wasPreviouslyPrimary: paymentMethodRecord.isPrimary,
-        setAt: new Date().toISOString(),
-      },
-      createdAt: new Date(),
+      eventType: 'direct_debit_contract_cancelled',
+      eventData: { paymentMethodId: id },
     });
 
-    c.logger.info('Payment method set as primary successfully', {
-      logType: 'operation',
-      operationName: 'setPrimaryPaymentMethod',
-      userId: user.id,
-      resource: id,
+    return Responses.ok(c, {
+      cancelled: true,
+      message: 'Direct debit contract cancelled successfully',
     });
+  },
+);
 
-    return Responses.ok(c, updatedPaymentMethod);
+// ============================================================================
+// LEGACY CONTRACT STATUS HANDLER (KEPT FOR COMPATIBILITY)
+// ============================================================================
+
+export const getContractStatusHandler: RouteHandler<typeof getContractStatusRoute, ApiEnv> = createHandler(
+  {
+    auth: 'session',
+    operationName: 'getContractStatus',
+  },
+  async (c) => {
+    const user = c.get('user');
+    const db = await getDbAsync();
+
+    if (!user) {
+      throw createError.unauthenticated('User authentication required');
+    }
+
+    // Get active direct debit contracts
+    const contracts = await db
+      .select()
+      .from(paymentMethod)
+      .where(
+        and(
+          eq(paymentMethod.userId, user.id),
+          eq(paymentMethod.contractType, 'direct_debit_contract'),
+        ),
+      );
+
+    const activeContract = contracts.find(contract => contract.contractStatus === 'active');
+
+    if (!activeContract) {
+      return Responses.ok(c, {
+        status: 'no_contract' as const,
+        canMakePayments: false,
+        needsSetup: true,
+        message: 'هیچ قراردادی فعال نیست',
+      });
+    }
+
+    return Responses.ok(c, {
+      status: activeContract.contractStatus,
+      contractId: activeContract.id,
+      signature: activeContract.contractSignature,
+      mobile: activeContract.contractMobile,
+      canMakePayments: activeContract.isActive && activeContract.contractStatus === 'active',
+      needsSetup: false,
+      message: 'قرارداد فعال و آماده پرداخت',
+    });
   },
 );

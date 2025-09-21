@@ -65,7 +65,7 @@ function createPerformanceTracker() {
 // TYPE DEFINITIONS
 // ============================================================================
 
-export type AuthMode = 'session' | 'session-optional' | 'public';
+export type AuthMode = 'session' | 'session-optional' | 'public' | 'api-key';
 
 export type HandlerConfig<
   _TRoute extends RouteConfig,
@@ -224,6 +224,23 @@ async function applyAuthentication(c: Context, authMode: AuthMode): Promise<void
         c.set('session', null);
         c.set('user', null);
       }
+      break;
+    }
+    case 'api-key': {
+      // API key authentication for cron jobs and external services
+      const apiKey = c.req.header('x-api-key') || c.req.header('authorization')?.replace('Bearer ', '');
+      const expectedApiKey = process.env.CRON_SECRET || process.env.API_SECRET_KEY;
+
+      if (!apiKey || !expectedApiKey || apiKey !== expectedApiKey) {
+        throw new HTTPException(HttpStatusCodes.UNAUTHORIZED, {
+          message: 'Invalid or missing API key',
+        });
+      }
+
+      // Set system context for API key authenticated requests
+      c.set('session', null);
+      c.set('user', null);
+      c.set('requestId', c.req.header('x-request-id') || crypto.randomUUID());
       break;
     }
     case 'public':

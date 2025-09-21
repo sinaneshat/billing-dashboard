@@ -254,7 +254,64 @@ export const createSubscriptionHandler: RouteHandler<typeof createSubscriptionRo
         updatedAt: new Date(),
       });
 
-      // Note: Roundtable integration was removed as part of cleanup
+      // DISPATCH ROUNDTABLE WEBHOOK: Subscription created with direct debit
+      try {
+        // Get user details for webhook
+        const { user: userTable } = await import('@/db/tables/auth');
+        const userResults = await tx.select({ email: userTable.email }).from(userTable).where(eq(userTable.id, user.id)).limit(1);
+        const userRecord = userResults[0];
+
+        if (userRecord?.email) {
+          // Import webhook utilities
+          const { WebhookEventBuilders, RoundtableWebhookForwarder } = await import('@/api/routes/webhooks/handler');
+
+          const customerId = WebhookEventBuilders.generateVirtualStripeCustomerId(user.id);
+          const sessionId = `cs_${crypto.randomUUID().replace(/-/g, '')}`;
+          const priceId = `price_${productRecord.id}`;
+
+          // Create checkout session completed event for new subscription
+          const checkoutEvent = WebhookEventBuilders.createCheckoutSessionCompletedEvent(
+            sessionId,
+            customerId,
+            newSubscriptionId,
+            priceId,
+            user.id,
+            {
+              userEmail: userRecord.email,
+              roundtableProductId: productRecord.roundtableId || productRecord.id,
+              productName: productRecord.name,
+              planName: (productRecord.metadata as Record<string, unknown>)?.roundtable_plan_name as string || productRecord.name || 'Pro',
+              billingUserId: user.id,
+              subscriptionType: 'direct_debit',
+              contractId,
+            },
+          );
+
+          // Create subscription created event
+          const subscriptionEvent = WebhookEventBuilders.createCustomerSubscriptionCreatedEvent(
+            newSubscriptionId,
+            customerId,
+            {
+              userEmail: userRecord.email,
+              roundtableProductId: productRecord.roundtableId || productRecord.id,
+              productName: productRecord.name,
+              planName: (productRecord.metadata as Record<string, unknown>)?.roundtable_plan_name as string || productRecord.name || 'Pro',
+              billingUserId: user.id,
+              subscriptionType: 'direct_debit',
+              contractId,
+            },
+          );
+
+          // Forward both events to Roundtable
+          await Promise.all([
+            RoundtableWebhookForwarder.forwardEvent(checkoutEvent),
+            RoundtableWebhookForwarder.forwardEvent(subscriptionEvent),
+          ]);
+        }
+      } catch (webhookError) {
+        c.logger.error('Failed to dispatch Roundtable webhook for subscription creation', webhookError instanceof Error ? webhookError : new Error(String(webhookError)));
+        // Don't fail the subscription creation if webhook fails
+      }
 
       c.logger.info('Direct debit subscription created successfully', {
         logType: 'operation',
@@ -465,7 +522,45 @@ export const cancelSubscriptionHandler: RouteHandler<typeof cancelSubscriptionRo
       updatedAt: new Date(),
     });
 
-    // Note: Roundtable integration was removed as part of cleanup
+    // DISPATCH ROUNDTABLE WEBHOOK: Subscription canceled
+    try {
+      // Get user details for webhook
+      const { user: userTable } = await import('@/db/tables/auth');
+      const userResults = await db.select({ email: userTable.email }).from(userTable).where(eq(userTable.id, user.id)).limit(1);
+      const userRecord = userResults[0];
+
+      // Get product details
+      const productResults = await db.select().from(product).where(eq(product.id, subscriptionRecord.productId)).limit(1);
+      const productRecord = productResults[0];
+
+      if (userRecord?.email && productRecord) {
+        // Import webhook utilities
+        const { WebhookEventBuilders, RoundtableWebhookForwarder } = await import('@/api/routes/webhooks/handler');
+
+        const customerId = WebhookEventBuilders.generateVirtualStripeCustomerId(user.id);
+
+        // Create subscription deleted event
+        const subscriptionDeletedEvent = WebhookEventBuilders.createCustomerSubscriptionDeletedEvent(
+          id,
+          customerId,
+          {
+            userEmail: userRecord.email,
+            roundtableProductId: productRecord.roundtableId || productRecord.id,
+            productName: productRecord.name,
+            planName: (productRecord.metadata as Record<string, unknown>)?.roundtable_plan_name as string || productRecord.name || 'Pro',
+            billingUserId: user.id,
+            cancellationReason: reason || 'User requested cancellation',
+            canceledAt: canceledAt.toISOString(),
+          },
+        );
+
+        // Forward event to Roundtable
+        await RoundtableWebhookForwarder.forwardEvent(subscriptionDeletedEvent);
+      }
+    } catch (webhookError) {
+      c.logger.error('Failed to dispatch Roundtable webhook for subscription cancellation', webhookError instanceof Error ? webhookError : new Error(String(webhookError)));
+      // Don't fail the cancellation if webhook fails
+    }
 
     c.logger.info('Subscription canceled successfully', { logType: 'operation', operationName: 'cancelSubscription', resource: id });
 

@@ -3,83 +3,20 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/lib/data/query-keys';
 import { logError } from '@/lib/utils/safe-logger';
 import type {
-  CancelDirectDebitContractRequest,
-  CreatePaymentMethodRequest,
+  CreateDirectDebitContractRequest,
   DeletePaymentMethodRequest,
-  ExecuteDirectDebitPaymentRequest,
-  GetBankListRequest,
-  InitiateDirectDebitContractRequest,
-  SetDefaultPaymentMethodRequest,
+  UpdatePaymentMethodRequest,
   VerifyDirectDebitContractRequest,
 } from '@/services/api/payment-methods';
 import {
   cancelDirectDebitContractService,
-  createPaymentMethodService,
+  createDirectDebitContractService,
   deletePaymentMethodService,
-  executeDirectDebitPaymentService,
-  getBankListService,
-  initiateDirectDebitContractService,
   setDefaultPaymentMethodService,
   verifyDirectDebitContractService,
 } from '@/services/api/payment-methods';
 
-export function useCreatePaymentMethodMutation() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async (args: CreatePaymentMethodRequest) => {
-      const result = await createPaymentMethodService(args);
-      return result;
-    },
-    onMutate: async (variables) => {
-      // Cancel any outgoing refetches (so they don't overwrite our optimistic update)
-      await queryClient.cancelQueries({ queryKey: queryKeys.paymentMethods.list });
-
-      // Snapshot the previous value
-      const previousPaymentMethods = queryClient.getQueryData(queryKeys.paymentMethods.list);
-
-      // Return a context object with the snapshotted value
-      return { previousPaymentMethods, variables };
-    },
-    onSuccess: (data, _variables, _context) => {
-      // Only invalidate the specific query being used to avoid redundant requests
-      queryClient.invalidateQueries({ queryKey: queryKeys.paymentMethods.list });
-
-      // Update specific payment method in cache if we have the data
-      if (data.success && data.data) {
-        queryClient.setQueryData(queryKeys.paymentMethods.list, (old: unknown) => {
-          const oldData = old as { success?: boolean; data?: unknown[] };
-          if (oldData?.success && Array.isArray(oldData.data)) {
-            return {
-              ...oldData,
-              data: [data.data, ...oldData.data],
-            };
-          }
-          return old;
-        });
-      }
-    },
-    onError: (error, _variables, context) => {
-      logError('Failed to create payment method', error);
-      // If we had a previous value, revert to it on error
-      if (context?.previousPaymentMethods) {
-        queryClient.setQueryData(queryKeys.paymentMethods.list, context.previousPaymentMethods);
-      }
-    },
-    retry: (failureCount, error) => {
-      // Don't retry on authentication errors or client errors
-      if (error instanceof Error && error.message.includes('Authentication')) {
-        return false;
-      }
-      const errorStatus = (error as { status?: number })?.status;
-      if (errorStatus && errorStatus >= 400 && errorStatus < 500) {
-        return false;
-      }
-      return failureCount < 2; // Retry once for server errors
-    },
-    retryDelay: attemptIndex => Math.min(1000 * 2 ** attemptIndex, 30000),
-  });
-}
+// Traditional payment method creation removed - use direct debit contract verification
 
 export function useDeletePaymentMethodMutation() {
   const queryClient = useQueryClient();
@@ -129,7 +66,7 @@ export function useSetDefaultPaymentMethodMutation() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (args: SetDefaultPaymentMethodRequest) => {
+    mutationFn: async (args: UpdatePaymentMethodRequest) => {
       const result = await setDefaultPaymentMethodService(args.param.id);
       return result;
     },
@@ -180,10 +117,10 @@ export function useSetDefaultPaymentMethodMutation() {
  * Hook to initiate direct debit contract setup (Step 1)
  * Returns available banks and contract signing URL template
  */
-export function useInitiateDirectDebitContractMutation() {
+export function useCreateDirectDebitContractMutation() {
   return useMutation({
-    mutationFn: async (args: InitiateDirectDebitContractRequest) => {
-      const result = await initiateDirectDebitContractService(args);
+    mutationFn: async (args: CreateDirectDebitContractRequest) => {
+      const result = await createDirectDebitContractService(args);
       return result;
     },
     onMutate: async (variables) => {
@@ -218,7 +155,7 @@ export function useVerifyDirectDebitContractMutation() {
       queryClient.invalidateQueries({ queryKey: queryKeys.paymentMethods.list });
 
       // Optionally add the new payment method to cache if contract was verified
-      if (data.success && data.data?.paymentMethodId && data.data?.contractVerified) {
+      if (data.success && data.data?.signature && data.data?.paymentMethod) {
         queryClient.setQueryData(queryKeys.paymentMethods.list, (old: unknown) => {
           const oldData = old as { success?: boolean; data?: unknown[] };
           if (oldData?.success && Array.isArray(oldData.data)) {
@@ -237,60 +174,27 @@ export function useVerifyDirectDebitContractMutation() {
 }
 
 /**
- * Hook to get available banks for direct debit contract signing
- * Used for bank selection during contract setup
+ * Get Available Banks for Direct Debit Contract Signing
+ * @deprecated Banks are now returned in createDirectDebitContractService response
+ * This hook is kept for backwards compatibility but should not be used
  */
 export function useGetBankListMutation() {
   return useMutation({
-    mutationFn: async (args?: GetBankListRequest) => {
-      const result = await getBankListService(args);
-      return result;
+    mutationFn: async () => {
+      throw new Error('useGetBankListMutation is deprecated. Banks are now returned in useCreateDirectDebitContractMutation response.');
     },
     onError: (error) => {
-      logError('Failed to fetch bank list', error);
-
-      // Show user-friendly error message
-      let errorMessage = 'Failed to load banks. Please try again.';
-
-      if (error instanceof Error) {
-        if (error.message.includes('Network') || error.message.includes('Failed to fetch')) {
-          errorMessage = 'Connection error. Please check your internet and try again.';
-        } else if (error.message.includes('500') || error.message.includes('Internal Server Error')) {
-          errorMessage = 'Server error occurred. Please try again in a few moments.';
-        }
-      }
-
-      // Log error for debugging (toast will be handled by component layer)
-      logError('Bank list fetch failed', { errorMessage, component: 'bank-list' });
+      logError('Attempted to use deprecated getBankListService', error);
     },
-    retry: 1,
+    retry: false,
   });
 }
 
 /**
- * Hook to execute direct debit payment for subscription billing
- * Handles currency conversion automatically from USD to IRR
+ * Legacy alias for useCreateDirectDebitContractMutation
+ * @deprecated Use useCreateDirectDebitContractMutation instead
  */
-export function useExecuteDirectDebitPaymentMutation() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async (args: ExecuteDirectDebitPaymentRequest) => {
-      const result = await executeDirectDebitPaymentService(args);
-      return result;
-    },
-    onSuccess: () => {
-      // Only invalidate the specific queries being used to avoid redundant requests
-      queryClient.invalidateQueries({ queryKey: queryKeys.payments.list });
-      queryClient.invalidateQueries({ queryKey: queryKeys.subscriptions.list });
-      queryClient.invalidateQueries({ queryKey: queryKeys.paymentMethods.list });
-    },
-    onError: (error) => {
-      logError('Failed to execute direct debit payment', error);
-    },
-    retry: false, // Payment operations should not auto-retry to avoid duplicate charges
-  });
-}
+export const useInitiateDirectDebitContractMutation = useCreateDirectDebitContractMutation;
 
 /**
  * Hook to cancel direct debit contract
@@ -300,11 +204,11 @@ export function useCancelDirectDebitContractMutation() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (args: CancelDirectDebitContractRequest) => {
-      const result = await cancelDirectDebitContractService(args.param.contractId);
+    mutationFn: async (paymentMethodId: string) => {
+      const result = await cancelDirectDebitContractService(paymentMethodId);
       return result;
     },
-    onMutate: async (args) => {
+    onMutate: async (paymentMethodId: string) => {
       // Cancel any outgoing refetches
       await queryClient.cancelQueries({ queryKey: queryKeys.paymentMethods.list });
 
@@ -319,8 +223,8 @@ export function useCancelDirectDebitContractMutation() {
             ...oldData,
             data: oldData.data.map(pm => ({
               ...pm,
-              isActive: pm.id === args.param.contractId ? false : pm.isActive,
-              contractStatus: pm.id === args.param.contractId ? 'cancelled_by_user' : pm.contractStatus,
+              isActive: pm.id === paymentMethodId ? false : pm.isActive,
+              contractStatus: pm.id === paymentMethodId ? 'cancelled_by_user' : pm.contractStatus,
             })),
           };
         }

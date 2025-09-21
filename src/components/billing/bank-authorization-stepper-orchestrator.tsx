@@ -4,7 +4,7 @@ import { CreditCard } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import React, { useCallback, useState } from 'react';
 
-import { useInitiateDirectDebitContractMutation } from '@/hooks/mutations/payment-methods';
+import { useCreateDirectDebitContractMutation } from '@/hooks/mutations/payment-methods';
 import { formatTomanCurrency } from '@/lib/format';
 import { toastManager } from '@/lib/toast/toast-manager';
 import { cn } from '@/lib/ui/cn';
@@ -56,7 +56,7 @@ export function BankAuthorizationStepperOrchestrator({
   const [contractData, setContractData] = useState<ContractData | null>(null);
   const [authorizationStatus, setAuthorizationStatus] = useState<AuthorizationStatus>('waiting');
 
-  const initiateContractMutation = useInitiateDirectDebitContractMutation();
+  const createContractMutation = useCreateDirectDebitContractMutation();
 
   const steps = [
     {
@@ -152,21 +152,38 @@ export function BankAuthorizationStepperOrchestrator({
 
   const handleContactSubmit = async (data: BillingContactFormData) => {
     try {
-      const result = await initiateContractMutation.mutateAsync({
+      // Calculate expiry date (1 year from now)
+      const expireDate = new Date();
+      expireDate.setFullYear(expireDate.getFullYear() + 1);
+      const expireAt = expireDate.toISOString().replace('T', ' ').substring(0, 19);
+
+      const result = await createContractMutation.mutateAsync({
         json: {
           mobile: data.mobile,
           ssn: data.nationalCode || undefined,
-          callbackUrl: `${window.location.origin}/api/v1/payment-methods/direct-debit/callback`,
-          contractDurationDays: 365,
-          maxDailyCount: 5,
-          maxMonthlyCount: 50,
-          maxAmount: 50000000,
+          expireAt,
+          maxDailyCount: '5',
+          maxMonthlyCount: '50',
+          maxAmount: '50000000',
         },
       });
 
       if (result.success && result.data) {
         setContactData(data);
-        setContractData(result.data);
+
+        // Banks are now included in the contract creation response
+        setContractData({
+          paymanAuthority: result.data.paymanAuthority,
+          contractSigningUrl: result.data.signingUrlTemplate, // Updated property name
+          banks: result.data.banks, // Banks are now included in response
+          contractParams: {
+            mobile: data.mobile,
+            expireAt,
+            maxDailyCount: '5',
+            maxMonthlyCount: '50',
+            maxAmount: '50000000',
+          },
+        });
         setCurrentStep('bank');
         toastManager.success(t('bankSetup.messages.contactSubmitted'));
       } else {
@@ -244,7 +261,7 @@ export function BankAuthorizationStepperOrchestrator({
             <BillingContactForm
               onSubmit={handleContactSubmit}
               onCancel={onCancel}
-              isLoading={initiateContractMutation.isPending}
+              isLoading={createContractMutation.isPending}
             />
           </div>
         );

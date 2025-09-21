@@ -4,56 +4,33 @@ export {
   getCurrentUserService,
 } from './auth';
 
-// Health service exports
-export {
-  type CheckDetailedHealthResponse,
-  checkDetailedHealthService,
-  type CheckHealthResponse,
-  checkHealthService,
-} from './health';
-
-// Image service exports
-export {
-  createImagePreviewService,
-  type DeleteImageResponse,
-  deleteImageService,
-  getImageMetadataService,
-  type GetImagesResponse,
-  getImagesService,
-  // getUserAvatarsService, // Removed - use session.user.image instead
-  replaceUserAvatarService,
-  revokeImagePreviewService,
-  type UploadUserAvatarResponse,
-  uploadUserAvatarService,
-  validateImageFileService,
-} from './images';
-
 // Payment Methods service exports
 export {
   type CancelDirectDebitContractRequest,
   type CancelDirectDebitContractResponse,
   cancelDirectDebitContractService,
-  type CreatePaymentMethodRequest,
-  type CreatePaymentMethodResponse,
-  createPaymentMethodService,
+  // Consolidated direct debit contract flow (3 endpoints)
+  type CreateDirectDebitContractRequest,
+  type CreateDirectDebitContractResponse,
+  createDirectDebitContractService,
+  // Basic payment method management
   type DeletePaymentMethodRequest,
   type DeletePaymentMethodResponse,
   deletePaymentMethodService,
-  type ExecuteDirectDebitPaymentRequest,
-  type ExecuteDirectDebitPaymentResponse,
-  executeDirectDebitPaymentService,
-  type GetBankListRequest,
-  type GetBankListResponse,
-  getBankListService,
+  // Deprecated functions (kept for backwards compatibility)
+  getBankListService, // deprecated - throws error
+  // Contract status (legacy)
+  type GetContractStatusRequest,
+  type GetContractStatusResponse,
+  getContractStatusService,
   type GetPaymentMethodsRequest,
   type GetPaymentMethodsResponse,
   getPaymentMethodsService,
-  type InitiateDirectDebitContractRequest,
-  type InitiateDirectDebitContractResponse,
-  initiateDirectDebitContractService,
-  type SetDefaultPaymentMethodRequest,
-  type SetDefaultPaymentMethodResponse,
-  setDefaultPaymentMethodService,
+  initiateDirectDebitContractService, // legacy alias
+  setDefaultPaymentMethodService, // convenience function
+  type UpdatePaymentMethodRequest,
+  type UpdatePaymentMethodResponse,
+  updatePaymentMethodService,
   type VerifyDirectDebitContractRequest,
   type VerifyDirectDebitContractResponse,
   verifyDirectDebitContractService,

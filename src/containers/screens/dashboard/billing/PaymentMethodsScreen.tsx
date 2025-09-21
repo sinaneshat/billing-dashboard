@@ -83,7 +83,7 @@ function PaymentMethodCard({
                 onClick={() => onSetDefault(method.id)}
                 disabled={
                   (setDefaultMutation.isPending && (setDefaultMutation.variables as { param: { id: string } })?.param.id === method.id)
-                  || (cancelContractMutation.isPending && (cancelContractMutation.variables as { param: { contractId: string } })?.param.contractId === method.id)
+                  || (cancelContractMutation.isPending && (cancelContractMutation.variables as string) === method.id)
                 }
                 className="gap-1"
               >
@@ -97,7 +97,7 @@ function PaymentMethodCard({
               onClick={() => onDelete(method.id)}
               disabled={
                 (setDefaultMutation.isPending && (setDefaultMutation.variables as { param: { id: string } })?.param.id === method.id)
-                || (cancelContractMutation.isPending && (cancelContractMutation.variables as { param: { contractId: string } })?.param.contractId === method.id)
+                || (cancelContractMutation.isPending && (cancelContractMutation.variables as string) === method.id)
               }
               className="text-destructive hover:text-destructive hover:bg-destructive/10 gap-1"
             >
@@ -151,11 +151,14 @@ export default function PaymentMethodsScreen() {
   })();
 
   const handleSetDefault = async (paymentMethodId: string) => {
-    setDefaultPaymentMethodMutation.mutate({ param: { id: paymentMethodId } });
+    setDefaultPaymentMethodMutation.mutate({
+      param: { id: paymentMethodId },
+      json: { isPrimary: true },
+    });
   };
 
   const handleDelete = async (paymentMethodId: string) => {
-    cancelContractMutation.mutate({ param: { contractId: paymentMethodId } });
+    cancelContractMutation.mutate(paymentMethodId);
   };
 
   // Show loading state on initial load

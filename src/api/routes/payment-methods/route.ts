@@ -1,52 +1,37 @@
-import { createRoute } from '@hono/zod-openapi';
+import { createRoute, z } from '@hono/zod-openapi';
 import * as HttpStatusCodes from 'stoker/http-status-codes';
 
-import { CreatePaymentMethodRequestSchema, CreatePaymentMethodResponseSchema, DeletePaymentMethodResponseSchema, GetPaymentMethodsResponseSchema, PaymentMethodParamsSchema, SetDefaultPaymentMethodResponseSchema } from './schema';
+import {
+  CancelContractResponseSchema,
+  CreateContractRequestSchema,
+  CreateContractResponseSchema,
+  GetContractStatusResponseSchema,
+  PaymentMethodDeleteResponseSchema,
+  PaymentMethodListResponseSchema,
+  PaymentMethodUpdateResponseSchema,
+  VerifyContractRequestSchema,
+  VerifyContractResponseSchema,
+} from './schema';
+
+// ============================================================================
+// BASIC PAYMENT METHODS ROUTES
+// ============================================================================
 
 export const getPaymentMethodsRoute = createRoute({
   method: 'get',
   path: '/payment-methods',
   tags: ['payment-methods'],
-  summary: 'Get subscription billing methods',
-  description: 'Get all saved billing methods for subscription automation',
+  summary: 'Get payment methods',
+  description: 'List all payment methods for the authenticated user',
   responses: {
     [HttpStatusCodes.OK]: {
+      content: {
+        'application/json': {
+          schema: PaymentMethodListResponseSchema,
+        },
+      },
       description: 'Payment methods retrieved successfully',
-      content: {
-        'application/json': { schema: GetPaymentMethodsResponseSchema },
-      },
     },
-    [HttpStatusCodes.BAD_REQUEST]: { description: 'Bad Request' },
-    [HttpStatusCodes.NOT_FOUND]: { description: 'Not Found' },
-    [HttpStatusCodes.INTERNAL_SERVER_ERROR]: { description: 'Internal Server Error' },
-  },
-});
-
-export const createPaymentMethodRoute = createRoute({
-  method: 'post',
-  path: '/payment-methods',
-  tags: ['payment-methods'],
-  summary: 'Add subscription billing method',
-  description: 'Add a new billing method for subscription automation',
-  request: {
-    body: {
-      content: {
-        'application/json': { schema: CreatePaymentMethodRequestSchema },
-      },
-      description: 'Payment method data',
-    },
-  },
-  responses: {
-    [HttpStatusCodes.CREATED]: {
-      description: 'Payment method created successfully',
-      content: {
-        'application/json': { schema: CreatePaymentMethodResponseSchema },
-      },
-    },
-    [HttpStatusCodes.BAD_REQUEST]: { description: 'Bad Request' },
-    [HttpStatusCodes.UNPROCESSABLE_ENTITY]: { description: 'Validation Error' },
-    [HttpStatusCodes.CONFLICT]: { description: 'Conflict' },
-    [HttpStatusCodes.INTERNAL_SERVER_ERROR]: { description: 'Internal Server Error' },
   },
 });
 
@@ -54,44 +39,226 @@ export const deletePaymentMethodRoute = createRoute({
   method: 'delete',
   path: '/payment-methods/{id}',
   tags: ['payment-methods'],
-  summary: 'Remove subscription billing method',
-  description: 'Remove a billing method from subscription automation',
+  summary: 'Delete payment method',
+  description: 'Delete a payment method by ID',
   request: {
-    params: PaymentMethodParamsSchema,
+    params: z.object({
+      id: z.string().openapi({
+        param: {
+          name: 'id',
+          in: 'path',
+          description: 'Payment method ID',
+          example: 'pm_123',
+        },
+      }),
+    }),
   },
   responses: {
     [HttpStatusCodes.OK]: {
-      description: 'Payment method deleted successfully',
       content: {
-        'application/json': { schema: DeletePaymentMethodResponseSchema },
+        'application/json': {
+          schema: PaymentMethodDeleteResponseSchema,
+        },
       },
+      description: 'Payment method deleted successfully',
     },
-    [HttpStatusCodes.BAD_REQUEST]: { description: 'Bad Request' },
-    [HttpStatusCodes.UNPROCESSABLE_ENTITY]: { description: 'Validation Error' },
-    [HttpStatusCodes.CONFLICT]: { description: 'Conflict' },
-    [HttpStatusCodes.INTERNAL_SERVER_ERROR]: { description: 'Internal Server Error' },
   },
 });
 
-export const setDefaultPaymentMethodRoute = createRoute({
+export const updatePaymentMethodRoute = createRoute({
   method: 'patch',
-  path: '/payment-methods/{id}/default',
+  path: '/payment-methods/{id}',
   tags: ['payment-methods'],
-  summary: 'Set primary subscription billing method',
-  description: 'Set a billing method as the primary method for subscription automation',
+  summary: 'Update payment method',
+  description: 'Update payment method settings (e.g., set as default)',
   request: {
-    params: PaymentMethodParamsSchema,
+    params: z.object({
+      id: z.string().openapi({
+        param: {
+          name: 'id',
+          in: 'path',
+          description: 'Payment method ID',
+          example: 'pm_123',
+        },
+      }),
+    }),
+    body: {
+      content: {
+        'application/json': {
+          schema: z.object({
+            isPrimary: z.boolean().optional().openapi({
+              description: 'Set as default payment method',
+            }),
+          }),
+        },
+      },
+    },
   },
   responses: {
     [HttpStatusCodes.OK]: {
-      description: 'Default payment method updated successfully',
       content: {
-        'application/json': { schema: SetDefaultPaymentMethodResponseSchema },
+        'application/json': {
+          schema: PaymentMethodUpdateResponseSchema,
+        },
       },
+      description: 'Payment method updated successfully',
     },
-    [HttpStatusCodes.BAD_REQUEST]: { description: 'Bad Request' },
-    [HttpStatusCodes.UNPROCESSABLE_ENTITY]: { description: 'Validation Error' },
-    [HttpStatusCodes.CONFLICT]: { description: 'Conflict' },
-    [HttpStatusCodes.INTERNAL_SERVER_ERROR]: { description: 'Internal Server Error' },
   },
 });
+
+// ============================================================================
+// CONSOLIDATED DIRECT DEBIT CONTRACT ROUTES (3 ENDPOINTS)
+// ============================================================================
+
+/**
+ * 1. Create Contract - Consolidated endpoint that:
+ *    - Creates ZarinPal Payman contract
+ *    - Returns available banks
+ *    - Provides signing URL template
+ */
+export const createContractRoute = createRoute({
+  method: 'post',
+  path: '/payment-methods/contracts',
+  tags: ['payment-methods', 'direct-debit'],
+  summary: 'Create direct debit contract',
+  description: 'Create a new direct debit contract with ZarinPal Payman API. Returns contract details, available banks, and signing URL template.',
+  request: {
+    body: {
+      content: {
+        'application/json': {
+          schema: CreateContractRequestSchema,
+        },
+      },
+    },
+  },
+  responses: {
+    [HttpStatusCodes.CREATED]: {
+      content: {
+        'application/json': {
+          schema: CreateContractResponseSchema,
+        },
+      },
+      description: 'Contract created successfully with banks and signing URL',
+    },
+  },
+});
+
+/**
+ * 2. Verify Contract - Handle callback from bank signing:
+ *    - Verify contract signature with ZarinPal
+ *    - Create payment method if successful
+ *    - Return signature and payment method
+ */
+export const verifyContractRoute = createRoute({
+  method: 'post',
+  path: '/payment-methods/contracts/{id}/verify',
+  tags: ['payment-methods', 'direct-debit'],
+  summary: 'Verify signed contract',
+  description: 'Verify a signed direct debit contract and create payment method. Called after user returns from bank signing process.',
+  request: {
+    params: z.object({
+      id: z.string().openapi({
+        param: {
+          name: 'id',
+          in: 'path',
+          description: 'Contract ID',
+          example: 'contract_123',
+        },
+      }),
+    }),
+    body: {
+      content: {
+        'application/json': {
+          schema: VerifyContractRequestSchema,
+        },
+      },
+    },
+  },
+  responses: {
+    [HttpStatusCodes.OK]: {
+      content: {
+        'application/json': {
+          schema: VerifyContractResponseSchema,
+        },
+      },
+      description: 'Contract verified and payment method created',
+    },
+  },
+});
+
+/**
+ * 3. Cancel Contract - Cancel direct debit contract:
+ *    - Calls ZarinPal contract cancellation API
+ *    - Updates payment method status
+ *    - Required by ZarinPal terms of service
+ */
+export const cancelContractRoute = createRoute({
+  method: 'delete',
+  path: '/payment-methods/contracts/{id}',
+  tags: ['payment-methods', 'direct-debit'],
+  summary: 'Cancel direct debit contract',
+  description: 'Cancel a direct debit contract. Required by ZarinPal terms - users must be able to cancel contracts.',
+  request: {
+    params: z.object({
+      id: z.string().openapi({
+        param: {
+          name: 'id',
+          in: 'path',
+          description: 'Payment method ID or contract ID',
+          example: 'pm_123',
+        },
+      }),
+    }),
+  },
+  responses: {
+    [HttpStatusCodes.OK]: {
+      content: {
+        'application/json': {
+          schema: CancelContractResponseSchema,
+        },
+      },
+      description: 'Contract cancelled successfully',
+    },
+  },
+});
+
+// ============================================================================
+// LEGACY CONTRACT STATUS ROUTE (KEPT FOR COMPATIBILITY)
+// ============================================================================
+
+export const getContractStatusRoute = createRoute({
+  method: 'get',
+  path: '/payment-methods/contract-status',
+  tags: ['payment-methods'],
+  summary: 'Get direct debit contract status',
+  description: 'Get the current status of direct debit contract for authenticated user',
+  responses: {
+    [HttpStatusCodes.OK]: {
+      content: {
+        'application/json': {
+          schema: GetContractStatusResponseSchema,
+        },
+      },
+      description: 'Contract status retrieved successfully',
+    },
+  },
+});
+
+// ============================================================================
+// ROUTE EXPORTS FOR REGISTRATION
+// ============================================================================
+
+export const consolidatedPaymentMethodRoutes = [
+  // Basic payment method management
+  getPaymentMethodsRoute,
+  deletePaymentMethodRoute,
+  updatePaymentMethodRoute,
+
+  // Consolidated direct debit contract flow (3 endpoints)
+  createContractRoute,
+  verifyContractRoute,
+  cancelContractRoute,
+
+  // Legacy compatibility
+  getContractStatusRoute,
+] as const;
