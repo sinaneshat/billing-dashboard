@@ -4,12 +4,14 @@ import { queryKeys } from '@/lib/data/query-keys';
 import { logError } from '@/lib/utils/safe-logger';
 import type {
   CancelSubscriptionRequest,
+  ChangePlanRequest,
   CreateSubscriptionRequest,
-} from '@/services/api/subscriptions';
+} from '@/services/api';
 import {
   cancelSubscriptionService,
+  changePlanService,
   createSubscriptionService,
-} from '@/services/api/subscriptions';
+} from '@/services/api';
 
 export function useCreateSubscriptionMutation() {
   const queryClient = useQueryClient();
@@ -50,12 +52,63 @@ export function useCreateSubscriptionMutation() {
   });
 }
 
+export function useChangePlanMutation() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (args: ChangePlanRequest) => {
+      const result = await changePlanService(args);
+      return result;
+    },
+    onMutate: async (args) => {
+      // Cancel any outgoing refetches for current subscription
+      await queryClient.cancelQueries({ queryKey: queryKeys.subscriptions.current });
+
+      // Snapshot the previous value for rollback
+      const previousSubscription = queryClient.getQueryData(queryKeys.subscriptions.current);
+
+      // Optimistically update current subscription with new plan
+      queryClient.setQueryData(queryKeys.subscriptions.current, (old: unknown) => {
+        const subscription = old as { success?: boolean; data?: Record<string, unknown> };
+        if (subscription?.success && subscription.data) {
+          return {
+            ...subscription,
+            data: {
+              ...subscription.data,
+              productId: args.json.productId,
+              upgradeDowngradeAt: new Date().toISOString(),
+            },
+          };
+        }
+        return old;
+      });
+
+      return { previousSubscription };
+    },
+    onError: (error, _variables, context) => {
+      // Rollback optimistic update on error
+      if (context?.previousSubscription) {
+        queryClient.setQueryData(queryKeys.subscriptions.current, context.previousSubscription);
+      }
+      logError('Failed to change subscription plan', error);
+    },
+    onSuccess: () => {
+      // Invalidate queries after successful plan change
+      queryClient.invalidateQueries({ queryKey: queryKeys.subscriptions.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.subscriptions.list });
+      queryClient.invalidateQueries({ queryKey: queryKeys.subscriptions.current });
+      queryClient.invalidateQueries({ queryKey: queryKeys.payments.all });
+    },
+    retry: 1,
+  });
+}
+
 export function useCancelSubscriptionMutation() {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async (args: CancelSubscriptionRequest) => {
-      const result = await cancelSubscriptionService(args.param.id, args.json.reason);
+      const result = await cancelSubscriptionService(args);
       return result;
     },
     onMutate: async (_args) => {

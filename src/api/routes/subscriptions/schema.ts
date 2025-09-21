@@ -1,6 +1,6 @@
 import { z } from '@hono/zod-openapi';
 
-import { CoreSchemas } from '@/api/core/schemas';
+import { CoreSchemas, createApiResponseSchema } from '@/api/core/schemas';
 import { productSelectSchema, subscriptionSelectSchema } from '@/db/validation/billing';
 
 // Single source of truth - use drizzle-zod schemas with OpenAPI metadata
@@ -77,6 +77,127 @@ export const CancelSubscriptionRequestSchema = z.object({
   }),
 }).openapi('CancelSubscriptionRequest');
 
+export const ChangePlanRequestSchema = z.object({
+  productId: z.string().min(1).openapi({
+    example: 'prod_456',
+    description: 'New product ID to change subscription to',
+  }),
+  effectiveDate: z.enum(['immediate', 'next_cycle']).default('immediate').openapi({
+    example: 'immediate',
+    description: 'When to apply the plan change: immediately or at next billing cycle',
+  }),
+  paymentMethodId: z.string().optional().openapi({
+    example: 'pm_abc123',
+    description: 'Payment method to use for immediate billing (required for upgrades)',
+  }),
+}).openapi('ChangePlanRequest');
+
+// ============================================================================
+// ENHANCED SUBSCRIPTION UPDATE SCHEMAS
+// ============================================================================
+
+// Iranian-specific validation schemas
+export const IranianValidationSchemas = {
+  // Iranian mobile number validation
+  mobileNumber: z.string()
+    .regex(/^(?:\+98|0)?9\d{9}$/, 'Invalid Iranian mobile number format')
+    .openapi({
+      example: '09123456789',
+      description: 'Iranian mobile number',
+    }),
+
+  // Iranian Rial amount validation (no decimal places)
+  rialAmount: z.number()
+    .int('Rial amounts must be whole numbers')
+    .min(1000, 'Minimum amount is 1,000 IRR')
+    .max(1000000000, 'Maximum amount is 1,000,000,000 IRR')
+    .openapi({
+      example: 50000,
+      description: 'Amount in Iranian Rials',
+    }),
+
+  // Product ID validation
+  productId: z.string()
+    .min(1, 'Product ID is required')
+    .regex(/^[\w-]+$/, 'Invalid product ID format')
+    .openapi({
+      example: 'prod_premium_monthly',
+      description: 'Product identifier',
+    }),
+};
+
+// Comprehensive subscription update response schema
+export const ChangePlanResponseDataSchema = z.object({
+  subscriptionId: CoreSchemas.id().openapi({
+    example: 'sub_123',
+    description: 'Updated subscription ID',
+  }),
+  planChanged: z.boolean().openapi({
+    description: 'Whether the plan was successfully changed',
+  }),
+  previousProductId: z.string().openapi({
+    example: 'prod_basic_monthly',
+    description: 'Previous product ID',
+  }),
+  newProductId: z.string().openapi({
+    example: 'prod_premium_monthly',
+    description: 'New product ID',
+  }),
+  prorationDetails: z.object({
+    creditAmount: z.number().int().openapi({
+      example: 15000,
+      description: 'Credit amount for unused time (in IRR)',
+    }),
+    chargeAmount: z.number().int().openapi({
+      example: 25000,
+      description: 'Charge amount for new plan (in IRR)',
+    }),
+    netAmount: z.number().int().openapi({
+      example: 10000,
+      description: 'Net amount charged/credited (in IRR)',
+    }),
+    effectiveDate: CoreSchemas.timestamp().openapi({
+      description: 'When the change took effect',
+    }),
+    nextBillingDate: CoreSchemas.timestamp().openapi({
+      description: 'Next billing date for the subscription',
+    }),
+  }).openapi({
+    description: 'Proration calculation details',
+  }),
+  autoRenewalEnabled: z.boolean().openapi({
+    description: 'Whether automatic renewal is still enabled',
+  }),
+}).openapi('ChangePlanResponseData');
+
+export const ChangePlanResponseSchema = createApiResponseSchema(
+  ChangePlanResponseDataSchema,
+);
+
+// Plan change specific error responses
+export const PlanChangeErrorResponseSchema = z.object({
+  success: z.literal(false),
+  error: z.object({
+    code: z.enum([
+      'PLAN_CHANGE_NOT_ALLOWED',
+      'SAME_PLAN_ERROR',
+      'PAYMENT_METHOD_REQUIRED',
+      'INSUFFICIENT_PAYMENT_METHOD',
+      'SUBSCRIPTION_NOT_ACTIVE',
+      'PRODUCT_NOT_FOUND',
+      'PRORATION_CALCULATION_ERROR',
+    ]),
+    message: z.string(),
+    context: z.object({
+      errorType: z.literal('plan_change'),
+      currentPlan: z.string().optional(),
+      targetPlan: z.string().optional(),
+      requiredAmount: z.number().optional(),
+      availablePaymentMethods: z.array(z.string()).optional(),
+    }),
+  }),
+}).openapi('PlanChangeError');
+
 // Refactored: Direct data schemas, response wrapper handled by Responses.* methods
 export const GetSubscriptionsResponseDataSchema = z.array(SubscriptionWithProductSchema).openapi('GetSubscriptionsData');
 
@@ -124,11 +245,16 @@ export const SubscriptionParamsSchema = z.object({
   }),
 });
 
+// ============================================================================
+// TYPE EXPORTS
+// ============================================================================
+
 // Export types - now consistent with database schema and unified response system
 export type Subscription = z.infer<typeof SubscriptionSchema>;
 export type SubscriptionWithProduct = z.infer<typeof SubscriptionWithProductSchema>;
 export type CreateSubscriptionRequest = z.infer<typeof CreateSubscriptionRequestSchema>;
 export type CancelSubscriptionRequest = z.infer<typeof CancelSubscriptionRequestSchema>;
+export type ChangePlanRequest = z.infer<typeof ChangePlanRequestSchema>;
 export type SubscriptionParams = z.infer<typeof SubscriptionParamsSchema>;
 
 // Response data types for handlers
@@ -136,3 +262,5 @@ export type GetSubscriptionsResponseData = z.infer<typeof GetSubscriptionsRespon
 export type GetSubscriptionResponseData = z.infer<typeof GetSubscriptionResponseDataSchema>;
 export type CreateSubscriptionResponseData = z.infer<typeof CreateSubscriptionResponseDataSchema>;
 export type CancelSubscriptionResponseData = z.infer<typeof CancelSubscriptionResponseDataSchema>;
+export type ChangePlanResponseData = z.infer<typeof ChangePlanResponseDataSchema>;
+export type ChangePlanResponse = z.infer<typeof ChangePlanResponseSchema>;

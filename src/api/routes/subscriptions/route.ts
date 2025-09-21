@@ -6,6 +6,8 @@ import { createApiResponseSchema } from '@/api/core/schemas';
 import {
   CancelSubscriptionRequestSchema,
   CancelSubscriptionResponseDataSchema,
+  ChangePlanRequestSchema,
+  ChangePlanResponseDataSchema,
   CreateSubscriptionRequestSchema,
   CreateSubscriptionResponseDataSchema,
   GetSubscriptionResponseDataSchema,
@@ -105,6 +107,35 @@ export const cancelSubscriptionRoute = createRoute({
     [HttpStatusCodes.BAD_REQUEST]: { description: 'Bad Request' },
     [HttpStatusCodes.NOT_FOUND]: { description: 'Not Found' },
     [HttpStatusCodes.UNPROCESSABLE_ENTITY]: { description: 'Validation Error' },
+    [HttpStatusCodes.INTERNAL_SERVER_ERROR]: { description: 'Internal Server Error' },
+  },
+});
+
+export const changePlanRoute = createRoute({
+  method: 'patch',
+  path: '/subscriptions/{id}',
+  tags: ['subscriptions'],
+  summary: 'Change subscription plan',
+  description: 'Change the subscription to a different product plan with proration calculation',
+  request: {
+    params: SubscriptionParamsSchema,
+    body: {
+      content: {
+        'application/json': { schema: ChangePlanRequestSchema },
+      },
+    },
+  },
+  responses: {
+    [HttpStatusCodes.OK]: {
+      description: 'Subscription plan changed successfully',
+      content: {
+        'application/json': { schema: createApiResponseSchema(ChangePlanResponseDataSchema) },
+      },
+    },
+    [HttpStatusCodes.BAD_REQUEST]: { description: 'Bad Request' },
+    [HttpStatusCodes.NOT_FOUND]: { description: 'Not Found' },
+    [HttpStatusCodes.UNPROCESSABLE_ENTITY]: { description: 'Validation Error' },
+    [HttpStatusCodes.CONFLICT]: { description: 'Conflict - Cannot change to same plan or invalid state' },
     [HttpStatusCodes.INTERNAL_SERVER_ERROR]: { description: 'Internal Server Error' },
   },
 });

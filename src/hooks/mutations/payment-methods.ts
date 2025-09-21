@@ -4,13 +4,15 @@ import { queryKeys } from '@/lib/data/query-keys';
 import { logError } from '@/lib/utils/safe-logger';
 import type {
   CreateDirectDebitContractRequest,
+  SetDefaultPaymentMethodRequest,
   VerifyDirectDebitContractRequest,
-} from '@/services/api/payment-methods';
+} from '@/services/api';
 import {
   cancelDirectDebitContractService,
   createDirectDebitContractService,
+  setDefaultPaymentMethodService,
   verifyDirectDebitContractService,
-} from '@/services/api/payment-methods';
+} from '@/services/api';
 
 // Traditional payment method creation removed - use direct debit contract verification
 
@@ -156,6 +158,61 @@ export function useCancelDirectDebitContractMutation() {
       if (data.success) {
         logError('Contract cancelled successfully', { component: 'contract-cancellation' });
       }
+    },
+    retry: 1,
+  });
+}
+
+/**
+ * Hook to set a payment method as default
+ * Updates the user's default payment method for subscriptions
+ */
+export function useSetDefaultPaymentMethodMutation() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (args: SetDefaultPaymentMethodRequest) => {
+      const result = await setDefaultPaymentMethodService(args);
+      return result;
+    },
+    onMutate: async (args) => {
+      const paymentMethodId = args.param.id;
+
+      // Cancel any outgoing refetches
+      await queryClient.cancelQueries({ queryKey: queryKeys.paymentMethods.list });
+
+      // Snapshot the previous value for rollback
+      const previousPaymentMethods = queryClient.getQueryData(queryKeys.paymentMethods.list);
+
+      // Optimistically update payment methods list
+      queryClient.setQueryData(queryKeys.paymentMethods.list, (old: unknown) => {
+        const oldData = old as { success?: boolean; data?: Array<{ id: string; isPrimary: boolean }> };
+        if (oldData?.success && Array.isArray(oldData.data)) {
+          return {
+            ...oldData,
+            data: oldData.data.map(pm => ({
+              ...pm,
+              isPrimary: pm.id === paymentMethodId,
+            })),
+          };
+        }
+        return old;
+      });
+
+      return { previousPaymentMethods };
+    },
+    onError: (error, _variables, context) => {
+      logError('Failed to set default payment method', error);
+
+      // Rollback optimistic update on error
+      if (context?.previousPaymentMethods) {
+        queryClient.setQueryData(queryKeys.paymentMethods.list, context.previousPaymentMethods);
+      }
+    },
+    onSuccess: () => {
+      // Invalidate queries after successful update
+      queryClient.invalidateQueries({ queryKey: queryKeys.paymentMethods.list });
+      queryClient.invalidateQueries({ queryKey: queryKeys.subscriptions.list });
     },
     retry: 1,
   });

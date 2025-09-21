@@ -40,6 +40,18 @@ export async function getPaymentMethodsService(args?: GetPaymentMethodsRequest) 
 
 // Traditional payment method creation removed - use direct debit contract verification
 
+// Set Default Payment Method
+export type SetDefaultPaymentMethodRequest = InferRequestType<(typeof apiClient)['payment-methods'][':id']['set-default']['$patch']>;
+export type SetDefaultPaymentMethodResponse = InferResponseType<(typeof apiClient)['payment-methods'][':id']['set-default']['$patch']>;
+
+/**
+ * Set payment method as default
+ * All types are inferred from the RPC client
+ */
+export async function setDefaultPaymentMethodService(args: SetDefaultPaymentMethodRequest) {
+  return parseResponse(apiClient['payment-methods'][':id']['set-default'].$patch(args));
+}
+
 // ============================================================================
 //  Consolidated Direct Debit Contract Services (NEW - ZarinPal Payman API)
 // ============================================================================

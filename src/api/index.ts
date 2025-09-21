@@ -40,12 +40,14 @@ import {
   cancelContractHandler,
   createContractHandler,
   getPaymentMethodsHandler,
+  setDefaultPaymentMethodHandler,
   verifyContractHandler,
 } from './routes/payment-methods/handler';
 import {
   cancelContractRoute,
   createContractRoute,
   getPaymentMethodsRoute,
+  setDefaultPaymentMethodRoute,
   verifyContractRoute,
 } from './routes/payment-methods/route';
 // Payment routes including callback and history
@@ -56,12 +58,14 @@ import { getProductsRoute } from './routes/products/route';
 // Billing routes - Enhanced with analytics and optimizations
 import {
   cancelSubscriptionHandler,
+  changePlanHandler,
   createSubscriptionHandler,
   getSubscriptionHandler,
   getSubscriptionsHandler,
 } from './routes/subscriptions/handler';
 import {
   cancelSubscriptionRoute,
+  changePlanRoute,
   createSubscriptionRoute,
   getSubscriptionRoute,
   getSubscriptionsRoute,
@@ -214,9 +218,11 @@ const appRoutes = app
   .openapi(getSubscriptionsRoute, getSubscriptionsHandler)
   .openapi(getSubscriptionRoute, getSubscriptionHandler)
   .openapi(createSubscriptionRoute, createSubscriptionHandler)
+  .openapi(changePlanRoute, changePlanHandler)
   .openapi(cancelSubscriptionRoute, cancelSubscriptionHandler)
   // Payment methods routes - Consolidated 3-endpoint direct debit flow
   .openapi(getPaymentMethodsRoute, getPaymentMethodsHandler)
+  .openapi(setDefaultPaymentMethodRoute, setDefaultPaymentMethodHandler)
   // Consolidated direct debit contract routes (3 endpoints)
   .openapi(createContractRoute, createContractHandler)
   .openapi(verifyContractRoute, verifyContractHandler)

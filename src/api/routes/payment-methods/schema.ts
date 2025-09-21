@@ -48,6 +48,23 @@ export const PaymentMethodUpdateResponseSchema = createApiResponseSchema(
   PaymentMethodSchema,
 );
 
+export const SetDefaultResponseSchema = createApiResponseSchema(
+  z.object({
+    success: z.boolean().openapi({
+      description: 'Whether the operation was successful',
+      example: true,
+    }),
+    message: z.string().openapi({
+      example: 'Payment method set as default successfully',
+      description: 'Success confirmation message',
+    }),
+    paymentMethodId: z.string().openapi({
+      example: 'pm_123',
+      description: 'ID of the payment method that was set as default',
+    }),
+  }),
+);
+
 // ============================================================================
 // CONSOLIDATED DIRECT DEBIT CONTRACT SCHEMAS (3 ENDPOINTS TOTAL)
 // ============================================================================
@@ -162,6 +179,95 @@ export const CancelContractResponseSchema = createApiResponseSchema(
 );
 
 // ============================================================================
+// ENHANCED PAYMENT METHOD MANAGEMENT SCHEMAS
+// ============================================================================
+
+// Enhanced set-default payment method response schema
+export const SetDefaultPaymentMethodResponseDataSchema = z.object({
+  success: z.boolean().openapi({
+    example: true,
+    description: 'Whether the operation was successful',
+  }),
+  message: z.string().openapi({
+    example: 'Payment method set as default successfully',
+    description: 'Success message',
+  }),
+  paymentMethodId: CoreSchemas.id().openapi({
+    example: 'pm_abc123',
+    description: 'ID of the payment method that was set as default',
+  }),
+  previousDefaultId: z.string().nullable().openapi({
+    example: 'pm_xyz789',
+    description: 'ID of the previous default payment method (null if none)',
+  }),
+}).openapi('SetDefaultPaymentMethodData');
+
+export const SetDefaultPaymentMethodResponseSchema = createApiResponseSchema(
+  SetDefaultPaymentMethodResponseDataSchema,
+);
+
+// URL parameter schema for payment method operations
+export const PaymentMethodSetDefaultParamsSchema = z.object({
+  id: z.string().min(1).openapi({
+    param: {
+      name: 'id',
+      in: 'path',
+      description: 'Payment method ID',
+      example: 'pm_abc123',
+    },
+  }),
+});
+
+// Payment method error responses
+export const PaymentMethodErrorResponseSchema = z.object({
+  success: z.literal(false),
+  error: z.object({
+    code: z.enum([
+      'PAYMENT_METHOD_NOT_FOUND',
+      'PAYMENT_METHOD_INACTIVE',
+      'CONTRACT_NOT_ACTIVE',
+      'USER_NOT_AUTHORIZED',
+      'ALREADY_DEFAULT_METHOD',
+    ]),
+    message: z.string(),
+    context: z.object({
+      errorType: z.literal('payment_method'),
+      paymentMethodId: z.string().optional(),
+      contractStatus: z.string().optional(),
+    }),
+  }),
+}).openapi('PaymentMethodError');
+
+// Iranian-specific validation schemas for payment methods
+export const IranianPaymentValidationSchemas = {
+  // Iranian mobile number validation
+  mobileNumber: z.string()
+    .regex(/^(?:\+98|0)?9\d{9}$/, 'Invalid Iranian mobile number format')
+    .openapi({
+      example: '09123456789',
+      description: 'Iranian mobile number',
+    }),
+
+  // Iranian national ID validation
+  nationalId: z.string()
+    .regex(/^\d{10}$/, 'Iranian national ID must be exactly 10 digits')
+    .openapi({
+      example: '0480123456',
+      description: 'Iranian national ID',
+    }),
+
+  // Iranian Rial amount validation
+  rialAmount: z.number()
+    .int('Rial amounts must be whole numbers')
+    .min(1000, 'Minimum amount is 1,000 IRR')
+    .max(1000000000, 'Maximum amount is 1,000,000,000 IRR')
+    .openapi({
+      example: 50000000,
+      description: 'Amount in Iranian Rials',
+    }),
+};
+
+// ============================================================================
 // TYPE EXPORTS FOR FRONTEND
 // ============================================================================
 
@@ -170,3 +276,8 @@ export type CreateContractResponse = z.infer<typeof CreateContractResponseSchema
 export type VerifyContractRequest = z.infer<typeof VerifyContractRequestSchema>;
 export type VerifyContractResponse = z.infer<typeof VerifyContractResponseSchema>;
 export type CancelContractResponse = z.infer<typeof CancelContractResponseSchema>;
+
+// New payment method management types
+export type SetDefaultPaymentMethodResponseData = z.infer<typeof SetDefaultPaymentMethodResponseDataSchema>;
+export type SetDefaultPaymentMethodResponse = z.infer<typeof SetDefaultPaymentMethodResponseSchema>;
+export type PaymentMethodSetDefaultParams = z.infer<typeof PaymentMethodSetDefaultParamsSchema>;
