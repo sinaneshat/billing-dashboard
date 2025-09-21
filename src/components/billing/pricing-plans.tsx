@@ -1,15 +1,14 @@
 'use client';
 
-import { Check } from 'lucide-react';
 import { useTranslations } from 'next-intl';
-import React, { useMemo } from 'react';
+import { useMemo } from 'react';
 
 import { SetupBankAuthorizationButton } from '@/components/billing/setup-bank-authorization-button';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import type { Product } from '@/db/validation/billing';
 import { cn } from '@/lib/ui/cn';
+
+import type { PlanData } from './unified';
+import { BillingDisplayContainer, mapPlanToContent } from './unified';
 
 type PricingPlansProps = {
   products: Product[];
@@ -20,208 +19,11 @@ type PricingPlansProps = {
   canMakePayments?: boolean;
 };
 
-type ProductCardProps = {
-  product: Product;
-  onSelect: (productId: string) => void;
-  className?: string;
-  isRecommended?: boolean;
-  contractStatus?: string;
-  canMakePayments?: boolean;
-  contractMessage?: string;
-};
-
-function ProductCard({
-  product,
-  onSelect,
-  className,
-  isRecommended = false,
-  contractStatus: _contractStatus,
-  canMakePayments = false,
-  contractMessage,
-}: ProductCardProps) {
-  const t = useTranslations();
-
-  // Parse metadata with proper typing
-  const metadata = useMemo(() => {
-    try {
-      return product.metadata as {
-        popular?: boolean;
-        features?: string[];
-        tier?: string;
-        messagesPerMonth?: number;
-        aiModelsLimit?: number;
-        conversationsPerMonth?: number;
-        badgeText?: string;
-      } | null;
-    } catch {
-      return null;
-    }
-  }, [product.metadata]);
-
-  const isPopular = metadata?.popular === true || isRecommended;
-  const isFree = product.price === 0;
-  const isPro = product.name.toLowerCase().includes('pro');
-  const isPower = product.name.toLowerCase().includes('power');
-
-  // Get plan-specific features from i18n
-  const features = useMemo(() => {
-    if (metadata?.features && metadata.features.length > 0) {
-      return metadata.features;
-    }
-
-    // Use i18n keys for features based on plan type
-    const planType = isFree ? 'free' : isPro ? 'pro' : isPower ? 'power' : 'starter';
-    const baseKey = `pricing.${planType}`;
-
-    return [
-      t(`${baseKey}.features.messagesPerMonth`),
-      t(`${baseKey}.features.aiModels`),
-      t(`${baseKey}.features.conversationsPerMonth`),
-      ...(isFree ? [t(`${baseKey}.features.basicSupport`)] : [t(`${baseKey}.features.premiumModels`)]),
-    ];
-  }, [metadata?.features, isFree, isPro, isPower, t]);
-
-  const getButtonContent = () => {
-    if (isFree) {
-      return (
-        <Button
-          disabled
-          className="w-full h-11 font-medium"
-          variant="outline"
-          size="lg"
-        >
-          {t('status.active')}
-        </Button>
-      );
-    }
-
-    if (!canMakePayments) {
-      return (
-        <SetupBankAuthorizationButton
-          source="plans"
-          productId={product.id}
-          productName={product.name}
-          productPrice={product.price}
-          variant={isPopular ? 'default' : 'outline'}
-          size="lg"
-          className={cn(
-            'w-full h-11 font-medium shadow-sm transition-all',
-            isPopular && 'shadow-md hover:shadow-lg',
-          )}
-          hideIcon={true}
-        />
-      );
-    }
-
-    return (
-      <Button
-        onClick={() => onSelect(product.id)}
-        className={cn(
-          'w-full h-11 font-medium shadow-sm transition-all',
-          isPopular && 'shadow-md hover:shadow-lg',
-        )}
-        variant="default"
-        size="lg"
-      >
-        {t('actions.choosePlan')}
-      </Button>
-    );
-  };
-
-  return (
-    <Card
-      className={cn(
-        'relative flex flex-col h-full transition-all duration-300 hover:shadow-lg',
-        {
-          'border-2 border-primary shadow-lg scale-105': isPopular,
-          'border border-border': !isPopular,
-        },
-        className,
-      )}
-    >
-      {/* Popular Badge */}
-      {isPopular && (
-        <div className="absolute -top-3 left-1/2 -translate-x-1/2 z-10">
-          <Badge variant="default" className="px-3 py-1 text-xs font-medium">
-            {metadata?.badgeText || (isPower ? t('plans.bestValue') : t('plans.mostPopular'))}
-          </Badge>
-        </div>
-      )}
-
-      <CardHeader className="pb-4 space-y-4 text-center">
-        {/* Plan Name */}
-        <div className="space-y-2">
-          <div className="flex items-center justify-center">
-            <h3 className="text-xl font-bold">{product.name}</h3>
-          </div>
-          <p className="text-sm text-muted-foreground">
-            {product.description || t(`pricing.${isFree ? 'free' : isPro ? 'pro' : isPower ? 'power' : 'starter'}.description`)}
-          </p>
-        </div>
-
-        {/* Pricing */}
-        <div className="space-y-1">
-          {isFree
-            ? (
-                <>
-                  <div className="text-3xl font-bold">{t('plans.free')}</div>
-                  <div className="text-sm text-muted-foreground">{t('time.forever')}</div>
-                </>
-              )
-            : (
-                <>
-                  <div className="flex items-baseline justify-center gap-1">
-                    <span className="text-3xl font-bold">
-                      {product.price.toLocaleString('fa-IR')}
-                    </span>
-                    <span className="text-lg text-muted-foreground">{t('pricing.currency')}</span>
-                  </div>
-                  <div className="text-sm text-muted-foreground">
-                    {t('time.perMonth')}
-                  </div>
-                </>
-              )}
-        </div>
-
-        {/* CTA Button */}
-        {getButtonContent()}
-
-        {/* Contract Status Message */}
-        {!canMakePayments && !isFree && contractMessage && (
-          <div className="text-xs text-muted-foreground text-center px-2">
-            {contractMessage}
-          </div>
-        )}
-      </CardHeader>
-
-      <CardContent className="flex-1 space-y-4">
-        {/* Features List */}
-        <div>
-          <div className="text-sm font-medium text-muted-foreground mb-3 border-b pb-2">
-            {t('plans.whatsIncluded')}
-          </div>
-          <div className="space-y-2">
-            {features.map(feature => (
-              <div key={`${product.id}-${feature.replace(/[^a-z0-9]/gi, '-').slice(0, 30)}`} className="flex items-start gap-2">
-                <Check className="h-4 w-4 mt-0.5 flex-shrink-0 text-primary" />
-                <span className="text-sm text-foreground leading-relaxed">
-                  {feature}
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
-
-      </CardContent>
-    </Card>
-  );
-}
-
 export function PricingPlans({
   products,
   onPlanSelect,
   className,
-  contractStatus,
+  contractStatus: _contractStatus,
   contractMessage,
   canMakePayments = false,
 }: PricingPlansProps) {
@@ -247,6 +49,24 @@ export function PricingPlans({
     return proPlan?.id;
   }, [sortedProducts]);
 
+  // Handle plan selection with custom logic for non-payment cases
+  const handlePlanSelect = (product: Product) => {
+    const isFree = product.price === 0;
+
+    if (isFree) {
+      // Free plans are already "active", no action needed
+      return;
+    }
+
+    if (!canMakePayments) {
+      // This will be handled by the SetupBankAuthorizationButton within the content
+      return;
+    }
+
+    // Normal plan selection
+    onPlanSelect(product.id);
+  };
+
   return (
     <div className={cn('space-y-8', className)}>
       {/* Header Section */}
@@ -262,19 +82,80 @@ export function PricingPlans({
       </div>
 
       {/* Pricing Cards Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
-        {sortedProducts.map(product => (
-          <ProductCard
-            key={product.id}
-            product={product}
-            onSelect={onPlanSelect}
-            isRecommended={product.id === recommendedPlanId}
-            contractStatus={contractStatus}
-            canMakePayments={canMakePayments}
-            contractMessage={contractMessage}
-          />
-        ))}
-      </div>
+      <BillingDisplayContainer
+        data={sortedProducts}
+        isLoading={false}
+        dataType="plan"
+        variant="card"
+        size="md"
+        columns="auto"
+        gap="md"
+        mapItem={(product: Product) => {
+          const isRecommended = product.id === recommendedPlanId;
+          const isFree = product.price === 0;
+
+          // For non-payment cases, inject the SetupBankAuthorizationButton
+          let primaryAction: import('./unified').ActionConfig | undefined;
+          if (isFree) {
+            primaryAction = {
+              label: t('status.active'),
+              variant: 'outline',
+              disabled: true,
+            };
+          } else if (!canMakePayments) {
+            // We'll handle this with a custom button in contentExtra
+            primaryAction = undefined;
+          } else {
+            primaryAction = {
+              label: t('actions.choosePlan'),
+              variant: isRecommended ? 'default' : 'outline',
+              onClick: () => handlePlanSelect(product),
+            };
+          }
+
+          const content = mapPlanToContent(
+            product as PlanData,
+            t,
+            primaryAction ? () => handlePlanSelect(product) : undefined,
+            canMakePayments,
+            contractMessage,
+          );
+
+          // Override the primary action
+          content.primaryAction = primaryAction;
+
+          // Add SetupBankAuthorizationButton for non-payment cases
+          if (!canMakePayments && !isFree) {
+            content.contentExtra = (
+              <div className="pt-4">
+                <SetupBankAuthorizationButton
+                  source="plans"
+                  productId={product.id}
+                  productName={product.name}
+                  productPrice={product.price}
+                  variant={isRecommended ? 'default' : 'outline'}
+                  size="lg"
+                  className="w-full h-11 font-medium shadow-sm transition-all"
+                  hideIcon={true}
+                />
+              </div>
+            );
+          }
+
+          // Add popular badge for recommended plans
+          if (isRecommended) {
+            content.badge = {
+              variant: 'default',
+              label: typeof product.metadata === 'object' && product.metadata && 'badgeText' in product.metadata
+                ? (product.metadata.badgeText as string)
+                : t('plans.mostPopular'),
+            };
+          }
+
+          return content;
+        }}
+        onItemClick={product => handlePlanSelect(product)}
+      />
     </div>
   );
 }
