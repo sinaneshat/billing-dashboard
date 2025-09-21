@@ -1,130 +1,52 @@
 'use client';
 
-import { Calendar, Package, Settings, Trash2 } from 'lucide-react';
+import { Package } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
 import { memo } from 'react';
 
 import type { SubscriptionWithProduct } from '@/api/routes/subscriptions/schema';
-import { StatusCard } from '@/components/dashboard/dashboard-cards';
-import { EmptyState, LoadingState } from '@/components/dashboard/dashboard-states';
+import { EmptyState, ErrorState, LoadingState } from '@/components/dashboard/dashboard-states';
 import { Button } from '@/components/ui/button';
-import { SubscriptionStatusBadge } from '@/components/ui/status-badge';
 import { useCancelSubscriptionMutation } from '@/hooks/mutations/subscriptions';
-import { formatTomanCurrency } from '@/lib/format';
-import { cn } from '@/lib/ui/cn';
+
+import type { SubscriptionData } from './unified';
+import { BillingDisplayContainer, mapSubscriptionToContent } from './unified';
 
 export type Subscription = SubscriptionWithProduct;
 
 type SubscriptionCardsProps = {
   subscriptions: Subscription[];
   isLoading?: boolean;
+  isError?: boolean;
+  error?: Error | null;
+  onRetry?: () => void;
   className?: string;
 };
-
-// Simple SubscriptionCard component
-function SubscriptionCard({ subscription, locale, t }: {
-  subscription: Subscription;
-  locale: string;
-  t: (key: string) => string;
-}) {
-  const router = useRouter();
-  const cancelSubscription = useCancelSubscriptionMutation();
-
-  const handleManage = () => {
-    router.push(`/dashboard/billing/subscriptions/${subscription.id}/manage`);
-  };
-
-  const handleCancel = () => {
-    cancelSubscription.mutate({
-      param: { id: subscription.id },
-      json: { reason: t('subscription.cancellationReason') },
-    });
-  };
-
-  // Create price info component
-  const priceInfo = (
-    <div className="flex items-center justify-between">
-      <span className="text-sm text-muted-foreground">
-        {t('subscription.price')}
-      </span>
-      <span className="font-medium">
-        {subscription.currentPrice && formatTomanCurrency(subscription.currentPrice)}
-        {subscription.product?.billingPeriod && (
-          <span className="text-xs text-muted-foreground ml-1">
-            /
-            {subscription.product.billingPeriod}
-          </span>
-        )}
-      </span>
-    </div>
-  );
-
-  // Create next billing date info
-  const nextBillingInfo = subscription.nextBillingDate
-    ? (
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <Calendar className="h-4 w-4" />
-          <span>
-            {t('subscription.nextBilling')}
-            :
-            {new Date(subscription.nextBillingDate).toLocaleDateString(locale)}
-          </span>
-        </div>
-      )
-    : null;
-
-  // Create action buttons
-  const actionButtons = (
-    <div className="flex items-center gap-2 pt-2">
-      <Button
-        variant="outline"
-        size="sm"
-        onClick={handleManage}
-        disabled={subscription.status !== 'active'}
-        className="gap-1 flex-1"
-      >
-        <Settings className="h-3 w-3" />
-        {t('subscription.manage')}
-      </Button>
-      <Button
-        variant="ghost"
-        size="sm"
-        onClick={handleCancel}
-        disabled={!['active', 'trial'].includes(subscription.status)}
-        className="text-destructive hover:text-destructive hover:bg-destructive/10 gap-1"
-      >
-        <Trash2 className="h-3 w-3" />
-        {t('actions.cancel')}
-      </Button>
-    </div>
-  );
-
-  return (
-    <StatusCard
-      title={subscription.product?.name || t('subscription.unknownProduct')}
-      subtitle={subscription.product?.description}
-      status={<SubscriptionStatusBadge status={subscription.status} />}
-      icon={<Package className="h-5 w-5 text-primary" />}
-      primaryInfo={priceInfo}
-      secondaryInfo={(
-        <div className="space-y-3">
-          {nextBillingInfo}
-          {actionButtons}
-        </div>
-      )}
-    />
-  );
-}
 
 export const SubscriptionCards = memo(({
   subscriptions,
   isLoading = false,
+  isError = false,
+  error: _error = null,
+  onRetry,
   className,
 }: SubscriptionCardsProps) => {
   const t = useTranslations();
   const locale = useLocale();
   const router = useRouter();
+  const cancelSubscription = useCancelSubscriptionMutation();
+
+  const handleManage = (id: string) => {
+    router.push(`/dashboard/billing/subscriptions/${id}/manage`);
+  };
+
+  const handleCancel = (id: string) => {
+    cancelSubscription.mutate({
+      param: { id },
+      json: { reason: t('subscription.cancellationReason') },
+    });
+  };
 
   if (isLoading) {
     return (
@@ -134,51 +56,77 @@ export const SubscriptionCards = memo(({
         size="lg"
         title={t('states.loading.subscriptions')}
         message={t('states.loading.please_wait')}
-        className={className}
       />
     );
   }
 
-  if (subscriptions.length === 0) {
+  if (isError && !isLoading) {
     return (
-      <EmptyState
-        title={t('states.empty.subscriptions')}
-        description={t('states.empty.subscriptionsDescription')}
-        icon={<Package className="h-8 w-8 text-muted-foreground" />}
-        action={(
-          <Button
-            size="lg"
-            startIcon={<Package className="h-4 w-4" />}
-            onClick={() => router.push('/dashboard/billing/plans')}
-          >
-            {t('billing.viewPlans')}
-          </Button>
-        )}
+      <ErrorState
+        variant="card"
+        title={t('states.error.loadSubscriptions')}
+        description={t('states.error.loadSubscriptionsDescription')}
+        onRetry={onRetry}
+        retryLabel={t('actions.tryAgain')}
       />
     );
   }
 
   return (
-    <div className={cn('space-y-4', className)}>
-      <div className="flex items-center justify-between">
-        <h3 className="text-lg font-medium">{t('billing.subscriptionsTitle')}</h3>
-        <span className="text-sm text-muted-foreground">
-          {subscriptions.length}
-          {' '}
-          {subscriptions.length === 1 ? t('subscription.subscription') : t('subscription.subscriptions')}
-        </span>
-      </div>
-      <div className="grid gap-4 grid-cols-1 lg:grid-cols-2">
-        {subscriptions.map(subscription => (
-          <SubscriptionCard
-            key={subscription.id}
-            subscription={subscription}
-            locale={locale}
-            t={t}
-          />
-        ))}
-      </div>
-    </div>
+    <>
+      {subscriptions.length > 0
+        ? (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-medium">
+                  {t('billing.activeSubscriptions')}
+                </h3>
+                <span className="text-sm text-muted-foreground">
+                  {subscriptions.length}
+                  {' '}
+                  {subscriptions.length === 1 ? t('subscriptions.subscription') : t('subscriptions.subscriptions')}
+                </span>
+              </div>
+              <BillingDisplayContainer
+                data={subscriptions}
+                isLoading={false}
+                dataType="subscription"
+                variant="card"
+                size="md"
+                columns="auto"
+                gap="md"
+                containerClassName={className}
+                mapItem={(subscription: Subscription) =>
+                  mapSubscriptionToContent(
+                    subscription as SubscriptionData,
+                    t,
+                    locale,
+                    handleManage,
+                    handleCancel,
+                  )}
+              />
+            </div>
+          )
+        : (
+            <EmptyState
+              variant="subscriptions"
+              style="dashed"
+              size="lg"
+              title={t('states.empty.subscriptions')}
+              description={t('states.empty.subscriptionsDescription')}
+              icon={<Package className="h-12 w-12 text-primary/60" />}
+              action={(
+                <Button
+                  size="lg"
+                  onClick={() => router.push('/dashboard/billing/plans')}
+                >
+                  <Package className="h-4 w-4 mr-2" />
+                  {t('billing.choosePlan')}
+                </Button>
+              )}
+            />
+          )}
+    </>
   );
 });
 

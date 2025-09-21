@@ -26,7 +26,9 @@ export default function SubscriptionManagementScreen() {
         <SubscriptionCards
           subscriptions={subscriptions}
           isLoading={subscriptionsQuery.isLoading}
-          className="w-full"
+          isError={subscriptionsQuery.isError}
+          error={subscriptionsQuery.error}
+          onRetry={() => subscriptionsQuery.refetch()}
         />
       </DashboardSection>
     </DashboardPage>

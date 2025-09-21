@@ -36,6 +36,7 @@ type Bank = {
 };
 
 type ContractData = {
+  contractId: string;
   paymanAuthority: string;
   banks: Bank[];
   contractSigningUrl: string;
@@ -168,6 +169,7 @@ export function BankAuthorizationStepperOrchestrator({
 
         // Banks are now included in the contract creation response
         setContractData({
+          contractId: result.data.contractId,
           paymanAuthority: result.data.paymanAuthority,
           contractSigningUrl: result.data.signingUrlTemplate, // Updated property name
           banks: result.data.banks, // Banks are now included in response
@@ -207,6 +209,7 @@ export function BankAuthorizationStepperOrchestrator({
     toastManager.info(t('bankSetup.messages.redirectingToBank', { bankName: selectedBank.name }));
 
     localStorage.setItem('bank-authorization-contract', JSON.stringify({
+      contractId: contractData.contractId,
       paymanAuthority: contractData.paymanAuthority,
       selectedBankCode: data.selectedBankCode,
       selectedBankName: selectedBank.name,
