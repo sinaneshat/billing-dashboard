@@ -17,12 +17,13 @@ import { createHandler, createHandlerWithTransaction, Responses } from '@/api/co
 import { ZarinPalDirectDebitService } from '@/api/services/zarinpal-direct-debit';
 import type { ApiEnv } from '@/api/types';
 import { getDbAsync } from '@/db';
-import { billingEvent, paymentMethod } from '@/db/tables/billing';
+import { billingEvent, paymentMethod, subscription } from '@/db/tables/billing';
 
 import type {
   cancelContractRoute,
   createContractRoute,
   getPaymentMethodsRoute,
+  setDefaultPaymentMethodRoute,
   verifyContractRoute,
 } from './route';
 import {
@@ -56,6 +57,102 @@ export const getPaymentMethodsHandler: RouteHandler<typeof getPaymentMethodsRout
       .where(eq(paymentMethod.userId, user.id));
 
     return Responses.ok(c, paymentMethods);
+  },
+);
+
+/**
+ * Set Default Payment Method - Atomic operation to set payment method as primary
+ */
+export const setDefaultPaymentMethodHandler: RouteHandler<typeof setDefaultPaymentMethodRoute, ApiEnv> = createHandlerWithTransaction(
+  {
+    auth: 'session',
+    operationName: 'setDefaultPaymentMethod',
+    validateParams: PaymentMethodParamsSchema,
+  },
+  async (c, tx) => {
+    const user = c.get('user');
+    const { id } = c.validated.params;
+
+    if (!user) {
+      throw createError.unauthenticated('User authentication required');
+    }
+
+    // Find the payment method and verify ownership
+    const [targetMethod] = await tx
+      .select()
+      .from(paymentMethod)
+      .where(and(eq(paymentMethod.id, id), eq(paymentMethod.userId, user.id)));
+
+    if (!targetMethod) {
+      throw createError.notFound('Payment method not found');
+    }
+
+    // Validate payment method status
+    if (!targetMethod.isActive) {
+      throw createError.badRequest('Payment method is not active');
+    }
+
+    if (targetMethod.contractStatus !== 'active') {
+      throw createError.badRequest('Payment method contract is not active');
+    }
+
+    if (!targetMethod.contractSignature) {
+      throw createError.badRequest('Payment method contract signature is invalid');
+    }
+
+    // If already primary, return success
+    if (targetMethod.isPrimary) {
+      return Responses.ok(c, {
+        success: true,
+        message: 'Payment method is already set as default',
+        paymentMethodId: id,
+      });
+    }
+
+    // Get current primary payment method for audit trail
+    const [currentPrimary] = await tx
+      .select()
+      .from(paymentMethod)
+      .where(and(eq(paymentMethod.userId, user.id), eq(paymentMethod.isPrimary, true)));
+
+    // Atomic operation: Set all user's payment methods isPrimary = false
+    await tx
+      .update(paymentMethod)
+      .set({ isPrimary: false, updatedAt: new Date() })
+      .where(eq(paymentMethod.userId, user.id));
+
+    // Set target payment method as primary
+    await tx
+      .update(paymentMethod)
+      .set({
+        isPrimary: true,
+        lastUsedAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(paymentMethod.id, id));
+
+    // Create billing event for audit trail
+    await tx.insert(billingEvent).values({
+      userId: user.id,
+      paymentMethodId: id,
+      eventType: 'default_payment_method_changed',
+      eventData: {
+        previousDefaultId: currentPrimary?.id || null,
+        newDefaultId: id,
+        paymentMethodDetails: {
+          contractType: targetMethod.contractType,
+          contractDisplayName: targetMethod.contractDisplayName,
+          contractMobile: targetMethod.contractMobile,
+        },
+      },
+      severity: 'info',
+    });
+
+    return Responses.ok(c, {
+      success: true,
+      message: 'Payment method set as default successfully',
+      paymentMethodId: id,
+    });
   },
 );
 
@@ -197,9 +294,11 @@ export const verifyContractHandler: RouteHandler<typeof verifyContractRoute, Api
 );
 
 /**
- * 3. Cancel Contract - Cancel direct debit contract:
+ * 3. Cancel Contract - Cancel and delete direct debit contract:
+ *    - Checks for dependent active subscriptions
  *    - Calls ZarinPal contract cancellation API
- *    - Updates payment method status
+ *    - Creates audit trail before deletion
+ *    - Hard deletes payment method from database
  *    - Required by ZarinPal terms of service
  */
 export const cancelContractHandler: RouteHandler<typeof cancelContractRoute, ApiEnv> = createHandlerWithTransaction(
@@ -208,7 +307,7 @@ export const cancelContractHandler: RouteHandler<typeof cancelContractRoute, Api
     operationName: 'cancelDirectDebitContract',
     validateParams: PaymentMethodParamsSchema,
   },
-  async (c, db) => {
+  async (c, tx) => {
     const user = c.get('user');
     const { id } = c.validated.params;
 
@@ -217,7 +316,7 @@ export const cancelContractHandler: RouteHandler<typeof cancelContractRoute, Api
     }
 
     // Find the payment method
-    const [existingMethod] = await db
+    const [existingMethod] = await tx
       .select()
       .from(paymentMethod)
       .where(and(eq(paymentMethod.id, id), eq(paymentMethod.userId, user.id)));
@@ -230,6 +329,19 @@ export const cancelContractHandler: RouteHandler<typeof cancelContractRoute, Api
       throw createError.badRequest('Not a direct debit contract');
     }
 
+    // Check if any active subscriptions use this payment method
+    const dependentSubscriptions = await tx
+      .select()
+      .from(subscription)
+      .where(and(
+        eq(subscription.paymentMethodId, existingMethod.id),
+        eq(subscription.status, 'active'),
+      ));
+
+    if (dependentSubscriptions.length > 0) {
+      throw createError.conflict('Cannot delete payment method: active subscriptions exist');
+    }
+
     // Cancel contract with ZarinPal
     const zarinpalService = ZarinPalDirectDebitService.create();
     const cancelResult = await zarinpalService.cancelContract({
@@ -240,26 +352,29 @@ export const cancelContractHandler: RouteHandler<typeof cancelContractRoute, Api
       throw createError.badRequest('Failed to cancel contract with ZarinPal');
     }
 
-    // Update payment method status
-    await db
-      .update(paymentMethod)
-      .set({
-        contractStatus: 'cancelled_by_user',
-        isActive: false,
-        updatedAt: new Date(),
-      })
-      .where(eq(paymentMethod.id, id));
-
-    // Log billing event
-    await db.insert(billingEvent).values({
+    // Create billing event BEFORE deletion (important for audit trail)
+    await tx.insert(billingEvent).values({
       userId: user.id,
-      eventType: 'direct_debit_contract_cancelled',
-      eventData: { paymentMethodId: id },
+      paymentMethodId: id, // Will be deleted, so log it now
+      eventType: 'payment_method_hard_deleted',
+      eventData: {
+        contractSignature: existingMethod.contractSignature,
+        contractDisplayName: existingMethod.contractDisplayName,
+        contractMobile: existingMethod.contractMobile,
+        deletionReason: 'user_requested',
+        zarinpalCancellationSuccess: true,
+      },
+      severity: 'info',
+      createdAt: new Date(),
+      updatedAt: new Date(),
     });
+
+    // Hard delete from database
+    await tx.delete(paymentMethod).where(eq(paymentMethod.id, id));
 
     return Responses.ok(c, {
       cancelled: true,
-      message: 'Direct debit contract cancelled successfully',
+      message: 'Direct debit contract deleted successfully',
     });
   },
 );

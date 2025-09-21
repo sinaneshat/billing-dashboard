@@ -6,19 +6,18 @@ import { getPaymentsService } from '@/services/api/payments';
 
 /**
  * Hook to fetch all user payments (billing history)
- * Context7 official pattern - EXACT match with server prefetch
- * AUTHENTICATION FIX: Only fetch when user is authenticated to prevent 401 errors
+ * Requires authentication - only fetches when user is authenticated
+ * Shorter stale time for financial data to ensure accuracy
  */
 export function usePaymentsQuery() {
   const { data: session, isPending } = useSession();
-  // More robust authentication check - ensure session is loaded and user exists
   const isAuthenticated = !isPending && !!session?.user?.id;
 
   return useQuery({
-    queryKey: queryKeys.payments.list, // CRITICAL FIX: Static array like official examples
+    queryKey: queryKeys.payments.list,
     queryFn: getPaymentsService,
-    staleTime: 60 * 1000, // CRITICAL FIX: Match Context7 examples (60 seconds)
-    gcTime: 10 * 60 * 1000, // 10 minutes
+    staleTime: 60 * 1000, // 1 minute - financial data should be fresh
+    gcTime: 10 * 60 * 1000, // 10 minutes cache retention
     retry: (failureCount, error) => {
       // Don't retry on authentication errors
       if (error instanceof Error && error.message.includes('Authentication')) {
@@ -29,12 +28,9 @@ export function usePaymentsQuery() {
       if (errorStatus && errorStatus >= 400 && errorStatus < 500) {
         return false;
       }
-      // Retry up to 3 times for server errors and network errors
-      return failureCount < 3;
+      return failureCount < 2;
     },
-    retryDelay: attemptIndex => Math.min(attemptIndex > 1 ? 2 ** attemptIndex * 1000 : 1000, 30 * 1000),
-    throwOnError: false, // Handle errors in component state
-    // AUTHENTICATION FIX: Only fetch when session is fully loaded and authenticated
     enabled: isAuthenticated,
+    throwOnError: false,
   });
 }

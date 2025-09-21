@@ -17,6 +17,10 @@ export {
   type GetPaymentMethodsRequest,
   type GetPaymentMethodsResponse,
   getPaymentMethodsService,
+  // Set default payment method
+  type SetDefaultPaymentMethodRequest,
+  type SetDefaultPaymentMethodResponse,
+  setDefaultPaymentMethodService,
   type VerifyDirectDebitContractRequest,
   type VerifyDirectDebitContractResponse,
   verifyDirectDebitContractService,
@@ -37,9 +41,18 @@ export {
 
 // Subscriptions service exports
 export {
+  type CancelSubscriptionRequest,
+  type CancelSubscriptionResponse,
+  cancelSubscriptionService,
+  type ChangePlanRequest,
+  type ChangePlanResponse,
+  changePlanService,
   type CreateSubscriptionRequest,
   type CreateSubscriptionResponse,
   createSubscriptionService,
+  type GetSubscriptionRequest,
+  type GetSubscriptionResponse,
+  getSubscriptionService,
   type GetSubscriptionsRequest,
   type GetSubscriptionsResponse,
   getSubscriptionsService,

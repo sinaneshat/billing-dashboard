@@ -39,8 +39,8 @@ export const externalWebhookEndpoint = sqliteTable('external_webhook_endpoint', 
   index('external_webhook_endpoint_url_idx').on(table.url),
 ]);
 
-// Note: External integration tables for user mapping have been removed
-// Users are managed directly through Better Auth without additional mapping
+// Note: User correlation is handled via email addresses
+// No separate mapping table needed - webhooks will include user email
 
 // Webhook delivery tracking for external systems
 export const webhookDeliveryAttempt = sqliteTable('webhook_delivery_attempt', {
@@ -85,7 +85,7 @@ export const externalWebhookEndpointRelations = relations(externalWebhookEndpoin
   deliveryAttempts: many(webhookDeliveryAttempt),
 }));
 
-// Note: External integration relations removed to simplify schema
+// Note: Relations removed since we're using email-based correlation
 
 export const webhookDeliveryAttemptRelations = relations(webhookDeliveryAttempt, ({ one }) => ({
   endpoint: one(externalWebhookEndpoint, {

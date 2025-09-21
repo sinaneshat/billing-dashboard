@@ -1,11 +1,19 @@
+// ============================================================================
+// MUTATION HOOKS BY DOMAIN
+// ============================================================================
+
+// Direct debit contract management
 export {
   useCancelDirectDebitContractMutation,
   useCreateDirectDebitContractMutation,
   useInitiateDirectDebitContractMutation,
+  useSetDefaultPaymentMethodMutation,
   useVerifyDirectDebitContractMutation,
 } from './payment-methods';
-// Payment mutations removed - subscription platform only
+
+// Subscription lifecycle management
 export {
   useCancelSubscriptionMutation,
+  useChangePlanMutation,
   useCreateSubscriptionMutation,
 } from './subscriptions';

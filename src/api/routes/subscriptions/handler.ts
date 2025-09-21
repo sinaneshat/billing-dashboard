@@ -19,12 +19,14 @@ import { billingEvent, paymentMethod as paymentMethodTable, product, subscriptio
 
 import type {
   cancelSubscriptionRoute,
+  changePlanRoute,
   createSubscriptionRoute,
   getSubscriptionRoute,
   getSubscriptionsRoute,
 } from './route';
 import {
   CancelSubscriptionRequestSchema,
+  ChangePlanRequestSchema,
   CreateSubscriptionRequestSchema,
   SubscriptionParamsSchema,
 } from './schema';
@@ -448,6 +450,231 @@ export const cancelSubscriptionHandler: RouteHandler<typeof cancelSubscriptionRo
       subscriptionId: id,
       status: 'canceled' as const,
       canceledAt: canceledAt.toISOString(),
+    });
+  },
+);
+
+/**
+ * PATCH /subscriptions/{id} - Change subscription plan
+ * Handles plan upgrades/downgrades with proration calculation
+ */
+export const changePlanHandler: RouteHandler<typeof changePlanRoute, ApiEnv> = createHandlerWithTransaction(
+  {
+    auth: 'session',
+    validateParams: SubscriptionParamsSchema,
+    validateBody: ChangePlanRequestSchema,
+    operationName: 'changePlan',
+  },
+  async (c, tx) => {
+    const user = c.get('user');
+
+    if (!user) {
+      throw createError.unauthenticated('User authentication required');
+    }
+
+    const { id } = c.validated.params;
+    const { productId, effectiveDate } = c.validated.body;
+
+    c.logger.info('Changing subscription plan', {
+      logType: 'operation',
+      operationName: 'changePlan',
+      userId: user.id,
+      resource: id,
+    });
+
+    // 1. Validate subscription exists and user owns it
+    const subscriptionResults = await tx.select().from(subscription).where(eq(subscription.id, id)).limit(1);
+    const subscriptionRecord = subscriptionResults[0];
+
+    if (!subscriptionRecord || subscriptionRecord.userId !== user.id) {
+      c.logger.warn('Subscription not found for plan change', {
+        logType: 'operation',
+        operationName: 'changePlan',
+        userId: user.id,
+        resource: id,
+      });
+      throw createError.notFound('Subscription');
+    }
+
+    // 2. Validate subscription is active
+    if (subscriptionRecord.status !== 'active') {
+      c.logger.warn('Subscription not active for plan change', {
+        logType: 'operation',
+        operationName: 'changePlan',
+        resource: id,
+      });
+      throw createError.badRequest('Only active subscriptions can be changed');
+    }
+
+    // 3. Validate new product exists and is active
+    const newProductResults = await tx.select().from(product).where(eq(product.id, productId)).limit(1);
+    const newProductRecord = newProductResults[0];
+
+    if (!newProductRecord || !newProductRecord.isActive) {
+      c.logger.warn('Target product not found or inactive', {
+        logType: 'operation',
+        operationName: 'changePlan',
+        resource: productId,
+      });
+      throw createError.notFound('Target product not found or is not available');
+    }
+
+    // 4. Validate not changing to same product
+    if (subscriptionRecord.productId === productId) {
+      c.logger.warn('Cannot change to same product', {
+        logType: 'operation',
+        operationName: 'changePlan',
+        resource: id,
+      });
+      throw createError.conflict('Cannot change to the same product plan');
+    }
+
+    // 5. Get current product details
+    const currentProductResults = await tx.select().from(product).where(eq(product.id, subscriptionRecord.productId)).limit(1);
+    const currentProductRecord = currentProductResults[0];
+
+    if (!currentProductRecord) {
+      c.logger.error('Current product not found', undefined, {
+        logType: 'operation',
+        operationName: 'changePlan',
+        resource: subscriptionRecord.productId,
+      });
+      throw createError.internal('Current product not found');
+    }
+
+    // 6. Calculate proration
+    const now = new Date();
+    const nextBillingDate = subscriptionRecord.nextBillingDate ? new Date(subscriptionRecord.nextBillingDate) : null;
+
+    let prorationCredit = 0;
+    let netAmount = 0;
+    const newNextBillingDate = nextBillingDate;
+
+    if (effectiveDate === 'immediate' && nextBillingDate) {
+      // Calculate proration for immediate change
+      const totalBillingPeriodMs = 30 * 24 * 60 * 60 * 1000; // 30 days in milliseconds
+      const remainingTimeMs = nextBillingDate.getTime() - now.getTime();
+      const remainingRatio = Math.max(0, remainingTimeMs / totalBillingPeriodMs);
+
+      // Credit for unused time on current plan
+      prorationCredit = Math.floor(subscriptionRecord.currentPrice * remainingRatio);
+
+      // Charge for new plan from now until next billing
+      const newPlanCharge = Math.floor(newProductRecord.price * remainingRatio);
+
+      netAmount = newPlanCharge - prorationCredit;
+
+      c.logger.info('Proration calculated', {
+        logType: 'operation',
+        operationName: 'changePlan',
+      });
+    } else {
+      // For next cycle changes, no proration needed
+      netAmount = newProductRecord.price;
+    }
+
+    // 7. Update subscription
+    const updateData: Partial<typeof subscription.$inferInsert> = {
+      productId: newProductRecord.id,
+      currentPrice: newProductRecord.price,
+      prorationCredit: effectiveDate === 'immediate' ? prorationCredit : 0,
+      upgradeDowngradeAt: now,
+      updatedAt: now,
+    };
+
+    if (effectiveDate === 'immediate') {
+      // Apply changes immediately - update next billing date if needed
+      updateData.nextBillingDate = newNextBillingDate;
+    }
+
+    await tx.update(subscription)
+      .set(updateData)
+      .where(eq(subscription.id, id));
+
+    // 8. Create billing event for audit trail
+    await tx.insert(billingEvent).values({
+      id: crypto.randomUUID(),
+      userId: user.id,
+      subscriptionId: id,
+      paymentId: null,
+      paymentMethodId: subscriptionRecord.paymentMethodId,
+      eventType: 'subscription_plan_changed',
+      eventData: {
+        previousProductId: currentProductRecord.id,
+        previousProductName: currentProductRecord.name,
+        previousPrice: subscriptionRecord.currentPrice,
+        newProductId: newProductRecord.id,
+        newProductName: newProductRecord.name,
+        newPrice: newProductRecord.price,
+        effectiveDate,
+        prorationCredit,
+        netAmount,
+        changeDate: now.toISOString(),
+      },
+      severity: 'info',
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    // 9. DISPATCH ROUNDTABLE WEBHOOK: Subscription plan changed
+    try {
+      // Get user details for webhook
+      const { user: userTable } = await import('@/db/tables/auth');
+      const userResults = await tx.select({ email: userTable.email }).from(userTable).where(eq(userTable.id, user.id)).limit(1);
+      const userRecord = userResults[0];
+
+      if (userRecord?.email) {
+        // Import webhook utilities
+        const { WebhookEventBuilders, RoundtableWebhookForwarder } = await import('@/api/routes/webhooks/handler');
+
+        const customerId = WebhookEventBuilders.generateVirtualStripeCustomerId(user.id);
+
+        // Create subscription updated event (using created event as a placeholder for plan change)
+        const subscriptionUpdatedEvent = WebhookEventBuilders.createCustomerSubscriptionCreatedEvent(
+          id,
+          customerId,
+          {
+            userEmail: userRecord.email,
+            roundtableProductId: newProductRecord.roundtableId || newProductRecord.id,
+            productName: newProductRecord.name,
+            planName: (newProductRecord.metadata as Record<string, unknown>)?.roundtable_plan_name as string || newProductRecord.name || 'Pro',
+            billingUserId: user.id,
+            subscriptionType: 'plan_change',
+            previousProductId: currentProductRecord.id,
+            previousProductName: currentProductRecord.name,
+            effectiveDate,
+            prorationCredit: prorationCredit.toString(),
+            netAmount: netAmount.toString(),
+          },
+        );
+
+        // Forward event to Roundtable
+        await RoundtableWebhookForwarder.forwardEvent(subscriptionUpdatedEvent);
+      }
+    } catch (webhookError) {
+      c.logger.error('Failed to dispatch Roundtable webhook for plan change', webhookError instanceof Error ? webhookError : new Error(String(webhookError)));
+      // Don't fail the plan change if webhook fails
+    }
+
+    c.logger.info('Subscription plan changed successfully', {
+      logType: 'operation',
+      operationName: 'changePlan',
+      resource: id,
+    });
+
+    return Responses.ok(c, {
+      subscriptionId: id,
+      planChanged: true,
+      previousProductId: currentProductRecord.id,
+      newProductId: newProductRecord.id,
+      prorationDetails: {
+        creditAmount: prorationCredit,
+        chargeAmount: effectiveDate === 'immediate' ? Math.floor(newProductRecord.price * (nextBillingDate ? (nextBillingDate.getTime() - now.getTime()) / (30 * 24 * 60 * 60 * 1000) : 1)) : newProductRecord.price,
+        netAmount,
+        effectiveDate: now.toISOString(),
+        nextBillingDate: (newNextBillingDate || nextBillingDate)?.toISOString() || null,
+      },
+      autoRenewalEnabled: !!subscriptionRecord.paymentMethodId,
     });
   },
 );

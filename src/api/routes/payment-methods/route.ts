@@ -6,6 +6,7 @@ import {
   CreateContractRequestSchema,
   CreateContractResponseSchema,
   PaymentMethodListResponseSchema,
+  SetDefaultResponseSchema,
   VerifyContractRequestSchema,
   VerifyContractResponseSchema,
 } from './schema';
@@ -28,6 +29,39 @@ export const getPaymentMethodsRoute = createRoute({
         },
       },
       description: 'Payment methods retrieved successfully',
+    },
+  },
+});
+
+/**
+ * Set Default Payment Method - Atomic operation to set payment method as primary
+ */
+export const setDefaultPaymentMethodRoute = createRoute({
+  method: 'patch',
+  path: '/payment-methods/{id}/set-default',
+  tags: ['payment-methods'],
+  summary: 'Set payment method as default',
+  description: 'Set a payment method as the default primary method for the user. Atomically ensures only one primary payment method per user.',
+  request: {
+    params: z.object({
+      id: z.string().openapi({
+        param: {
+          name: 'id',
+          in: 'path',
+          description: 'Payment method ID',
+          example: 'pm_123',
+        },
+      }),
+    }),
+  },
+  responses: {
+    [HttpStatusCodes.OK]: {
+      content: {
+        'application/json': {
+          schema: SetDefaultResponseSchema,
+        },
+      },
+      description: 'Payment method set as default successfully',
     },
   },
 });
@@ -155,6 +189,7 @@ export const cancelContractRoute = createRoute({
 export const consolidatedPaymentMethodRoutes = [
   // Basic payment method management
   getPaymentMethodsRoute,
+  setDefaultPaymentMethodRoute,
 
   // Consolidated direct debit contract flow (3 endpoints)
   createContractRoute,

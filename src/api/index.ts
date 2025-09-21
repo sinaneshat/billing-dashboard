@@ -35,17 +35,28 @@ import { RateLimiterFactory } from './middleware/rate-limiter-factory';
 // Import routes and handlers directly for proper RPC type inference
 import { secureMeHandler } from './routes/auth/handler';
 import { secureMeRoute } from './routes/auth/route';
+// Billing routes - Enhanced with analytics and optimizations
+import {
+  getBillingMetricsHandler,
+  processRecurringPaymentsHandler,
+} from './routes/billing/handler';
+import {
+  getBillingMetricsRoute,
+  processRecurringPaymentsRoute,
+} from './routes/billing/route';
 // Payment methods routes - Consolidated 3-endpoint direct debit flow
 import {
   cancelContractHandler,
   createContractHandler,
   getPaymentMethodsHandler,
+  setDefaultPaymentMethodHandler,
   verifyContractHandler,
 } from './routes/payment-methods/handler';
 import {
   cancelContractRoute,
   createContractRoute,
   getPaymentMethodsRoute,
+  setDefaultPaymentMethodRoute,
   verifyContractRoute,
 } from './routes/payment-methods/route';
 // Payment routes including callback and history
@@ -53,15 +64,16 @@ import { getPaymentsHandler } from './routes/payments/handler';
 import { getPaymentsRoute } from './routes/payments/route';
 import { getProductsHandler } from './routes/products/handler';
 import { getProductsRoute } from './routes/products/route';
-// Billing routes - Enhanced with analytics and optimizations
 import {
   cancelSubscriptionHandler,
+  changePlanHandler,
   createSubscriptionHandler,
   getSubscriptionHandler,
   getSubscriptionsHandler,
 } from './routes/subscriptions/handler';
 import {
   cancelSubscriptionRoute,
+  changePlanRoute,
   createSubscriptionRoute,
   getSubscriptionRoute,
   getSubscriptionsRoute,
@@ -214,15 +226,20 @@ const appRoutes = app
   .openapi(getSubscriptionsRoute, getSubscriptionsHandler)
   .openapi(getSubscriptionRoute, getSubscriptionHandler)
   .openapi(createSubscriptionRoute, createSubscriptionHandler)
+  .openapi(changePlanRoute, changePlanHandler)
   .openapi(cancelSubscriptionRoute, cancelSubscriptionHandler)
   // Payment methods routes - Consolidated 3-endpoint direct debit flow
   .openapi(getPaymentMethodsRoute, getPaymentMethodsHandler)
+  .openapi(setDefaultPaymentMethodRoute, setDefaultPaymentMethodHandler)
   // Consolidated direct debit contract routes (3 endpoints)
   .openapi(createContractRoute, createContractHandler)
   .openapi(verifyContractRoute, verifyContractHandler)
   .openapi(cancelContractRoute, cancelContractHandler)
   // Payment routes
   .openapi(getPaymentsRoute, getPaymentsHandler)
+  // Billing routes - Recurring payments and metrics
+  .openapi(processRecurringPaymentsRoute, processRecurringPaymentsHandler)
+  .openapi(getBillingMetricsRoute, getBillingMetricsHandler)
   // Webhooks routes
   .openapi(zarinPalWebhookRoute, zarinPalWebhookHandler)
 ;

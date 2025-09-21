@@ -26,6 +26,10 @@ export type GetSubscriptionResponse = InferResponseType<(typeof apiClient.subscr
 export type CreateSubscriptionRequest = InferRequestType<typeof apiClient.subscriptions.$post>;
 export type CreateSubscriptionResponse = InferResponseType<typeof apiClient.subscriptions.$post>;
 
+// Change Subscription Plan
+export type ChangePlanRequest = InferRequestType<(typeof apiClient.subscriptions)[':id']['$patch']>;
+export type ChangePlanResponse = InferResponseType<(typeof apiClient.subscriptions)[':id']['$patch']>;
+
 // Cancel Subscription
 export type CancelSubscriptionRequest = InferRequestType<(typeof apiClient.subscriptions)[':id']['cancel']['$patch']>;
 export type CancelSubscriptionResponse = InferResponseType<(typeof apiClient.subscriptions)[':id']['cancel']['$patch']>;
@@ -65,12 +69,17 @@ export async function createSubscriptionService(args: CreateSubscriptionRequest)
 }
 
 /**
+ * Change subscription plan
+ * All types are inferred from the RPC client
+ */
+export async function changePlanService(args: ChangePlanRequest) {
+  return parseResponse(apiClient.subscriptions[':id'].$patch(args));
+}
+
+/**
  * Cancel an active subscription
  * All types are inferred from the RPC client
  */
-export async function cancelSubscriptionService(subscriptionId: string, reason?: string) {
-  return parseResponse(apiClient.subscriptions[':id'].cancel.$patch({
-    param: { id: subscriptionId },
-    json: { reason },
-  }));
+export async function cancelSubscriptionService(args: CancelSubscriptionRequest) {
+  return parseResponse(apiClient.subscriptions[':id'].cancel.$patch(args));
 }

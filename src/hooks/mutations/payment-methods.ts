@@ -2,15 +2,12 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 
 import { queryKeys } from '@/lib/data/query-keys';
 import { logError } from '@/lib/utils/safe-logger';
-import type {
-  CreateDirectDebitContractRequest,
-  VerifyDirectDebitContractRequest,
-} from '@/services/api/payment-methods';
 import {
   cancelDirectDebitContractService,
   createDirectDebitContractService,
+  setDefaultPaymentMethodService,
   verifyDirectDebitContractService,
-} from '@/services/api/payment-methods';
+} from '@/services/api';
 
 // Traditional payment method creation removed - use direct debit contract verification
 
@@ -24,22 +21,12 @@ import {
  */
 export function useCreateDirectDebitContractMutation() {
   return useMutation({
-    mutationFn: async (args: CreateDirectDebitContractRequest) => {
-      const result = await createDirectDebitContractService(args);
-      return result;
-    },
-    onMutate: async (variables) => {
-      // Return context for potential error handling
-      return { variables, timestamp: Date.now() };
-    },
-    onError: (error, _variables, _context) => {
+    mutationFn: createDirectDebitContractService,
+    onError: (error) => {
       logError('Failed to initiate direct debit contract', error);
     },
-    onSettled: (_data, _error, _variables, _context) => {
-      // Log completion for debugging/analytics
-    },
     retry: false, // Contract setup should not auto-retry - requires user action
-    throwOnError: false, // Handle errors in component state
+    throwOnError: false,
   });
 }
 
@@ -51,30 +38,17 @@ export function useVerifyDirectDebitContractMutation() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (args: VerifyDirectDebitContractRequest) => {
-      const result = await verifyDirectDebitContractService(args);
-      return result;
-    },
-    onSuccess: (data) => {
-      // Only invalidate the specific query being used to avoid redundant requests
+    mutationFn: verifyDirectDebitContractService,
+    onSuccess: () => {
+      // Invalidate payment methods and direct debit contract status
       queryClient.invalidateQueries({ queryKey: queryKeys.paymentMethods.list });
-
-      // Optionally add the new payment method to cache if contract was verified
-      if (data.success && data.data?.signature && data.data?.paymentMethod) {
-        queryClient.setQueryData(queryKeys.paymentMethods.list, (old: unknown) => {
-          const oldData = old as { success?: boolean; data?: unknown[] };
-          if (oldData?.success && Array.isArray(oldData.data)) {
-            // Direct debit contract creates a new payment method, invalidate to refetch
-            return old; // Just invalidate, don't optimistically update since we don't have full data
-          }
-          return old;
-        });
-      }
+      queryClient.invalidateQueries({ queryKey: queryKeys.directDebit.contractStatus });
     },
     onError: (error) => {
       logError('Failed to verify direct debit contract', error);
     },
-    retry: false, // Contract verification should not auto-retry - it's a one-time callback
+    retry: false, // Contract verification is one-time - don't retry
+    throwOnError: false,
   });
 }
 
@@ -92,26 +66,20 @@ export function useCancelDirectDebitContractMutation() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (paymentMethodId: string) => {
-      const result = await cancelDirectDebitContractService({
-        param: { id: paymentMethodId },
-      });
-      return result;
-    },
+    mutationFn: (paymentMethodId: string) =>
+      cancelDirectDebitContractService({ param: { id: paymentMethodId } }),
     onMutate: async (paymentMethodId: string) => {
-      // Cancel any outgoing refetches
+      // Cancel outgoing refetches and snapshot previous value
       await queryClient.cancelQueries({ queryKey: queryKeys.paymentMethods.list });
-
-      // Snapshot the previous value for rollback
       const previousPaymentMethods = queryClient.getQueryData(queryKeys.paymentMethods.list);
 
-      // Optimistically update payment methods list
+      // Optimistically update payment method status
       queryClient.setQueryData(queryKeys.paymentMethods.list, (old: unknown) => {
-        const oldData = old as { success?: boolean; data?: Array<{ id: string; isActive: boolean; contractStatus: string }> };
-        if (oldData?.success && Array.isArray(oldData.data)) {
+        const response = old as { success?: boolean; data?: Array<Record<string, unknown>> };
+        if (response?.success && Array.isArray(response.data)) {
           return {
-            ...oldData,
-            data: oldData.data.map(pm => ({
+            ...response,
+            data: response.data.map(pm => ({
               ...pm,
               isActive: pm.id === paymentMethodId ? false : pm.isActive,
               contractStatus: pm.id === paymentMethodId ? 'cancelled_by_user' : pm.contractStatus,
@@ -124,39 +92,83 @@ export function useCancelDirectDebitContractMutation() {
       return { previousPaymentMethods };
     },
     onError: (error, _variables, context) => {
-      logError('Failed to cancel direct debit contract', error);
-
       // Rollback optimistic update on error
       if (context?.previousPaymentMethods) {
         queryClient.setQueryData(queryKeys.paymentMethods.list, context.previousPaymentMethods);
       }
-
-      // Show user-friendly error message
-      let errorMessage = 'Failed to cancel contract. Please try again or contact support.';
-
-      if (error instanceof Error) {
-        if (error.message.includes('Not found')) {
-          errorMessage = 'Contract not found or already cancelled.';
-        } else if (error.message.includes('Network')) {
-          errorMessage = 'Connection error. Please try again.';
-        } else if (error.message.includes('Authentication')) {
-          errorMessage = 'Authentication required. Please sign in again.';
-        }
-      }
-
-      // Log error for debugging (toast will be handled by component layer)
-      logError('Contract cancellation failed', { errorMessage, component: 'contract-cancellation' });
+      logError('Failed to cancel direct debit contract', error);
     },
-    onSuccess: (data) => {
-      // Only invalidate the specific queries being used to avoid redundant requests
+    onSuccess: () => {
+      // Invalidate payment methods and related queries
+      queryClient.invalidateQueries({ queryKey: queryKeys.paymentMethods.list });
+      queryClient.invalidateQueries({ queryKey: queryKeys.directDebit.contractStatus });
+      queryClient.invalidateQueries({ queryKey: queryKeys.subscriptions.list });
+    },
+    retry: (failureCount, error: unknown) => {
+      // Don't retry on client errors (4xx)
+      const httpError = error as { status?: number };
+      if (httpError?.status && httpError.status >= 400 && httpError.status < 500) {
+        return false;
+      }
+      return failureCount < 1;
+    },
+    throwOnError: false,
+  });
+}
+
+/**
+ * Hook to set a payment method as default
+ * Updates the user's default payment method for subscriptions
+ */
+export function useSetDefaultPaymentMethodMutation() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: setDefaultPaymentMethodService,
+    onMutate: async (args) => {
+      const paymentMethodId = args.param.id;
+
+      // Cancel outgoing refetches and snapshot previous value
+      await queryClient.cancelQueries({ queryKey: queryKeys.paymentMethods.list });
+      const previousPaymentMethods = queryClient.getQueryData(queryKeys.paymentMethods.list);
+
+      // Optimistically update payment method primary status
+      queryClient.setQueryData(queryKeys.paymentMethods.list, (old: unknown) => {
+        const response = old as { success?: boolean; data?: Array<Record<string, unknown>> };
+        if (response?.success && Array.isArray(response.data)) {
+          return {
+            ...response,
+            data: response.data.map(pm => ({
+              ...pm,
+              isPrimary: pm.id === paymentMethodId,
+            })),
+          };
+        }
+        return old;
+      });
+
+      return { previousPaymentMethods };
+    },
+    onError: (error, _variables, context) => {
+      // Rollback optimistic update on error
+      if (context?.previousPaymentMethods) {
+        queryClient.setQueryData(queryKeys.paymentMethods.list, context.previousPaymentMethods);
+      }
+      logError('Failed to set default payment method', error);
+    },
+    onSuccess: () => {
+      // Invalidate payment methods and subscription queries
       queryClient.invalidateQueries({ queryKey: queryKeys.paymentMethods.list });
       queryClient.invalidateQueries({ queryKey: queryKeys.subscriptions.list });
-
-      // Log success for debugging (toast will be handled by component layer)
-      if (data.success) {
-        logError('Contract cancelled successfully', { component: 'contract-cancellation' });
-      }
     },
-    retry: 1,
+    retry: (failureCount, error: unknown) => {
+      // Don't retry on client errors (4xx)
+      const httpError = error as { status?: number };
+      if (httpError?.status && httpError.status >= 400 && httpError.status < 500) {
+        return false;
+      }
+      return failureCount < 1;
+    },
+    throwOnError: false,
   });
 }

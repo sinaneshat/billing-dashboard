@@ -1,72 +1,26 @@
 import { useQuery } from '@tanstack/react-query';
-import { useTranslations } from 'next-intl';
 
+import { useSession } from '@/lib/auth/client';
 import { queryKeys } from '@/lib/data/query-keys';
-import { logError } from '@/lib/utils/safe-logger';
+import { analyzeDirectDebitContract, canCreateSubscriptions } from '@/services/api/direct-debit-analysis';
 import { getPaymentMethodsService } from '@/services/api/payment-methods';
 
-// All types are now inferred from the backend API following established patterns
-
 /**
- * Hook to check user's direct debit contract status
- * Uses backend API endpoint following established patterns
+ * Hook to fetch and analyze direct debit contract status
+ * Uses service layer for business logic while maintaining clean data interface
  * All types inferred from RPC client for complete type safety
  *
- * @returns Query result with DirectDebitContract information
+ * @returns Query result with analyzed contract status
  */
 export function useDirectDebitContract() {
-  const t = useTranslations();
+  const { data: session } = useSession();
+  const isAuthenticated = !!session?.user;
 
   return useQuery({
     queryKey: queryKeys.directDebit.contractStatus,
     queryFn: async () => {
-      try {
-        const result = await getPaymentMethodsService();
-
-        if (!result.success) {
-          logError('Failed to get payment methods', { error: result });
-          return {
-            status: 'no_contract' as const,
-            canMakePayments: false,
-            needsSetup: true,
-            message: t('bankSetup.status.noContract'),
-          };
-        }
-
-        // Find active direct debit contract
-        const activeContract = result.data.find(
-          pm => pm.contractType === 'direct_debit_contract'
-            && pm.contractStatus === 'active'
-            && pm.isActive,
-        );
-
-        if (activeContract) {
-          return {
-            status: 'active' as const,
-            contractId: activeContract.id,
-            signature: activeContract.contractSignature,
-            mobile: activeContract.contractMobile,
-            canMakePayments: true,
-            needsSetup: false,
-            message: t('bankSetup.status.active'),
-          };
-        }
-
-        return {
-          status: 'no_contract' as const,
-          canMakePayments: false,
-          needsSetup: true,
-          message: t('bankSetup.status.noContract'),
-        };
-      } catch (error) {
-        logError('Failed to get contract status', error);
-        return {
-          status: 'no_contract' as const,
-          canMakePayments: false,
-          needsSetup: true,
-          message: t('bankSetup.status.noContract'),
-        };
-      }
+      const paymentMethodsResponse = await getPaymentMethodsService();
+      return analyzeDirectDebitContract(paymentMethodsResponse);
     },
     staleTime: 1000 * 60 * 5, // 5 minutes
     retry: (failureCount, error) => {
@@ -76,16 +30,18 @@ export function useDirectDebitContract() {
       }
       return failureCount < 2;
     },
+    enabled: isAuthenticated,
+    throwOnError: false,
   });
 }
 
 /**
  * Hook to check if user can create subscriptions
- * Uses the new backend API following established patterns
+ * Uses service layer analysis function for business logic
  *
  * @returns boolean indicating if user can create subscriptions
  */
 export function useCanCreateSubscriptions(): boolean {
-  const { data: contract } = useDirectDebitContract();
-  return contract?.canMakePayments ?? false;
+  const { data: contractStatus } = useDirectDebitContract();
+  return contractStatus ? canCreateSubscriptions(contractStatus) : false;
 }

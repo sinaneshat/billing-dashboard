@@ -10,7 +10,6 @@ import { StatusCard } from '@/components/dashboard/dashboard-cards';
 import { EmptyState, LoadingState } from '@/components/dashboard/dashboard-states';
 import { Button } from '@/components/ui/button';
 import { SubscriptionStatusBadge } from '@/components/ui/status-badge';
-import { useManageSubscriptionMutation } from '@/hooks/mutations/subscription-management';
 import { useCancelSubscriptionMutation } from '@/hooks/mutations/subscriptions';
 import { formatTomanCurrency } from '@/lib/format';
 import { cn } from '@/lib/ui/cn';
@@ -29,11 +28,11 @@ function SubscriptionCard({ subscription, locale, t }: {
   locale: string;
   t: (key: string) => string;
 }) {
-  const manageSubscription = useManageSubscriptionMutation();
+  const router = useRouter();
   const cancelSubscription = useCancelSubscriptionMutation();
 
   const handleManage = () => {
-    manageSubscription.mutate({ param: { id: subscription.id } });
+    router.push(`/dashboard/billing/subscriptions/${subscription.id}/manage`);
   };
 
   const handleCancel = () => {
