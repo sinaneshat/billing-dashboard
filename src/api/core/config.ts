@@ -23,7 +23,7 @@ const ValidationUtils = {
     url: () => z.string().url(),
     email: () => z.string().email(),
   },
-  environmentValidator: z.enum(['development', 'production', 'test', 'preview']),
+  environmentValidator: z.enum(['development', 'production', 'test', 'preview', 'local']),
   apiVersionValidator: z.enum(['v1', 'v2']),
   number: {
     percentage: () => z.number().min(0).max(100),
@@ -459,7 +459,7 @@ export function isPreview(): boolean {
 /**
  * Get the current environment
  */
-export function getEnvironment(): 'development' | 'preview' | 'production' | 'test' {
+export function getEnvironment(): 'development' | 'preview' | 'production' | 'test' | 'local' {
   return getConfigValue('NEXT_PUBLIC_WEBAPP_ENV');
 }
 
