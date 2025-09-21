@@ -13,10 +13,9 @@ import { and, eq } from 'drizzle-orm';
 
 import { createError } from '@/api/common/error-handling';
 import { createHandler, createHandlerWithTransaction, Responses } from '@/api/core';
-import { ZarinPalService } from '@/api/services/zarinpal';
 import type { ApiEnv } from '@/api/types';
 import { getDbAsync } from '@/db';
-import { billingEvent, payment, paymentMethod as paymentMethodTable, product, subscription } from '@/db/tables/billing';
+import { billingEvent, paymentMethod as paymentMethodTable, product, subscription } from '@/db/tables/billing';
 
 import type {
   cancelSubscriptionRoute,
@@ -152,7 +151,7 @@ export const createSubscriptionHandler: RouteHandler<typeof createSubscriptionRo
     if (!user) {
       throw createError.unauthenticated('User authentication required');
     }
-    const { productId, paymentMethod, contractId, enableAutoRenew, callbackUrl, referrer } = c.validated.body;
+    const { productId, paymentMethod, contractId, enableAutoRenew } = c.validated.body;
 
     c.logger.info('Creating subscription', {
       logType: 'operation',
@@ -321,124 +320,9 @@ export const createSubscriptionHandler: RouteHandler<typeof createSubscriptionRo
         contractId,
         autoRenewalEnabled: enableAutoRenew,
       });
-    } else if (paymentMethod === 'zarinpal-oneoff') {
-    // Handle legacy one-time ZarinPal payment
-      if (!callbackUrl) {
-        throw createError.internal('Callback URL is required for ZarinPal payments');
-      }
-
-      c.logger.info('Creating legacy ZarinPal subscription', { logType: 'operation', operationName: 'createSubscription', userId: user.id, resource: productId });
-
-      // Convert USD price to Iranian Rials (approximate rate)
-      const amountInRials = Math.round(productRecord.price * 65000); // Rough conversion rate
-
-      // Create pending subscription first
-      const subscriptionData = {
-        id: crypto.randomUUID(),
-        userId: user.id,
-        productId: productRecord.id,
-        status: 'pending' as const,
-        startDate: new Date(),
-        nextBillingDate: null, // Will be set after payment completion
-        currentPrice: productRecord.price,
-        billingPeriod: productRecord.billingPeriod,
-        paymentMethodId: null,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      };
-
-      await tx.insert(subscription).values(subscriptionData);
-      const newSubscriptionId = subscriptionData.id;
-
-      // Create payment record
-      const paymentData = {
-        id: crypto.randomUUID(),
-        userId: user.id,
-        subscriptionId: newSubscriptionId,
-        productId: productRecord.id,
-        amount: amountInRials,
-        currency: 'IRR' as const,
-        status: 'pending' as const,
-        paymentMethod: 'zarinpal',
-        zarinpalDirectDebitUsed: false,
-        metadata: referrer ? { referrer } : null,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      };
-
-      await tx.insert(payment).values(paymentData);
-      const paymentRecordId = paymentData.id;
-
-      // Request payment from ZarinPal
-      const zarinPal = ZarinPalService.create();
-      const paymentResponse = await zarinPal.requestPayment({
-        amount: amountInRials,
-        currency: 'IRR',
-        description: `Subscription to ${productRecord.name}`,
-        callbackUrl,
-        metadata: {
-          subscriptionId: newSubscriptionId,
-          paymentId: paymentRecordId,
-          userId: user.id,
-          ...(referrer && { referrer }),
-        },
-      });
-
-      if (!paymentResponse.data?.authority) {
-        c.logger.error('ZarinPal payment request failed', undefined, {
-          logType: 'operation',
-          operationName: 'createSubscription',
-          resource: paymentRecordId,
-        });
-        throw createError.zarinpal('Failed to initiate payment');
-      }
-
-      // Update payment with ZarinPal authority - use transaction
-      await tx.update(payment)
-        .set({
-          zarinpalAuthority: paymentResponse.data.authority,
-          updatedAt: new Date(),
-        })
-        .where(eq(payment.id, paymentRecordId));
-
-      // Log subscription creation event - use transaction
-      await tx.insert(billingEvent).values({
-        id: crypto.randomUUID(),
-        userId: user.id,
-        subscriptionId: newSubscriptionId,
-        paymentId: paymentRecordId,
-        paymentMethodId: null,
-        eventType: 'subscription_created_zarinpal_legacy',
-        eventData: {
-          productId: productRecord.id,
-          productName: productRecord.name,
-          price: productRecord.price,
-          amount: amountInRials,
-          authority: paymentResponse.data.authority,
-        },
-        severity: 'info',
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      });
-
-      const paymentUrl = zarinPal.getPaymentUrl(paymentResponse.data.authority);
-
-      c.logger.info('Legacy ZarinPal subscription created successfully', {
-        logType: 'operation',
-        operationName: 'createSubscription',
-        resource: newSubscriptionId,
-      });
-
-      return Responses.created(c, {
-        subscriptionId: newSubscriptionId,
-        paymentMethod: 'zarinpal-oneoff',
-        paymentUrl,
-        authority: paymentResponse.data.authority,
-        autoRenewalEnabled: false, // Legacy payments don't support auto-renewal
-      });
+    } else {
+      throw createError.badRequest('Invalid payment method. Only direct-debit-contract is supported.');
     }
-
-    throw createError.internal('Invalid payment method');
   },
 );
 

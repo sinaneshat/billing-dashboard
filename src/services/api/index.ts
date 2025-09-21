@@ -14,16 +14,9 @@ export {
   type CreateDirectDebitContractResponse,
   createDirectDebitContractService,
   // Basic payment method management
-  // Deprecated functions (kept for backwards compatibility)
-  getBankListService, // deprecated - throws error
-  // Contract status (legacy)
-  type GetContractStatusRequest,
-  type GetContractStatusResponse,
-  getContractStatusService,
   type GetPaymentMethodsRequest,
   type GetPaymentMethodsResponse,
   getPaymentMethodsService,
-  initiateDirectDebitContractService, // legacy alias
   type VerifyDirectDebitContractRequest,
   type VerifyDirectDebitContractResponse,
   verifyDirectDebitContractService,

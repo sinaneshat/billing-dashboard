@@ -3,6 +3,7 @@ import { HTTPException } from 'hono/http-exception';
 import * as HttpStatusCodes from 'stoker/http-status-codes';
 
 import { mapStatusCode } from '@/api/core/http-exceptions';
+import { apiLogger } from '@/api/middleware/hono-logger';
 import type { ApiEnv } from '@/api/types';
 import { auth } from '@/lib/auth/server';
 
@@ -30,7 +31,7 @@ export const attachSession = createMiddleware<ApiEnv>(async (c, next) => {
     c.set('requestId', c.req.header('x-request-id') || crypto.randomUUID());
   } catch (error) {
     // Log error but don't throw - allow unauthenticated requests to proceed
-    console.error('[Auth Middleware] Error retrieving Better Auth session:', error);
+    apiLogger.apiError(c, 'Error retrieving Better Auth session', error);
     c.set('session', null);
     c.set('user', null);
   }
@@ -74,7 +75,7 @@ export const requireSession = createMiddleware<ApiEnv>(async (c, next) => {
     }
 
     // Handle unexpected authentication errors gracefully
-    console.error('[Auth Middleware] Unexpected Better Auth error:', e);
+    apiLogger.error('[Auth Middleware] Unexpected Better Auth error', e instanceof Error ? e : new Error(String(e)));
     const res = new Response(JSON.stringify({
       code: HttpStatusCodes.UNAUTHORIZED,
       message: 'Authentication failed',

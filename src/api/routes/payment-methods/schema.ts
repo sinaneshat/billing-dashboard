@@ -162,53 +162,6 @@ export const CancelContractResponseSchema = createApiResponseSchema(
 );
 
 // ============================================================================
-// CONTRACT STATUS SCHEMAS (KEPT FOR LEGACY SUPPORT)
-// ============================================================================
-
-const DirectDebitContractStatusSchema = z.enum([
-  'no_contract',
-  'pending',
-  'active',
-  'expired',
-  'cancelled',
-  'invalid',
-]).openapi('DirectDebitContractStatus');
-
-const DirectDebitContractSchema = z.object({
-  status: DirectDebitContractStatusSchema,
-  contractId: z.string().optional(),
-  signature: z.string().optional(),
-  mobile: z.string().optional(),
-  maxDailyAmount: z.number().optional(),
-  maxDailyCount: z.number().optional(),
-  maxMonthlyCount: z.number().optional(),
-  expiresAt: z.string().optional(),
-  verifiedAt: z.string().optional(),
-  canMakePayments: z.boolean(),
-  needsSetup: z.boolean(),
-  message: z.string(),
-}).openapi({
-  example: {
-    status: 'active',
-    contractId: 'contract_123',
-    signature: 'eyJpdiI6InpoUHZoT0hPZjdNNj...',
-    mobile: '09123456789',
-    maxDailyAmount: 50000000,
-    maxDailyCount: 10,
-    maxMonthlyCount: 100,
-    expiresAt: '2025-12-31 23:59:59',
-    verifiedAt: '2024-01-15 14:30:00',
-    canMakePayments: true,
-    needsSetup: false,
-    message: 'قرارداد فعال و آماده پرداخت',
-  },
-});
-
-export const GetContractStatusResponseSchema = createApiResponseSchema(
-  DirectDebitContractSchema,
-);
-
-// ============================================================================
 // TYPE EXPORTS FOR FRONTEND
 // ============================================================================
 
@@ -217,4 +170,3 @@ export type CreateContractResponse = z.infer<typeof CreateContractResponseSchema
 export type VerifyContractRequest = z.infer<typeof VerifyContractRequestSchema>;
 export type VerifyContractResponse = z.infer<typeof VerifyContractResponseSchema>;
 export type CancelContractResponse = z.infer<typeof CancelContractResponseSchema>;
-export type GetContractStatusResponse = z.infer<typeof GetContractStatusResponseSchema>;

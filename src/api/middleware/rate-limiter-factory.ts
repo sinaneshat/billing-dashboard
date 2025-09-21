@@ -8,6 +8,7 @@ import { createMiddleware } from 'hono/factory';
 import { HTTPException } from 'hono/http-exception';
 import * as HttpStatusCodes from 'stoker/http-status-codes';
 
+import { apiLogger } from '@/api/middleware/hono-logger';
 import type { ApiEnv } from '@/api/types';
 
 export type RateLimitConfig = {
@@ -130,7 +131,12 @@ function defaultKeyGenerator(c: Context<ApiEnv>): string {
 
   // Only log warning if we couldn't get any IP at all
   if (ip === 'fallback') {
-    console.warn('No IP address found for rate limiting, using fallback identifier');
+    apiLogger.warn('No IP address found for rate limiting, using fallback identifier', {
+      logType: 'performance',
+      duration: 0,
+      component: 'rate-limiter',
+      fallbackReason: 'no-ip-headers',
+    });
   }
 
   return `ip:${ip}`;
@@ -147,7 +153,12 @@ function ipKeyGenerator(c: Context<ApiEnv>): string {
 
   // Only log warning if we couldn't get any IP at all
   if (ip === 'fallback') {
-    console.warn('No IP address found for rate limiting, using fallback identifier');
+    apiLogger.warn('No IP address found for rate limiting, using fallback identifier', {
+      logType: 'performance',
+      duration: 0,
+      component: 'rate-limiter',
+      fallbackReason: 'no-ip-headers',
+    });
   }
 
   return `ip:${ip}`;

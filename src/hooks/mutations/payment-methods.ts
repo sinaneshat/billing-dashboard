@@ -79,23 +79,6 @@ export function useVerifyDirectDebitContractMutation() {
 }
 
 /**
- * Get Available Banks for Direct Debit Contract Signing
- * @deprecated Banks are now returned in createDirectDebitContractService response
- * This hook is kept for backwards compatibility but should not be used
- */
-export function useGetBankListMutation() {
-  return useMutation({
-    mutationFn: async () => {
-      throw new Error('useGetBankListMutation is deprecated. Banks are now returned in useCreateDirectDebitContractMutation response.');
-    },
-    onError: (error) => {
-      logError('Attempted to use deprecated getBankListService', error);
-    },
-    retry: false,
-  });
-}
-
-/**
  * Legacy alias for useCreateDirectDebitContractMutation
  * @deprecated Use useCreateDirectDebitContractMutation instead
  */

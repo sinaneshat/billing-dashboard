@@ -22,10 +22,6 @@ export type GetPaymentMethodsResponse = InferResponseType<(typeof apiClient)['pa
 
 // Delete Payment Method - now handled by cancel contract endpoint
 
-// Contract Status
-export type GetContractStatusRequest = InferRequestType<(typeof apiClient)['payment-methods']['contract-status']['$get']>;
-export type GetContractStatusResponse = InferResponseType<(typeof apiClient)['payment-methods']['contract-status']['$get']>;
-
 // ============================================================================
 //  Service Functions
 // ============================================================================
@@ -43,16 +39,6 @@ export async function getPaymentMethodsService(args?: GetPaymentMethodsRequest) 
 }
 
 // Traditional payment method creation removed - use direct debit contract verification
-
-/**
- * Get direct debit contract status
- * All types are inferred from the RPC client
- */
-export async function getContractStatusService(args?: GetContractStatusRequest) {
-  return args
-    ? parseResponse(apiClient['payment-methods']['contract-status'].$get(args))
-    : parseResponse(apiClient['payment-methods']['contract-status'].$get());
-}
 
 // ============================================================================
 //  Consolidated Direct Debit Contract Services (NEW - ZarinPal Payman API)
@@ -80,11 +66,6 @@ export async function createDirectDebitContractService(args: CreateDirectDebitCo
 }
 
 /**
- * Legacy alias for createDirectDebitContractService (backwards compatibility)
- */
-export const initiateDirectDebitContractService = createDirectDebitContractService;
-
-/**
  * Verify Direct Debit Contract (Step 2)
  * Called after user signs contract with bank to get signature and create payment method
  */
@@ -98,14 +79,4 @@ export async function verifyDirectDebitContractService(args: VerifyDirectDebitCo
  */
 export async function cancelDirectDebitContractService(args: CancelDirectDebitContractRequest) {
   return parseResponse(apiClient['payment-methods'].contracts[':id'].$delete(args));
-}
-
-/**
- * Get Available Banks for Direct Debit Contract Signing
- * @deprecated Banks are now returned in createDirectDebitContractService response
- * This function is kept for backwards compatibility but should not be used
- */
-export async function getBankListService() {
-  console.warn('getBankListService is deprecated. Banks are now returned in createDirectDebitContractService response.');
-  throw new Error('getBankListService is deprecated. Use createDirectDebitContractService instead.');
 }

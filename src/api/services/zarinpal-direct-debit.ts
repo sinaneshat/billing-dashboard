@@ -377,7 +377,7 @@ export class ZarinPalDirectDebitService {
       // In development, allow placeholder but warn
       if (isSandbox) {
         // Development mode: Using placeholder credentials
-        // TODO: Configure real ZarinPal merchant ID for production
+        // NOTE: Configure real ZarinPal merchant ID from https://next.zarinpal.com/panel/ for production
       } else {
         // In production, still throw error
         throw new HTTPException(HttpStatusCodes.INTERNAL_SERVER_ERROR, {

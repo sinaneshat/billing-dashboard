@@ -220,7 +220,7 @@ async function applyAuthentication(c: Context, authMode: AuthMode): Promise<void
         c.set('requestId', c.req.header('x-request-id') || crypto.randomUUID());
       } catch (error) {
         // Log error but don't throw - allow unauthenticated requests
-        console.error('[Auth] Error retrieving session:', error);
+        apiLogger.error('[Auth] Error retrieving session', error instanceof Error ? error : new Error(String(error)));
         c.set('session', null);
         c.set('user', null);
       }

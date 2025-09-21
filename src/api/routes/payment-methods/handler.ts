@@ -22,7 +22,6 @@ import { billingEvent, paymentMethod } from '@/db/tables/billing';
 import type {
   cancelContractRoute,
   createContractRoute,
-  getContractStatusRoute,
   getPaymentMethodsRoute,
   verifyContractRoute,
 } from './route';
@@ -261,57 +260,6 @@ export const cancelContractHandler: RouteHandler<typeof cancelContractRoute, Api
     return Responses.ok(c, {
       cancelled: true,
       message: 'Direct debit contract cancelled successfully',
-    });
-  },
-);
-
-// ============================================================================
-// LEGACY CONTRACT STATUS HANDLER (KEPT FOR COMPATIBILITY)
-// ============================================================================
-
-export const getContractStatusHandler: RouteHandler<typeof getContractStatusRoute, ApiEnv> = createHandler(
-  {
-    auth: 'session',
-    operationName: 'getContractStatus',
-  },
-  async (c) => {
-    const user = c.get('user');
-    const db = await getDbAsync();
-
-    if (!user) {
-      throw createError.unauthenticated('User authentication required');
-    }
-
-    // Get active direct debit contracts
-    const contracts = await db
-      .select()
-      .from(paymentMethod)
-      .where(
-        and(
-          eq(paymentMethod.userId, user.id),
-          eq(paymentMethod.contractType, 'direct_debit_contract'),
-        ),
-      );
-
-    const activeContract = contracts.find(contract => contract.contractStatus === 'active');
-
-    if (!activeContract) {
-      return Responses.ok(c, {
-        status: 'no_contract' as const,
-        canMakePayments: false,
-        needsSetup: true,
-        message: 'هیچ قراردادی فعال نیست',
-      });
-    }
-
-    return Responses.ok(c, {
-      status: activeContract.contractStatus,
-      contractId: activeContract.id,
-      signature: activeContract.contractSignature,
-      mobile: activeContract.contractMobile,
-      canMakePayments: activeContract.isActive && activeContract.contractStatus === 'active',
-      needsSetup: false,
-      message: 'قرارداد فعال و آماده پرداخت',
     });
   },
 );

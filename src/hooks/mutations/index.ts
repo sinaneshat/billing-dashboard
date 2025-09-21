@@ -1,7 +1,6 @@
 export {
   useCancelDirectDebitContractMutation,
   useCreateDirectDebitContractMutation,
-  useGetBankListMutation,
   useInitiateDirectDebitContractMutation,
   useVerifyDirectDebitContractMutation,
 } from './payment-methods';

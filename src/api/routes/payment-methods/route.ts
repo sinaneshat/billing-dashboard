@@ -5,7 +5,6 @@ import {
   CancelContractResponseSchema,
   CreateContractRequestSchema,
   CreateContractResponseSchema,
-  GetContractStatusResponseSchema,
   PaymentMethodListResponseSchema,
   VerifyContractRequestSchema,
   VerifyContractResponseSchema,
@@ -150,28 +149,6 @@ export const cancelContractRoute = createRoute({
 });
 
 // ============================================================================
-// LEGACY CONTRACT STATUS ROUTE (KEPT FOR COMPATIBILITY)
-// ============================================================================
-
-export const getContractStatusRoute = createRoute({
-  method: 'get',
-  path: '/payment-methods/contract-status',
-  tags: ['payment-methods'],
-  summary: 'Get direct debit contract status',
-  description: 'Get the current status of direct debit contract for authenticated user',
-  responses: {
-    [HttpStatusCodes.OK]: {
-      content: {
-        'application/json': {
-          schema: GetContractStatusResponseSchema,
-        },
-      },
-      description: 'Contract status retrieved successfully',
-    },
-  },
-});
-
-// ============================================================================
 // ROUTE EXPORTS FOR REGISTRATION
 // ============================================================================
 
@@ -184,6 +161,4 @@ export const consolidatedPaymentMethodRoutes = [
   verifyContractRoute,
   cancelContractRoute,
 
-  // Legacy compatibility
-  getContractStatusRoute,
 ] as const;

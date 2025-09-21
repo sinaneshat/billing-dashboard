@@ -39,14 +39,12 @@ import { secureMeRoute } from './routes/auth/route';
 import {
   cancelContractHandler,
   createContractHandler,
-  getContractStatusHandler,
   getPaymentMethodsHandler,
   verifyContractHandler,
 } from './routes/payment-methods/handler';
 import {
   cancelContractRoute,
   createContractRoute,
-  getContractStatusRoute,
   getPaymentMethodsRoute,
   verifyContractRoute,
 } from './routes/payment-methods/route';
@@ -223,8 +221,6 @@ const appRoutes = app
   .openapi(createContractRoute, createContractHandler)
   .openapi(verifyContractRoute, verifyContractHandler)
   .openapi(cancelContractRoute, cancelContractHandler)
-  // Legacy compatibility
-  .openapi(getContractStatusRoute, getContractStatusHandler)
   // Payment routes
   .openapi(getPaymentsRoute, getPaymentsHandler)
   // Webhooks routes

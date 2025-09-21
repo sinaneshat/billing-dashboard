@@ -8,7 +8,7 @@ import { useCreateDirectDebitContractMutation } from '@/hooks/mutations/payment-
 import { formatTomanCurrency } from '@/lib/format';
 import { toastManager } from '@/lib/toast/toast-manager';
 import { cn } from '@/lib/ui/cn';
-import { getContractStatusService } from '@/services/api/payment-methods';
+import { getPaymentMethodsService } from '@/services/api/payment-methods';
 
 import type { BankSelectionFormData } from '../forms/bank-selection-form';
 import { BankSelectionForm } from '../forms/bank-selection-form';
@@ -106,12 +106,16 @@ export function BankAuthorizationStepperOrchestrator({
         return;
       }
 
-      const result = await getContractStatusService();
+      const result = await getPaymentMethodsService();
 
       if (result.success && result.data) {
-        const { status, contractId } = result.data;
+        const activePaymentMethod = result.data.find(
+          pm => pm.contractType === 'direct_debit_contract'
+            && pm.contractStatus === 'active'
+            && pm.isActive,
+        );
 
-        if (status === 'active') {
+        if (activePaymentMethod) {
           setAuthorizationStatus('verified');
           setCurrentStep('completed');
           toastManager.success(t('bankSetup.messages.authorizationCompleted'));
@@ -119,22 +123,13 @@ export function BankAuthorizationStepperOrchestrator({
           localStorage.removeItem('bank-authorization-contract');
 
           setTimeout(() => {
-            onSuccess?.(contractId || 'success');
+            onSuccess?.(activePaymentMethod.id);
           }, 2000);
-        } else if (status === 'cancelled' || status === 'invalid') {
-          setAuthorizationStatus('failed');
-          toastManager.error(t('bankSetup.errors.authorizationFailed'));
-          localStorage.removeItem('bank-authorization-contract');
-        } else if (status === 'pending') {
+        } else {
           // Still waiting for user to complete authorization
           setTimeout(() => {
             checkAuthorizationStatus();
           }, 5000);
-        } else {
-          // No contract or other states
-          setTimeout(() => {
-            checkAuthorizationStatus();
-          }, 10000);
         }
       } else {
         // API call failed, retry after a longer delay

@@ -6,6 +6,8 @@
 import { HTTPException } from 'hono/http-exception';
 import * as HttpStatusCodes from 'stoker/http-status-codes';
 
+import { apiLogger } from '@/api/middleware/hono-logger';
+
 type EnvironmentConfig = {
   NODE_ENV: string;
   BETTER_AUTH_SECRET: string;
@@ -114,7 +116,13 @@ export function validateEnvironmentConfig(env: Record<string, string | undefined
       warnings.push('Using placeholder ZarinPal credentials in development. Payment features will not work properly.');
     } else if (ZARINPAL_SANDBOX_VALUES.includes(env.ZARINPAL_MERCHANT_ID as string)
       || ZARINPAL_SANDBOX_VALUES.includes(env.ZARINPAL_ACCESS_TOKEN as string)) {
-      console.error('Using official ZarinPal sandbox credentials for development');
+      apiLogger.info('Using official ZarinPal sandbox credentials for development', {
+        logType: 'auth',
+        userId: 'system',
+        action: 'permission_check',
+        success: true,
+        environment: 'development',
+      });
     }
   }
 
@@ -146,10 +154,20 @@ export function validateEnvironmentConfig(env: Record<string, string | undefined
 
   // Log warnings
   if (warnings.length > 0) {
-    console.warn(`Environment configuration warnings:\n${warnings.join('\n')}`);
+    apiLogger.warn('Environment configuration warnings', {
+      logType: 'validation',
+      fieldCount: warnings.length,
+      validationType: 'headers',
+      warnings,
+    });
   }
 
-  console.error(`Environment configuration validated for ${env.NODE_ENV} environment`);
+  apiLogger.info(`Environment configuration validated for ${env.NODE_ENV} environment`, {
+    logType: 'validation',
+    fieldCount: Object.keys(env).length,
+    validationType: 'headers',
+    environment: env.NODE_ENV,
+  });
 
   return env as EnvironmentConfig;
 }

@@ -8,6 +8,8 @@
 
 import { z } from '@hono/zod-openapi';
 
+import { apiLogger } from '../middleware/hono-logger';
+
 // =============================================================================
 // ZOD SCHEMAS
 // =============================================================================
@@ -165,9 +167,15 @@ export class CurrencyExchangeService {
       this.lastFetch = now;
 
       return rate;
-    } catch {
-      // Log the error but use fallback rate
-      // TODO: Replace with structured logging when context is available
+    } catch (error) {
+      // Log the error but use fallback rate using structured logging
+      apiLogger.warn('Exchange rate API failed, using fallback rate', {
+        logType: 'api',
+        method: 'GET',
+        path: '/exchange-rate',
+        fallbackRate: this.FALLBACK_RATE,
+        error: error instanceof Error ? error.message : String(error),
+      });
 
       // Cache the fallback rate to avoid repeated API calls
       this.cachedRate = this.FALLBACK_RATE;
