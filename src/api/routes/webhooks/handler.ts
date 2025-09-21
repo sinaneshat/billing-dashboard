@@ -10,22 +10,19 @@ import crypto from 'node:crypto';
 
 import type { RouteHandler } from '@hono/zod-openapi';
 import { getCloudflareContext } from '@opennextjs/cloudflare';
-import { and, desc, eq } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { z } from 'zod';
 
 import { createError } from '@/api/common/error-handling';
 import type { FetchConfig } from '@/api/common/fetch-utilities';
 import { postJSON } from '@/api/common/fetch-utilities';
-import { createHandler, createHandlerWithTransaction, Responses } from '@/api/core';
+import { createHandlerWithTransaction, Responses } from '@/api/core';
 import { apiLogger } from '@/api/middleware/hono-logger';
 import { ZarinPalService } from '@/api/services/zarinpal';
 import type { ApiEnv } from '@/api/types';
-import { getDbAsync } from '@/db';
 import { payment, product, subscription, webhookEvent } from '@/db/tables/billing';
 
 import type {
-  getWebhookEventsRoute,
-  testWebhookRoute,
   zarinPalWebhookRoute,
 } from './route';
 
@@ -1178,121 +1175,6 @@ export const zarinPalWebhookHandler: RouteHandler<typeof zarinPalWebhookRoute, A
       eventId,
       processed,
       webhook_events_dispatched: processed,
-    });
-  },
-);
-
-/**
- * Get webhook events handler - Refactored
- * Now uses unified createHandler pattern
- */
-export const getWebhookEventsHandler: RouteHandler<typeof getWebhookEventsRoute, ApiEnv> = createHandler(
-  {
-    auth: 'session', // Admin access required
-    validateQuery: z.object({
-      source: z.string().optional(),
-      processed: z.enum(['true', 'false']).optional(),
-      limit: z.coerce.number().min(1).max(100).default(50),
-      offset: z.coerce.number().min(0).default(0),
-    }),
-    operationName: 'getWebhookEvents',
-  },
-  async (c) => {
-    const { source, processed, limit, offset } = c.validated.query;
-    const db = await getDbAsync();
-
-    c.logger.info('Fetching webhook events', {
-      logType: 'operation',
-      operationName: 'getWebhookEvents',
-      resource: `events[${limit}]`,
-    });
-
-    const whereConditions = [];
-    if (source) {
-      whereConditions.push(eq(webhookEvent.source, source));
-    }
-    if (processed !== undefined) {
-      whereConditions.push(eq(webhookEvent.processed, processed === 'true'));
-    }
-
-    const events = await db
-      .select()
-      .from(webhookEvent)
-      .where(whereConditions.length > 0 ? and(...whereConditions) : undefined)
-      .orderBy(desc(webhookEvent.createdAt))
-      .limit(limit)
-      .offset(offset);
-
-    const transformedEvents = events.map(event => ({
-      id: event.id,
-      source: event.source,
-      eventType: event.eventType,
-      paymentId: event.paymentId,
-      processed: event.processed,
-      processedAt: event.processedAt ? new Date(event.processedAt).toISOString() : null,
-      forwardedToExternal: event.forwardedToExternal ?? false,
-      forwardedAt: event.forwardedAt ? new Date(event.forwardedAt).toISOString() : null,
-      externalWebhookUrl: event.externalWebhookUrl,
-      createdAt: new Date(event.createdAt).toISOString(),
-    }));
-
-    return Responses.ok(c, transformedEvents);
-  },
-);
-
-/**
- * Test webhook handler - Refactored
- * Now uses unified createHandler pattern
- */
-export const testWebhookHandler: RouteHandler<typeof testWebhookRoute, ApiEnv> = createHandler(
-  {
-    auth: 'session', // Admin access required for testing
-    validateBody: z.object({
-      url: z.string().url(),
-      payload: z.record(z.string(), z.unknown()).optional(),
-    }),
-    operationName: 'testWebhook',
-  },
-  async (c) => {
-    const { url, payload } = c.validated.body;
-
-    c.logger.info('Testing webhook delivery', {
-      logType: 'operation',
-      operationName: 'testWebhook',
-      resource: url,
-    });
-
-    const testPayload = payload || {
-      test: true,
-      timestamp: new Date().toISOString(),
-      message: 'Test webhook from billing dashboard',
-    };
-
-    const fetchConfig: FetchConfig = {
-      timeoutMs: 10000,
-      maxRetries: 1,
-      correlationId: crypto.randomUUID(),
-    };
-
-    const startTime = Date.now();
-    const fetchResult = await postJSON(url, testPayload, fetchConfig, {
-      'X-Webhook-Source': 'billing-dashboard-test',
-      'X-Test-Webhook': 'true',
-    });
-    const responseTime = Date.now() - startTime;
-
-    const success = fetchResult.success;
-    let error: string | undefined;
-
-    if (!success) {
-      error = fetchResult.error || 'Unknown error';
-    }
-
-    return Responses.ok(c, {
-      success,
-      statusCode: fetchResult.response?.status || 0,
-      responseTime,
-      error,
     });
   },
 );

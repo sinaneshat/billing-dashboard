@@ -2,7 +2,7 @@
 
 import { CreditCard } from 'lucide-react';
 import { useTranslations } from 'next-intl';
-import React, { useCallback, useState } from 'react';
+import { useCallback, useState } from 'react';
 
 import { useCreateDirectDebitContractMutation } from '@/hooks/mutations/payment-methods';
 import { formatTomanCurrency } from '@/lib/format';

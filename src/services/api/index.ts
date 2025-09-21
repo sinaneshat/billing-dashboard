@@ -14,9 +14,6 @@ export {
   type CreateDirectDebitContractResponse,
   createDirectDebitContractService,
   // Basic payment method management
-  type DeletePaymentMethodRequest,
-  type DeletePaymentMethodResponse,
-  deletePaymentMethodService,
   // Deprecated functions (kept for backwards compatibility)
   getBankListService, // deprecated - throws error
   // Contract status (legacy)
@@ -27,10 +24,6 @@ export {
   type GetPaymentMethodsResponse,
   getPaymentMethodsService,
   initiateDirectDebitContractService, // legacy alias
-  setDefaultPaymentMethodService, // convenience function
-  type UpdatePaymentMethodRequest,
-  type UpdatePaymentMethodResponse,
-  updatePaymentMethodService,
   type VerifyDirectDebitContractRequest,
   type VerifyDirectDebitContractResponse,
   verifyDirectDebitContractService,
@@ -40,9 +33,6 @@ export {
 export {
   type GetPaymentsResponse,
   getPaymentsService,
-  type PaymentCallbackRequest,
-  type PaymentCallbackResponse,
-  processPaymentCallbackService,
 } from './payments';
 
 // Products service exports

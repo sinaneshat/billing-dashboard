@@ -2,6 +2,12 @@
 // Use useSession() from '@/lib/auth/client' instead
 // Image queries removed - user image comes from session data
 // Use session.user.image directly instead of making API calls
+
+// Direct debit contract queries
+export {
+  useCanCreateSubscriptions,
+  useDirectDebitContract,
+} from './direct-debit';
 export {
   usePaymentMethodsQuery,
 } from './payment-methods';

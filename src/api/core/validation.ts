@@ -315,14 +315,6 @@ export function createFileUploadValidator(
 }
 
 /**
- * Image upload validator
- */
-export const imageUploadValidator = createFileUploadValidator(
-  ['image/jpeg', 'image/png', 'image/webp', 'image/gif'],
-  5 * 1024 * 1024, // 5MB
-);
-
-/**
  * Document upload validator
  */
 export const documentUploadValidator = createFileUploadValidator(
@@ -445,7 +437,6 @@ export const Validators = {
   ...PaymentValidators,
   ...SecurityValidators,
   documentUpload: documentUploadValidator,
-  imageUpload: imageUploadValidator,
 } as const;
 
 // Export all validation utilities

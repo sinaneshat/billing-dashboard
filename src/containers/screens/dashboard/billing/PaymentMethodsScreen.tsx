@@ -6,13 +6,13 @@ import { useTranslations } from 'next-intl';
 import React from 'react';
 
 import type { ApiResponse } from '@/api/core/schemas';
+import { StatusCard } from '@/components/dashboard/dashboard-cards';
 import { DashboardPageHeader } from '@/components/dashboard/dashboard-header';
 import { DashboardPage, DashboardSection, EmptyState, ErrorState, LoadingState } from '@/components/dashboard/dashboard-states';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import type { PaymentMethod } from '@/db/validation/billing';
-import { useCancelDirectDebitContractMutation, useSetDefaultPaymentMethodMutation } from '@/hooks/mutations/payment-methods';
+import { useCancelDirectDebitContractMutation } from '@/hooks/mutations/payment-methods';
 import { usePaymentMethodsQuery } from '@/hooks/queries/payment-methods';
 import { toastManager } from '@/lib/toast/toast-manager';
 
@@ -20,94 +20,68 @@ import { toastManager } from '@/lib/toast/toast-manager';
 function PaymentMethodCard({
   method,
   t,
-  onSetDefault,
   onDelete,
-  setDefaultMutation,
   cancelContractMutation,
 }: {
   method: PaymentMethod;
   t: (key: string) => string;
-  onSetDefault: (id: string) => void;
   onDelete: (id: string) => void;
-  setDefaultMutation: ReturnType<typeof useSetDefaultPaymentMethodMutation>;
   cancelContractMutation: ReturnType<typeof useCancelDirectDebitContractMutation>;
 }) {
+  // Create status badge component
+  const statusBadge = (
+    <div className="flex items-center gap-2">
+      <Badge
+        variant={method.contractStatus === 'active' ? 'default' : 'secondary'}
+        className="gap-1"
+      >
+        {method.contractStatus === 'active'
+          ? (
+              <CheckCircle className="h-3 w-3" />
+            )
+          : null}
+        {method.contractStatus === 'active' ? t('status.active') : t('status.pending')}
+      </Badge>
+      {method.isPrimary && (
+        <Badge variant="outline" className="gap-1">
+          <Star className="h-3 w-3" />
+          {t('paymentMethods.primary')}
+        </Badge>
+      )}
+    </div>
+  );
+
+  // Create action buttons
+  const actionButtons = (
+    <div className="flex items-center gap-2">
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={() => onDelete(method.id)}
+        disabled={cancelContractMutation.isPending && (cancelContractMutation.variables as string) === method.id}
+        className="text-destructive hover:text-destructive hover:bg-destructive/10 gap-1"
+      >
+        <Trash2 className="h-3 w-3" />
+        {t('paymentMethods.cancelContract')}
+      </Button>
+    </div>
+  );
+
   return (
-    <Card className="transition-all hover:shadow-md">
-      <CardHeader className="pb-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <CreditCard className="h-5 w-5 text-primary" />
-            <div>
-              <CardTitle className="text-base">
-                {method.contractDisplayName || t('paymentMethods.directDebitContract')}
-              </CardTitle>
-              {method.contractMobile && (
-                <p className="text-sm text-muted-foreground mt-1">
-                  {method.contractMobile}
-                </p>
-              )}
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <Badge
-              variant={method.contractStatus === 'active' ? 'default' : 'secondary'}
-              className="gap-1"
-            >
-              {method.contractStatus === 'active'
-                ? (
-                    <CheckCircle className="h-3 w-3" />
-                  )
-                : null}
-              {method.contractStatus === 'active' ? t('status.active') : t('status.pending')}
-            </Badge>
-            {method.isPrimary && (
-              <Badge variant="outline" className="gap-1">
-                <Star className="h-3 w-3" />
-                {t('paymentMethods.primary')}
-              </Badge>
-            )}
-          </div>
-        </div>
-      </CardHeader>
-      <CardContent className="pt-0">
-        <div className="flex items-center justify-between">
+    <StatusCard
+      title={method.contractDisplayName || t('paymentMethods.directDebitContract')}
+      subtitle={method.contractMobile}
+      status={statusBadge}
+      icon={<CreditCard className="h-5 w-5 text-primary" />}
+      primaryInfo={(
+        <div className="flex items-center justify-between w-full">
           <span className="text-sm text-muted-foreground">
             {t('paymentMethods.zarinpalDirectDebit')}
           </span>
-          <div className="flex items-center gap-2">
-            {!method.isPrimary && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => onSetDefault(method.id)}
-                disabled={
-                  (setDefaultMutation.isPending && (setDefaultMutation.variables as { param: { id: string } })?.param.id === method.id)
-                  || (cancelContractMutation.isPending && (cancelContractMutation.variables as string) === method.id)
-                }
-                className="gap-1"
-              >
-                <Star className="h-3 w-3" />
-                {t('paymentMethods.setPrimary')}
-              </Button>
-            )}
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => onDelete(method.id)}
-              disabled={
-                (setDefaultMutation.isPending && (setDefaultMutation.variables as { param: { id: string } })?.param.id === method.id)
-                || (cancelContractMutation.isPending && (cancelContractMutation.variables as string) === method.id)
-              }
-              className="text-destructive hover:text-destructive hover:bg-destructive/10 gap-1"
-            >
-              <Trash2 className="h-3 w-3" />
-              {t('paymentMethods.cancelContract')}
-            </Button>
-          </div>
+          {actionButtons}
         </div>
-      </CardContent>
-    </Card>
+      )}
+    />
   );
 }
 
@@ -116,7 +90,6 @@ export default function PaymentMethodsScreen() {
   const router = useRouter();
   const paymentMethodsQuery = usePaymentMethodsQuery();
   const cancelContractMutation = useCancelDirectDebitContractMutation();
-  const setDefaultPaymentMethodMutation = useSetDefaultPaymentMethodMutation();
 
   // Direct TanStack Query state management
 
@@ -133,29 +106,10 @@ export default function PaymentMethodsScreen() {
     }
   }, [cancelContractMutation.isSuccess, cancelContractMutation.isError, cancelContractMutation.isPending, cancelContractMutation.error, t]);
 
-  React.useEffect(() => {
-    if (setDefaultPaymentMethodMutation.isSuccess && !setDefaultPaymentMethodMutation.isPending) {
-      toastManager.success(t('paymentMethods.successMessages.defaultPaymentMethodUpdated'));
-    }
-    if (setDefaultPaymentMethodMutation.isError && !setDefaultPaymentMethodMutation.isPending && setDefaultPaymentMethodMutation.error) {
-      const errorMessage = setDefaultPaymentMethodMutation.error instanceof Error
-        ? setDefaultPaymentMethodMutation.error.message
-        : t('paymentMethods.errorMessages.failedToUpdateDefault');
-      toastManager.error(errorMessage);
-    }
-  }, [setDefaultPaymentMethodMutation.isSuccess, setDefaultPaymentMethodMutation.isError, setDefaultPaymentMethodMutation.isPending, setDefaultPaymentMethodMutation.error, t]);
-
   const paymentMethodList: PaymentMethod[] = (() => {
     const data = paymentMethodsQuery.data as ApiResponse<PaymentMethod[]> | undefined;
     return data?.success && Array.isArray(data.data) ? data.data : [];
   })();
-
-  const handleSetDefault = async (paymentMethodId: string) => {
-    setDefaultPaymentMethodMutation.mutate({
-      param: { id: paymentMethodId },
-      json: { isPrimary: true },
-    });
-  };
 
   const handleDelete = async (paymentMethodId: string) => {
     cancelContractMutation.mutate(paymentMethodId);
@@ -165,6 +119,9 @@ export default function PaymentMethodsScreen() {
   if (paymentMethodsQuery.isLoading && !paymentMethodsQuery.data) {
     return (
       <LoadingState
+        variant="card"
+        style="dashed"
+        size="lg"
         title={t('states.loading.payment_methods')}
         message={t('states.loading.please_wait')}
       />
@@ -180,6 +137,7 @@ export default function PaymentMethodsScreen() {
 
     return (
       <ErrorState
+        variant="card"
         title={isAuthError ? t('states.error.authenticationRequired') : t('states.error.default')}
         description={isAuthError
           ? t('states.error.authenticationDescription')
@@ -224,9 +182,7 @@ export default function PaymentMethodsScreen() {
                       key={method.id}
                       method={method}
                       t={t}
-                      onSetDefault={handleSetDefault}
                       onDelete={handleDelete}
-                      setDefaultMutation={setDefaultPaymentMethodMutation}
                       cancelContractMutation={cancelContractMutation}
                     />
                   ))}
@@ -235,15 +191,18 @@ export default function PaymentMethodsScreen() {
             )
           : (
               <EmptyState
+                variant="methods"
+                style="dashed"
+                size="lg"
                 title={t('paymentMethods.empty')}
                 description={t('paymentMethods.emptyDescription')}
-                icon={<CreditCard className="h-8 w-8 text-muted-foreground" />}
+                icon={<CreditCard className="h-12 w-12 text-primary/60" />}
                 action={(
                   <Button
                     size="lg"
-                    startIcon={<Plus className="h-4 w-4" />}
                     onClick={() => router.push('/dashboard/billing/methods/setup')}
                   >
+                    <Plus className="h-4 w-4 mr-2" />
                     {t('paymentMethods.createFirstContract')}
                   </Button>
                 )}

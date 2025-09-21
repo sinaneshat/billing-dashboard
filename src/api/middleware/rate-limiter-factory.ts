@@ -30,11 +30,6 @@ export const RATE_LIMIT_PRESETS = {
     maxRequests: 100,
     message: 'Too many upload requests. Please try again later.',
   },
-  imageUpload: {
-    windowMs: 60 * 60 * 1000, // 1 hour
-    maxRequests: 20,
-    message: 'Image upload limit reached. Please try again later.',
-  },
 
   // Read operations
   read: {
@@ -352,11 +347,6 @@ export class RateLimiterFactory {
   static createForStorage() {
     return this.createDynamic((c) => {
       const method = c.req.method;
-      const path = c.req.path;
-
-      if (path.includes('/images/')) {
-        return 'imageUpload';
-      }
 
       switch (method) {
         case 'PUT':

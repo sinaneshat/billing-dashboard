@@ -20,18 +20,7 @@ export type GetPaymentMethodsResponse = InferResponseType<(typeof apiClient)['pa
 
 // Traditional payment method creation removed - use direct debit contract verification
 
-// Delete Payment Method
-export type DeletePaymentMethodRequest = {
-  param: { id: string };
-};
-export type DeletePaymentMethodResponse = InferResponseType<(typeof apiClient)['payment-methods'][':id']['$delete']>;
-
-// Update Payment Method (e.g., set as primary)
-export type UpdatePaymentMethodRequest = {
-  param: { id: string };
-  json: { isPrimary?: boolean };
-};
-export type UpdatePaymentMethodResponse = InferResponseType<(typeof apiClient)['payment-methods'][':id']['$patch']>;
+// Delete Payment Method - now handled by cancel contract endpoint
 
 // Contract Status
 export type GetContractStatusRequest = InferRequestType<(typeof apiClient)['payment-methods']['contract-status']['$get']>;
@@ -56,35 +45,6 @@ export async function getPaymentMethodsService(args?: GetPaymentMethodsRequest) 
 // Traditional payment method creation removed - use direct debit contract verification
 
 /**
- * Delete a payment method (soft delete)
- * All types are inferred from the RPC client
- */
-export async function deletePaymentMethodService(paymentMethodId: string) {
-  return parseResponse(apiClient['payment-methods'][':id'].$delete({
-    param: { id: paymentMethodId },
-  }));
-}
-
-/**
- * Update a payment method (e.g., set as primary)
- * All types are inferred from the RPC client
- */
-export async function updatePaymentMethodService(paymentMethodId: string, updates: { isPrimary?: boolean }) {
-  return parseResponse(apiClient['payment-methods'][':id'].$patch({
-    param: { id: paymentMethodId },
-    json: updates,
-  }));
-}
-
-/**
- * Set a payment method as the default/primary method
- * Convenience function for updatePaymentMethodService
- */
-export async function setDefaultPaymentMethodService(paymentMethodId: string) {
-  return updatePaymentMethodService(paymentMethodId, { isPrimary: true });
-}
-
-/**
  * Get direct debit contract status
  * All types are inferred from the RPC client
  */
@@ -107,9 +67,7 @@ export type VerifyDirectDebitContractRequest = InferRequestType<(typeof apiClien
 export type VerifyDirectDebitContractResponse = InferResponseType<(typeof apiClient)['payment-methods']['contracts'][':id']['verify']['$post']>;
 
 // Cancel Direct Debit Contract (Step 3) - Cancel active contract
-export type CancelDirectDebitContractRequest = {
-  param: { id: string };
-};
+export type CancelDirectDebitContractRequest = InferRequestType<(typeof apiClient)['payment-methods']['contracts'][':id']['$delete']>;
 export type CancelDirectDebitContractResponse = InferResponseType<(typeof apiClient)['payment-methods']['contracts'][':id']['$delete']>;
 
 /**
@@ -138,10 +96,8 @@ export async function verifyDirectDebitContractService(args: VerifyDirectDebitCo
  * Cancel Direct Debit Contract (Step 3)
  * Allows users to cancel their direct debit contracts (legally required)
  */
-export async function cancelDirectDebitContractService(paymentMethodId: string) {
-  return parseResponse(apiClient['payment-methods'].contracts[':id'].$delete({
-    param: { id: paymentMethodId },
-  }));
+export async function cancelDirectDebitContractService(args: CancelDirectDebitContractRequest) {
+  return parseResponse(apiClient['payment-methods'].contracts[':id'].$delete(args));
 }
 
 /**

@@ -38,7 +38,6 @@ import {
 } from './schemas';
 import {
   documentUploadValidator,
-  imageUploadValidator,
 } from './validation';
 
 export {
@@ -177,7 +176,6 @@ export const CommonValidators = {
   rialAmount: iranianRialAmountSchema,
 
   // Files
-  image: imageUploadValidator,
   document: documentUploadValidator,
 } as const;
 
@@ -208,7 +206,6 @@ export {
   createValidator,
   documentUploadValidator,
   formatValidationErrors,
-  imageUploadValidator,
   validateErrorContext,
   validatePathParams,
   validateQueryParams,

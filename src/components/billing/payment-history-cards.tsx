@@ -1,25 +1,15 @@
 'use client';
 
-import {
-  Download,
-  Eye,
-  Receipt,
-  RotateCcw,
-  ShoppingBag,
-} from 'lucide-react';
-import { useRouter } from 'next/navigation';
+import { ShoppingBag } from 'lucide-react';
 import { useLocale, useTranslations } from 'next-intl';
-import { memo, useCallback } from 'react';
+import { memo } from 'react';
 
-import { BillingActionMenu } from '@/components/billing/shared/billing-action-menu';
 import { BillingCardContainer } from '@/components/billing/shared/billing-card-container';
-import { useBillingActions } from '@/components/billing/shared/use-billing-actions';
 import { StatusCard } from '@/components/dashboard/dashboard-cards';
 import { PaymentStatusBadge } from '@/components/ui/status-badge';
-import { useDownloadInvoiceMutation, useDownloadReceiptMutation, useRetryPaymentMutation } from '@/hooks/mutations/payments';
 import { formatTomanCurrency } from '@/lib/format';
 
-// Enhanced payment type with better field handling
+// Simplified payment type for display only
 type PaymentHistoryItem = {
   id: string;
   productName: string;
@@ -28,7 +18,6 @@ type PaymentHistoryItem = {
   paymentMethod: string;
   paidAt: string | null;
   createdAt: string;
-  hasReceipt: boolean;
   failureReason?: string | null;
   zarinpalRefId?: string | null;
 };
@@ -50,82 +39,9 @@ export const PaymentHistoryCards = memo(({
 }: PaymentHistoryCardsProps) => {
   const t = useTranslations();
   const locale = useLocale();
-  const router = useRouter();
-  const { createDownloadAction, createRetryAction } = useBillingActions();
-
-  // Mutations for payment actions
-  const retryPaymentMutation = useRetryPaymentMutation();
-  const downloadReceiptMutation = useDownloadReceiptMutation();
-  const downloadInvoiceMutation = useDownloadInvoiceMutation();
-
-  // Simplified action handlers using shared hook
-  const handleViewPayment = useCallback((paymentId: string) => {
-    router.push(`/dashboard/billing/payments/${paymentId}`);
-  }, [router]);
-
-  const handleDownloadReceipt = createDownloadAction(
-    async (paymentId: string) => {
-      await downloadReceiptMutation.mutateAsync({ param: { id: paymentId } });
-    },
-    'receipt',
-  );
-
-  const handleDownloadInvoice = createDownloadAction(
-    async (paymentId: string) => {
-      await downloadInvoiceMutation.mutateAsync({ param: { id: paymentId } });
-    },
-    'invoice',
-  );
-
-  const handleRetryPayment = createRetryAction(
-    async (paymentId: string) => {
-      await retryPaymentMutation.mutateAsync({ param: { id: paymentId } });
-    },
-  );
 
   const defaultEmptyTitle = emptyStateTitle || t('payments.empty');
   const defaultEmptyDescription = emptyStateDescription || t('payments.emptyDescription');
-
-  // Create action menu for each payment using shared component
-  const createActionMenu = useCallback((payment: PaymentHistoryItem) => {
-    const actions = [
-      {
-        id: 'view',
-        label: t('actions.view'),
-        icon: Eye,
-        onClick: () => handleViewPayment(payment.id),
-      },
-    ];
-
-    if (payment.hasReceipt && (payment.status === 'completed' || payment.status === 'paid')) {
-      actions.push({
-        id: 'download-receipt',
-        label: t('payments.downloadReceipt'),
-        icon: Download,
-        onClick: () => handleDownloadReceipt(payment.id),
-      });
-    }
-
-    if (payment.status === 'completed' || payment.status === 'paid') {
-      actions.push({
-        id: 'download-invoice',
-        label: t('payments.downloadInvoice'),
-        icon: Receipt,
-        onClick: () => handleDownloadInvoice(payment.id),
-      });
-    }
-
-    if (payment.status === 'failed') {
-      actions.push({
-        id: 'retry',
-        label: t('actions.retry'),
-        icon: RotateCcw,
-        onClick: () => handleRetryPayment(payment.id),
-      });
-    }
-
-    return <BillingActionMenu actions={actions} />;
-  }, [handleViewPayment, handleDownloadReceipt, handleDownloadInvoice, handleRetryPayment, t]);
 
   return (
     <BillingCardContainer<PaymentHistoryItem>
@@ -162,7 +78,6 @@ export const PaymentHistoryCards = memo(({
               )}
             </div>
           )}
-          action={createActionMenu(payment)}
         />
       )}
     </BillingCardContainer>

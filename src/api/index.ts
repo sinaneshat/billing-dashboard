@@ -39,52 +39,40 @@ import { secureMeRoute } from './routes/auth/route';
 import {
   cancelContractHandler,
   createContractHandler,
-  deletePaymentMethodHandler,
   getContractStatusHandler,
   getPaymentMethodsHandler,
-  updatePaymentMethodHandler,
   verifyContractHandler,
 } from './routes/payment-methods/handler';
 import {
   cancelContractRoute,
   createContractRoute,
-  deletePaymentMethodRoute,
   getContractStatusRoute,
   getPaymentMethodsRoute,
-  updatePaymentMethodRoute,
   verifyContractRoute,
 } from './routes/payment-methods/route';
 // Payment routes including callback and history
-import { getPaymentsHandler, paymentCallbackHandler } from './routes/payments/handler';
-import { getPaymentsRoute, paymentCallbackRoute } from './routes/payments/route';
+import { getPaymentsHandler } from './routes/payments/handler';
+import { getPaymentsRoute } from './routes/payments/route';
 import { getProductsHandler } from './routes/products/handler';
 import { getProductsRoute } from './routes/products/route';
 // Billing routes - Enhanced with analytics and optimizations
 import {
   cancelSubscriptionHandler,
-  changePlanHandler,
   createSubscriptionHandler,
   getSubscriptionHandler,
   getSubscriptionsHandler,
-  resubscribeHandler,
 } from './routes/subscriptions/handler';
 import {
   cancelSubscriptionRoute,
-  changePlanRoute,
   createSubscriptionRoute,
   getSubscriptionRoute,
   getSubscriptionsRoute,
-  resubscribeRoute,
 } from './routes/subscriptions/route';
 // Enhanced webhook handlers with intelligent retry and correlation
 import {
-  getWebhookEventsHandler,
-  testWebhookHandler,
   zarinPalWebhookHandler,
 } from './routes/webhooks/handler';
 import {
-  getWebhookEventsRoute,
-  testWebhookRoute,
   zarinPalWebhookRoute,
 } from './routes/webhooks/route';
 import type { ApiEnv } from './types';
@@ -229,12 +217,8 @@ const appRoutes = app
   .openapi(getSubscriptionRoute, getSubscriptionHandler)
   .openapi(createSubscriptionRoute, createSubscriptionHandler)
   .openapi(cancelSubscriptionRoute, cancelSubscriptionHandler)
-  .openapi(resubscribeRoute, resubscribeHandler)
-  .openapi(changePlanRoute, changePlanHandler)
   // Payment methods routes - Consolidated 3-endpoint direct debit flow
   .openapi(getPaymentMethodsRoute, getPaymentMethodsHandler)
-  .openapi(deletePaymentMethodRoute, deletePaymentMethodHandler)
-  .openapi(updatePaymentMethodRoute, updatePaymentMethodHandler)
   // Consolidated direct debit contract routes (3 endpoints)
   .openapi(createContractRoute, createContractHandler)
   .openapi(verifyContractRoute, verifyContractHandler)
@@ -243,11 +227,8 @@ const appRoutes = app
   .openapi(getContractStatusRoute, getContractStatusHandler)
   // Payment routes
   .openapi(getPaymentsRoute, getPaymentsHandler)
-  .openapi(paymentCallbackRoute, paymentCallbackHandler)
   // Webhooks routes
   .openapi(zarinPalWebhookRoute, zarinPalWebhookHandler)
-  .openapi(getWebhookEventsRoute, getWebhookEventsHandler)
-  .openapi(testWebhookRoute, testWebhookHandler)
 ;
 
 // ============================================================================

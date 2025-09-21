@@ -88,6 +88,9 @@ export function SubscriptionPlans() {
   if (isLoading) {
     return (
       <LoadingState
+        variant="card"
+        style="dashed"
+        size="lg"
         title={t('states.loading.products')}
         message={t('states.loading.please_wait')}
       />

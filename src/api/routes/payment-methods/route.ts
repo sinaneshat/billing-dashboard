@@ -6,9 +6,7 @@ import {
   CreateContractRequestSchema,
   CreateContractResponseSchema,
   GetContractStatusResponseSchema,
-  PaymentMethodDeleteResponseSchema,
   PaymentMethodListResponseSchema,
-  PaymentMethodUpdateResponseSchema,
   VerifyContractRequestSchema,
   VerifyContractResponseSchema,
 } from './schema';
@@ -31,77 +29,6 @@ export const getPaymentMethodsRoute = createRoute({
         },
       },
       description: 'Payment methods retrieved successfully',
-    },
-  },
-});
-
-export const deletePaymentMethodRoute = createRoute({
-  method: 'delete',
-  path: '/payment-methods/{id}',
-  tags: ['payment-methods'],
-  summary: 'Delete payment method',
-  description: 'Delete a payment method by ID',
-  request: {
-    params: z.object({
-      id: z.string().openapi({
-        param: {
-          name: 'id',
-          in: 'path',
-          description: 'Payment method ID',
-          example: 'pm_123',
-        },
-      }),
-    }),
-  },
-  responses: {
-    [HttpStatusCodes.OK]: {
-      content: {
-        'application/json': {
-          schema: PaymentMethodDeleteResponseSchema,
-        },
-      },
-      description: 'Payment method deleted successfully',
-    },
-  },
-});
-
-export const updatePaymentMethodRoute = createRoute({
-  method: 'patch',
-  path: '/payment-methods/{id}',
-  tags: ['payment-methods'],
-  summary: 'Update payment method',
-  description: 'Update payment method settings (e.g., set as default)',
-  request: {
-    params: z.object({
-      id: z.string().openapi({
-        param: {
-          name: 'id',
-          in: 'path',
-          description: 'Payment method ID',
-          example: 'pm_123',
-        },
-      }),
-    }),
-    body: {
-      content: {
-        'application/json': {
-          schema: z.object({
-            isPrimary: z.boolean().optional().openapi({
-              description: 'Set as default payment method',
-            }),
-          }),
-        },
-      },
-    },
-  },
-  responses: {
-    [HttpStatusCodes.OK]: {
-      content: {
-        'application/json': {
-          schema: PaymentMethodUpdateResponseSchema,
-        },
-      },
-      description: 'Payment method updated successfully',
     },
   },
 });
@@ -251,8 +178,6 @@ export const getContractStatusRoute = createRoute({
 export const consolidatedPaymentMethodRoutes = [
   // Basic payment method management
   getPaymentMethodsRoute,
-  deletePaymentMethodRoute,
-  updatePaymentMethodRoute,
 
   // Consolidated direct debit contract flow (3 endpoints)
   createContractRoute,

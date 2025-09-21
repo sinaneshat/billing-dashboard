@@ -4,110 +4,15 @@ import { queryKeys } from '@/lib/data/query-keys';
 import { logError } from '@/lib/utils/safe-logger';
 import type {
   CreateDirectDebitContractRequest,
-  DeletePaymentMethodRequest,
-  UpdatePaymentMethodRequest,
   VerifyDirectDebitContractRequest,
 } from '@/services/api/payment-methods';
 import {
   cancelDirectDebitContractService,
   createDirectDebitContractService,
-  deletePaymentMethodService,
-  setDefaultPaymentMethodService,
   verifyDirectDebitContractService,
 } from '@/services/api/payment-methods';
 
 // Traditional payment method creation removed - use direct debit contract verification
-
-export function useDeletePaymentMethodMutation() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async (args: DeletePaymentMethodRequest) => {
-      const result = await deletePaymentMethodService(args.param.id);
-      return result;
-    },
-    onMutate: async (args) => {
-      // Cancel any outgoing refetches
-      await queryClient.cancelQueries({ queryKey: queryKeys.paymentMethods.list });
-
-      // Snapshot the previous value for rollback
-      const previousPaymentMethods = queryClient.getQueryData(queryKeys.paymentMethods.list);
-
-      // Optimistically update payment methods list
-      queryClient.setQueryData(queryKeys.paymentMethods.list, (old: unknown) => {
-        const oldData = old as { success?: boolean; data?: Array<{ id: string }> };
-        if (oldData?.success && Array.isArray(oldData.data)) {
-          return {
-            ...oldData,
-            data: oldData.data.filter(pm => pm.id !== args.param.id),
-          };
-        }
-        return old;
-      });
-
-      return { previousPaymentMethods };
-    },
-    onError: (error, _variables, context) => {
-      logError('Failed to delete payment method', error);
-      // Rollback optimistic update on error
-      if (context?.previousPaymentMethods) {
-        queryClient.setQueryData(queryKeys.paymentMethods.list, context.previousPaymentMethods);
-      }
-    },
-    onSuccess: () => {
-      // Only invalidate the specific query being used to avoid redundant requests
-      queryClient.invalidateQueries({ queryKey: queryKeys.paymentMethods.list });
-    },
-    retry: 1,
-  });
-}
-
-export function useSetDefaultPaymentMethodMutation() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async (args: UpdatePaymentMethodRequest) => {
-      const result = await setDefaultPaymentMethodService(args.param.id);
-      return result;
-    },
-    onMutate: async (args) => {
-      // Cancel any outgoing refetches
-      await queryClient.cancelQueries({ queryKey: queryKeys.paymentMethods.list });
-
-      // Snapshot the previous value for rollback
-      const previousPaymentMethods = queryClient.getQueryData(queryKeys.paymentMethods.list);
-
-      // Optimistically update payment methods list
-      queryClient.setQueryData(queryKeys.paymentMethods.list, (old: unknown) => {
-        const oldData = old as { success?: boolean; data?: Array<{ id: string; isPrimary: boolean }> };
-        if (oldData?.success && Array.isArray(oldData.data)) {
-          return {
-            ...oldData,
-            data: oldData.data.map(pm => ({
-              ...pm,
-              isPrimary: pm.id === args.param.id,
-            })),
-          };
-        }
-        return old;
-      });
-
-      return { previousPaymentMethods };
-    },
-    onError: (error, _variables, context) => {
-      logError('Failed to set default payment method', error);
-      // Rollback optimistic update on error
-      if (context?.previousPaymentMethods) {
-        queryClient.setQueryData(queryKeys.paymentMethods.list, context.previousPaymentMethods);
-      }
-    },
-    onSuccess: () => {
-      // Only invalidate the specific query being used to avoid redundant requests
-      queryClient.invalidateQueries({ queryKey: queryKeys.paymentMethods.list });
-    },
-    retry: 1,
-  });
-}
 
 // ============================================================================
 //  Direct Debit Contract Mutation Hooks (NEW - ZarinPal Payman API)
@@ -205,7 +110,9 @@ export function useCancelDirectDebitContractMutation() {
 
   return useMutation({
     mutationFn: async (paymentMethodId: string) => {
-      const result = await cancelDirectDebitContractService(paymentMethodId);
+      const result = await cancelDirectDebitContractService({
+        param: { id: paymentMethodId },
+      });
       return result;
     },
     onMutate: async (paymentMethodId: string) => {

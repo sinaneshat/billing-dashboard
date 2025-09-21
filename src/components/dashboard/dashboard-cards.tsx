@@ -362,18 +362,24 @@ export function EmptyCard({
   className,
 }: EmptyCardProps) {
   return (
-    <Card className={cn('h-full', className)}>
-      <CardContent className="flex flex-col items-center justify-center py-12 text-center">
+    <Card className={cn('h-full bg-gradient-to-br from-card to-card/50 shadow-lg border-dashed border-2', className)}>
+      <CardContent className="flex flex-col items-center justify-center py-12 text-center space-y-6">
         {icon && (
-          <div className="mb-4 rounded-full bg-muted p-3">
+          <div className="w-24 h-24 bg-primary/10 rounded-2xl flex items-center justify-center mx-auto border-2 border-dashed border-primary/20">
             {icon}
           </div>
         )}
-        <CardTitle className="mb-2 text-lg">{title}</CardTitle>
-        {description && (
-          <CardDescription className="mb-4 max-w-sm">{description}</CardDescription>
+        <div className="space-y-3">
+          <CardTitle className="text-2xl font-bold">{title}</CardTitle>
+          {description && (
+            <CardDescription className="text-base text-muted-foreground max-w-lg mx-auto leading-relaxed">{description}</CardDescription>
+          )}
+        </div>
+        {action && (
+          <div className="pt-4">
+            {action}
+          </div>
         )}
-        {action}
       </CardContent>
     </Card>
   );
@@ -394,11 +400,13 @@ export function LoadingCard({
   variant = 'default',
 }: LoadingCardProps) {
   return (
-    <Card className={cn('h-full', className)}>
+    <Card className={cn('h-full bg-gradient-to-br from-card to-card/50 shadow-lg border-dashed border-2', className)}>
       {title && variant !== 'metric' && (
         <CardHeader>
           <div className="flex items-center gap-3">
-            <div className="h-8 w-8 animate-pulse rounded-lg bg-muted" />
+            <div className="w-12 h-12 bg-primary/10 rounded-2xl flex items-center justify-center border-2 border-dashed border-primary/20">
+              <div className="h-6 w-6 animate-pulse rounded bg-primary/60" />
+            </div>
             <div className="space-y-2">
               <div className="h-4 w-32 animate-pulse rounded bg-muted" />
               <div className="h-3 w-20 animate-pulse rounded bg-muted" />

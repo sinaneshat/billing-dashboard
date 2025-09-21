@@ -20,12 +20,21 @@ export default function BillingHistory() {
     : [];
 
   if (paymentsQuery.isLoading) {
-    return <LoadingState message={t('states.loading.paymentHistory')} />;
+    return (
+      <LoadingState
+        variant="card"
+        style="dashed"
+        size="lg"
+        title={t('states.loading.paymentHistory')}
+        message={t('states.loading.please_wait')}
+      />
+    );
   }
 
   if (paymentsQuery.isError && !paymentsQuery.isLoading) {
     return (
       <ErrorState
+        variant="card"
         title={t('states.error.loadPaymentHistory')}
         description={t('states.error.loadPaymentHistoryDescription')}
         onRetry={() => {
@@ -58,9 +67,8 @@ export default function BillingHistory() {
                   amount: payment.amount,
                   status: payment.status,
                   paymentMethod: payment.paymentMethod || 'zarinpal',
-                  paidAt: payment.paidAt,
-                  createdAt: payment.createdAt,
-                  hasReceipt: payment.status === 'completed' || payment.status === 'paid',
+                  paidAt: payment.paidAt ? payment.paidAt.toString() : null,
+                  createdAt: payment.createdAt.toString(),
                   failureReason: payment.status === 'failed' ? t('states.error.paymentFailed') : null,
                   zarinpalRefId: payment.zarinpalRefId,
                 }))}
@@ -71,15 +79,18 @@ export default function BillingHistory() {
           )
         : (
             <EmptyState
+              variant="payments"
+              style="dashed"
+              size="lg"
               title={t('states.empty.paymentHistory')}
               description={t('states.empty.paymentHistoryDescription')}
-              icon={<Receipt className="h-8 w-8 text-muted-foreground" />}
+              icon={<Receipt className="h-12 w-12 text-primary/60" />}
               action={(
                 <Button
                   size="lg"
-                  startIcon={<Receipt className="h-4 w-4" />}
                   onClick={() => router.push('/dashboard/billing/plans')}
                 >
+                  <Receipt className="h-4 w-4 mr-2" />
                   {t('billing.viewPlans')}
                 </Button>
               )}

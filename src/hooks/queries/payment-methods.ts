@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 
 import { useSession } from '@/lib/auth/client';
 import { queryKeys } from '@/lib/data/query-keys';
-import { getBankListService, getPaymentMethodsService } from '@/services/api/payment-methods';
+import { getPaymentMethodsService } from '@/services/api/payment-methods';
 
 /**
  * Hook to fetch ALL user payment methods (no pagination)
@@ -26,16 +26,18 @@ export function usePaymentMethodsQuery() {
 
 /**
  * Hook to fetch available banks for direct debit contract signing
- * Used during direct debit contract setup flow
+ * @deprecated Banks are now returned in createDirectDebitContractService response
+ * This hook is kept for backwards compatibility but should not be used
  */
 export function useBankListQuery() {
   return useQuery({
     queryKey: queryKeys.paymentMethods.bankList,
-    queryFn: getBankListService,
-    staleTime: 5 * 60 * 1000, // Banks list is relatively stable - 5 minutes cache
-    retry: 2,
+    queryFn: () => {
+      throw new Error('useBankListQuery is deprecated. Banks are now returned in createDirectDebitContractService response.');
+    },
+    staleTime: 5 * 60 * 1000,
+    retry: false,
     throwOnError: false,
-    // Only fetch when explicitly needed - not automatically on component mount
     enabled: false,
   });
 }

@@ -8,7 +8,6 @@ import { Suspense, useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { LoadingSpinner } from '@/components/ui/loading-spinner';
-import { processPaymentCallbackService } from '@/services/api';
 import { verifyDirectDebitContractService } from '@/services/api/payment-methods';
 
 type PaymentResult = {
@@ -120,37 +119,12 @@ function PaymentCallbackContent() {
           return;
         }
 
-        // Handle regular payment callback (legacy)
+        // Handle regular payment callback (legacy) - DISABLED: service removed
         if (authority) {
-          const data = await processPaymentCallbackService({
-            Authority: authority,
-            Status: status as 'OK' | 'NOK',
+          setResult({
+            success: false,
+            error: t('payment.callback.legacyPaymentNotSupported'),
           });
-
-          // The API returns { success: boolean, paymentId?, subscriptionId?, refId? }
-          // But the inferred type shows different structure, so cast it properly
-          const result = data as unknown as {
-            success: boolean;
-            paymentId?: string;
-            subscriptionId?: string;
-            refId?: string;
-          };
-
-          if (result.success) {
-            setResult({
-              success: true,
-              paymentId: result.paymentId,
-              subscriptionId: result.subscriptionId,
-              refId: result.refId,
-            });
-          } else {
-            setResult({
-              success: false,
-              paymentId: result.paymentId,
-              subscriptionId: result.subscriptionId,
-              error: t('payment.callback.paymentNotCompleted'),
-            });
-          }
         }
       } catch {
         setResult({

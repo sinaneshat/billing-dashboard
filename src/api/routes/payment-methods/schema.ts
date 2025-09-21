@@ -44,14 +44,6 @@ export const PaymentMethodListResponseSchema = createApiResponseSchema(
   z.array(PaymentMethodSchema),
 );
 
-export const PaymentMethodDeleteResponseSchema = createApiResponseSchema(
-  z.object({
-    deleted: z.boolean().openapi({
-      description: 'Whether the payment method was successfully deleted',
-    }),
-  }),
-);
-
 export const PaymentMethodUpdateResponseSchema = createApiResponseSchema(
   PaymentMethodSchema,
 );
