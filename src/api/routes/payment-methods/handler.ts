@@ -193,26 +193,26 @@ export const createContractHandler: RouteHandler<typeof createContractRoute, Api
     const requestedMaxAmount = Number.parseInt(contractRequest.maxAmount, 10);
     const requestedMaxDailyCount = Number.parseInt(contractRequest.maxDailyCount, 10);
 
-    // Find the most restrictive bank limits to ensure contract works with all banks
-    const minSupportedDailyAmount = Math.min(
+    // Find the maximum bank limits to allow users to use the highest available limits
+    const maxSupportedDailyAmount = Math.max(
       ...banksResult.data.banks.map(bank => bank.max_daily_amount),
     );
-    const minSupportedDailyCount = Math.min(
+    const maxSupportedDailyCount = Math.max(
       ...banksResult.data.banks
         .filter(bank => bank.max_daily_count !== null)
         .map(bank => bank.max_daily_count!),
     );
 
     // Validate against bank limits
-    if (requestedMaxAmount > minSupportedDailyAmount) {
+    if (requestedMaxAmount > maxSupportedDailyAmount) {
       throw createError.badRequest(
-        `Maximum transaction amount (${requestedMaxAmount.toLocaleString('fa-IR')} IRR) exceeds the minimum supported by banks (${minSupportedDailyAmount.toLocaleString('fa-IR')} IRR). Please reduce the amount.`,
+        `Maximum transaction amount (${requestedMaxAmount.toLocaleString('fa-IR')} IRR) exceeds the maximum supported by banks (${maxSupportedDailyAmount.toLocaleString('fa-IR')} IRR). Please reduce the amount.`,
       );
     }
 
-    if (requestedMaxDailyCount > minSupportedDailyCount) {
+    if (requestedMaxDailyCount > maxSupportedDailyCount) {
       throw createError.badRequest(
-        `Maximum daily transaction count (${requestedMaxDailyCount}) exceeds the minimum supported by banks (${minSupportedDailyCount}). Please reduce the count.`,
+        `Maximum daily transaction count (${requestedMaxDailyCount}) exceeds the maximum supported by banks (${maxSupportedDailyCount}). Please reduce the count.`,
       );
     }
 
