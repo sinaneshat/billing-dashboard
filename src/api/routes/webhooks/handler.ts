@@ -588,12 +588,20 @@ export class WebhookEventBuilders {
   }
 
   /**
-   * Generate virtual Stripe customer ID for compatibility
+   * Generate virtual Stripe customer ID for compatibility using email
    */
-  static generateVirtualStripeCustomerId(billingUserId: string): string {
-    // Create deterministic virtual customer ID that looks like Stripe format
-    const hash = crypto.createHash('sha256').update(`billing_${billingUserId}`).digest('hex').substring(0, 24);
+  static generateVirtualStripeCustomerId(userEmail: string): string {
+    // Create deterministic virtual customer ID that looks like Stripe format using email
+    const hash = crypto.createHash('sha256').update(`billing_${userEmail}`).digest('hex').substring(0, 24);
     return `cus_${hash}`;
+  }
+
+  /**
+   * Generate client reference ID from user email for Roundtable correlation
+   */
+  static generateClientReferenceId(userEmail: string): string {
+    // Use email as client reference for Roundtable to correlate users
+    return userEmail;
   }
 }
 
@@ -924,21 +932,23 @@ export const zarinPalWebhookHandler: RouteHandler<typeof zarinPalWebhookRoute, A
               const userResults = await tx.select({ email: user.email }).from(user).where(eq(user.id, updatedPayment.userId)).limit(1);
               const userRecord = userResults[0];
 
-              // DISPATCH WEBHOOK EVENT: Payment succeeded
+              // DISPATCH WEBHOOK EVENT: Payment succeeded (EMAIL-BASED)
+              const userEmail = userRecord?.email || '';
               const paymentEvent = WebhookEventBuilders.createPaymentSucceededEvent(
                 updatedPayment.id,
-                WebhookEventBuilders.generateVirtualStripeCustomerId(updatedPayment.userId),
+                WebhookEventBuilders.generateVirtualStripeCustomerId(userEmail), // Use email for customer ID
                 updatedPayment.amount,
                 {
                   subscriptionId: paymentRecord.subscriptionId || '',
                   zarinpalRefId: verification.data?.ref_id?.toString() || '',
                   zarinpalAuthority: webhookPayload.authority,
                   billingUserId: updatedPayment.userId,
-                  userEmail: userRecord?.email || '', // Include user email for Roundtable mapping
+                  userEmail, // Primary identifier for Roundtable
                   productId: updatedPayment.productId,
                   productName: productRecord?.name || '',
                   planName: (productRecord?.metadata as Record<string, unknown>)?.roundtable_plan_name as string || productRecord?.name || 'Pro',
                   roundtableProductId: productRecord?.roundtableId || '',
+                  stripePriceId: productRecord?.stripePriceId || '',
                 },
                 verification.data?.card_hash || webhookPayload.card_hash, // payment method ID
               );
@@ -969,14 +979,14 @@ export const zarinPalWebhookHandler: RouteHandler<typeof zarinPalWebhookRoute, A
                     throw new Error('Subscription record not found after update');
                   }
 
-                  // DISPATCH WEBHOOK EVENT: Subscription activated
+                  // DISPATCH WEBHOOK EVENT: Subscription activated (EMAIL-BASED)
                   const subscriptionEvent = WebhookEventBuilders.createSubscriptionUpdatedEvent(
                     updatedSubscription.id,
-                    WebhookEventBuilders.generateVirtualStripeCustomerId(updatedPayment.userId),
+                    WebhookEventBuilders.generateVirtualStripeCustomerId(userEmail), // Use email for customer ID
                     'active',
                     {
                       billingUserId: updatedPayment.userId,
-                      userEmail: userRecord?.email || '', // Include user email for Roundtable mapping
+                      userEmail, // Primary identifier for Roundtable
                       paymentId: updatedPayment.id,
                       zarinpalContractId: verification.data?.card_hash || webhookPayload.card_hash || '',
                       productId: updatedPayment.productId,
@@ -996,10 +1006,10 @@ export const zarinPalWebhookHandler: RouteHandler<typeof zarinPalWebhookRoute, A
                   if (subscriptionRecord.status === 'pending') {
                     const customerSubEvent = WebhookEventBuilders.createCustomerSubscriptionCreatedEvent(
                       updatedSubscription.id,
-                      WebhookEventBuilders.generateVirtualStripeCustomerId(updatedPayment.userId),
+                      WebhookEventBuilders.generateVirtualStripeCustomerId(userEmail), // Use email for customer ID
                       {
                         billingUserId: updatedPayment.userId,
-                        userEmail: userRecord?.email || '', // Include user email for Roundtable mapping
+                        userEmail, // Primary identifier for Roundtable
                         productId: subscriptionRecord.productId || '',
                         plan: subscriptionRecord.billingPeriod || 'monthly',
                         productName: productRecord?.name || '',

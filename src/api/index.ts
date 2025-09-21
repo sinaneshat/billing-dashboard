@@ -35,6 +35,15 @@ import { RateLimiterFactory } from './middleware/rate-limiter-factory';
 // Import routes and handlers directly for proper RPC type inference
 import { secureMeHandler } from './routes/auth/handler';
 import { secureMeRoute } from './routes/auth/route';
+// Billing routes - Enhanced with analytics and optimizations
+import {
+  getBillingMetricsHandler,
+  processRecurringPaymentsHandler,
+} from './routes/billing/handler';
+import {
+  getBillingMetricsRoute,
+  processRecurringPaymentsRoute,
+} from './routes/billing/route';
 // Payment methods routes - Consolidated 3-endpoint direct debit flow
 import {
   cancelContractHandler,
@@ -55,7 +64,6 @@ import { getPaymentsHandler } from './routes/payments/handler';
 import { getPaymentsRoute } from './routes/payments/route';
 import { getProductsHandler } from './routes/products/handler';
 import { getProductsRoute } from './routes/products/route';
-// Billing routes - Enhanced with analytics and optimizations
 import {
   cancelSubscriptionHandler,
   changePlanHandler,
@@ -229,6 +237,9 @@ const appRoutes = app
   .openapi(cancelContractRoute, cancelContractHandler)
   // Payment routes
   .openapi(getPaymentsRoute, getPaymentsHandler)
+  // Billing routes - Recurring payments and metrics
+  .openapi(processRecurringPaymentsRoute, processRecurringPaymentsHandler)
+  .openapi(getBillingMetricsRoute, getBillingMetricsHandler)
   // Webhooks routes
   .openapi(zarinPalWebhookRoute, zarinPalWebhookHandler)
 ;

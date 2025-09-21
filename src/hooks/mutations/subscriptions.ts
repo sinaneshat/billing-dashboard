@@ -2,11 +2,6 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 
 import { queryKeys } from '@/lib/data/query-keys';
 import { logError } from '@/lib/utils/safe-logger';
-import type {
-  CancelSubscriptionRequest,
-  ChangePlanRequest,
-  CreateSubscriptionRequest,
-} from '@/services/api';
 import {
   cancelSubscriptionService,
   changePlanService,
@@ -17,38 +12,24 @@ export function useCreateSubscriptionMutation() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (args: CreateSubscriptionRequest) => {
-      const result = await createSubscriptionService(args);
-      return result;
-    },
-    onSuccess: (data) => {
-      // Invalidate relevant queries
-      queryClient.invalidateQueries({ queryKey: queryKeys.subscriptions.all });
+    mutationFn: createSubscriptionService,
+    onSuccess: () => {
+      // Invalidate subscription-related queries to refetch fresh data
       queryClient.invalidateQueries({ queryKey: queryKeys.subscriptions.list });
-      queryClient.invalidateQueries({ queryKey: queryKeys.subscriptions.current });
-      queryClient.invalidateQueries({ queryKey: queryKeys.payments.all });
-
-      // Optionally update specific subscription in cache if we have the data
-      if (data.success && data.data) {
-        // This would require the API to return the created subscription
-        // queryClient.setQueryData(queryKeys.subscriptions.detail(data.data.id), data.data);
-      }
+      queryClient.invalidateQueries({ queryKey: queryKeys.payments.list });
     },
     onError: (error) => {
-      // Enhanced error logging for debugging
       logError('Failed to create subscription', error);
     },
-    // Enhanced retry logic for subscription creation
     retry: (failureCount, error: unknown) => {
+      // Don't retry on client errors (4xx)
       const httpError = error as { status?: number };
-      // Don't retry if it's a validation error (4xx)
       if (httpError?.status && httpError.status >= 400 && httpError.status < 500) {
         return false;
       }
-      // Retry up to 2 times for server errors
       return failureCount < 2;
     },
-    retryDelay: attemptIndex => Math.min(1000 * 2 ** attemptIndex, 30000),
+    throwOnError: false,
   });
 }
 
@@ -56,50 +37,51 @@ export function useChangePlanMutation() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (args: ChangePlanRequest) => {
-      const result = await changePlanService(args);
-      return result;
-    },
+    mutationFn: changePlanService,
     onMutate: async (args) => {
-      // Cancel any outgoing refetches for current subscription
-      await queryClient.cancelQueries({ queryKey: queryKeys.subscriptions.current });
+      // Cancel outgoing refetches and snapshot previous value
+      await queryClient.cancelQueries({ queryKey: queryKeys.subscriptions.list });
+      const previousSubscriptions = queryClient.getQueryData(queryKeys.subscriptions.list);
 
-      // Snapshot the previous value for rollback
-      const previousSubscription = queryClient.getQueryData(queryKeys.subscriptions.current);
-
-      // Optimistically update current subscription with new plan
-      queryClient.setQueryData(queryKeys.subscriptions.current, (old: unknown) => {
-        const subscription = old as { success?: boolean; data?: Record<string, unknown> };
-        if (subscription?.success && subscription.data) {
+      // Optimistically update subscription list with new plan
+      queryClient.setQueryData(queryKeys.subscriptions.list, (old: unknown) => {
+        const response = old as { success?: boolean; data?: Array<Record<string, unknown>> };
+        if (response?.success && Array.isArray(response.data)) {
           return {
-            ...subscription,
-            data: {
-              ...subscription.data,
-              productId: args.json.productId,
-              upgradeDowngradeAt: new Date().toISOString(),
-            },
+            ...response,
+            data: response.data.map(sub =>
+              sub.id === args.param.id
+                ? { ...sub, productId: args.json.productId, upgradeDowngradeAt: new Date().toISOString() }
+                : sub,
+            ),
           };
         }
         return old;
       });
 
-      return { previousSubscription };
+      return { previousSubscriptions };
     },
     onError: (error, _variables, context) => {
       // Rollback optimistic update on error
-      if (context?.previousSubscription) {
-        queryClient.setQueryData(queryKeys.subscriptions.current, context.previousSubscription);
+      if (context?.previousSubscriptions) {
+        queryClient.setQueryData(queryKeys.subscriptions.list, context.previousSubscriptions);
       }
       logError('Failed to change subscription plan', error);
     },
     onSuccess: () => {
-      // Invalidate queries after successful plan change
-      queryClient.invalidateQueries({ queryKey: queryKeys.subscriptions.all });
+      // Invalidate subscription and payment queries
       queryClient.invalidateQueries({ queryKey: queryKeys.subscriptions.list });
-      queryClient.invalidateQueries({ queryKey: queryKeys.subscriptions.current });
-      queryClient.invalidateQueries({ queryKey: queryKeys.payments.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.payments.list });
     },
-    retry: 1,
+    retry: (failureCount, error: unknown) => {
+      // Don't retry on client errors (4xx)
+      const httpError = error as { status?: number };
+      if (httpError?.status && httpError.status >= 400 && httpError.status < 500) {
+        return false;
+      }
+      return failureCount < 1;
+    },
+    throwOnError: false,
   });
 }
 
@@ -107,48 +89,49 @@ export function useCancelSubscriptionMutation() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (args: CancelSubscriptionRequest) => {
-      const result = await cancelSubscriptionService(args);
-      return result;
-    },
-    onMutate: async (_args) => {
-      // Cancel any outgoing refetches for current subscription
-      await queryClient.cancelQueries({ queryKey: queryKeys.subscriptions.current });
+    mutationFn: cancelSubscriptionService,
+    onMutate: async (args) => {
+      // Cancel outgoing refetches and snapshot previous value
+      await queryClient.cancelQueries({ queryKey: queryKeys.subscriptions.list });
+      const previousSubscriptions = queryClient.getQueryData(queryKeys.subscriptions.list);
 
-      // Snapshot the previous value for rollback
-      const previousSubscription = queryClient.getQueryData(queryKeys.subscriptions.current);
-
-      // Optimistically update current subscription status
-      queryClient.setQueryData(queryKeys.subscriptions.current, (old: unknown) => {
-        const subscription = old as { success?: boolean; data?: Record<string, unknown> };
-        if (subscription?.success && subscription.data) {
+      // Optimistically update subscription status in the list
+      queryClient.setQueryData(queryKeys.subscriptions.list, (old: unknown) => {
+        const response = old as { success?: boolean; data?: Array<Record<string, unknown>> };
+        if (response?.success && Array.isArray(response.data)) {
           return {
-            ...subscription,
-            data: {
-              ...subscription.data,
-              status: 'canceled',
-              canceledAt: new Date().toISOString(),
-            },
+            ...response,
+            data: response.data.map(sub =>
+              sub.id === args.param.id
+                ? { ...sub, status: 'canceled', canceledAt: new Date().toISOString() }
+                : sub,
+            ),
           };
         }
         return old;
       });
 
-      return { previousSubscription };
+      return { previousSubscriptions };
     },
     onError: (error, _variables, context) => {
       // Rollback optimistic update on error
-      if (context?.previousSubscription) {
-        queryClient.setQueryData(queryKeys.subscriptions.current, context.previousSubscription);
+      if (context?.previousSubscriptions) {
+        queryClient.setQueryData(queryKeys.subscriptions.list, context.previousSubscriptions);
       }
       logError('Failed to cancel subscription', error);
     },
     onSuccess: () => {
-      // Invalidate queries after successful cancellation
-      queryClient.invalidateQueries({ queryKey: queryKeys.subscriptions.all });
+      // Invalidate subscription queries to refetch fresh data
       queryClient.invalidateQueries({ queryKey: queryKeys.subscriptions.list });
-      queryClient.invalidateQueries({ queryKey: queryKeys.subscriptions.current });
     },
-    retry: 1,
+    retry: (failureCount, error: unknown) => {
+      // Don't retry on client errors (4xx)
+      const httpError = error as { status?: number };
+      if (httpError?.status && httpError.status >= 400 && httpError.status < 500) {
+        return false;
+      }
+      return failureCount < 1;
+    },
+    throwOnError: false,
   });
 }
