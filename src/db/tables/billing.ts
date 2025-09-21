@@ -50,7 +50,8 @@ export const paymentMethod = sqliteTable('payment_method', {
   contractType: text('contract_type', {
     enum: ['direct_debit_contract', 'pending_contract'],
   }).notNull().default('pending_contract'),
-  contractSignature: text('contract_signature', { length: 200 }).unique(), // ZarinPal contract signature (exactly 200 chars)
+  contractSignatureEncrypted: text('contract_signature_encrypted'), // Encrypted ZarinPal contract signature
+  contractSignatureHash: text('contract_signature_hash').unique(), // Hash for unique constraint and lookups
   contractStatus: text('contract_status', {
     enum: ['pending_signature', 'active', 'cancelled_by_user', 'verification_failed', 'expired'],
   }).notNull().default('pending_signature'),
@@ -78,7 +79,7 @@ export const paymentMethod = sqliteTable('payment_method', {
   ...timestamps,
 }, table => [
   index('payment_method_user_id_idx').on(table.userId),
-  index('payment_method_contract_signature_idx').on(table.contractSignature),
+  index('payment_method_contract_signature_hash_idx').on(table.contractSignatureHash),
   index('payment_method_contract_type_idx').on(table.contractType),
   index('payment_method_contract_status_idx').on(table.contractStatus),
   index('payment_method_payman_authority_idx').on(table.paymanAuthority),

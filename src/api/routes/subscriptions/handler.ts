@@ -197,8 +197,8 @@ export const createSubscriptionHandler: RouteHandler<typeof createSubscriptionRo
         throw createError.internal('Contract ID is required for direct debit subscriptions');
       }
 
-      // Validate contract exists and is active - use transaction
-      const paymentMethodResults = await tx.select().from(paymentMethodTable).where(eq(paymentMethodTable.contractSignature, contractId)).limit(1);
+      // Validate contract exists and is active - use transaction (contractId is the payment method ID)
+      const paymentMethodResults = await tx.select().from(paymentMethodTable).where(eq(paymentMethodTable.id, contractId)).limit(1);
       paymentMethodRecord = paymentMethodResults[0] || null;
 
       if (!paymentMethodRecord || paymentMethodRecord.userId !== user.id || paymentMethodRecord.contractStatus !== 'active') {
@@ -222,7 +222,6 @@ export const createSubscriptionHandler: RouteHandler<typeof createSubscriptionRo
         billingPeriod: productRecord.billingPeriod,
         paymentMethodId: paymentMethodRecord.id,
         directDebitContractId: contractId,
-        directDebitSignature: paymentMethodRecord.contractSignature,
         createdAt: new Date(),
         updatedAt: new Date(),
       };
