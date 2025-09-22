@@ -101,7 +101,7 @@ export const ZarinPalResponseDataSchema = z.object({
   code: z.number().int(),
   message: z.string(),
   authority: z.string().optional(),
-  ref_id: z.number().int().optional(),
+  refrence_id: z.number().int().optional(),
   card_hash: z.string().optional(),
   card_pan: z.string().optional(),
   fee_type: z.string().optional(),
@@ -110,6 +110,8 @@ export const ZarinPalResponseDataSchema = z.object({
 
 /**
  * ZarinPal Error Schema for response validation
+ * NOTE: Official ZarinPal API uses meta structure: {meta: {code, error_type, error_message}}
+ * This schema maintains backward compatibility with existing implementation
  */
 export const ZarinPalErrorSchema = z.object({
   code: z.number().int(),
@@ -119,6 +121,8 @@ export const ZarinPalErrorSchema = z.object({
 
 /**
  * Payment Response Schema (backward compatible)
+ * NOTE: ZarinPal's official API structure uses meta object for errors
+ * Future versions should migrate to official meta structure
  */
 export const PaymentResponseSchema = z.object({
   data: ZarinPalResponseDataSchema.optional(),
@@ -160,6 +164,19 @@ export class ZarinPalService {
 
   constructor(config: ZarinPalConfig) {
     this.config = config;
+  }
+
+  /**
+   * Smart Authorization header formatting
+   * Handles tokens that already include "Bearer " prefix to avoid duplication
+   */
+  private getAuthorizationHeader(): string {
+    const token = this.config.accessToken;
+    // Check if token already starts with "Bearer " (case-insensitive)
+    if (token.toLowerCase().startsWith('bearer ')) {
+      return token;
+    }
+    return `Bearer ${token}`;
   }
 
   /**
@@ -318,7 +335,7 @@ export class ZarinPalService {
         '/pg/v4/payment/request.json',
         payload,
         {
-          Authorization: this.config.accessToken,
+          Authorization: this.getAuthorizationHeader(),
         },
         'request payment',
       );
@@ -361,7 +378,7 @@ export class ZarinPalService {
         '/pg/v4/payment/verify.json',
         payload,
         {
-          Authorization: this.config.accessToken,
+          Authorization: this.getAuthorizationHeader(),
         },
         'verify payment',
       );
@@ -422,7 +439,7 @@ export class ZarinPalService {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': this.config.accessToken,
+            'Authorization': this.getAuthorizationHeader(),
           },
           body: JSON.stringify(payload),
         },
