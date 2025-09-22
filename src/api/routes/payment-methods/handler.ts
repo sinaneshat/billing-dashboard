@@ -13,7 +13,7 @@ import type { RouteHandler } from '@hono/zod-openapi';
 import { and, eq } from 'drizzle-orm';
 
 import { createError } from '@/api/common/error-handling';
-import { createHandler, createHandlerWithTransaction, Responses } from '@/api/core';
+import { createHandler, Responses } from '@/api/core';
 import { ZarinPalDirectDebitService } from '@/api/services/zarinpal-direct-debit';
 import type { ApiEnv } from '@/api/types';
 import { decryptSignature, encryptSignature } from '@/api/utils/crypto';
@@ -64,13 +64,13 @@ export const getPaymentMethodsHandler: RouteHandler<typeof getPaymentMethodsRout
 /**
  * Set Default Payment Method - Atomic operation to set payment method as primary
  */
-export const setDefaultPaymentMethodHandler: RouteHandler<typeof setDefaultPaymentMethodRoute, ApiEnv> = createHandlerWithTransaction(
+export const setDefaultPaymentMethodHandler: RouteHandler<typeof setDefaultPaymentMethodRoute, ApiEnv> = createHandler(
   {
     auth: 'session',
     operationName: 'setDefaultPaymentMethod',
     validateParams: PaymentMethodParamsSchema,
   },
-  async (c, tx) => {
+  async (c) => {
     const user = c.get('user');
     const { id } = c.validated.params;
 
@@ -78,8 +78,11 @@ export const setDefaultPaymentMethodHandler: RouteHandler<typeof setDefaultPayme
       throw createError.unauthenticated('User authentication required');
     }
 
+    // Get database instance (D1 doesn't support transactions)
+    const db = await getDbAsync();
+
     // Find the payment method and verify ownership
-    const [targetMethod] = await tx
+    const [targetMethod] = await db
       .select()
       .from(paymentMethod)
       .where(and(eq(paymentMethod.id, id), eq(paymentMethod.userId, user.id)));
@@ -111,19 +114,19 @@ export const setDefaultPaymentMethodHandler: RouteHandler<typeof setDefaultPayme
     }
 
     // Get current primary payment method for audit trail
-    const [currentPrimary] = await tx
+    const [currentPrimary] = await db
       .select()
       .from(paymentMethod)
       .where(and(eq(paymentMethod.userId, user.id), eq(paymentMethod.isPrimary, true)));
 
     // Atomic operation: Set all user's payment methods isPrimary = false
-    await tx
+    await db
       .update(paymentMethod)
       .set({ isPrimary: false, updatedAt: new Date() })
       .where(eq(paymentMethod.userId, user.id));
 
     // Set target payment method as primary
-    await tx
+    await db
       .update(paymentMethod)
       .set({
         isPrimary: true,
@@ -133,7 +136,7 @@ export const setDefaultPaymentMethodHandler: RouteHandler<typeof setDefaultPayme
       .where(eq(paymentMethod.id, id));
 
     // Create billing event for audit trail
-    await tx.insert(billingEvent).values({
+    await db.insert(billingEvent).values({
       id: crypto.randomUUID(),
       userId: user.id,
       paymentMethodId: id,
@@ -259,14 +262,14 @@ export const createContractHandler: RouteHandler<typeof createContractRoute, Api
  *    - Create payment method if successful
  *    - Return signature and payment method
  */
-export const verifyContractHandler: RouteHandler<typeof verifyContractRoute, ApiEnv> = createHandlerWithTransaction(
+export const verifyContractHandler: RouteHandler<typeof verifyContractRoute, ApiEnv> = createHandler(
   {
     auth: 'session',
     operationName: 'verifyDirectDebitContract',
     validateParams: ContractParamsSchema,
     validateBody: VerifyContractRequestSchema,
   },
-  async (c, tx) => {
+  async (c) => {
     const user = c.get('user');
     const { paymanAuthority, status } = c.validated.body;
     const { id: contractId } = c.validated.params;
@@ -279,9 +282,12 @@ export const verifyContractHandler: RouteHandler<typeof verifyContractRoute, Api
       throw createError.badRequest('Contract signing was not successful');
     }
 
+    // Get database instance (D1 doesn't support transactions)
+    const db = await getDbAsync();
+
     // Check if a payment method with this signature already exists for this user
     // This prevents duplicate contracts from the same paymanAuthority
-    const existingPaymentMethods = await tx
+    const existingPaymentMethods = await db
       .select()
       .from(paymentMethod)
       .where(eq(paymentMethod.userId, user.id));
@@ -315,7 +321,7 @@ export const verifyContractHandler: RouteHandler<typeof verifyContractRoute, Api
     const { encrypted } = await encryptSignature(verifyResult.data.signature);
 
     // Create payment method with encrypted contract signature
-    const [newPaymentMethod] = await tx
+    const [newPaymentMethod] = await db
       .insert(paymentMethod)
       .values({
         userId: user.id,
@@ -331,7 +337,7 @@ export const verifyContractHandler: RouteHandler<typeof verifyContractRoute, Api
       .returning();
 
     // Log billing event
-    await tx.insert(billingEvent).values({
+    await db.insert(billingEvent).values({
       id: crypto.randomUUID(),
       userId: user.id,
       eventType: 'direct_debit_contract_verified',
@@ -358,13 +364,13 @@ export const verifyContractHandler: RouteHandler<typeof verifyContractRoute, Api
  *    - Hard deletes payment method from database
  *    - Required by ZarinPal terms of service
  */
-export const cancelContractHandler: RouteHandler<typeof cancelContractRoute, ApiEnv> = createHandlerWithTransaction(
+export const cancelContractHandler: RouteHandler<typeof cancelContractRoute, ApiEnv> = createHandler(
   {
     auth: 'session',
     operationName: 'cancelDirectDebitContract',
     validateParams: PaymentMethodParamsSchema,
   },
-  async (c, tx) => {
+  async (c) => {
     const user = c.get('user');
     const { id } = c.validated.params;
 
@@ -372,8 +378,11 @@ export const cancelContractHandler: RouteHandler<typeof cancelContractRoute, Api
       throw createError.unauthenticated('User authentication required');
     }
 
+    // Get database instance (D1 doesn't support transactions)
+    const db = await getDbAsync();
+
     // Find the payment method
-    const [existingMethod] = await tx
+    const [existingMethod] = await db
       .select()
       .from(paymentMethod)
       .where(and(eq(paymentMethod.id, id), eq(paymentMethod.userId, user.id)));
@@ -387,7 +396,7 @@ export const cancelContractHandler: RouteHandler<typeof cancelContractRoute, Api
     }
 
     // Check if any active subscriptions use this payment method
-    const dependentSubscriptions = await tx
+    const dependentSubscriptions = await db
       .select()
       .from(subscription)
       .where(and(
@@ -420,7 +429,7 @@ export const cancelContractHandler: RouteHandler<typeof cancelContractRoute, Api
     }
 
     // Create billing event BEFORE deletion (important for audit trail)
-    await tx.insert(billingEvent).values({
+    await db.insert(billingEvent).values({
       id: crypto.randomUUID(),
       userId: user.id,
       paymentMethodId: id, // Will be deleted, so log it now
@@ -438,7 +447,7 @@ export const cancelContractHandler: RouteHandler<typeof cancelContractRoute, Api
     });
 
     // Hard delete from database
-    await tx.delete(paymentMethod).where(eq(paymentMethod.id, id));
+    await db.delete(paymentMethod).where(eq(paymentMethod.id, id));
 
     return Responses.ok(c, {
       cancelled: true,
