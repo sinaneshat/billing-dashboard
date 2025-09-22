@@ -474,7 +474,7 @@ export const cancelContractHandler: RouteHandler<typeof cancelContractRoute, Api
  */
 export const contractCallbackHandler: RouteHandler<typeof contractCallbackRoute, ApiEnv> = createHandler(
   {
-    auth: 'session', // Session authentication required for payment method creation
+    auth: 'session-optional', // Session is optional - ZarinPal calls this directly
     operationName: 'handleContractCallback',
     validateQuery: ContractCallbackQuerySchema,
   },

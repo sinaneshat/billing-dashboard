@@ -216,12 +216,17 @@ app.notFound(notFound);
 // CRITICAL: Routes must be registered with .openapi() for RPC to work
 // ============================================================================
 
+// Register the public callback route FIRST (before middleware)
+// This ensures it doesn't get CSRF or auth middleware
+app.openapi(contractCallbackRoute, contractCallbackHandler);
+
 // Apply CSRF protection and authentication to protected routes
 // Following Hono best practices: apply CSRF only to authenticated routes
 app.use('/auth/me', csrfMiddleware, requireSession);
 // Subscriptions require authentication and CSRF protection
 app.use('/subscriptions/*', csrfMiddleware, requireSession);
 // Payment methods require authentication and CSRF protection
+// The callback endpoint was already registered, so this won't affect it
 app.use('/payment-methods/*', csrfMiddleware, requireSession);
 app.use('/webhooks/events', csrfMiddleware, requireSession);
 app.use('/webhooks/test', csrfMiddleware, requireSession);
@@ -244,11 +249,10 @@ const appRoutes = app
   // Payment methods routes - Consolidated 3-endpoint direct debit flow
   .openapi(getPaymentMethodsRoute, getPaymentMethodsHandler)
   .openapi(setDefaultPaymentMethodRoute, setDefaultPaymentMethodHandler)
-  // Consolidated direct debit contract routes (4 endpoints)
+  // Consolidated direct debit contract routes (3 endpoints - callback already registered)
   .openapi(createContractRoute, createContractHandler)
   .openapi(verifyContractRoute, verifyContractHandler)
   .openapi(cancelContractRoute, cancelContractHandler)
-  .openapi(contractCallbackRoute, contractCallbackHandler)
   // Payment routes
   .openapi(getPaymentsRoute, getPaymentsHandler)
   // Billing routes - Recurring payments and metrics
