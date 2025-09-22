@@ -268,6 +268,39 @@ export const IranianPaymentValidationSchemas = {
 };
 
 // ============================================================================
+// PUBLIC CALLBACK SCHEMAS (for ZarinPal redirects)
+// ============================================================================
+
+// Public Contract Callback Query Schema (for ZarinPal redirects)
+export const ContractCallbackQuerySchema = z.object({
+  payman_authority: z.string().min(1, 'Payman authority is required').openapi({
+    example: 'payman_53U0Ohm',
+    description: 'Contract authority from ZarinPal callback',
+  }),
+  status: z.enum(['OK', 'NOK']).openapi({
+    example: 'OK',
+    description: 'Status from contract signing callback',
+  }),
+});
+
+export const ContractCallbackResponseSchema = createApiResponseSchema(
+  z.object({
+    success: z.boolean().openapi({
+      description: 'Whether the contract verification was successful',
+    }),
+    signature: z.string().optional().openapi({
+      description: 'Contract signature if verification was successful',
+    }),
+    paymentMethodId: z.string().optional().openapi({
+      description: 'Created payment method ID if successful',
+    }),
+    message: z.string().openapi({
+      description: 'Result message',
+    }),
+  }),
+);
+
+// ============================================================================
 // TYPE EXPORTS FOR FRONTEND
 // ============================================================================
 
@@ -281,3 +314,7 @@ export type CancelContractResponse = z.infer<typeof CancelContractResponseSchema
 export type SetDefaultPaymentMethodResponseData = z.infer<typeof SetDefaultPaymentMethodResponseDataSchema>;
 export type SetDefaultPaymentMethodResponse = z.infer<typeof SetDefaultPaymentMethodResponseSchema>;
 export type PaymentMethodSetDefaultParams = z.infer<typeof PaymentMethodSetDefaultParamsSchema>;
+
+// Public callback types
+export type ContractCallbackQuery = z.infer<typeof ContractCallbackQuerySchema>;
+export type ContractCallbackResponse = z.infer<typeof ContractCallbackResponseSchema>;

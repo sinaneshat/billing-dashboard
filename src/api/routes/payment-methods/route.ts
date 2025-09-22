@@ -3,6 +3,8 @@ import * as HttpStatusCodes from 'stoker/http-status-codes';
 
 import {
   CancelContractResponseSchema,
+  ContractCallbackQuerySchema,
+  ContractCallbackResponseSchema,
   CreateContractRequestSchema,
   CreateContractResponseSchema,
   PaymentMethodListResponseSchema,
@@ -182,6 +184,34 @@ export const cancelContractRoute = createRoute({
   },
 });
 
+/**
+ * 4. Public Contract Callback - Handle ZarinPal redirects:
+ *    - No authentication required (public endpoint)
+ *    - Verifies contract using payman_authority
+ *    - Creates payment method for verified contracts
+ *    - Used by ZarinPal redirect after bank signing
+ */
+export const contractCallbackRoute = createRoute({
+  method: 'get',
+  path: '/payment-methods/contracts/callback',
+  tags: ['payment-methods', 'direct-debit', 'public'],
+  summary: 'Handle contract callback',
+  description: 'Public endpoint to handle ZarinPal contract signing callbacks. No authentication required.',
+  request: {
+    query: ContractCallbackQuerySchema,
+  },
+  responses: {
+    [HttpStatusCodes.OK]: {
+      content: {
+        'application/json': {
+          schema: ContractCallbackResponseSchema,
+        },
+      },
+      description: 'Contract callback processed successfully',
+    },
+  },
+});
+
 // ============================================================================
 // ROUTE EXPORTS FOR REGISTRATION
 // ============================================================================
@@ -191,9 +221,10 @@ export const consolidatedPaymentMethodRoutes = [
   getPaymentMethodsRoute,
   setDefaultPaymentMethodRoute,
 
-  // Consolidated direct debit contract flow (3 endpoints)
+  // Consolidated direct debit contract flow (4 endpoints)
   createContractRoute,
   verifyContractRoute,
   cancelContractRoute,
+  contractCallbackRoute,
 
 ] as const;

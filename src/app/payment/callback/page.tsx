@@ -8,7 +8,6 @@ import { Suspense, useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { LoadingSpinner } from '@/components/ui/loading-spinner';
-import { verifyDirectDebitContractService } from '@/services/api/payment-methods';
 
 type PaymentResult = {
   success: boolean;
@@ -50,65 +49,27 @@ function PaymentCallbackContent() {
 
         // Handle direct debit contract callback
         if (paymanAuthority) {
-          // Try to get stored contract information from localStorage, but don't require it
-          let contractId: string | undefined;
+          // Clean up localStorage if it exists
           try {
-            const storedContract = localStorage.getItem('bank-authorization-contract');
-            if (storedContract) {
-              const parsedContract = JSON.parse(storedContract);
-              contractId = parsedContract.contractId;
-            }
+            localStorage.removeItem('bank-authorization-contract');
           } catch {
-            // Silently handle localStorage errors
+            // Ignore errors when cleaning up localStorage
           }
 
-          // If no contract ID from localStorage, generate a temporary one
-          // The API will handle verification using just the paymanAuthority
-          if (!contractId) {
-            contractId = `temp_${Date.now()}_${paymanAuthority.slice(-8)}`;
-          }
-
-          // Verify the contract using contract parameters (following new schema-first patterns)
-          try {
-            const contractResult = await verifyDirectDebitContractService({
-              param: { id: contractId },
-              json: {
-                paymanAuthority,
-                status: status.toUpperCase() as 'OK' | 'NOK',
-              },
+          // Check if the callback indicates success
+          if (status === 'OK') {
+            // For successful callbacks, show success message and guide user to dashboard
+            // The actual contract verification will happen when user logs in to dashboard
+            setResult({
+              success: true,
+              paymentId: 'callback-received',
+              refId: paymanAuthority.slice(-8), // Show last 8 chars of payman authority
             });
-
-            // Clean up localStorage if it exists
-            try {
-              localStorage.removeItem('bank-authorization-contract');
-            } catch {
-              // Ignore errors when cleaning up localStorage
-            }
-
-            if (contractResult.success && contractResult.data) {
-              // Contract verified successfully if we get signature and paymentMethod
-              if (contractResult.data.signature && contractResult.data.paymentMethod) {
-                setResult({
-                  success: true,
-                  paymentId: contractResult.data.paymentMethod.id,
-                  refId: contractResult.data.signature.substring(0, 10), // Show first 10 chars of signature
-                });
-              } else {
-                setResult({
-                  success: false,
-                  error: t('payment.callback.contractVerificationFailed'),
-                });
-              }
-            } else {
-              setResult({
-                success: false,
-                error: t('payment.callback.failedToVerifyContract'),
-              });
-            }
-          } catch (contractError) {
+          } else {
+            // Callback indicates failure
             setResult({
               success: false,
-              error: contractError instanceof Error ? contractError.message : t('payment.callback.contractVerificationFailed'),
+              error: t('payment.callback.setupNotCompleted'),
             });
           }
 
@@ -174,7 +135,7 @@ function PaymentCallbackContent() {
           </CardTitle>
           <CardDescription>
             {result?.success
-              ? t('payment.callback.directDebitSuccess')
+              ? `${t('payment.callback.directDebitSuccess')} Please return to your dashboard to continue.`
               : result?.error || t('payment.callback.setupNotCompleted')}
           </CardDescription>
         </CardHeader>
