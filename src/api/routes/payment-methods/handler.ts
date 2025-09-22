@@ -231,7 +231,7 @@ export const createContractHandler: RouteHandler<typeof createContractRoute, Api
       max_daily_count: contractRequest.maxDailyCount,
       max_monthly_count: contractRequest.maxMonthlyCount,
       max_amount: contractRequest.maxAmount,
-      callback_url: `${c.env.NEXT_PUBLIC_APP_URL}/payment/callback`,
+      callback_url: `${c.env.NEXT_PUBLIC_APP_URL || 'https://billing.roundtable.now'}/payment/callback`,
     });
 
     if (!contractResult.data || contractResult.errors?.length) {
