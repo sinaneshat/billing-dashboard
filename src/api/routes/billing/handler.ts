@@ -243,7 +243,7 @@ export const processRecurringPaymentsHandler: RouteHandler<typeof processRecurri
         // Decrypt the signature for ZarinPal API call
         const decryptedSignature = await decryptSignature(pm.contractSignatureEncrypted);
 
-        const zarinPalDirectDebit = ZarinPalDirectDebitService.create();
+        const zarinPalDirectDebit = ZarinPalDirectDebitService.create(c.env);
         const directDebitResult = await zarinPalDirectDebit.chargeDirectDebit({
           amount: amountInRials,
           currency: 'IRR',
