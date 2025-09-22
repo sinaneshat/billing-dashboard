@@ -1,3 +1,8 @@
+---
+name: "Specialized Agents Context"
+description: "Overview of specialized Claude Code agents for Roundtable's billing dashboard project"
+---
+
 # Specialized Agents Context
 
 This directory contains specialized Claude Code agents optimized for Roundtable's billing dashboard project.
