@@ -43,8 +43,11 @@ import {
 export {
   // Type exports
   type AuthMode,
+  type BatchContext,
+  type BatchHandler,
   // Handler factories
   createHandler,
+  createHandlerWithBatch,
   createHandlerWithTransaction,
   type HandlerConfig,
   type HandlerContext,

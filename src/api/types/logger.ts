@@ -24,7 +24,7 @@ export const LogContextSchema = z.discriminatedUnion('logType', [
   z.object({
     logType: z.literal('database'),
     table: z.string().optional(),
-    operation: z.enum(['select', 'insert', 'update', 'delete', 'transaction']),
+    operation: z.enum(['select', 'insert', 'update', 'delete', 'batch']),
     duration: z.number().positive().optional(),
     affectedRows: z.number().int().nonnegative().optional(),
     queryId: z.string().optional(),
@@ -111,7 +111,7 @@ export const LogHelpers = {
     ...data,
   }),
   database: (data: Record<string, unknown> & {
-    operation: 'select' | 'insert' | 'update' | 'delete' | 'transaction';
+    operation: 'select' | 'insert' | 'update' | 'delete' | 'batch';
   }): LogContext => ({
     logType: 'database' as const,
     ...data,

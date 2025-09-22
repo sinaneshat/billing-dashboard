@@ -132,6 +132,29 @@ export type TransactionHandler<
   tx: Parameters<Parameters<Awaited<ReturnType<typeof getDbAsync>>['transaction']>[0]>[0]
 ) => Promise<Response>;
 
+/**
+ * D1 Batch Context - Provides utilities for building batch operations
+ */
+export type BatchContext = {
+  /** Add a prepared statement to the batch */
+  add: (statement: unknown) => void;
+  /** Execute all statements in the batch and return results */
+  execute: () => Promise<unknown[]>;
+  /** Get the database instance for read operations */
+  db: Awaited<ReturnType<typeof getDbAsync>>;
+};
+
+export type BatchHandler<
+  _TRoute extends RouteConfig,
+  TEnv extends Env = ApiEnv,
+  TBody extends z.ZodSchema = never,
+  TQuery extends z.ZodSchema = never,
+  TParams extends z.ZodSchema = never,
+> = (
+  c: HandlerContext<TEnv, TBody, TQuery, TParams>,
+  batch: BatchContext
+) => Promise<Response>;
+
 // ============================================================================
 // UTILITY FUNCTIONS
 // ============================================================================
@@ -432,7 +455,7 @@ export function createHandler<
           case 'INVALID_INPUT':
             return Responses.badRequest(c, error.message, error.details);
           case 'DATABASE_ERROR':
-            return Responses.databaseError(c, 'transaction', error.message);
+            return Responses.databaseError(c, 'batch', error.message);
           case 'ZARINPAL_ERROR':
             return Responses.externalServiceError(c, 'ZarinPal', error.message);
           case 'EXTERNAL_SERVICE_ERROR':
@@ -555,7 +578,7 @@ export function createHandlerWithTransaction<
           case 'INVALID_INPUT':
             return Responses.badRequest(c, error.message, error.details);
           case 'DATABASE_ERROR':
-            return Responses.databaseError(c, 'transaction', error.message);
+            return Responses.databaseError(c, 'batch', error.message);
           case 'ZARINPAL_ERROR':
             return Responses.externalServiceError(c, 'ZarinPal', error.message);
           case 'EXTERNAL_SERVICE_ERROR':
@@ -576,7 +599,150 @@ export function createHandlerWithTransaction<
       }
 
       // Generic database error
-      return Responses.databaseError(c, 'transaction', 'Transaction failed');
+      return Responses.databaseError(c, 'batch', 'Database operation failed');
+    }
+  };
+
+  return handler as unknown as RouteHandler<TRoute, TEnv>;
+}
+
+/**
+ * Create a route handler with D1 batch operations
+ * Optimized for D1's batch API - executes multiple operations atomically
+ */
+export function createHandlerWithBatch<
+  TRoute extends RouteConfig,
+  TEnv extends Env = ApiEnv,
+  TBody extends z.ZodSchema = never,
+  TQuery extends z.ZodSchema = never,
+  TParams extends z.ZodSchema = never,
+>(
+  config: HandlerConfig<TRoute, TBody, TQuery, TParams>,
+  implementation: BatchHandler<TRoute, TEnv, TBody, TQuery, TParams>,
+): RouteHandler<TRoute, TEnv> {
+  const handler = async (c: Context<TEnv>) => {
+    const operationName = config.operationName || `${c.req.method} ${c.req.path}`;
+    const logger = createOperationLogger(c, operationName);
+    const performance = createPerformanceTracker();
+
+    // Set start time in context for response metadata
+    (c as Context & { set: (key: string, value: unknown) => void }).set('startTime', performance.startTime);
+
+    logger.debug('Batch handler started');
+
+    try {
+      // Apply authentication
+      if (config.auth && config.auth !== 'public') {
+        logger.debug('Applying authentication', { logType: 'auth', mode: config.auth });
+        await applyAuthentication(c, config.auth);
+      }
+
+      // Validate request
+      logger.debug('Validating request');
+      const validated = await validateRequest<TBody, TQuery, TParams>(c, config);
+
+      // Create enhanced context
+      const enhancedContext = Object.assign(c, {
+        validated,
+        logger,
+      }) as HandlerContext<TEnv, TBody, TQuery, TParams>;
+
+      // Execute implementation with D1 batch operations
+      logger.debug('Executing handler implementation with batch');
+      const db = await getDbAsync();
+
+      // Check if database supports batch operations (D1)
+      const isDatabaseWithBatch = (
+        database: Awaited<ReturnType<typeof getDbAsync>>,
+      ): database is Awaited<ReturnType<typeof getDbAsync>> & { batch: (operations: unknown[]) => Promise<unknown[]> } => {
+        return 'batch' in database && typeof (database as unknown as { batch?: unknown }).batch === 'function';
+      };
+
+      if (isDatabaseWithBatch(db)) {
+        // Use D1 batch operations
+        const statements: unknown[] = [];
+
+        const batchContext: BatchContext = {
+          add: (statement: unknown) => {
+            statements.push(statement);
+          },
+          execute: async () => {
+            if (statements.length === 0) {
+              return [];
+            }
+            logger.debug('Executing D1 batch', { logType: 'operation', operationName: 'D1Batch', resource: `batch-${statements.length}` });
+            return await db.batch(statements);
+          },
+          db,
+        };
+
+        const result = await implementation(enhancedContext, batchContext);
+
+        const duration = performance.getDuration();
+        logger.info('Batch handler completed successfully', {
+          logType: 'performance',
+          duration,
+          marks: performance.getMarks(),
+        });
+
+        return result;
+      } else {
+        // Fallback to transaction for non-D1 databases (development)
+        logger.debug('Falling back to transaction mode for non-D1 database');
+        const result = await db.transaction(async (tx) => {
+          const batchContext: BatchContext = {
+            add: () => {
+              // No-op for transaction mode - operations execute immediately
+            },
+            execute: async () => {
+              // No-op for transaction mode
+              return [];
+            },
+            db: tx as unknown as Awaited<ReturnType<typeof getDbAsync>>,
+          };
+
+          return await implementation(enhancedContext, batchContext);
+        });
+
+        const duration = performance.getDuration();
+        logger.info('Transaction fallback completed successfully', {
+          logType: 'performance',
+          duration,
+          marks: performance.getMarks(),
+        });
+
+        return result;
+      }
+    } catch (error) {
+      const duration = performance.getDuration();
+      logger.error('Batch handler failed', error as Error, { logType: 'performance', duration });
+
+      // Enhanced error handling
+      if (error instanceof AppError) {
+        return HTTPExceptionFactory.create(error.statusCode, { message: error.message });
+      }
+
+      // Handle database-specific errors
+      if (error instanceof Error) {
+        const errorMessage = error.message.toLowerCase();
+
+        // D1 batch-specific errors
+        if (errorMessage.includes('batch') && errorMessage.includes('constraint')) {
+          return Responses.conflict(c, 'Data constraint violation in batch operation');
+        }
+
+        if (errorMessage.includes('batch') && errorMessage.includes('foreign key')) {
+          return Responses.badRequest(c, 'Invalid reference to related resource');
+        }
+
+        // Generic batch error
+        if (errorMessage.includes('batch')) {
+          return Responses.databaseError(c, 'batch', 'Batch operation failed');
+        }
+      }
+
+      // Generic database error
+      return Responses.databaseError(c, 'batch', 'Database operation failed');
     }
   };
 

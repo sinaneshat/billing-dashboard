@@ -271,7 +271,7 @@ export const LoggerDataSchema = z.discriminatedUnion('logType', [
   }),
   z.object({
     logType: z.literal('database'),
-    operation: z.enum(['select', 'insert', 'update', 'delete', 'transaction']),
+    operation: z.enum(['select', 'insert', 'update', 'delete', 'batch']),
     table: z.string().optional(),
     affected: z.number().optional(),
     transactionId: z.string().optional(),
@@ -381,7 +381,7 @@ export const ErrorContextSchema = z.discriminatedUnion('errorType', [
   }),
   z.object({
     errorType: z.literal('database'),
-    operation: z.enum(['select', 'insert', 'update', 'delete', 'transaction']),
+    operation: z.enum(['select', 'insert', 'update', 'delete', 'batch']),
     table: z.string().optional(),
     constraint: z.string().optional(),
     sqlState: z.string().optional(),
