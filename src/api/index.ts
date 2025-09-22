@@ -43,9 +43,10 @@ import {
   getBillingMetricsRoute,
   processRecurringPaymentsRoute,
 } from './routes/billing/route';
-// Payment methods routes - Consolidated 3-endpoint direct debit flow
+// Payment methods routes - Consolidated 4-endpoint direct debit flow
 import {
   cancelContractHandler,
+  contractCallbackHandler,
   createContractHandler,
   getPaymentMethodsHandler,
   setDefaultPaymentMethodHandler,
@@ -53,6 +54,7 @@ import {
 } from './routes/payment-methods/handler';
 import {
   cancelContractRoute,
+  contractCallbackRoute,
   createContractRoute,
   getPaymentMethodsRoute,
   setDefaultPaymentMethodRoute,
@@ -242,10 +244,11 @@ const appRoutes = app
   // Payment methods routes - Consolidated 3-endpoint direct debit flow
   .openapi(getPaymentMethodsRoute, getPaymentMethodsHandler)
   .openapi(setDefaultPaymentMethodRoute, setDefaultPaymentMethodHandler)
-  // Consolidated direct debit contract routes (3 endpoints)
+  // Consolidated direct debit contract routes (4 endpoints)
   .openapi(createContractRoute, createContractHandler)
   .openapi(verifyContractRoute, verifyContractHandler)
   .openapi(cancelContractRoute, cancelContractHandler)
+  .openapi(contractCallbackRoute, contractCallbackHandler)
   // Payment routes
   .openapi(getPaymentsRoute, getPaymentsHandler)
   // Billing routes - Recurring payments and metrics
