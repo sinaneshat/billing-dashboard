@@ -134,6 +134,7 @@ export const setDefaultPaymentMethodHandler: RouteHandler<typeof setDefaultPayme
 
     // Create billing event for audit trail
     await tx.insert(billingEvent).values({
+      id: crypto.randomUUID(),
       userId: user.id,
       paymentMethodId: id,
       eventType: 'default_payment_method_changed',
@@ -309,6 +310,7 @@ export const verifyContractHandler: RouteHandler<typeof verifyContractRoute, Api
 
     // Log billing event
     await tx.insert(billingEvent).values({
+      id: crypto.randomUUID(),
       userId: user.id,
       eventType: 'direct_debit_contract_verified',
       eventData: {
@@ -396,6 +398,7 @@ export const cancelContractHandler: RouteHandler<typeof cancelContractRoute, Api
 
     // Create billing event BEFORE deletion (important for audit trail)
     await tx.insert(billingEvent).values({
+      id: crypto.randomUUID(),
       userId: user.id,
       paymentMethodId: id, // Will be deleted, so log it now
       eventType: 'payment_method_hard_deleted',

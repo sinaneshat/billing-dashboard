@@ -32,3 +32,25 @@ export const commonColumns = {
   deletedAt: () => integer('deleted_at', { mode: 'timestamp' }),
   metadata: () => text('metadata', { mode: 'json' }),
 };
+
+/**
+ * Runtime default value generators
+ *
+ * Workaround for Drizzle $defaultFn not working with Cloudflare D1.
+ * Use these in application code for consistent default generation.
+ */
+export const generateDefaults = {
+  id: () => crypto.randomUUID(),
+  timestamp: () => new Date(),
+  recordDefaults: () => {
+    const now = new Date();
+    return {
+      id: crypto.randomUUID(),
+      createdAt: now,
+      updatedAt: now,
+    };
+  },
+  updateDefaults: () => ({
+    updatedAt: new Date(),
+  }),
+};
