@@ -12,7 +12,7 @@ import type { RouteHandler } from '@hono/zod-openapi';
 import { and, eq } from 'drizzle-orm';
 
 import { createError } from '@/api/common/error-handling';
-import { createHandler, createHandlerWithTransaction, Responses } from '@/api/core';
+import { createHandler, createHandlerWithBatch, Responses } from '@/api/core';
 import type { ApiEnv } from '@/api/types';
 import { getDbAsync } from '@/db';
 import { billingEvent, paymentMethod as paymentMethodTable, product, subscription } from '@/db/tables/billing';
@@ -141,13 +141,13 @@ export const getSubscriptionHandler: RouteHandler<typeof getSubscriptionRoute, A
  * POST /subscriptions - Create new subscription
  * Refactored: Uses factory pattern + direct database access + transaction
  */
-export const createSubscriptionHandler: RouteHandler<typeof createSubscriptionRoute, ApiEnv> = createHandlerWithTransaction(
+export const createSubscriptionHandler: RouteHandler<typeof createSubscriptionRoute, ApiEnv> = createHandlerWithBatch(
   {
     auth: 'session',
     validateBody: CreateSubscriptionRequestSchema,
     operationName: 'createSubscription',
   },
-  async (c, tx) => {
+  async (c, batch) => {
     const user = c.get('user');
 
     if (!user) {
@@ -162,8 +162,8 @@ export const createSubscriptionHandler: RouteHandler<typeof createSubscriptionRo
       resource: productId,
     });
 
-    // Validate product exists and is active - use transaction for consistency
-    const productResults = await tx.select().from(product).where(eq(product.id, productId)).limit(1);
+    // Validate product exists and is active - use batch database for reads
+    const productResults = await batch.db.select().from(product).where(eq(product.id, productId)).limit(1);
     const productRecord = productResults[0] || null;
 
     if (!productRecord || !productRecord.isActive) {
@@ -171,8 +171,8 @@ export const createSubscriptionHandler: RouteHandler<typeof createSubscriptionRo
       throw createError.notFound('Product not found or is not available');
     }
 
-    // Check if user already has an active subscription to this product - use transaction
-    const existingSubscriptionResults = await tx.select().from(subscription).where(and(
+    // Check if user already has an active subscription to this product - use batch database for reads
+    const existingSubscriptionResults = await batch.db.select().from(subscription).where(and(
       eq(subscription.userId, user.id),
       eq(subscription.productId, productId),
       eq(subscription.status, 'active'),
@@ -197,8 +197,8 @@ export const createSubscriptionHandler: RouteHandler<typeof createSubscriptionRo
         throw createError.internal('Contract ID is required for direct debit subscriptions');
       }
 
-      // Validate contract exists and is active - use transaction (contractId is the payment method ID)
-      const paymentMethodResults = await tx.select().from(paymentMethodTable).where(eq(paymentMethodTable.id, contractId)).limit(1);
+      // Validate contract exists and is active - use batch database for reads (contractId is the payment method ID)
+      const paymentMethodResults = await batch.db.select().from(paymentMethodTable).where(eq(paymentMethodTable.id, contractId)).limit(1);
       paymentMethodRecord = paymentMethodResults[0] || null;
 
       if (!paymentMethodRecord || paymentMethodRecord.userId !== user.id || paymentMethodRecord.contractStatus !== 'active') {
@@ -226,11 +226,12 @@ export const createSubscriptionHandler: RouteHandler<typeof createSubscriptionRo
         updatedAt: new Date(),
       };
 
-      await tx.insert(subscription).values(subscriptionData);
+      // Add subscription creation to batch
+      batch.add(batch.db.insert(subscription).values(subscriptionData));
       const newSubscriptionId = subscriptionData.id;
 
-      // Log subscription creation event - use transaction
-      await tx.insert(billingEvent).values({
+      // Add billing event logging to batch
+      batch.add(batch.db.insert(billingEvent).values({
         id: crypto.randomUUID(),
         userId: user.id,
         subscriptionId: newSubscriptionId,
@@ -248,13 +249,13 @@ export const createSubscriptionHandler: RouteHandler<typeof createSubscriptionRo
         severity: 'info',
         createdAt: new Date(),
         updatedAt: new Date(),
-      });
+      }));
 
       // DISPATCH ROUNDTABLE WEBHOOK: Subscription created with direct debit
       try {
         // Get user details for webhook
         const { user: userTable } = await import('@/db/tables/auth');
-        const userResults = await tx.select({ email: userTable.email }).from(userTable).where(eq(userTable.id, user.id)).limit(1);
+        const userResults = await batch.db.select({ email: userTable.email }).from(userTable).where(eq(userTable.id, user.id)).limit(1);
         const userRecord = userResults[0];
 
         if (userRecord?.email) {
@@ -314,6 +315,9 @@ export const createSubscriptionHandler: RouteHandler<typeof createSubscriptionRo
         operationName: 'createSubscription',
         resource: newSubscriptionId,
       });
+
+      // Execute all database operations in batch
+      await batch.execute();
 
       return Responses.created(c, {
         subscriptionId: newSubscriptionId,
@@ -457,14 +461,14 @@ export const cancelSubscriptionHandler: RouteHandler<typeof cancelSubscriptionRo
  * PATCH /subscriptions/{id} - Change subscription plan
  * Handles plan upgrades/downgrades with proration calculation
  */
-export const changePlanHandler: RouteHandler<typeof changePlanRoute, ApiEnv> = createHandlerWithTransaction(
+export const changePlanHandler: RouteHandler<typeof changePlanRoute, ApiEnv> = createHandlerWithBatch(
   {
     auth: 'session',
     validateParams: SubscriptionParamsSchema,
     validateBody: ChangePlanRequestSchema,
     operationName: 'changePlan',
   },
-  async (c, tx) => {
+  async (c, batch) => {
     const user = c.get('user');
 
     if (!user) {
@@ -482,7 +486,7 @@ export const changePlanHandler: RouteHandler<typeof changePlanRoute, ApiEnv> = c
     });
 
     // 1. Validate subscription exists and user owns it
-    const subscriptionResults = await tx.select().from(subscription).where(eq(subscription.id, id)).limit(1);
+    const subscriptionResults = await batch.db.select().from(subscription).where(eq(subscription.id, id)).limit(1);
     const subscriptionRecord = subscriptionResults[0];
 
     if (!subscriptionRecord || subscriptionRecord.userId !== user.id) {
@@ -506,7 +510,7 @@ export const changePlanHandler: RouteHandler<typeof changePlanRoute, ApiEnv> = c
     }
 
     // 3. Validate new product exists and is active
-    const newProductResults = await tx.select().from(product).where(eq(product.id, productId)).limit(1);
+    const newProductResults = await batch.db.select().from(product).where(eq(product.id, productId)).limit(1);
     const newProductRecord = newProductResults[0];
 
     if (!newProductRecord || !newProductRecord.isActive) {
@@ -529,7 +533,7 @@ export const changePlanHandler: RouteHandler<typeof changePlanRoute, ApiEnv> = c
     }
 
     // 5. Get current product details
-    const currentProductResults = await tx.select().from(product).where(eq(product.id, subscriptionRecord.productId)).limit(1);
+    const currentProductResults = await batch.db.select().from(product).where(eq(product.id, subscriptionRecord.productId)).limit(1);
     const currentProductRecord = currentProductResults[0];
 
     if (!currentProductRecord) {
@@ -586,12 +590,13 @@ export const changePlanHandler: RouteHandler<typeof changePlanRoute, ApiEnv> = c
       updateData.nextBillingDate = newNextBillingDate;
     }
 
-    await tx.update(subscription)
+    // Add subscription update to batch
+    batch.add(batch.db.update(subscription)
       .set(updateData)
-      .where(eq(subscription.id, id));
+      .where(eq(subscription.id, id)));
 
-    // 8. Create billing event for audit trail
-    await tx.insert(billingEvent).values({
+    // 8. Create billing event for audit trail - add to batch
+    batch.add(batch.db.insert(billingEvent).values({
       id: crypto.randomUUID(),
       userId: user.id,
       subscriptionId: id,
@@ -613,13 +618,13 @@ export const changePlanHandler: RouteHandler<typeof changePlanRoute, ApiEnv> = c
       severity: 'info',
       createdAt: now,
       updatedAt: now,
-    });
+    }));
 
     // 9. DISPATCH ROUNDTABLE WEBHOOK: Subscription plan changed
     try {
       // Get user details for webhook
       const { user: userTable } = await import('@/db/tables/auth');
-      const userResults = await tx.select({ email: userTable.email }).from(userTable).where(eq(userTable.id, user.id)).limit(1);
+      const userResults = await batch.db.select({ email: userTable.email }).from(userTable).where(eq(userTable.id, user.id)).limit(1);
       const userRecord = userResults[0];
 
       if (userRecord?.email) {
@@ -654,6 +659,9 @@ export const changePlanHandler: RouteHandler<typeof changePlanRoute, ApiEnv> = c
       c.logger.error('Failed to dispatch Roundtable webhook for plan change', webhookError instanceof Error ? webhookError : new Error(String(webhookError)));
       // Don't fail the plan change if webhook fails
     }
+
+    // Execute all database operations in batch
+    await batch.execute();
 
     c.logger.info('Subscription plan changed successfully', {
       logType: 'operation',

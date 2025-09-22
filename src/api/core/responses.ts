@@ -403,7 +403,7 @@ export function externalServiceError(
  */
 export function databaseError(
   c: Context,
-  operation: 'select' | 'insert' | 'update' | 'delete' | 'transaction',
+  operation: 'select' | 'insert' | 'update' | 'delete' | 'batch',
   message = 'Database operation failed',
   table?: string,
 ): Response {

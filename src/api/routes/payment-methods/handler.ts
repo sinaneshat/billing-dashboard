@@ -13,7 +13,7 @@ import type { RouteHandler } from '@hono/zod-openapi';
 import { and, eq } from 'drizzle-orm';
 
 import { createError } from '@/api/common/error-handling';
-import { createHandler, Responses } from '@/api/core';
+import { createHandler, createHandlerWithBatch, Responses } from '@/api/core';
 import { ZarinPalDirectDebitService } from '@/api/services/zarinpal-direct-debit';
 import type { ApiEnv } from '@/api/types';
 import { decryptSignature, encryptSignature } from '@/api/utils/crypto';
@@ -64,13 +64,13 @@ export const getPaymentMethodsHandler: RouteHandler<typeof getPaymentMethodsRout
 /**
  * Set Default Payment Method - Atomic operation to set payment method as primary
  */
-export const setDefaultPaymentMethodHandler: RouteHandler<typeof setDefaultPaymentMethodRoute, ApiEnv> = createHandler(
+export const setDefaultPaymentMethodHandler: RouteHandler<typeof setDefaultPaymentMethodRoute, ApiEnv> = createHandlerWithBatch(
   {
     auth: 'session',
     operationName: 'setDefaultPaymentMethod',
     validateParams: PaymentMethodParamsSchema,
   },
-  async (c) => {
+  async (c, batch) => {
     const user = c.get('user');
     const { id } = c.validated.params;
 
@@ -78,11 +78,8 @@ export const setDefaultPaymentMethodHandler: RouteHandler<typeof setDefaultPayme
       throw createError.unauthenticated('User authentication required');
     }
 
-    // Get database instance (D1 doesn't support transactions)
-    const db = await getDbAsync();
-
-    // Find the payment method and verify ownership
-    const [targetMethod] = await db
+    // Find the payment method and verify ownership using batch database
+    const [targetMethod] = await batch.db
       .select()
       .from(paymentMethod)
       .where(and(eq(paymentMethod.id, id), eq(paymentMethod.userId, user.id)));
@@ -114,29 +111,29 @@ export const setDefaultPaymentMethodHandler: RouteHandler<typeof setDefaultPayme
     }
 
     // Get current primary payment method for audit trail
-    const [currentPrimary] = await db
+    const [currentPrimary] = await batch.db
       .select()
       .from(paymentMethod)
       .where(and(eq(paymentMethod.userId, user.id), eq(paymentMethod.isPrimary, true)));
 
-    // Atomic operation: Set all user's payment methods isPrimary = false
-    await db
+    // Add operations to batch: Set all user's payment methods isPrimary = false
+    batch.add(batch.db
       .update(paymentMethod)
       .set({ isPrimary: false, updatedAt: new Date() })
-      .where(eq(paymentMethod.userId, user.id));
+      .where(eq(paymentMethod.userId, user.id)));
 
-    // Set target payment method as primary
-    await db
+    // Add to batch: Set target payment method as primary
+    batch.add(batch.db
       .update(paymentMethod)
       .set({
         isPrimary: true,
         lastUsedAt: new Date(),
         updatedAt: new Date(),
       })
-      .where(eq(paymentMethod.id, id));
+      .where(eq(paymentMethod.id, id)));
 
-    // Create billing event for audit trail
-    await db.insert(billingEvent).values({
+    // Add billing event to batch for audit trail
+    batch.add(batch.db.insert(billingEvent).values({
       id: crypto.randomUUID(),
       userId: user.id,
       paymentMethodId: id,
@@ -151,7 +148,10 @@ export const setDefaultPaymentMethodHandler: RouteHandler<typeof setDefaultPayme
         },
       },
       severity: 'info',
-    });
+    }));
+
+    // Execute all batch operations
+    await batch.execute();
 
     return Responses.ok(c, {
       success: true,
@@ -262,14 +262,14 @@ export const createContractHandler: RouteHandler<typeof createContractRoute, Api
  *    - Create payment method if successful
  *    - Return signature and payment method
  */
-export const verifyContractHandler: RouteHandler<typeof verifyContractRoute, ApiEnv> = createHandler(
+export const verifyContractHandler: RouteHandler<typeof verifyContractRoute, ApiEnv> = createHandlerWithBatch(
   {
     auth: 'session',
     operationName: 'verifyDirectDebitContract',
     validateParams: ContractParamsSchema,
     validateBody: VerifyContractRequestSchema,
   },
-  async (c) => {
+  async (c, batch) => {
     const user = c.get('user');
     const { paymanAuthority, status } = c.validated.body;
     const { id: contractId } = c.validated.params;
@@ -282,12 +282,9 @@ export const verifyContractHandler: RouteHandler<typeof verifyContractRoute, Api
       throw createError.badRequest('Contract signing was not successful');
     }
 
-    // Get database instance (D1 doesn't support transactions)
-    const db = await getDbAsync();
-
     // Check if a payment method with this signature already exists for this user
     // This prevents duplicate contracts from the same paymanAuthority
-    const existingPaymentMethods = await db
+    const existingPaymentMethods = await batch.db
       .select()
       .from(paymentMethod)
       .where(eq(paymentMethod.userId, user.id));
@@ -320,38 +317,51 @@ export const verifyContractHandler: RouteHandler<typeof verifyContractRoute, Api
     // Encrypt the signature before storing
     const { encrypted } = await encryptSignature(verifyResult.data.signature);
 
-    // Create payment method with encrypted contract signature
-    const [newPaymentMethod] = await db
-      .insert(paymentMethod)
-      .values({
-        userId: user.id,
-        contractType: 'direct_debit_contract',
-        contractSignatureEncrypted: encrypted,
-        contractSignatureHash: hash,
-        contractDisplayName: 'پرداخت مستقیم', // Direct Payment
-        contractMobile: '', // Could extract from stored contract info if needed
-        contractStatus: 'active',
-        isPrimary: false, // User can set as primary later
-        isActive: true,
-      })
-      .returning();
+    // Generate payment method ID upfront for batch operations
+    const newPaymentMethodId = crypto.randomUUID();
+    const now = new Date();
 
-    // Log billing event
-    await db.insert(billingEvent).values({
+    // Prepare payment method data
+    const paymentMethodData = {
+      id: newPaymentMethodId,
+      userId: user.id,
+      contractType: 'direct_debit_contract' as const,
+      contractSignatureEncrypted: encrypted,
+      contractSignatureHash: hash,
+      contractDisplayName: 'پرداخت مستقیم', // Direct Payment
+      contractMobile: '', // Could extract from stored contract info if needed
+      contractStatus: 'active' as const,
+      isPrimary: false, // User can set as primary later
+      isActive: true,
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    // Add payment method creation to batch
+    batch.add(batch.db.insert(paymentMethod).values(paymentMethodData));
+
+    // Add billing event to batch
+    batch.add(batch.db.insert(billingEvent).values({
       id: crypto.randomUUID(),
       userId: user.id,
       eventType: 'direct_debit_contract_verified',
       eventData: {
-        paymentMethodId: newPaymentMethod!.id,
+        paymentMethodId: newPaymentMethodId,
         paymanAuthority,
         contractSignature: verifyResult.data.signature,
         contractId, // Include the contract ID for debugging
       },
-    });
+      severity: 'info',
+      createdAt: now,
+      updatedAt: now,
+    }));
+
+    // Execute all batch operations
+    await batch.execute();
 
     return Responses.ok(c, {
       signature: verifyResult.data.signature,
-      paymentMethod: newPaymentMethod,
+      paymentMethod: paymentMethodData,
     });
   },
 );
@@ -364,13 +374,13 @@ export const verifyContractHandler: RouteHandler<typeof verifyContractRoute, Api
  *    - Hard deletes payment method from database
  *    - Required by ZarinPal terms of service
  */
-export const cancelContractHandler: RouteHandler<typeof cancelContractRoute, ApiEnv> = createHandler(
+export const cancelContractHandler: RouteHandler<typeof cancelContractRoute, ApiEnv> = createHandlerWithBatch(
   {
     auth: 'session',
     operationName: 'cancelDirectDebitContract',
     validateParams: PaymentMethodParamsSchema,
   },
-  async (c) => {
+  async (c, batch) => {
     const user = c.get('user');
     const { id } = c.validated.params;
 
@@ -378,11 +388,8 @@ export const cancelContractHandler: RouteHandler<typeof cancelContractRoute, Api
       throw createError.unauthenticated('User authentication required');
     }
 
-    // Get database instance (D1 doesn't support transactions)
-    const db = await getDbAsync();
-
-    // Find the payment method
-    const [existingMethod] = await db
+    // Find the payment method using batch database
+    const [existingMethod] = await batch.db
       .select()
       .from(paymentMethod)
       .where(and(eq(paymentMethod.id, id), eq(paymentMethod.userId, user.id)));
@@ -396,7 +403,7 @@ export const cancelContractHandler: RouteHandler<typeof cancelContractRoute, Api
     }
 
     // Check if any active subscriptions use this payment method
-    const dependentSubscriptions = await db
+    const dependentSubscriptions = await batch.db
       .select()
       .from(subscription)
       .where(and(
@@ -428,8 +435,8 @@ export const cancelContractHandler: RouteHandler<typeof cancelContractRoute, Api
       console.error('ZarinPal contract cancellation failed:', error);
     }
 
-    // Create billing event BEFORE deletion (important for audit trail)
-    await db.insert(billingEvent).values({
+    // Add billing event to batch (BEFORE deletion for audit trail)
+    batch.add(batch.db.insert(billingEvent).values({
       id: crypto.randomUUID(),
       userId: user.id,
       paymentMethodId: id, // Will be deleted, so log it now
@@ -444,10 +451,13 @@ export const cancelContractHandler: RouteHandler<typeof cancelContractRoute, Api
       severity: 'info',
       createdAt: new Date(),
       updatedAt: new Date(),
-    });
+    }));
 
-    // Hard delete from database
-    await db.delete(paymentMethod).where(eq(paymentMethod.id, id));
+    // Add hard delete to batch
+    batch.add(batch.db.delete(paymentMethod).where(eq(paymentMethod.id, id)));
+
+    // Execute all batch operations (billing event first, then deletion)
+    await batch.execute();
 
     return Responses.ok(c, {
       cancelled: true,
