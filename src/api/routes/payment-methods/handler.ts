@@ -269,6 +269,7 @@ export const verifyContractHandler: RouteHandler<typeof verifyContractRoute, Api
   async (c, tx) => {
     const user = c.get('user');
     const { paymanAuthority, status } = c.validated.body;
+    const { id: contractId } = c.validated.params;
 
     if (!user) {
       throw createError.unauthenticated('User authentication required');
@@ -277,6 +278,13 @@ export const verifyContractHandler: RouteHandler<typeof verifyContractRoute, Api
     if (status !== 'OK') {
       throw createError.badRequest('Contract signing was not successful');
     }
+
+    // Check if a payment method with this signature already exists for this user
+    // This prevents duplicate contracts from the same paymanAuthority
+    const existingPaymentMethods = await tx
+      .select()
+      .from(paymentMethod)
+      .where(eq(paymentMethod.userId, user.id));
 
     const zarinpalService = ZarinPalDirectDebitService.create();
 
@@ -289,8 +297,22 @@ export const verifyContractHandler: RouteHandler<typeof verifyContractRoute, Api
       throw createError.badRequest('Failed to verify contract signature');
     }
 
+    // Check if this signature already exists (prevent duplicates)
+    const { hash } = await encryptSignature(verifyResult.data.signature);
+    const existingMethodWithSignature = existingPaymentMethods.find(
+      pm => pm.contractSignatureHash === hash,
+    );
+
+    if (existingMethodWithSignature) {
+      // Contract already exists, return the existing payment method
+      return Responses.ok(c, {
+        signature: verifyResult.data.signature,
+        paymentMethod: existingMethodWithSignature,
+      });
+    }
+
     // Encrypt the signature before storing
-    const { encrypted, hash } = await encryptSignature(verifyResult.data.signature);
+    const { encrypted } = await encryptSignature(verifyResult.data.signature);
 
     // Create payment method with encrypted contract signature
     const [newPaymentMethod] = await tx
@@ -317,6 +339,7 @@ export const verifyContractHandler: RouteHandler<typeof verifyContractRoute, Api
         paymentMethodId: newPaymentMethod!.id,
         paymanAuthority,
         contractSignature: verifyResult.data.signature,
+        contractId, // Include the contract ID for debugging
       },
     });
 
