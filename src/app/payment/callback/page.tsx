@@ -58,13 +58,46 @@ function PaymentCallbackContent() {
 
           // Check if the callback indicates success
           if (status === 'OK') {
-            // For successful callbacks, show success message and guide user to dashboard
-            // The actual contract verification will happen when user logs in to dashboard
-            setResult({
-              success: true,
-              paymentId: 'callback-received',
-              refId: paymanAuthority.slice(-8), // Show last 8 chars of payman authority
-            });
+            try {
+              // Call the backend contract callback handler to verify and create payment method
+              const response = await fetch(`/api/v1/payment-methods/contracts/callback?payman_authority=${encodeURIComponent(paymanAuthority)}&status=${encodeURIComponent(status)}`, {
+                method: 'GET',
+                headers: {
+                  Accept: 'application/json',
+                },
+                credentials: 'include', // Include session cookies
+              });
+
+              const data = await response.json() as {
+                success: boolean;
+                paymentMethodId?: string;
+                message?: string;
+              };
+
+              if (data.success) {
+                // Contract verified and payment method created successfully
+                setResult({
+                  success: true,
+                  paymentId: data.paymentMethodId || 'callback-received',
+                  refId: paymanAuthority.slice(-8), // Show last 8 chars of payman authority
+                });
+              } else {
+                // Verification failed
+                setResult({
+                  success: false,
+                  error: data.message || t('payment.callback.setupNotCompleted'),
+                });
+              }
+            } catch (apiError) {
+              console.error('Failed to verify contract:', apiError);
+              // Even if API call fails, show partial success if status is OK
+              // This allows user to retry from dashboard
+              setResult({
+                success: true,
+                paymentId: 'callback-received',
+                refId: paymanAuthority.slice(-8),
+              });
+            }
           } else {
             // Callback indicates failure
             setResult({
