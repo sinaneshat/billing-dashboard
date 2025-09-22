@@ -1,8 +1,29 @@
 /**
- * ZarinPal Direct Debit (Payman) API Service
- * Migrated to use BaseService pattern for consistent error handling and HTTP utilities
- * Implementation following official ZarinPal direct debit documentation
- * https://docs.zarinpal.com/paymentGateway/directPayment.html
+ * ZarinPal Direct Debit (Payman) API Service - پرداخت مستقیم
+ * Enables customers to make payments without entering payment gateway or card details
+ *
+ * Official Documentation: https://www.zarinpal.com/docs/directDebit/
+ * Service Description: خدمات پرداخت مستقیم - خریدار بدون ورود به درگاه پرداخت
+ *
+ * ACTIVATION REQUIREMENT:
+ * Direct debit service must be activated by submitting a support ticket to ZarinPal
+ * before using this API. Service is not available by default.
+ *
+ * CONTRACT REQUIREMENTS:
+ * - Minimum contract duration: 30 days
+ * - Contract information (payman_authority & signature) must be securely stored
+ * - Merchants must provide contract cancellation functionality (ZarinPal requirement)
+ *
+ * SECURITY REQUIREMENTS:
+ * Contract information including payman_authority and signature must be securely
+ * maintained by the merchant. This data enables direct payments and should be
+ * treated as sensitive financial credentials.
+ *
+ * BUSINESS LIMITATIONS:
+ * - Requires merchant verification and approval
+ * - Subject to transaction limits set by banks
+ * - Only available for Iranian bank accounts
+ * - Requires customer consent for recurring charges
  */
 
 import { z } from '@hono/zod-openapi';
@@ -30,6 +51,7 @@ export const ZarinPalDirectDebitConfigSchema = z.object({
     resetTimeout: z.number().positive(),
   }).optional(),
   merchantId: z.string().length(36, 'ZarinPal merchant ID must be exactly 36 characters'),
+  accessToken: z.string().min(1, 'ZarinPal access token is required'),
   isSandbox: z.boolean().optional(),
   isPlaceholder: z.boolean().optional().openapi({
     description: 'Indicates using development placeholder ID',
@@ -234,6 +256,19 @@ export class ZarinPalDirectDebitService {
   }
 
   /**
+   * Smart Authorization header formatting
+   * Handles tokens that already include "Bearer " prefix to avoid duplication
+   */
+  private getAuthorizationHeader(): string {
+    const token = this.config.accessToken;
+    // Check if token already starts with "Bearer " (case-insensitive)
+    if (token.toLowerCase().startsWith('bearer ')) {
+      return token;
+    }
+    return `Bearer ${token}`;
+  }
+
+  /**
    * Make HTTP POST request with JSON payload
    */
   private async post<TPayload, TResponse>(
@@ -408,6 +443,7 @@ export class ZarinPalDirectDebitService {
         resetTimeout: 60000,
       },
       merchantId: env.NEXT_PUBLIC_ZARINPAL_MERCHANT_ID,
+      accessToken: env.ZARINPAL_ACCESS_TOKEN,
       isSandbox,
       isPlaceholder: isPlaceholder && !(isSandboxValue && isSandbox), // Don't treat sandbox values as placeholders in development
       isSandboxValue,
@@ -432,7 +468,19 @@ export class ZarinPalDirectDebitService {
 
   /**
    * Step 1: Request Direct Debit Contract (Payman Request)
-   * Using BaseService HTTP methods with Zod validation for type safety
+   *
+   * IMPORTANT: This service requires prior activation via ZarinPal support ticket
+   * CONTRACT TERMS: Minimum 30-day duration, secure storage required
+   *
+   * USAGE EXAMPLE:
+   * 1. Request contract: requestContract(contractData)
+   * 2. Redirect user to: getContractSigningUrl(authority, bankCode)
+   * 3. Verify signature: verifyContractAndGetSignature(authority)
+   * 4. Store signature securely for future charges
+   * 5. Use chargeDirectDebit() for recurring payments
+   *
+   * @param request Contract parameters including mobile, expiry, and limits
+   * @returns Contract response with payman_authority for signing process
    */
   async requestContract(request: DirectDebitContractRequest): Promise<DirectDebitContractResponse> {
     // Validate input using discriminated unions per API Development Guide
@@ -458,7 +506,7 @@ export class ZarinPalDirectDebitService {
       const rawResult = await this.post<typeof payload, DirectDebitContractResponse>(
         '/pg/v4/payman/request.json',
         payload,
-        {},
+        { Authorization: this.getAuthorizationHeader() },
         'contract request',
       );
 
@@ -526,7 +574,7 @@ export class ZarinPalDirectDebitService {
     try {
       const rawResult = await this.get<BankListResponse>(
         '/pg/v4/payman/banksList.json',
-        {},
+        { Authorization: this.getAuthorizationHeader() },
         'get bank list',
       );
 
@@ -576,7 +624,7 @@ export class ZarinPalDirectDebitService {
       const result = await this.post<typeof payload, SignatureResponse>(
         '/pg/v4/payman/verify.json',
         payload,
-        {},
+        { Authorization: this.getAuthorizationHeader() },
         'contract verification',
       );
 
@@ -621,6 +669,7 @@ export class ZarinPalDirectDebitService {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
+            'Authorization': this.getAuthorizationHeader(),
           },
           body: JSON.stringify(payload),
         },
@@ -641,9 +690,14 @@ export class ZarinPalDirectDebitService {
   }
 
   /**
-   * Step 5: Cancel Direct Debit Contract (officially supported by ZarinPal)
-   * Using BaseService HTTP methods with Zod validation for type safety
-   * NOTE: This is REQUIRED by ZarinPal terms - merchants must provide this functionality
+   * Step 5: Cancel Direct Debit Contract
+   *
+   * NOTE: Contract cancellation is REQUIRED by ZarinPal terms of service.
+   * Merchants must provide this functionality to customers as per regulations.
+   * Failure to implement this feature may result in service suspension.
+   *
+   * @param request Contract cancellation request with signature
+   * @returns Cancellation confirmation response
    */
   async cancelContract(request: CancelContractRequest): Promise<CancelContractResponse> {
     // Validate input using discriminated unions per API Development Guide
@@ -663,7 +717,7 @@ export class ZarinPalDirectDebitService {
       const result = await this.post<typeof payload, CancelContractResponse>(
         '/pg/v4/payman/cancelContract.json',
         payload,
-        {},
+        { Authorization: this.getAuthorizationHeader() },
         'cancel contract',
       );
 
@@ -713,7 +767,7 @@ export class ZarinPalDirectDebitService {
       const authResult = await this.post<typeof authPayload, { data?: { authority: string; code: number } }>(
         '/pg/v4/payment/request.json',
         authPayload,
-        {},
+        { Authorization: this.getAuthorizationHeader() },
         'create payment authority for direct debit',
       );
 

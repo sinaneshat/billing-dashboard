@@ -2,6 +2,24 @@
 
 Project guidance for Claude Code specialized agents working on Roundtable's billing dashboard - a white-labelable ZarinPal payment platform for Iranian businesses.
 
+## 🚨 DOCUMENTATION HIERARCHY
+
+**BACKEND DEVELOPMENT**:
+- **🚨 SINGLE SOURCE OF TRUTH**: `/docs/backend-patterns.md`
+- **ALL backend agents MUST read this document FIRST before any implementation**
+- **NO backend work should deviate from patterns defined in this document**
+- **This document supersedes all other backend guidance**
+
+**FRONTEND DEVELOPMENT**:
+- **🚨 SINGLE SOURCE OF TRUTH**: `/docs/frontend-patterns.md`
+- **ALL frontend agents MUST read this document FIRST before any implementation**
+- **NO frontend work should deviate from patterns defined in this document**
+- **This document supersedes all other frontend guidance**
+
+**Other Documentation**:
+- Database schema: Reference `/src/db/tables/` but follow patterns from backend-patterns.md
+- Configuration: Use `/wrangler.jsonc` and environment setup guides
+
 ## Essential Commands
 
 ```bash
@@ -67,7 +85,7 @@ src/
 ├── hooks/                 # React Query data fetching
 ├── lib/                   # Utility libraries
 └── i18n/                  # Internationalization
-    └── locales/           # en.json, fa.json translations
+    └── locales/           # en/common.json, fa/common.json translations
 ```
 
 ## Core Architecture Patterns
@@ -140,6 +158,14 @@ NEXT_PUBLIC_WEBAPP_ENV=local|preview|prod  # Environment detection
 
 ### Backend Development Context (`backend-pattern-expert`)
 **Primary Context Documents**:
+
+- **🚨 SINGLE SOURCE OF TRUTH**: `/docs/backend-patterns.md` - **THE DEFINITIVE backend guide**
+  - **MANDATORY FIRST READ**: Single authoritative source for ALL backend development
+  - **Complete pattern consolidation** from 10 specialized agent analyses
+  - **Implementation guidelines** with specific file references and line numbers
+  - **NO OTHER BACKEND DOCUMENTATION SUPERSEDES THIS DOCUMENT**
+  - **ALL BACKEND AGENTS MUST REFERENCE THIS DOCUMENT FIRST**
+
 - **Route Patterns**: `/src/api/routes/{domain}/` - Study existing route implementations
   - `/src/api/routes/auth/` - Authentication and session handling patterns
   - `/src/api/routes/subscriptions/` - Subscription lifecycle management
@@ -161,6 +187,14 @@ NEXT_PUBLIC_WEBAPP_ENV=local|preview|prod  # Environment detection
 
 ### Frontend Development Context (`frontend-ui-expert`)
 **Primary Context Documents**:
+
+- **🚨 SINGLE SOURCE OF TRUTH**: `/docs/frontend-patterns.md` - **THE DEFINITIVE frontend guide**
+  - **MANDATORY FIRST READ**: Single authoritative source for ALL frontend development
+  - **Complete pattern consolidation** from 10 specialized agent analyses
+  - **Implementation guidelines** with specific file references and line numbers
+  - **NO OTHER FRONTEND DOCUMENTATION SUPERSEDES THIS DOCUMENT**
+  - **ALL FRONTEND AGENTS MUST REFERENCE THIS DOCUMENT FIRST**
+
 - **Component Patterns**: `/src/components/` - Established UI component architecture
   - `/src/components/ui/` - shadcn/ui base components (Button, Card, Dialog, etc.)
   - `/src/components/billing/` - Domain-specific billing UI components
@@ -178,13 +212,16 @@ NEXT_PUBLIC_WEBAPP_ENV=local|preview|prod  # Environment detection
 ### Internationalization Context (`i18n-translation-manager`)
 **Primary Context Documents**:
 - **Translation Files**: `/src/i18n/locales/` - Translation key management
-  - `/src/i18n/locales/en.json` - English translations (source of truth)
-  - `/src/i18n/locales/fa.json` - Persian/Farsi translations (RTL)
+  - `/src/i18n/locales/en/common.json` - English translations (source of truth)
+  - `/src/i18n/locales/fa/common.json` - Persian/Farsi translations (RTL)
 - **Component Usage**: `/src/components/` - Scan for hardcoded strings and translation usage
 - **Translation Patterns**: Look for `useTranslations()` hooks and `t()` function usage
 
 ### Configuration Context (All Agents)
 **Primary Context Documents**:
+- **📋 Project Documentation**: `/docs/` - Essential implementation guides
+  - **🚨 `/docs/backend-patterns.md` - THE SINGLE SOURCE OF TRUTH for ALL backend development**
+  - **🚨 `/docs/frontend-patterns.md` - THE SINGLE SOURCE OF TRUTH for ALL frontend development**
 - **Environment Setup**: `/wrangler.jsonc` - Cloudflare Workers configuration and bindings
 - **Package Dependencies**: `/package.json` - Available libraries and scripts
 - **TypeScript Config**: `/tsconfig.json` - Compiler options and path mappings
@@ -250,23 +287,27 @@ When implementing or referencing code:
 **Backend Agent Task**: "Add new subscription renewal endpoint"
 
 ```bash
-1. READ CONTEXT: /src/api/routes/subscriptions/ existing endpoints
-2. ANALYZE PATTERN: route.ts + handler.ts + schema.ts structure
-3. EXAMINE SCHEMA: /src/db/tables/billing.ts subscription table
-4. STUDY SERVICES: /src/api/services/zarinpal.ts payment processing
-5. IMPLEMENT: Following established patterns in subscriptions domain
-6. REFERENCE: "This endpoint follows the pattern from src/api/routes/subscriptions/create.ts:23"
+1. READ CONTEXT PRIME: /docs/backend-patterns.md - THE SINGLE SOURCE OF TRUTH for backend implementation
+2. FOLLOW ALL PATTERNS: Every implementation MUST follow the patterns documented in backend-patterns.md
+3. READ CONTEXT: /src/api/routes/subscriptions/ existing endpoints
+4. ANALYZE PATTERN: route.ts + handler.ts + schema.ts structure
+5. EXAMINE SCHEMA: /src/db/tables/billing.ts subscription table
+6. STUDY SERVICES: /src/api/services/zarinpal.ts payment processing
+7. IMPLEMENT: Using ONLY patterns from docs/backend-patterns.md (no deviations allowed)
+8. REFERENCE: "This endpoint follows the backend-patterns.md:subscription-patterns specification and src/api/routes/subscriptions/create.ts:23"
 ```
 
 **Frontend Agent Task**: "Create subscription status card component"
 
 ```bash
-1. READ CONTEXT: /src/components/billing/ existing billing components
-2. ANALYZE PATTERN: /src/components/ui/ shadcn component structure
-3. EXAMINE HOOKS: /src/hooks/ data fetching patterns for subscriptions
-4. STUDY LAYOUTS: /src/app/(app)/dashboard/ page layout patterns
-5. IMPLEMENT: Reusing ui components and following billing domain patterns
-6. REFERENCE: "Component structure follows src/components/billing/PaymentMethodCard.tsx:15"
+1. READ CONTEXT PRIME: /docs/frontend-patterns.md - THE SINGLE SOURCE OF TRUTH for frontend implementation
+2. FOLLOW ALL PATTERNS: Every implementation MUST follow the patterns documented in frontend-patterns.md
+3. READ CONTEXT: /src/components/billing/ existing billing components
+4. ANALYZE PATTERN: /src/components/ui/ shadcn component structure
+5. EXAMINE HOOKS: /src/hooks/ data fetching patterns for subscriptions
+6. STUDY LAYOUTS: /src/app/(app)/dashboard/ page layout patterns
+7. IMPLEMENT: Using ONLY patterns from docs/frontend-patterns.md (no deviations allowed)
+8. REFERENCE: "This component follows the frontend-patterns.md:component-architecture specification and src/components/billing/PaymentMethodCard.tsx:15"
 ```
 
 ## Specialized Agent Context
@@ -276,22 +317,26 @@ Located in `.claude/agents/` - See **`.claude/agents/README.md`** for complete w
 Each agent has domain-specific expertise:
 
 **backend-pattern-expert.md**: Hono + Cloudflare Workers + Drizzle ORM specialist
+- **🚨 MANDATORY FIRST ACTION**: Read `/docs/backend-patterns.md` - THE ONLY authoritative backend guide
+- **NO BACKEND WORK WITHOUT READING THIS DOCUMENT FIRST**
 - **Must consult**: `/src/api/routes/{domain}/` patterns, `/src/db/tables/billing.ts` schema, `/src/api/services/zarinpal.ts`
 - Database schema changes and migrations (`/src/db/migrations/` examples)
 - API endpoint creation following established patterns (`/src/api/routes/` structure)
 - ZarinPal integration and webhook handling (`/src/api/routes/webhooks/`, `/src/api/services/`)
 
 **frontend-ui-expert.md**: Next.js + shadcn/ui + TanStack Query specialist
+- **🚨 MANDATORY FIRST ACTION**: Read `/docs/frontend-patterns.md` - THE ONLY authoritative frontend guide
+- **NO FRONTEND WORK WITHOUT READING THIS DOCUMENT FIRST**
 - **Must consult**: `/src/components/ui/` patterns, `/src/app/(app)/dashboard/` layouts, `/src/hooks/` data fetching
 - Component creation following design system (`/src/components/ui/` base components)
 - Data fetching with React Query patterns (`/src/hooks/` existing implementations)
 - Responsive UI with accessibility standards (`/src/components/billing/` examples)
 
 **i18n-translation-manager.md**: Internationalization specialist
-- **Must consult**: `/src/i18n/locales/en.json` source keys, `/src/components/` translation usage patterns
+- **Must consult**: `/src/i18n/locales/en/common.json` source keys, `/src/components/` translation usage patterns
 - Translation key management and validation (`/src/i18n/locales/` files)
 - Hardcoded string detection and replacement (`/src/components/` scan for `useTranslations()`)
-- Persian/Farsi RTL layout support (`/src/i18n/locales/fa.json` patterns)
+- Persian/Farsi RTL layout support (`/src/i18n/locales/fa/common.json` patterns)
 
 **research-analyst.md**: Documentation and analysis specialist
 - **Must consult**: `/src/api/services/` for integration patterns, `/wrangler.jsonc` for configuration
