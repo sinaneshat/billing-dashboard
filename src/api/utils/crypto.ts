@@ -45,14 +45,15 @@ async function getEncryptionKey(): Promise<CryptoKey> {
 }
 
 /**
- * Encrypt ZarinPal contract signature (200 chars)
+ * Encrypt ZarinPal contract signature (200 chars or JWT token)
  */
 export async function encryptSignature(signature: string): Promise<{
   encrypted: string;
   hash: string;
 }> {
-  if (signature.length !== 200) {
-    throw new Error('ZarinPal signature must be exactly 200 characters');
+  // Allow JWT tokens (starts with eyJ) or traditional 200-char signatures
+  if (signature.length !== 200 && !signature.startsWith('eyJ')) {
+    throw new Error('ZarinPal signature must be exactly 200 characters or a valid JWT token');
   }
 
   try {
@@ -120,8 +121,9 @@ export async function decryptSignature(encryptedSignature: string): Promise<stri
     const decoder = new TextDecoder();
     const signature = decoder.decode(decrypted);
 
-    if (signature.length !== 200) {
-      throw new Error('Decrypted signature is not 200 characters');
+    // Allow JWT tokens (starts with eyJ) or traditional 200-char signatures
+    if (signature.length !== 200 && !signature.startsWith('eyJ')) {
+      throw new Error('Decrypted signature is not 200 characters or a valid JWT token');
     }
 
     return signature;

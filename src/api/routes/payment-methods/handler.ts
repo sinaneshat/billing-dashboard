@@ -470,16 +470,24 @@ export const cancelContractHandler: RouteHandler<typeof cancelContractRoute, Api
 );
 
 /**
- * 4. Public Contract Callback Handler - Handle ZarinPal redirects without authentication
+ * 4. Public Contract Callback Handler - Handle ZarinPal redirects
  */
 export const contractCallbackHandler: RouteHandler<typeof contractCallbackRoute, ApiEnv> = createHandler(
   {
-    auth: 'public', // No authentication required for ZarinPal callbacks
+    auth: 'session', // Session authentication required for payment method creation
     operationName: 'handleContractCallback',
     validateQuery: ContractCallbackQuerySchema,
   },
   async (c) => {
     const { payman_authority: paymanAuthority, status } = c.validated.query;
+    const user = c.get('user'); // Try to get user if authenticated
+
+    apiLogger.info('Contract callback received', {
+      paymanAuthority,
+      status,
+      hasUser: !!user,
+      userId: user?.id,
+    });
 
     // Only handle successful callbacks
     if (status !== 'OK') {
@@ -498,15 +506,108 @@ export const contractCallbackHandler: RouteHandler<typeof contractCallbackRoute,
       });
 
       if (!verifyResult.data?.signature || verifyResult.errors?.length) {
+        apiLogger.error('ZarinPal verification failed', {
+          paymanAuthority,
+          errors: verifyResult.errors,
+          hasSignature: !!verifyResult.data?.signature,
+        });
         return Responses.ok(c, {
           success: false,
           message: 'Failed to verify contract with ZarinPal',
         });
       }
 
-      // At this point we have a valid signature, but we need to find the user
-      // Since this is a public callback, we can't use session auth
-      // We'll return success and let the frontend handle user association
+      apiLogger.info('ZarinPal verification successful', {
+        paymanAuthority,
+        signatureLength: verifyResult.data.signature.length,
+      });
+
+      // If user is authenticated, create the payment method immediately
+      if (user) {
+        try {
+          const db = await getDbAsync();
+
+          // Check if this signature already exists (prevent duplicates)
+          const { hash } = await encryptSignature(verifyResult.data.signature);
+          const existingPaymentMethods = await db
+            .select()
+            .from(paymentMethod)
+            .where(eq(paymentMethod.userId, user.id));
+
+          const existingMethodWithSignature = existingPaymentMethods.find(
+            pm => pm.contractSignatureHash === hash,
+          );
+
+          if (existingMethodWithSignature) {
+            apiLogger.info('Payment method already exists', { paymentMethodId: existingMethodWithSignature.id });
+            return Responses.ok(c, {
+              success: true,
+              signature: verifyResult.data.signature,
+              paymentMethodId: existingMethodWithSignature.id,
+              message: 'Contract verified successfully (existing)',
+            });
+          }
+
+          // Encrypt the signature before storing
+          const { encrypted } = await encryptSignature(verifyResult.data.signature);
+          const newPaymentMethodId = crypto.randomUUID();
+          const now = new Date();
+
+          // Create payment method directly
+          await db.insert(paymentMethod).values({
+            id: newPaymentMethodId,
+            userId: user.id,
+            contractType: 'direct_debit_contract' as const,
+            contractSignatureEncrypted: encrypted,
+            contractSignatureHash: hash,
+            contractDisplayName: 'پرداخت مستقیم', // Direct Payment
+            contractMobile: '',
+            contractStatus: 'active' as const,
+            isPrimary: false,
+            isActive: true,
+            createdAt: now,
+            updatedAt: now,
+          });
+
+          // Create billing event
+          await db.insert(billingEvent).values({
+            id: crypto.randomUUID(),
+            userId: user.id,
+            eventType: 'direct_debit_contract_verified',
+            eventData: {
+              paymentMethodId: newPaymentMethodId,
+              paymanAuthority,
+              contractSignature: verifyResult.data.signature,
+              source: 'callback',
+            },
+            severity: 'info',
+            createdAt: now,
+            updatedAt: now,
+          });
+
+          apiLogger.info('Payment method created successfully', {
+            paymentMethodId: newPaymentMethodId,
+            userId: user.id,
+          });
+
+          return Responses.ok(c, {
+            success: true,
+            signature: verifyResult.data.signature,
+            paymentMethodId: newPaymentMethodId,
+            message: 'Contract verified and payment method created successfully',
+          });
+        } catch (dbError) {
+          apiLogger.error('Database error creating payment method', dbError as Error, {
+            userId: user.id,
+            paymanAuthority,
+          });
+          // Fall through to just return signature
+        }
+      } else {
+        apiLogger.warn('No authenticated user found in callback', { paymanAuthority });
+      }
+
+      // For now, just return success with signature
       return Responses.ok(c, {
         success: true,
         signature: verifyResult.data.signature,
