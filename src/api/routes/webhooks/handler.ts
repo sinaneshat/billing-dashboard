@@ -896,7 +896,7 @@ export const zarinPalWebhookHandler: RouteHandler<typeof zarinPalWebhookRoute, A
 
         // Process payment based on webhook status
         if (webhookPayload.status === 'OK') {
-          const zarinPal = ZarinPalService.create();
+          const zarinPal = ZarinPalService.create(c.env);
 
           try {
             const verification = await zarinPal.verifyPayment({

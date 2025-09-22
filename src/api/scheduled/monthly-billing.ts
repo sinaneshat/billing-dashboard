@@ -446,7 +446,7 @@ async function processSingleSubscription(
 
   try {
     // Create ZarinPal payment request first
-    const zarinPal = ZarinPalService.create();
+    const zarinPal = ZarinPalService.create(env);
     const paymentRequest = await zarinPal.requestPayment({
       amount: irrAmount, // Use converted IRR amount
       currency: 'IRR',
@@ -478,7 +478,7 @@ async function processSingleSubscription(
     ];
 
     // Execute direct debit transaction using ZarinPal Direct Debit Service
-    const directDebitService = ZarinPalDirectDebitService.create();
+    const directDebitService = ZarinPalDirectDebitService.create(env);
     if (!contract.contractSignatureEncrypted) {
       throw new Error('Contract signature is required for direct debit transaction');
     }

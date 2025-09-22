@@ -27,7 +27,6 @@
  */
 
 import { z } from '@hono/zod-openapi';
-import { getCloudflareContext } from '@opennextjs/cloudflare';
 import { HTTPException } from 'hono/http-exception';
 import * as HttpStatusCodes from 'stoker/http-status-codes';
 
@@ -380,11 +379,9 @@ export class ZarinPalDirectDebitService {
   /**
    * Get service configuration from environment with proper validation patterns
    * Following API Development Guide - schema-first with discriminated unions
-   * Uses OpenNext.js Cloudflare context for consistent environment access
+   * Accepts environment from Hono context for proper secret access
    */
-  static getConfig(): ZarinPalDirectDebitConfig {
-    const { env } = getCloudflareContext();
-
+  static getConfig(env: CloudflareEnv): ZarinPalDirectDebitConfig {
     // Use backend environment variable (without NEXT_PUBLIC_ prefix)
     if (!env.ZARINPAL_MERCHANT_ID) {
       throw new HTTPException(HttpStatusCodes.INTERNAL_SERVER_ERROR, {
@@ -462,9 +459,10 @@ export class ZarinPalDirectDebitService {
 
   /**
    * Factory method to create service instance with validated configuration
+   * @param env - Environment variables from Hono context (c.env)
    */
-  static create(): ZarinPalDirectDebitService {
-    const config = this.getConfig();
+  static create(env: CloudflareEnv): ZarinPalDirectDebitService {
+    const config = this.getConfig(env);
     return new ZarinPalDirectDebitService(config);
   }
 

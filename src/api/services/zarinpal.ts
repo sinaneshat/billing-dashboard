@@ -4,7 +4,6 @@
  */
 
 import { z } from '@hono/zod-openapi';
-import { getCloudflareContext } from '@opennextjs/cloudflare';
 import { HTTPException } from 'hono/http-exception';
 import * as HttpStatusCodes from 'stoker/http-status-codes';
 
@@ -273,10 +272,9 @@ export class ZarinPalService {
   /**
    * Get service configuration from environment with validation
    * Uses Zod schema validation for type safety
-   * Uses OpenNext.js Cloudflare context for consistent environment access
+   * Accepts environment from Hono context for proper secret access
    */
-  static getConfig(): ZarinPalConfig {
-    const { env } = getCloudflareContext();
+  static getConfig(env: CloudflareEnv): ZarinPalConfig {
     // Validate ZarinPal specific configuration
     if (!env.ZARINPAL_MERCHANT_ID || !env.ZARINPAL_ACCESS_TOKEN) {
       throw new HTTPException(HttpStatusCodes.INTERNAL_SERVER_ERROR, {
@@ -308,9 +306,10 @@ export class ZarinPalService {
 
   /**
    * Factory method to create service instance with validated configuration
+   * @param env - Environment variables from Hono context (c.env)
    */
-  static create(): ZarinPalService {
-    const config = this.getConfig();
+  static create(env: CloudflareEnv): ZarinPalService {
+    const config = this.getConfig(env);
     return new ZarinPalService(config);
   }
 
