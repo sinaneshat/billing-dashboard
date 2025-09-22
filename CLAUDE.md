@@ -142,7 +142,7 @@ src/
 ```bash
 # Database: Uses Cloudflare D1 bindings (env.DB) in production, ./local.db for local development
 BETTER_AUTH_SECRET=your-secret-key         # Session encryption
-ZARINPAL_MERCHANT_ID=your-merchant-id      # Payment gateway
+NEXT_PUBLIC_ZARINPAL_MERCHANT_ID=your-merchant-id      # Payment gateway
 NEXT_PUBLIC_WEBAPP_ENV=local|preview|prod  # Environment detection
 ```
 

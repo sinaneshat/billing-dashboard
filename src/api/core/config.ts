@@ -98,7 +98,7 @@ const authEnvironmentSchema = z.object({
  */
 const paymentEnvironmentSchema = z.object({
   // ZarinPal configuration
-  ZARINPAL_MERCHANT_ID: ValidationUtils.string.nonEmpty(),
+  NEXT_PUBLIC_ZARINPAL_MERCHANT_ID: ValidationUtils.string.nonEmpty(),
   ZARINPAL_SANDBOX: z.boolean().default(false),
   ZARINPAL_API_VERSION: ValidationUtils.string.nonEmpty().default('v4'),
   ZARINPAL_CALLBACK_URL: ValidationUtils.string.url().optional(),
@@ -254,7 +254,7 @@ function parseEnvironment() {
     RATE_LIMIT_WINDOW: process.env.RATE_LIMIT_WINDOW,
 
     // Payment
-    ZARINPAL_MERCHANT_ID: process.env.ZARINPAL_MERCHANT_ID,
+    NEXT_PUBLIC_ZARINPAL_MERCHANT_ID: process.env.NEXT_PUBLIC_ZARINPAL_MERCHANT_ID,
     ZARINPAL_SANDBOX: process.env.ZARINPAL_SANDBOX === 'true',
     ZARINPAL_API_VERSION: process.env.ZARINPAL_API_VERSION,
     ZARINPAL_CALLBACK_URL: process.env.ZARINPAL_CALLBACK_URL,
@@ -518,7 +518,7 @@ export function getPaymentConfig() {
   const cfg = getConfig();
   return {
     zarinpal: {
-      merchantId: cfg.ZARINPAL_MERCHANT_ID,
+      merchantId: cfg.NEXT_PUBLIC_ZARINPAL_MERCHANT_ID,
       sandbox: cfg.ZARINPAL_SANDBOX,
       apiVersion: cfg.ZARINPAL_API_VERSION,
       callbackUrl: cfg.ZARINPAL_CALLBACK_URL,

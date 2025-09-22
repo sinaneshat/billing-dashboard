@@ -194,7 +194,7 @@ export const EnvironmentVariablesSchema = z.object({
   BETTER_AUTH_URL: z.string().url(),
 
   // Payment processing
-  ZARINPAL_MERCHANT_ID: z.string().length(36),
+  NEXT_PUBLIC_ZARINPAL_MERCHANT_ID: z.string().length(36),
   ZARINPAL_ACCESS_TOKEN: z.string().min(50),
 
   // Storage

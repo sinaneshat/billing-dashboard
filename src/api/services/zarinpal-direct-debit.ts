@@ -383,15 +383,15 @@ export class ZarinPalDirectDebitService {
    */
   static getConfig(env: CloudflareEnv): ZarinPalDirectDebitConfig {
     // Use backend environment variable (without NEXT_PUBLIC_ prefix)
-    if (!env.ZARINPAL_MERCHANT_ID) {
+    if (!env.NEXT_PUBLIC_ZARINPAL_MERCHANT_ID) {
       throw new HTTPException(HttpStatusCodes.INTERNAL_SERVER_ERROR, {
-        message: 'ZarinPal merchant ID not configured. Set ZARINPAL_MERCHANT_ID.',
+        message: 'ZarinPal merchant ID not configured. Set NEXT_PUBLIC_ZARINPAL_MERCHANT_ID.',
       });
     }
 
     // Validate merchant ID format (UUID)
     const merchantIdRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    if (!merchantIdRegex.test(env.ZARINPAL_MERCHANT_ID)) {
+    if (!merchantIdRegex.test(env.NEXT_PUBLIC_ZARINPAL_MERCHANT_ID)) {
       throw new HTTPException(HttpStatusCodes.INTERNAL_SERVER_ERROR, {
         message: 'Invalid ZarinPal merchant ID format. Must be a valid UUID.',
       });
@@ -407,7 +407,7 @@ export class ZarinPalDirectDebitService {
     ];
 
     const isPlaceholder = placeholderPatterns.some(pattern =>
-      env.ZARINPAL_MERCHANT_ID ? env.ZARINPAL_MERCHANT_ID.includes(pattern) : false,
+      env.NEXT_PUBLIC_ZARINPAL_MERCHANT_ID ? env.NEXT_PUBLIC_ZARINPAL_MERCHANT_ID.includes(pattern) : false,
     );
     const isSandbox = env.NODE_ENV === 'development';
 
@@ -416,7 +416,7 @@ export class ZarinPalDirectDebitService {
       '36e0ea98-43fa-400d-a421-f7593b1c73bc', // Official sandbox merchant ID
       'zp-sandbox-access-token', // Official sandbox access token
     ];
-    const isSandboxValue = (env.ZARINPAL_MERCHANT_ID && ZARINPAL_SANDBOX_VALUES.includes(env.ZARINPAL_MERCHANT_ID))
+    const isSandboxValue = (env.NEXT_PUBLIC_ZARINPAL_MERCHANT_ID && ZARINPAL_SANDBOX_VALUES.includes(env.NEXT_PUBLIC_ZARINPAL_MERCHANT_ID))
       || (env.ZARINPAL_ACCESS_TOKEN && ZARINPAL_SANDBOX_VALUES.includes(env.ZARINPAL_ACCESS_TOKEN));
 
     if (isPlaceholder) {
@@ -441,7 +441,7 @@ export class ZarinPalDirectDebitService {
         failureThreshold: 3,
         resetTimeout: 60000,
       },
-      merchantId: env.ZARINPAL_MERCHANT_ID,
+      merchantId: env.NEXT_PUBLIC_ZARINPAL_MERCHANT_ID,
       accessToken: env.ZARINPAL_ACCESS_TOKEN,
       isSandbox,
       isPlaceholder: isPlaceholder && !(isSandboxValue && isSandbox), // Don't treat sandbox values as placeholders in development
