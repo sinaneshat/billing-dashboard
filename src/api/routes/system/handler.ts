@@ -16,11 +16,22 @@ export const healthHandler: RouteHandler<typeof healthRoute, ApiEnv> = createHan
     operationName: 'healthCheck',
   },
   async (c) => {
+    c.logger.info('Basic health check requested', {
+      logType: 'operation',
+      operationName: 'healthCheck',
+    });
+
     const payload = {
       ok: true,
-      status: 'healthy',
+      status: 'healthy' as const,
       timestamp: new Date().toISOString(),
     };
+
+    c.logger.info('Basic health check completed successfully', {
+      logType: 'operation',
+      operationName: 'healthCheck',
+      resource: 'healthy',
+    });
 
     return Responses.ok(c, payload);
   },
@@ -36,77 +47,69 @@ export const detailedHealthHandler: RouteHandler<typeof detailedHealthRoute, Api
     operationName: 'detailedHealthCheck',
   },
   async (c) => {
+    c.logger.info('Starting detailed health check', {
+      logType: 'operation',
+      operationName: 'detailedHealthCheck',
+    });
+
     const startTime = Date.now();
 
-    try {
-      // Check database connectivity
-      const dbCheck = await checkDatabase(c);
+    // Check database connectivity
+    const dbCheck = await checkDatabase(c);
 
-      // Check environment configuration
-      const envCheck = checkEnvironment(c);
+    // Check environment configuration
+    const envCheck = checkEnvironment(c);
 
-      // Calculate overall status
-      const dependencies = {
-        database: dbCheck,
-        environment: envCheck,
-      };
+    // Calculate overall status
+    const dependencies = {
+      database: dbCheck,
+      environment: envCheck,
+    };
 
-      const healthCounts = Object.values(dependencies).reduce(
-        (acc, check) => {
-          acc.total++;
-          if (check.status === 'healthy')
-            acc.healthy++;
-          else if (check.status === 'degraded')
-            acc.degraded++;
-          else acc.unhealthy++;
-          return acc;
-        },
-        { total: 0, healthy: 0, degraded: 0, unhealthy: 0 },
-      );
+    const healthCounts = Object.values(dependencies).reduce(
+      (acc, check) => {
+        acc.total++;
+        if (check.status === 'healthy')
+          acc.healthy++;
+        else if (check.status === 'degraded')
+          acc.degraded++;
+        else acc.unhealthy++;
+        return acc;
+      },
+      { total: 0, healthy: 0, degraded: 0, unhealthy: 0 },
+    );
 
-      const overallStatus = healthCounts.unhealthy > 0
-        ? 'unhealthy'
-        : healthCounts.degraded > 0 ? 'degraded' : 'healthy';
+    const overallStatus = healthCounts.unhealthy > 0
+      ? 'unhealthy'
+      : healthCounts.degraded > 0 ? 'degraded' : 'healthy';
 
-      const duration = Date.now() - startTime;
+    const duration = Date.now() - startTime;
 
-      const payload = {
-        ok: overallStatus === 'healthy',
-        status: overallStatus,
-        timestamp: new Date().toISOString(),
-        duration,
-        env: {
-          runtime: 'cloudflare-workers',
-          version: globalThis.navigator?.userAgent || 'unknown',
-          nodeEnv: c.env.NODE_ENV || 'unknown',
-        },
-        dependencies,
-        summary: healthCounts,
-      };
+    const payload = {
+      ok: overallStatus === 'healthy',
+      status: overallStatus,
+      timestamp: new Date().toISOString(),
+      duration,
+      env: {
+        runtime: 'cloudflare-workers',
+        version: globalThis.navigator?.userAgent || 'unknown',
+        nodeEnv: c.env.NODE_ENV || 'unknown',
+      },
+      dependencies,
+      summary: healthCounts,
+    };
 
-      const statusCode = overallStatus === 'healthy' ? 200 : 503;
-      return c.json({ success: true, data: payload }, statusCode);
-    } catch {
-      const duration = Date.now() - startTime;
+    c.logger.info('Detailed health check completed', {
+      logType: 'operation',
+      operationName: 'detailedHealthCheck',
+      resource: `status-${overallStatus}`,
+      duration,
+    });
 
-      // For error responses, return simple format
-      const payload = {
-        ok: false,
-        status: 'unhealthy',
-        timestamp: new Date().toISOString(),
-        duration,
-        env: {
-          runtime: 'cloudflare-workers',
-          version: globalThis.navigator?.userAgent || 'unknown',
-          nodeEnv: c.env.NODE_ENV || 'unknown',
-        },
-        dependencies: {
-          database: { status: 'unhealthy', message: 'Database check failed' },
-          environment: { status: 'unhealthy', message: 'Environment check failed' },
-        },
-        summary: { total: 2, healthy: 0, degraded: 0, unhealthy: 2 },
-      };
-
+    // For health endpoints, we need to return proper HTTP status codes
+    if (overallStatus === 'healthy') {
+      return Responses.ok(c, payload);
+    } else {
       return c.json({ success: true, data: payload }, 503);
     }
   },
