@@ -30,6 +30,7 @@ export const ZarinPalDirectDebitConfigSchema = z.object({
     resetTimeout: z.number().positive(),
   }).optional(),
   merchantId: z.string().length(36, 'ZarinPal merchant ID must be exactly 36 characters'),
+  accessToken: z.string().min(1, 'ZarinPal access token is required'),
   isSandbox: z.boolean().optional(),
   isPlaceholder: z.boolean().optional().openapi({
     description: 'Indicates using development placeholder ID',
@@ -408,6 +409,7 @@ export class ZarinPalDirectDebitService {
         resetTimeout: 60000,
       },
       merchantId: env.NEXT_PUBLIC_ZARINPAL_MERCHANT_ID,
+      accessToken: env.ZARINPAL_ACCESS_TOKEN,
       isSandbox,
       isPlaceholder: isPlaceholder && !(isSandboxValue && isSandbox), // Don't treat sandbox values as placeholders in development
       isSandboxValue,
@@ -458,7 +460,7 @@ export class ZarinPalDirectDebitService {
       const rawResult = await this.post<typeof payload, DirectDebitContractResponse>(
         '/pg/v4/payman/request.json',
         payload,
-        {},
+        { Authorization: this.config.accessToken },
         'contract request',
       );
 
@@ -526,7 +528,7 @@ export class ZarinPalDirectDebitService {
     try {
       const rawResult = await this.get<BankListResponse>(
         '/pg/v4/payman/banksList.json',
-        {},
+        { Authorization: this.config.accessToken },
         'get bank list',
       );
 
@@ -576,7 +578,7 @@ export class ZarinPalDirectDebitService {
       const result = await this.post<typeof payload, SignatureResponse>(
         '/pg/v4/payman/verify.json',
         payload,
-        {},
+        { Authorization: this.config.accessToken },
         'contract verification',
       );
 
@@ -621,6 +623,7 @@ export class ZarinPalDirectDebitService {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
+            'Authorization': this.config.accessToken,
           },
           body: JSON.stringify(payload),
         },
@@ -663,7 +666,7 @@ export class ZarinPalDirectDebitService {
       const result = await this.post<typeof payload, CancelContractResponse>(
         '/pg/v4/payman/cancelContract.json',
         payload,
-        {},
+        { Authorization: this.config.accessToken },
         'cancel contract',
       );
 
@@ -713,7 +716,7 @@ export class ZarinPalDirectDebitService {
       const authResult = await this.post<typeof authPayload, { data?: { authority: string; code: number } }>(
         '/pg/v4/payment/request.json',
         authPayload,
-        {},
+        { Authorization: this.config.accessToken },
         'create payment authority for direct debit',
       );
 

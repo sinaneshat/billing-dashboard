@@ -318,7 +318,7 @@ export class ZarinPalService {
         '/pg/v4/payment/request.json',
         payload,
         {
-          Authorization: `Bearer ${this.config.accessToken}`,
+          Authorization: this.config.accessToken,
         },
         'request payment',
       );
@@ -361,7 +361,7 @@ export class ZarinPalService {
         '/pg/v4/payment/verify.json',
         payload,
         {
-          Authorization: `Bearer ${this.config.accessToken}`,
+          Authorization: this.config.accessToken,
         },
         'verify payment',
       );
@@ -422,7 +422,7 @@ export class ZarinPalService {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${this.config.accessToken}`,
+            'Authorization': this.config.accessToken,
           },
           body: JSON.stringify(payload),
         },
