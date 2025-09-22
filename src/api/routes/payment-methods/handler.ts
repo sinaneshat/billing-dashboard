@@ -265,7 +265,7 @@ export const verifyContractHandler: RouteHandler<typeof verifyContractRoute, Api
     validateParams: ContractParamsSchema,
     validateBody: VerifyContractRequestSchema,
   },
-  async (c, db) => {
+  async (c, tx) => {
     const user = c.get('user');
     const { paymanAuthority, status } = c.validated.body;
 
@@ -292,7 +292,7 @@ export const verifyContractHandler: RouteHandler<typeof verifyContractRoute, Api
     const { encrypted, hash } = await encryptSignature(verifyResult.data.signature);
 
     // Create payment method with encrypted contract signature
-    const [newPaymentMethod] = await db
+    const [newPaymentMethod] = await tx
       .insert(paymentMethod)
       .values({
         userId: user.id,
@@ -308,7 +308,7 @@ export const verifyContractHandler: RouteHandler<typeof verifyContractRoute, Api
       .returning();
 
     // Log billing event
-    await db.insert(billingEvent).values({
+    await tx.insert(billingEvent).values({
       userId: user.id,
       eventType: 'direct_debit_contract_verified',
       eventData: {

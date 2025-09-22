@@ -101,7 +101,7 @@ export const ZarinPalResponseDataSchema = z.object({
   code: z.number().int(),
   message: z.string(),
   authority: z.string().optional(),
-  refrence_id: z.number().int().optional(),
+  ref_id: z.number().int().optional(),
   card_hash: z.string().optional(),
   card_pan: z.string().optional(),
   fee_type: z.string().optional(),

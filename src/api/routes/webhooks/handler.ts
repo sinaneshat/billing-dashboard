@@ -909,7 +909,7 @@ export const zarinPalWebhookHandler: RouteHandler<typeof zarinPalWebhookRoute, A
               await tx.update(payment)
                 .set({
                   status: 'completed',
-                  zarinpalRefId: verification.data?.refrence_id?.toString() || webhookPayload.ref_id,
+                  zarinpalRefId: verification.data?.ref_id?.toString() || webhookPayload.ref_id,
                   zarinpalCardHash: verification.data?.card_hash || webhookPayload.card_hash,
                   paidAt: new Date(),
                   updatedAt: new Date(),
@@ -940,7 +940,7 @@ export const zarinPalWebhookHandler: RouteHandler<typeof zarinPalWebhookRoute, A
                 updatedPayment.amount,
                 {
                   subscriptionId: paymentRecord.subscriptionId || '',
-                  zarinpalRefId: verification.data?.refrence_id?.toString() || '',
+                  zarinpalRefId: verification.data?.ref_id?.toString() || '',
                   zarinpalAuthority: webhookPayload.authority,
                   billingUserId: updatedPayment.userId,
                   userEmail, // Primary identifier for Roundtable
@@ -1029,7 +1029,7 @@ export const zarinPalWebhookHandler: RouteHandler<typeof zarinPalWebhookRoute, A
               apiLogger.info('Payment verified and webhook events dispatched', {
                 operation: 'payment_verification_success',
                 paymentId: paymentRecord.id,
-                zarinpalRefId: verification.data?.refrence_id,
+                zarinpalRefId: verification.data?.ref_id,
                 subscriptionId: paymentRecord.subscriptionId,
                 webhookEventsDispatched: true,
               });
