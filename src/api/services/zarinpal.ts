@@ -276,13 +276,13 @@ export class ZarinPalService {
    */
   static getConfig(env: CloudflareEnv): ZarinPalConfig {
     // Validate ZarinPal specific configuration
-    if (!env.ZARINPAL_MERCHANT_ID || !env.ZARINPAL_ACCESS_TOKEN) {
+    if (!env.NEXT_PUBLIC_ZARINPAL_MERCHANT_ID || !env.ZARINPAL_ACCESS_TOKEN) {
       throw new HTTPException(HttpStatusCodes.INTERNAL_SERVER_ERROR, {
-        message: 'ZarinPal credentials not configured. Set ZARINPAL_MERCHANT_ID and ZARINPAL_ACCESS_TOKEN.',
+        message: 'ZarinPal credentials not configured. Set NEXT_PUBLIC_ZARINPAL_MERCHANT_ID and ZARINPAL_ACCESS_TOKEN.',
       });
     }
 
-    const merchantId = env.ZARINPAL_MERCHANT_ID;
+    const merchantId = env.NEXT_PUBLIC_ZARINPAL_MERCHANT_ID;
     const accessToken = env.ZARINPAL_ACCESS_TOKEN;
     const isSandbox = env.NODE_ENV === 'development';
 

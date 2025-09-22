@@ -112,7 +112,7 @@ AUTH_GOOGLE_SECRET=your-google-client-secret
 
 #### 💳 ZarinPal Payment Gateway (For Iranian payments)
 ```env
-ZARINPAL_MERCHANT_ID=your-merchant-id-uuid
+NEXT_PUBLIC_ZARINPAL_MERCHANT_ID=your-merchant-id-uuid
 ZARINPAL_ACCESS_TOKEN=your-access-token
 ```
 
@@ -217,7 +217,7 @@ AUTH_GOOGLE_ID=your-google-client-id
 AUTH_GOOGLE_SECRET=your-google-client-secret
 
 # ZarinPal
-ZARINPAL_MERCHANT_ID=00000000-0000-0000-0000-000000000000
+NEXT_PUBLIC_ZARINPAL_MERCHANT_ID=00000000-0000-0000-0000-000000000000
 ZARINPAL_ACCESS_TOKEN=your-access-token
 
 # AWS SES Email

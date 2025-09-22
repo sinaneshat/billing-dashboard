@@ -11,7 +11,7 @@ import { apiLogger } from '@/api/middleware/hono-logger';
 type EnvironmentConfig = {
   NODE_ENV: string;
   BETTER_AUTH_SECRET: string;
-  ZARINPAL_MERCHANT_ID: string;
+  NEXT_PUBLIC_ZARINPAL_MERCHANT_ID: string;
   ZARINPAL_ACCESS_TOKEN: string;
   CARD_VERIFICATION_AMOUNT?: string;
   CARD_VERIFICATION_DESCRIPTION?: string;
@@ -58,7 +58,7 @@ export function validateEnvironmentConfig(env: Record<string, string | undefined
   const required = [
     'NODE_ENV',
     'BETTER_AUTH_SECRET',
-    'ZARINPAL_MERCHANT_ID',
+    'NEXT_PUBLIC_ZARINPAL_MERCHANT_ID',
     'ZARINPAL_ACCESS_TOKEN',
   ];
 
@@ -90,10 +90,10 @@ export function validateEnvironmentConfig(env: Record<string, string | undefined
     }
 
     // Validate ZarinPal merchant ID format
-    if (env.ZARINPAL_MERCHANT_ID) {
+    if (env.NEXT_PUBLIC_ZARINPAL_MERCHANT_ID) {
       const merchantIdPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-      if (!merchantIdPattern.test(env.ZARINPAL_MERCHANT_ID as string)) {
-        errors.push('ZARINPAL_MERCHANT_ID must be a valid UUID format in production');
+      if (!merchantIdPattern.test(env.NEXT_PUBLIC_ZARINPAL_MERCHANT_ID as string)) {
+        errors.push('NEXT_PUBLIC_ZARINPAL_MERCHANT_ID must be a valid UUID format in production');
       }
     }
 
@@ -111,10 +111,10 @@ export function validateEnvironmentConfig(env: Record<string, string | undefined
 
   // Development-specific warnings
   if (env.NODE_ENV === 'development') {
-    if (PLACEHOLDER_VALUES.includes(env.ZARINPAL_MERCHANT_ID as string)
+    if (PLACEHOLDER_VALUES.includes(env.NEXT_PUBLIC_ZARINPAL_MERCHANT_ID as string)
       || PLACEHOLDER_VALUES.includes(env.ZARINPAL_ACCESS_TOKEN as string)) {
       warnings.push('Using placeholder ZarinPal credentials in development. Payment features will not work properly.');
-    } else if (ZARINPAL_SANDBOX_VALUES.includes(env.ZARINPAL_MERCHANT_ID as string)
+    } else if (ZARINPAL_SANDBOX_VALUES.includes(env.NEXT_PUBLIC_ZARINPAL_MERCHANT_ID as string)
       || ZARINPAL_SANDBOX_VALUES.includes(env.ZARINPAL_ACCESS_TOKEN as string)) {
       apiLogger.info('Using official ZarinPal sandbox credentials for development', {
         logType: 'auth',
@@ -200,16 +200,16 @@ export function isDevelopment(env?: EnvironmentConfig): boolean {
  * Validate ZarinPal configuration specifically
  */
 export function validateZarinPalConfig(env: EnvironmentConfig): void {
-  if (!env.ZARINPAL_MERCHANT_ID || !env.ZARINPAL_ACCESS_TOKEN) {
+  if (!env.NEXT_PUBLIC_ZARINPAL_MERCHANT_ID || !env.ZARINPAL_ACCESS_TOKEN) {
     throw new HTTPException(HttpStatusCodes.INTERNAL_SERVER_ERROR, {
-      message: 'ZarinPal credentials not configured. Set ZARINPAL_MERCHANT_ID and ZARINPAL_ACCESS_TOKEN.',
+      message: 'ZarinPal credentials not configured. Set NEXT_PUBLIC_ZARINPAL_MERCHANT_ID and ZARINPAL_ACCESS_TOKEN.',
     });
   }
 
   if (isProduction(env)) {
-    if (PLACEHOLDER_VALUES.includes(env.ZARINPAL_MERCHANT_ID)
+    if (PLACEHOLDER_VALUES.includes(env.NEXT_PUBLIC_ZARINPAL_MERCHANT_ID)
       || PLACEHOLDER_VALUES.includes(env.ZARINPAL_ACCESS_TOKEN)
-      || ZARINPAL_SANDBOX_VALUES.includes(env.ZARINPAL_MERCHANT_ID)
+      || ZARINPAL_SANDBOX_VALUES.includes(env.NEXT_PUBLIC_ZARINPAL_MERCHANT_ID)
       || ZARINPAL_SANDBOX_VALUES.includes(env.ZARINPAL_ACCESS_TOKEN)) {
       throw new HTTPException(HttpStatusCodes.INTERNAL_SERVER_ERROR, {
         message: 'Production deployment with sandbox/placeholder ZarinPal credentials detected. Please configure real production credentials.',
