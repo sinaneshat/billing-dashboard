@@ -12,7 +12,6 @@ import { Scalar } from '@scalar/hono-api-reference';
 import { createMarkdownFromOpenApi } from '@scalar/openapi-to-markdown';
 import type { Context, Next } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
-import { cache } from 'hono/cache';
 import { contextStorage } from 'hono/context-storage';
 import { cors } from 'hono/cors';
 import { csrf } from 'hono/csrf';
@@ -78,6 +77,15 @@ import {
   getSubscriptionRoute,
   getSubscriptionsRoute,
 } from './routes/subscriptions/route';
+// System/health routes
+import {
+  detailedHealthHandler,
+  healthHandler,
+} from './routes/system/handler';
+import {
+  detailedHealthRoute,
+  healthRoute,
+} from './routes/system/route';
 // Enhanced webhook handlers with intelligent retry and correlation
 import {
   zarinPalWebhookHandler,
@@ -218,6 +226,9 @@ app.use('/webhooks/test', csrfMiddleware, requireSession);
 
 // Register all routes directly on the app
 const appRoutes = app
+  // System/health routes
+  .openapi(healthRoute, healthHandler)
+  .openapi(detailedHealthRoute, detailedHealthHandler)
   // Auth routes
   .openapi(secureMeRoute, secureMeHandler)
   // Products routes
@@ -309,16 +320,7 @@ appRoutes.get('/scalar', Scalar({
   url: '/api/v1/doc',
 }));
 
-// Cache health endpoints
-appRoutes.get('/health', cache({
-  cacheName: 'zarinpal-api',
-  cacheControl: 'max-age=60',
-}));
-
-appRoutes.get('/health/*', cache({
-  cacheName: 'zarinpal-api',
-  cacheControl: 'max-age=60',
-}));
+// Health endpoints are now properly registered as OpenAPI routes above
 
 // LLM-friendly documentation
 appRoutes.get('/llms.txt', async (c) => {
