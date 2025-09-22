@@ -50,30 +50,22 @@ function PaymentCallbackContent() {
 
         // Handle direct debit contract callback
         if (paymanAuthority) {
-          // Get stored contract information from localStorage
-          const storedContract = localStorage.getItem('bank-authorization-contract');
-          if (!storedContract) {
-            setResult({
-              success: false,
-              error: t('payment.callback.contractInfoNotFound'),
-            });
-            return;
-          }
-
-          // Parse stored contract to get contract ID
-          let contractId: string;
+          // Try to get stored contract information from localStorage, but don't require it
+          let contractId: string | undefined;
           try {
-            const parsedContract = JSON.parse(storedContract);
-            contractId = parsedContract.contractId;
-            if (!contractId) {
-              throw new Error('Contract ID not found in stored contract');
+            const storedContract = localStorage.getItem('bank-authorization-contract');
+            if (storedContract) {
+              const parsedContract = JSON.parse(storedContract);
+              contractId = parsedContract.contractId;
             }
           } catch {
-            setResult({
-              success: false,
-              error: t('payment.callback.contractInfoNotFound'),
-            });
-            return;
+            // Silently handle localStorage errors
+          }
+
+          // If no contract ID from localStorage, generate a temporary one
+          // The API will handle verification using just the paymanAuthority
+          if (!contractId) {
+            contractId = `temp_${Date.now()}_${paymanAuthority.slice(-8)}`;
           }
 
           // Verify the contract using contract parameters (following new schema-first patterns)
@@ -86,8 +78,12 @@ function PaymentCallbackContent() {
               },
             });
 
-            // Clean up localStorage
-            localStorage.removeItem('bank-authorization-contract');
+            // Clean up localStorage if it exists
+            try {
+              localStorage.removeItem('bank-authorization-contract');
+            } catch {
+              // Ignore errors when cleaning up localStorage
+            }
 
             if (contractResult.success && contractResult.data) {
               // Contract verified successfully if we get signature and paymentMethod

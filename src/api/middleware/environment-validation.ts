@@ -38,7 +38,7 @@ export const CRITICAL_ENV_VARS = [
  * Required for ZarinPal payment processing functionality
  */
 export const PAYMENT_ENV_VARS = [
-  'NEXT_PUBLIC_ZARINPAL_MERCHANT_ID',
+  'ZARINPAL_MERCHANT_ID',
   'ZARINPAL_ACCESS_TOKEN',
 ] as const;
 
@@ -163,22 +163,22 @@ export function validateEnvironmentConfiguration(env: CloudflareEnv): {
     }
   }
 
-  if (env.NEXT_PUBLIC_ZARINPAL_MERCHANT_ID) {
-    if (!isValidZarinpalMerchantId(env.NEXT_PUBLIC_ZARINPAL_MERCHANT_ID)) {
-      errors.push('NEXT_PUBLIC_ZARINPAL_MERCHANT_ID must be a valid UUID format');
+  if (env.ZARINPAL_MERCHANT_ID) {
+    if (!isValidZarinpalMerchantId(env.ZARINPAL_MERCHANT_ID)) {
+      errors.push('ZARINPAL_MERCHANT_ID must be a valid UUID format');
     }
 
     // Check for placeholder values
     const placeholderPatterns = ['your-merchant-id', 'merchant_id', 'xxx', '000'];
     const isPlaceholder = placeholderPatterns.some(pattern =>
-      env.NEXT_PUBLIC_ZARINPAL_MERCHANT_ID!.toLowerCase().includes(pattern),
+      env.ZARINPAL_MERCHANT_ID!.toLowerCase().includes(pattern),
     );
 
     if (isPlaceholder) {
       if (env.NODE_ENV === 'production') {
-        errors.push('NEXT_PUBLIC_ZARINPAL_MERCHANT_ID appears to be a placeholder value in production');
+        errors.push('ZARINPAL_MERCHANT_ID appears to be a placeholder value in production');
       } else {
-        warnings.push('NEXT_PUBLIC_ZARINPAL_MERCHANT_ID appears to be a placeholder value');
+        warnings.push('ZARINPAL_MERCHANT_ID appears to be a placeholder value');
       }
     }
   }
@@ -422,9 +422,9 @@ export function createEnvironmentSummary(env: CloudflareEnv): SafeEnvironmentSum
 
   // Determine payment gateway status
   let paymentStatus: 'configured' | 'missing' | 'invalid' = 'missing';
-  if (env.NEXT_PUBLIC_ZARINPAL_MERCHANT_ID && env.ZARINPAL_ACCESS_TOKEN) {
+  if (env.ZARINPAL_MERCHANT_ID && env.ZARINPAL_ACCESS_TOKEN) {
     // Basic validation - in reality you'd validate the format/connectivity
-    const isValidMerchantId = isValidZarinpalMerchantId(env.NEXT_PUBLIC_ZARINPAL_MERCHANT_ID);
+    const isValidMerchantId = isValidZarinpalMerchantId(env.ZARINPAL_MERCHANT_ID);
     paymentStatus = isValidMerchantId ? 'configured' : 'invalid';
   }
 

@@ -221,12 +221,10 @@ export function BankAuthorizationStepperOrchestrator({
     }));
 
     const authUrl = `https://www.zarinpal.com/pg/StartPayman/${contractData.paymanAuthority}/${data.selectedBankCode}`;
-    window.open(authUrl, '_blank', 'noopener,noreferrer');
 
-    setTimeout(() => {
-      setAuthorizationStatus('checking');
-      checkAuthorizationStatus();
-    }, 3000);
+    // Open bank authorization in the same window to ensure proper callback handling
+    // This prevents localStorage issues when callback opens in a different context
+    window.location.href = authUrl;
   };
 
   const handleRetryAuthorization = () => {
