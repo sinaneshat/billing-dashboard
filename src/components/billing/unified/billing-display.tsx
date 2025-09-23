@@ -360,8 +360,8 @@ export const BillingDisplayItem = React.memo<BillingDisplayItemProps>(({
         {/* Metadata */}
         {content.metadata && content.metadata.length > 0 && (
           <div className="space-y-2">
-            {content.metadata.map((meta, index) => (
-              <div key={index} className="flex items-center justify-between">
+            {content.metadata.map(meta => (
+              <div key={`${meta.label}-${meta.value}`} className="flex items-center justify-between">
                 <div className="flex items-center gap-1">
                   {meta.icon && <meta.icon className="h-3 w-3 text-muted-foreground" />}
                   <span className="text-xs text-muted-foreground">{meta.label}</span>
@@ -375,9 +375,9 @@ export const BillingDisplayItem = React.memo<BillingDisplayItemProps>(({
         {/* Secondary actions */}
         {content.secondaryActions && content.secondaryActions.length > 0 && (
           <div className="flex items-center gap-2 pt-2">
-            {content.secondaryActions.map((action, index) => (
+            {content.secondaryActions.map(action => (
               <Button
-                key={index}
+                key={action.label || action.icon?.toString() || 'secondary-action'}
                 variant={action.variant || 'outline'}
                 size={action.size || 'sm'}
                 onClick={(e) => {
@@ -776,17 +776,18 @@ export function BillingDisplayContainer<T,>({
             variant === 'row' ? 'space-y-2' : `grid ${getGridCols()} ${gapConfig[gap]}`,
           )}
           >
-            {items.map((item, index) => {
-              const content = mapItem(item, index);
+            {items.map((item, itemIndex) => {
+              const content = mapItem(item, itemIndex);
+              const itemKey = ('id' in content && typeof content.id === 'string' ? content.id : null) || content.title || `billing-item-${itemIndex}`;
               return (
                 <BillingDisplayItem
-                  key={`billing-item-${index}`}
+                  key={itemKey}
                   variant={variant}
                   size={size}
                   dataType={dataType}
                   content={content}
                   className={itemClassName}
-                  onClick={() => onItemClick?.(item, index)}
+                  onClick={() => onItemClick?.(item, itemIndex)}
                 />
               );
             })}

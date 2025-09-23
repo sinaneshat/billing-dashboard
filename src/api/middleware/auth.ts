@@ -34,7 +34,7 @@ export const attachSession = createMiddleware<ApiEnv>(async (c, next) => {
     // Provide more specific error context for debugging
     const errorMessage = error instanceof Error ? error.message : String(error);
     if (errorMessage.includes('Invalid Base64') || errorMessage.includes('JWT')) {
-      apiLogger.apiWarn(c, 'Session cookie format issue - likely expired or malformed session', { sessionError: errorMessage });
+      apiLogger.warn('Session cookie format issue - likely expired or malformed session', { sessionError: errorMessage });
     } else {
       apiLogger.apiError(c, 'Error retrieving Better Auth session', error);
     }

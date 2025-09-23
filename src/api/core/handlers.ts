@@ -18,6 +18,7 @@ import { HTTPException } from 'hono/http-exception';
 import * as HttpStatusCodes from 'stoker/http-status-codes';
 import type { z } from 'zod';
 
+import type { ErrorCode } from '@/api/common/error-handling';
 import { AppError } from '@/api/common/error-handling';
 import { apiLogger } from '@/api/middleware/hono-logger';
 import type { ApiEnv } from '@/api/types';
@@ -58,6 +59,7 @@ function createPerformanceTracker() {
       return { label, time };
     },
     getMarks: () => ({ ...marks }),
+    now: () => Date.now(),
   };
 }
 
@@ -639,10 +641,10 @@ export function createHandlerWithBatch<
     (c as Context & { set: (key: string, value: unknown) => void }).set('startTime', performance.startTime);
 
     logger.debug('D1 batch handler started', {
-      operationName,
-      method: c.req.method,
+      logType: 'api' as const,
+      method: c.req.method as 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH',
       path: c.req.path,
-    });
+    } as LoggerData);
 
     try {
       // Apply authentication
@@ -677,22 +679,24 @@ export function createHandlerWithBatch<
         add: (statement: unknown) => {
           // Validate batch size limit
           if (statements.length >= batchMetrics.maxBatchSize) {
-            throw new AppError(
-              'BATCH_SIZE_EXCEEDED',
-              `Batch size limit exceeded. Maximum ${batchMetrics.maxBatchSize} operations allowed per batch.`,
-              { currentSize: statements.length },
-            );
+            throw new AppError({
+              message: `Batch size limit exceeded. Maximum ${batchMetrics.maxBatchSize} operations allowed per batch.`,
+              code: 'BATCH_SIZE_EXCEEDED' as ErrorCode,
+              statusCode: HttpStatusCodes.BAD_REQUEST,
+              details: { currentSize: statements.length },
+            });
           }
 
           statements.push(statement);
           batchMetrics.addedCount++;
 
           logger.debug('Statement added to batch', {
-            currentBatchSize: statements.length,
-            operationType: 'batch_add',
-          });
+            logType: 'database' as const,
+            operation: 'batch' as const,
+            affected: statements.length,
+          } as LoggerData);
         },
-        execute: async () => {
+        execute: async (): Promise<unknown[]> => {
           if (statements.length === 0) {
             logger.debug('No statements to execute in batch');
             return [];
@@ -700,63 +704,61 @@ export function createHandlerWithBatch<
 
           // Validate batch isn't too large
           if (statements.length > batchMetrics.maxBatchSize) {
-            throw new AppError(
-              'BATCH_SIZE_EXCEEDED',
-              `Cannot execute batch with ${statements.length} statements. Maximum is ${batchMetrics.maxBatchSize}.`,
-            );
+            throw new AppError({
+              message: `Cannot execute batch with ${statements.length} statements. Maximum is ${batchMetrics.maxBatchSize}.`,
+              code: 'BATCH_SIZE_EXCEEDED' as ErrorCode,
+              statusCode: HttpStatusCodes.BAD_REQUEST,
+            });
           }
 
           logger.info('Executing D1 batch operation', {
-            logType: 'operation',
+            logType: 'operation' as const,
             operationName: 'D1Batch',
             resource: `batch-${statements.length}`,
-            statementCount: statements.length,
-            batchMetrics,
-          });
+          } as LoggerData);
 
           const batchStartTime = performance.now();
 
           try {
             // Execute atomic batch operation - D1 handles implicit transaction
             // All operations succeed or all fail - automatic rollback on failure
+            // @ts-expect-error - D1 batch type issue with Drizzle ORM
             const results = await db.batch(statements);
 
             const batchDuration = performance.now() - batchStartTime;
 
             logger.info('D1 batch executed successfully', {
-              logType: 'performance',
-              operationName: 'D1BatchSuccess',
-              statementCount: statements.length,
+              logType: 'performance' as const,
               duration: batchDuration,
-              resultsCount: results.length,
-            });
+              dbQueries: statements.length,
+            } as LoggerData);
 
             // Clear statements after successful execution
             statements.length = 0;
 
-            return results;
+            return [...results] as unknown[];
           } catch (error) {
             const batchDuration = performance.now() - batchStartTime;
 
             // All operations automatically rolled back by D1
             logger.error('D1 batch execution failed - all operations rolled back', error as Error, {
-              statementCount: statements.length,
-              duration: batchDuration,
-              errorType: 'batch_execution_failed',
-              rollback: 'automatic',
-            });
+              logType: 'database' as const,
+              operation: 'batch' as const,
+              affected: statements.length,
+            } as LoggerData);
 
             // Enhance error with batch context
             if (error instanceof Error) {
-              throw new AppError(
-                'BATCH_FAILED',
-                `D1 batch operation failed: ${error.message}`,
-                {
+              throw new AppError({
+                message: `D1 batch operation failed: ${error.message}`,
+                code: 'BATCH_FAILED' as ErrorCode,
+                statusCode: HttpStatusCodes.INTERNAL_SERVER_ERROR,
+                details: {
                   statementCount: statements.length,
                   duration: batchDuration,
                   originalError: error.message,
                 },
-              );
+              });
             }
 
             throw error;
@@ -770,23 +772,18 @@ export function createHandlerWithBatch<
 
       const duration = performance.getDuration();
       logger.info('D1 batch handler completed successfully', {
-        logType: 'performance',
+        logType: 'performance' as const,
         duration,
         marks: performance.getMarks(),
-        batchMetrics: {
-          ...batchMetrics,
-          totalDuration: performance.now() - batchMetrics.startTime,
-        },
-      });
+      } as LoggerData);
 
       return result;
     } catch (error) {
       const duration = performance.getDuration();
       logger.error('D1 batch handler failed', error as Error, {
-        logType: 'performance',
+        logType: 'performance' as const,
         duration,
-        errorDetails: error instanceof AppError ? error.details : undefined,
-      });
+      } as LoggerData);
 
       // Handle validation errors
       if (error instanceof HTTPException) {
