@@ -12,7 +12,13 @@ import { drizzle } from 'drizzle-orm/better-sqlite3';
 import { product } from '../src/db/tables/billing';
 
 function getLocalDbPath(): string {
-  return './local.db';
+  // Use the Cloudflare D1 local database path
+  const dbFiles = require('fs').readdirSync('.wrangler/state/v3/d1/miniflare-D1DatabaseObject/');
+  const dbFile = dbFiles.find((file: string) => file.endsWith('.sqlite'));
+  if (!dbFile) {
+    throw new Error('No D1 database file found. Run pnpm db:migrate:local first.');
+  }
+  return `.wrangler/state/v3/d1/miniflare-D1DatabaseObject/${dbFile}`;
 }
 
 // Create database connection for seeding

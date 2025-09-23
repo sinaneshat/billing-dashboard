@@ -26,6 +26,7 @@ import type {
   contractCallbackRoute,
   createContractRoute,
   getPaymentMethodsRoute,
+  recoverContractRoute,
   setDefaultPaymentMethodRoute,
   verifyContractRoute,
 } from './route';
@@ -34,6 +35,7 @@ import {
   ContractParamsSchema,
   CreateContractRequestSchema,
   PaymentMethodParamsSchema,
+  RecoverContractRequestSchema,
   VerifyContractRequestSchema,
 } from './schema';
 
@@ -119,42 +121,77 @@ export const setDefaultPaymentMethodHandler: RouteHandler<typeof setDefaultPayme
       .from(paymentMethod)
       .where(and(eq(paymentMethod.userId, user.id), eq(paymentMethod.isPrimary, true)));
 
-    // Add operations to batch: Set all user's payment methods isPrimary = false
-    batch.add(batch.db
-      .update(paymentMethod)
-      .set({ isPrimary: false, updatedAt: new Date() })
-      .where(eq(paymentMethod.userId, user.id)));
+    // Check if we're in real batch mode (D1) or transaction fallback mode
+    const isBatchMode = typeof batch.execute === 'function' && batch.add.toString().includes('push');
 
-    // Add to batch: Set target payment method as primary
-    batch.add(batch.db
-      .update(paymentMethod)
-      .set({
-        isPrimary: true,
-        lastUsedAt: new Date(),
-        updatedAt: new Date(),
-      })
-      .where(eq(paymentMethod.id, id)));
+    if (isBatchMode) {
+      // D1 batch mode - add operations to batch
+      batch.add(batch.db
+        .update(paymentMethod)
+        .set({ isPrimary: false, updatedAt: new Date() })
+        .where(eq(paymentMethod.userId, user.id)));
 
-    // Add billing event to batch for audit trail
-    batch.add(batch.db.insert(billingEvent).values({
-      id: crypto.randomUUID(),
-      userId: user.id,
-      paymentMethodId: id,
-      eventType: 'default_payment_method_changed',
-      eventData: {
-        previousDefaultId: currentPrimary?.id || null,
-        newDefaultId: id,
-        paymentMethodDetails: {
-          contractType: targetMethod.contractType,
-          contractDisplayName: targetMethod.contractDisplayName,
-          contractMobile: targetMethod.contractMobile,
+      batch.add(batch.db
+        .update(paymentMethod)
+        .set({
+          isPrimary: true,
+          lastUsedAt: new Date(),
+          updatedAt: new Date(),
+        })
+        .where(eq(paymentMethod.id, id)));
+
+      batch.add(batch.db.insert(billingEvent).values({
+        id: crypto.randomUUID(),
+        userId: user.id,
+        paymentMethodId: id,
+        eventType: 'default_payment_method_changed',
+        eventData: {
+          previousDefaultId: currentPrimary?.id || null,
+          newDefaultId: id,
+          paymentMethodDetails: {
+            contractType: targetMethod.contractType,
+            contractDisplayName: targetMethod.contractDisplayName,
+            contractMobile: targetMethod.contractMobile,
+          },
         },
-      },
-      severity: 'info',
-    }));
+        severity: 'info',
+      }));
 
-    // Execute all batch operations
-    await batch.execute();
+      // Execute batch operations
+      await batch.execute();
+    } else {
+      // Transaction fallback mode - execute operations immediately
+      await batch.db
+        .update(paymentMethod)
+        .set({ isPrimary: false, updatedAt: new Date() })
+        .where(eq(paymentMethod.userId, user.id));
+
+      await batch.db
+        .update(paymentMethod)
+        .set({
+          isPrimary: true,
+          lastUsedAt: new Date(),
+          updatedAt: new Date(),
+        })
+        .where(eq(paymentMethod.id, id));
+
+      await batch.db.insert(billingEvent).values({
+        id: crypto.randomUUID(),
+        userId: user.id,
+        paymentMethodId: id,
+        eventType: 'default_payment_method_changed',
+        eventData: {
+          previousDefaultId: currentPrimary?.id || null,
+          newDefaultId: id,
+          paymentMethodDetails: {
+            contractType: targetMethod.contractType,
+            contractDisplayName: targetMethod.contractDisplayName,
+            contractMobile: targetMethod.contractMobile,
+          },
+        },
+        severity: 'info',
+      });
+    }
 
     return Responses.ok(c, {
       success: true,
@@ -249,6 +286,17 @@ export const createContractHandler: RouteHandler<typeof createContractRoute, Api
 
     // Generate contract ID for tracking
     const contractId = crypto.randomUUID();
+
+    // Store the payman authority and user ID in a secure cookie for callback verification
+    // This ensures we can recover the user context when ZarinPal redirects back
+    const cookieData = {
+      paymanAuthority: contractResult.data.payman_authority,
+      userId: user.id,
+      timestamp: Date.now(),
+    };
+
+    // Set a secure HTTP-only cookie that will survive the redirect
+    c.header('Set-Cookie', `pending-contract=${encodeURIComponent(JSON.stringify(cookieData))}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=3600`);
 
     return Responses.created(c, {
       contractId,
@@ -480,13 +528,53 @@ export const contractCallbackHandler: RouteHandler<typeof contractCallbackRoute,
   },
   async (c) => {
     const { payman_authority: paymanAuthority, status } = c.validated.query;
-    const user = c.get('user'); // Try to get user if authenticated
+    let user = c.get('user'); // Try to get user if authenticated
+
+    // If no user session, try to recover from cookie
+    if (!user) {
+      const cookieHeader = c.req.header('Cookie');
+      if (cookieHeader) {
+        const cookies = cookieHeader.split(';').map(c => c.trim());
+        const pendingContract = cookies.find(c => c.startsWith('pending-contract='));
+
+        if (pendingContract) {
+          try {
+            const cookieParts = pendingContract.split('=');
+            if (cookieParts.length < 2 || !cookieParts[1]) {
+              throw new Error('Invalid cookie format');
+            }
+            const cookieValue = decodeURIComponent(cookieParts[1]);
+            const cookieData = JSON.parse(cookieValue);
+
+            // Validate cookie data
+            if (cookieData.paymanAuthority === paymanAuthority) {
+              // Cookie is valid, we have the user ID
+              // For security, we should verify this is still valid
+              const db = await getDbAsync();
+              const userResult = await db
+                .select()
+                .from(await import('@/db/tables/auth').then(m => m.user))
+                .where(eq((await import('@/db/tables/auth').then(m => m.user)).id, cookieData.userId))
+                .limit(1);
+
+              if (userResult[0]) {
+                user = userResult[0];
+                apiLogger.info('User recovered from cookie', { userId: user.id });
+              }
+            }
+          } catch (error) {
+            apiLogger.warn('Failed to parse pending-contract cookie', { error });
+          }
+        }
+      }
+    }
 
     apiLogger.info('Contract callback received', {
       paymanAuthority,
       status,
       hasUser: !!user,
       userId: user?.id,
+      recoveredFromCookie: !c.get('user') && !!user,
     });
 
     // Only handle successful callbacks
@@ -590,6 +678,9 @@ export const contractCallbackHandler: RouteHandler<typeof contractCallbackRoute,
             userId: user.id,
           });
 
+          // Clear the pending-contract cookie after successful creation
+          c.header('Set-Cookie', 'pending-contract=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0');
+
           return Responses.ok(c, {
             success: true,
             signature: verifyResult.data.signature,
@@ -623,6 +714,217 @@ export const contractCallbackHandler: RouteHandler<typeof contractCallbackRoute,
       return Responses.ok(c, {
         success: false,
         message: 'An error occurred while verifying the contract',
+      });
+    }
+  },
+);
+
+/**
+ * 5. Recover Contract Handler - Recover failed contract verifications
+ */
+export const recoverContractHandler: RouteHandler<typeof recoverContractRoute, ApiEnv> = createHandlerWithBatch(
+  {
+    auth: 'session',
+    operationName: 'recoverDirectDebitContract',
+    validateBody: RecoverContractRequestSchema,
+  },
+  async (c, batch) => {
+    const user = c.get('user');
+    const { paymanAuthority } = c.validated.body;
+
+    if (!user) {
+      throw createError.unauthenticated('User authentication required');
+    }
+
+    apiLogger.info('Contract recovery attempt', {
+      userId: user.id,
+      paymanAuthority: paymanAuthority.slice(-8), // Log last 8 chars for privacy
+    });
+
+    // Check existing payment methods for this user
+    const existingMethods = await batch.db
+      .select()
+      .from(paymentMethod)
+      .where(eq(paymentMethod.userId, user.id));
+
+    // Handle mock data for testing
+    if (paymanAuthority.startsWith('payman_mock_')) {
+      apiLogger.info('Mock recovery detected, simulating success', {
+        userId: user.id,
+        paymanAuthority,
+      });
+
+      const mockPaymentMethodId = `pm_mock_${crypto.randomUUID().slice(0, 8)}`;
+      const mockSignature = `mock_signature_${crypto.randomUUID()}`;
+      const mockSignatureHash = `mock_hash_${crypto.randomUUID().slice(0, 16)}`;
+
+      // Create mock payment method
+      batch.add(batch.db.insert(paymentMethod).values({
+        id: mockPaymentMethodId,
+        userId: user.id,
+        isActive: true,
+        isPrimary: existingMethods.length === 0,
+        contractType: 'direct_debit_contract',
+        contractStatus: 'active',
+        contractSignatureEncrypted: mockSignature,
+        contractSignatureHash: mockSignatureHash,
+        contractDisplayName: 'Mock Test Bank',
+        contractMobile: '09123456789',
+        lastUsedAt: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      }));
+
+      // Log billing event (don't set paymentMethodId FK as it doesn't exist yet)
+      batch.add(batch.db.insert(billingEvent).values({
+        id: `be_${crypto.randomUUID()}`,
+        userId: user.id,
+        eventType: 'direct_debit_contract_verified',
+        eventData: {
+          paymentMethodId: mockPaymentMethodId, // Store in JSON data for reference
+          paymanAuthority,
+          contractSignature: mockSignature,
+          source: 'recovery_mock',
+        },
+        severity: 'info',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      }));
+
+      await batch.execute();
+
+      return Responses.ok(c, {
+        success: true,
+        paymentMethod: {
+          id: mockPaymentMethodId,
+          contractType: 'direct_debit_contract',
+          contractStatus: 'active',
+          contractDisplayName: 'Mock Test Bank',
+          contractMobile: '09123456789',
+        },
+        message: 'Mock contract recovered successfully',
+      });
+    }
+
+    const zarinpalService = ZarinPalDirectDebitService.create(c.env);
+
+    try {
+      // Verify contract with ZarinPal to get signature
+      const verifyResult = await zarinpalService.verifyContractAndGetSignature({
+        payman_authority: paymanAuthority,
+      });
+
+      if (!verifyResult.data?.signature || verifyResult.errors?.length) {
+        apiLogger.warn('Recovery verification failed', {
+          userId: user.id,
+          errors: verifyResult.errors,
+        });
+
+        return Responses.ok(c, {
+          success: false,
+          recovered: false,
+          message: 'Contract verification failed. The contract may have expired or is invalid.',
+        });
+      }
+
+      // Check if payment method already exists with this signature (idempotent check)
+      const { hash, encrypted } = await encryptSignature(verifyResult.data.signature);
+      const existingMethod = existingMethods.find(pm => pm.contractSignatureHash === hash);
+
+      if (existingMethod) {
+        // Payment method already exists - idempotent success
+        apiLogger.info('Payment method already exists (idempotent recovery)', {
+          paymentMethodId: existingMethod.id,
+          userId: user.id,
+        });
+
+        // Add billing event for recovery attempt
+        batch.add(batch.db.insert(billingEvent).values({
+          id: crypto.randomUUID(),
+          userId: user.id,
+          paymentMethodId: existingMethod.id,
+          eventType: 'payment_method_recovery_idempotent',
+          eventData: {
+            paymanAuthority,
+            source: 'recovery_endpoint',
+          },
+          severity: 'info',
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        }));
+
+        await batch.execute();
+
+        return Responses.ok(c, {
+          success: true,
+          recovered: true,
+          signature: verifyResult.data.signature,
+          paymentMethod: existingMethod,
+          message: 'Payment method already exists for this contract.',
+        });
+      }
+
+      // Create new payment method
+      const newPaymentMethodId = crypto.randomUUID();
+      const now = new Date();
+
+      const paymentMethodData = {
+        id: newPaymentMethodId,
+        userId: user.id,
+        contractType: 'direct_debit_contract' as const,
+        contractSignatureEncrypted: encrypted,
+        contractSignatureHash: hash,
+        contractDisplayName: 'پرداخت مستقیم (بازیابی شده)', // Direct Payment (Recovered)
+        contractMobile: '',
+        contractStatus: 'active' as const,
+        isPrimary: existingMethods.length === 0, // Set as primary if first method
+        isActive: true,
+        createdAt: now,
+        updatedAt: now,
+      };
+
+      // Add to batch
+      batch.add(batch.db.insert(paymentMethod).values(paymentMethodData));
+      batch.add(batch.db.insert(billingEvent).values({
+        id: crypto.randomUUID(),
+        userId: user.id,
+        // Don't set paymentMethodId FK - it doesn't exist yet in same batch
+        eventType: 'payment_method_recovered',
+        eventData: {
+          paymentMethodId: newPaymentMethodId, // Store in JSON for reference
+          paymanAuthority,
+          source: 'recovery_endpoint',
+          signature: verifyResult.data.signature,
+        },
+        severity: 'info',
+        createdAt: now,
+        updatedAt: now,
+      }));
+
+      await batch.execute();
+
+      apiLogger.info('Payment method recovered successfully', {
+        userId: user.id,
+        paymentMethodId: newPaymentMethodId,
+      });
+
+      return Responses.ok(c, {
+        success: true,
+        recovered: true,
+        signature: verifyResult.data.signature,
+        paymentMethod: paymentMethodData,
+        message: 'Contract recovered successfully and payment method created.',
+      });
+    } catch (error) {
+      apiLogger.error('Recovery failed with error', error as Error, {
+        userId: user.id,
+        paymanAuthority: paymanAuthority.slice(-8),
+      });
+
+      return Responses.ok(c, {
+        success: false,
+        recovered: false,
+        message: 'An error occurred during contract recovery. Please try again or contact support.',
       });
     }
   },

@@ -1019,7 +1019,24 @@
     "defaultMethod": "Default",
     "deleteConfirmDescription": "Are you sure you want to remove this payment method? This action cannot be undone.",
     "deleteConfirmTitle": "Remove Payment Method",
-    "directDebit": "Direct Debit",
+    "directDebit": {
+      "title": "Direct Debit Contract",
+      "subtitle": "Secure automated billing with ZarinPal",
+      "processingContract": "Processing your direct debit contract",
+      "verifyingContract": "Verifying Contract",
+      "pleaseWait": "Please wait while we verify your contract with the bank",
+      "contractActivated": "Contract Activated Successfully",
+      "contractActivatedDescription": "Your direct debit contract is now active and ready for automatic billing",
+      "contractDetails": "Contract Details",
+      "bankVerified": "Bank authorization verified",
+      "signatureStored": "Contract signature stored securely",
+      "readyForPayments": "Ready for automatic payments",
+      "referenceCode": "Reference Code",
+      "contractFailed": "Contract Setup Failed",
+      "contractFailedDescription": "We couldn't complete the contract setup",
+      "contractFailedHelp": "This could be due to cancellation or a verification issue. Please try again or contact support if the problem persists."
+    },
+    "directDebitLegacy": "Direct Debit",
     "directDebitContract": "Direct Debit Contract",
     "empty": "No payment methods",
     "emptyDescription": "Add a payment method to enable automatic billing for your subscriptions.",
@@ -1027,6 +1044,16 @@
       "failedToRemove": "Failed to remove payment method",
       "failedToUpdateDefault": "Failed to update default payment method",
       "failedToCancelContract": "Failed to cancel direct debit contract"
+    },
+    "errors": {
+      "invalidCallbackParameters": "Invalid callback parameters",
+      "contractSigningCancelled": "Contract signing was cancelled or failed",
+      "contractVerificationFailed": "Failed to verify the contract with ZarinPal",
+      "unexpectedError": "An unexpected error occurred",
+      "invalidRequest": "Invalid Request"
+    },
+    "status": {
+      "active": "Active"
     },
     "expired": "Expired",
     "expires": "Expires {date}",
@@ -1055,7 +1082,17 @@
       "contractCancelled": "Direct debit contract cancelled successfully",
       "defaultPaymentMethodUpdated": "Default payment method updated",
       "directDebitContractCreated": "Direct debit contract created successfully!",
-      "paymentMethodRemoved": "Payment method removed successfully"
+      "paymentMethodRemoved": "Payment method removed successfully",
+      "contractRecovered": "Payment method recovered successfully"
+    },
+    "success": {
+      "contractRecovered": "Your payment method has been successfully recovered and activated"
+    },
+    "actions": {
+      "viewPaymentMethods": "View Payment Methods",
+      "setupNewContract": "Setup New Contract",
+      "tryAgain": "Try Again",
+      "returnToDashboard": "Return to Dashboard"
     },
     "table": {
       "actions": {

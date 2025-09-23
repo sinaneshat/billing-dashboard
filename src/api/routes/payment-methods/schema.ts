@@ -301,6 +301,37 @@ export const ContractCallbackResponseSchema = createApiResponseSchema(
 );
 
 // ============================================================================
+// CONTRACT RECOVERY SCHEMAS
+// ============================================================================
+
+export const RecoverContractRequestSchema = z.object({
+  paymanAuthority: z.string().min(1, 'Payman authority is required').openapi({
+    example: 'payman_53U0Ohm',
+    description: 'ZarinPal Payman authority from failed callback',
+  }),
+}).openapi('RecoverContractRequest');
+
+export const RecoverContractResponseSchema = createApiResponseSchema(
+  z.object({
+    success: z.boolean().openapi({
+      description: 'Whether the contract recovery was successful',
+    }),
+    recovered: z.boolean().openapi({
+      description: 'Whether a payment method was recovered',
+    }),
+    signature: z.string().optional().openapi({
+      description: 'Contract signature if recovery was successful',
+    }),
+    paymentMethod: PaymentMethodSchema.optional().openapi({
+      description: 'Created or existing payment method if successful',
+    }),
+    message: z.string().openapi({
+      description: 'Result message',
+    }),
+  }),
+);
+
+// ============================================================================
 // TYPE EXPORTS FOR FRONTEND
 // ============================================================================
 
@@ -318,3 +349,7 @@ export type PaymentMethodSetDefaultParams = z.infer<typeof PaymentMethodSetDefau
 // Public callback types
 export type ContractCallbackQuery = z.infer<typeof ContractCallbackQuerySchema>;
 export type ContractCallbackResponse = z.infer<typeof ContractCallbackResponseSchema>;
+
+// Contract recovery types
+export type RecoverContractRequest = z.infer<typeof RecoverContractRequestSchema>;
+export type RecoverContractResponse = z.infer<typeof RecoverContractResponseSchema>;
