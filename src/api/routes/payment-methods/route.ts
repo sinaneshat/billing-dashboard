@@ -8,6 +8,8 @@ import {
   CreateContractRequestSchema,
   CreateContractResponseSchema,
   PaymentMethodListResponseSchema,
+  RecoverContractRequestSchema,
+  RecoverContractResponseSchema,
   SetDefaultResponseSchema,
   VerifyContractRequestSchema,
   VerifyContractResponseSchema,
@@ -212,6 +214,49 @@ export const contractCallbackRoute = createRoute({
   },
 });
 
+/**
+ * 5. Recover Contract - Recover failed contract verifications:
+ *    - Authenticated endpoint for user-initiated recovery
+ *    - Verifies contract using payman_authority from failed callback
+ *    - Creates payment method if verification succeeds
+ *    - Idempotent operation (checks for existing payment method)
+ */
+export const recoverContractRoute = createRoute({
+  method: 'post',
+  path: '/payment-methods/contracts/recover',
+  tags: ['payment-methods', 'direct-debit', 'recovery'],
+  summary: 'Recover failed contract verification',
+  description: 'Recover payment methods from failed or incomplete contract verifications using payman_authority.',
+  request: {
+    body: {
+      content: {
+        'application/json': {
+          schema: RecoverContractRequestSchema,
+        },
+      },
+    },
+  },
+  responses: {
+    [HttpStatusCodes.OK]: {
+      content: {
+        'application/json': {
+          schema: RecoverContractResponseSchema,
+        },
+      },
+      description: 'Contract recovery attempt completed',
+    },
+    [HttpStatusCodes.BAD_REQUEST]: {
+      description: 'Invalid payman authority or contract verification failed',
+    },
+    [HttpStatusCodes.UNAUTHORIZED]: {
+      description: 'Authentication required',
+    },
+    [HttpStatusCodes.INTERNAL_SERVER_ERROR]: {
+      description: 'Internal server error during recovery',
+    },
+  },
+});
+
 // ============================================================================
 // ROUTE EXPORTS FOR REGISTRATION
 // ============================================================================
@@ -221,10 +266,11 @@ export const consolidatedPaymentMethodRoutes = [
   getPaymentMethodsRoute,
   setDefaultPaymentMethodRoute,
 
-  // Consolidated direct debit contract flow (4 endpoints)
+  // Consolidated direct debit contract flow (5 endpoints including recovery)
   createContractRoute,
   verifyContractRoute,
   cancelContractRoute,
   contractCallbackRoute,
+  recoverContractRoute,
 
 ] as const;

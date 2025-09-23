@@ -17,6 +17,10 @@ export {
   type GetPaymentMethodsRequest,
   type GetPaymentMethodsResponse,
   getPaymentMethodsService,
+  // Recovery service for failed verifications
+  type RecoverDirectDebitContractRequest,
+  type RecoverDirectDebitContractResponse,
+  recoverDirectDebitContractService,
   // Set default payment method
   type SetDefaultPaymentMethodRequest,
   type SetDefaultPaymentMethodResponse,

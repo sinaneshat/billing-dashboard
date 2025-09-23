@@ -68,6 +68,10 @@ export type VerifyDirectDebitContractResponse = InferResponseType<(typeof apiCli
 export type CancelDirectDebitContractRequest = InferRequestType<(typeof apiClient)['payment-methods']['contracts'][':id']['$delete']>;
 export type CancelDirectDebitContractResponse = InferResponseType<(typeof apiClient)['payment-methods']['contracts'][':id']['$delete']>;
 
+// Recover Direct Debit Contract - Recover failed contract verifications
+export type RecoverDirectDebitContractRequest = InferRequestType<(typeof apiClient)['payment-methods']['contracts']['recover']['$post']>;
+export type RecoverDirectDebitContractResponse = InferResponseType<(typeof apiClient)['payment-methods']['contracts']['recover']['$post']>;
+
 /**
  * Create Direct Debit Contract (Step 1)
  * Creates contract with ZarinPal and returns bank selection options + signing URL
@@ -91,4 +95,12 @@ export async function verifyDirectDebitContractService(args: VerifyDirectDebitCo
  */
 export async function cancelDirectDebitContractService(args: CancelDirectDebitContractRequest) {
   return parseResponse(apiClient['payment-methods'].contracts[':id'].$delete(args));
+}
+
+/**
+ * Recover Direct Debit Contract
+ * Recovers failed contract verifications using payman authority
+ */
+export async function recoverDirectDebitContractService(args: RecoverDirectDebitContractRequest) {
+  return parseResponse(apiClient['payment-methods'].contracts.recover.$post(args));
 }

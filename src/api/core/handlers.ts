@@ -608,7 +608,17 @@ export function createHandlerWithTransaction<
 
 /**
  * Create a route handler with D1 batch operations
- * Optimized for D1's batch API - executes multiple operations atomically
+ *
+ * CRITICAL: This is the ONLY recommended handler pattern for D1 databases.
+ * D1 requires batch operations instead of transactions for optimal performance.
+ *
+ * Features:
+ * - Atomic execution: All operations succeed or all fail
+ * - Automatic rollback: No partial state on failure
+ * - Single network round-trip: Optimized for edge environments
+ * - Implicit transactions: No explicit BEGIN/COMMIT needed
+ *
+ * @see /docs/d1-batch-operations.md for comprehensive patterns
  */
 export function createHandlerWithBatch<
   TRoute extends RouteConfig,
@@ -628,7 +638,11 @@ export function createHandlerWithBatch<
     // Set start time in context for response metadata
     (c as Context & { set: (key: string, value: unknown) => void }).set('startTime', performance.startTime);
 
-    logger.debug('Batch handler started');
+    logger.debug('D1 batch handler started', {
+      operationName,
+      method: c.req.method,
+      path: c.req.path,
+    });
 
     try {
       // Apply authentication
@@ -648,101 +662,194 @@ export function createHandlerWithBatch<
       }) as HandlerContext<TEnv, TBody, TQuery, TParams>;
 
       // Execute implementation with D1 batch operations
-      logger.debug('Executing handler implementation with batch');
+      logger.debug('Preparing D1 batch operations');
       const db = await getDbAsync();
 
-      // Check if database supports batch operations (D1)
-      const isDatabaseWithBatch = (
-        database: Awaited<ReturnType<typeof getDbAsync>>,
-      ): database is Awaited<ReturnType<typeof getDbAsync>> & { batch: (operations: unknown[]) => Promise<unknown[]> } => {
-        return 'batch' in database && typeof (database as unknown as { batch?: unknown }).batch === 'function';
+      // D1 batch operations collector - follows D1 best practices
+      const statements: unknown[] = [];
+      const batchMetrics = {
+        addedCount: 0,
+        maxBatchSize: 100, // D1 recommended limit
+        startTime: performance.now(),
       };
 
-      if (isDatabaseWithBatch(db)) {
-        // Use D1 batch operations
-        const statements: unknown[] = [];
+      const batchContext: BatchContext = {
+        add: (statement: unknown) => {
+          // Validate batch size limit
+          if (statements.length >= batchMetrics.maxBatchSize) {
+            throw new AppError(
+              'BATCH_SIZE_EXCEEDED',
+              `Batch size limit exceeded. Maximum ${batchMetrics.maxBatchSize} operations allowed per batch.`,
+              { currentSize: statements.length },
+            );
+          }
 
-        const batchContext: BatchContext = {
-          add: (statement: unknown) => {
-            statements.push(statement);
-          },
-          execute: async () => {
-            if (statements.length === 0) {
-              return [];
+          statements.push(statement);
+          batchMetrics.addedCount++;
+
+          logger.debug('Statement added to batch', {
+            currentBatchSize: statements.length,
+            operationType: 'batch_add',
+          });
+        },
+        execute: async () => {
+          if (statements.length === 0) {
+            logger.debug('No statements to execute in batch');
+            return [];
+          }
+
+          // Validate batch isn't too large
+          if (statements.length > batchMetrics.maxBatchSize) {
+            throw new AppError(
+              'BATCH_SIZE_EXCEEDED',
+              `Cannot execute batch with ${statements.length} statements. Maximum is ${batchMetrics.maxBatchSize}.`,
+            );
+          }
+
+          logger.info('Executing D1 batch operation', {
+            logType: 'operation',
+            operationName: 'D1Batch',
+            resource: `batch-${statements.length}`,
+            statementCount: statements.length,
+            batchMetrics,
+          });
+
+          const batchStartTime = performance.now();
+
+          try {
+            // Execute atomic batch operation - D1 handles implicit transaction
+            // All operations succeed or all fail - automatic rollback on failure
+            const results = await db.batch(statements);
+
+            const batchDuration = performance.now() - batchStartTime;
+
+            logger.info('D1 batch executed successfully', {
+              logType: 'performance',
+              operationName: 'D1BatchSuccess',
+              statementCount: statements.length,
+              duration: batchDuration,
+              resultsCount: results.length,
+            });
+
+            // Clear statements after successful execution
+            statements.length = 0;
+
+            return results;
+          } catch (error) {
+            const batchDuration = performance.now() - batchStartTime;
+
+            // All operations automatically rolled back by D1
+            logger.error('D1 batch execution failed - all operations rolled back', error as Error, {
+              statementCount: statements.length,
+              duration: batchDuration,
+              errorType: 'batch_execution_failed',
+              rollback: 'automatic',
+            });
+
+            // Enhance error with batch context
+            if (error instanceof Error) {
+              throw new AppError(
+                'BATCH_FAILED',
+                `D1 batch operation failed: ${error.message}`,
+                {
+                  statementCount: statements.length,
+                  duration: batchDuration,
+                  originalError: error.message,
+                },
+              );
             }
-            logger.debug('Executing D1 batch', { logType: 'operation', operationName: 'D1Batch', resource: `batch-${statements.length}` });
-            return await db.batch(statements);
-          },
-          db,
-        };
 
-        const result = await implementation(enhancedContext, batchContext);
+            throw error;
+          }
+        },
+        db,
+      };
 
-        const duration = performance.getDuration();
-        logger.info('Batch handler completed successfully', {
-          logType: 'performance',
-          duration,
-          marks: performance.getMarks(),
-        });
+      // Execute the handler implementation
+      const result = await implementation(enhancedContext, batchContext);
 
-        return result;
-      } else {
-        // Fallback to transaction for non-D1 databases (development)
-        logger.debug('Falling back to transaction mode for non-D1 database');
-        const result = await db.transaction(async (tx) => {
-          const batchContext: BatchContext = {
-            add: () => {
-              // No-op for transaction mode - operations execute immediately
-            },
-            execute: async () => {
-              // No-op for transaction mode
-              return [];
-            },
-            db: tx as unknown as Awaited<ReturnType<typeof getDbAsync>>,
-          };
+      const duration = performance.getDuration();
+      logger.info('D1 batch handler completed successfully', {
+        logType: 'performance',
+        duration,
+        marks: performance.getMarks(),
+        batchMetrics: {
+          ...batchMetrics,
+          totalDuration: performance.now() - batchMetrics.startTime,
+        },
+      });
 
-          return await implementation(enhancedContext, batchContext);
-        });
-
-        const duration = performance.getDuration();
-        logger.info('Transaction fallback completed successfully', {
-          logType: 'performance',
-          duration,
-          marks: performance.getMarks(),
-        });
-
-        return result;
-      }
+      return result;
     } catch (error) {
       const duration = performance.getDuration();
-      logger.error('Batch handler failed', error as Error, { logType: 'performance', duration });
+      logger.error('D1 batch handler failed', error as Error, {
+        logType: 'performance',
+        duration,
+        errorDetails: error instanceof AppError ? error.details : undefined,
+      });
 
-      // Enhanced error handling
-      if (error instanceof AppError) {
-        return HTTPExceptionFactory.create(error.statusCode, { message: error.message });
+      // Handle validation errors
+      if (error instanceof HTTPException) {
+        if (error.status === HttpStatusCodes.UNPROCESSABLE_ENTITY) {
+          if ('details' in error && error.details && typeof error.details === 'object') {
+            const details = error.details as { validationErrors?: Array<{ field: string; message: string; code?: string }> };
+            if (details.validationErrors) {
+              return Responses.validationError(c, details.validationErrors, error.message);
+            }
+          }
+        }
+        throw error;
       }
 
-      // Handle database-specific errors
+      // Handle application errors
+      if (error instanceof AppError) {
+        switch (error.code) {
+          case 'BATCH_FAILED':
+          case 'BATCH_SIZE_EXCEEDED':
+            return Responses.databaseError(c, 'batch', error.message);
+          case 'DATABASE_ERROR':
+            return Responses.databaseError(c, 'batch', error.message);
+          case 'RESOURCE_NOT_FOUND':
+            return Responses.notFound(c, 'Resource');
+          case 'RESOURCE_CONFLICT':
+            return Responses.conflict(c, error.message);
+          default:
+            return HTTPExceptionFactory.create(error.statusCode || 500, { message: error.message });
+        }
+      }
+
+      // Handle D1-specific database errors
       if (error instanceof Error) {
         const errorMessage = error.message.toLowerCase();
 
+        // D1 constraint violations
+        if (errorMessage.includes('unique constraint') || errorMessage.includes('unique_constraint')) {
+          return Responses.conflict(c, 'Resource already exists (unique constraint violation)');
+        }
+
+        if (errorMessage.includes('foreign key') || errorMessage.includes('foreign_key')) {
+          return Responses.badRequest(c, 'Invalid reference to related resource (foreign key constraint)');
+        }
+
         // D1 batch-specific errors
-        if (errorMessage.includes('batch') && errorMessage.includes('constraint')) {
-          return Responses.conflict(c, 'Data constraint violation in batch operation');
-        }
-
-        if (errorMessage.includes('batch') && errorMessage.includes('foreign key')) {
-          return Responses.badRequest(c, 'Invalid reference to related resource');
-        }
-
-        // Generic batch error
         if (errorMessage.includes('batch')) {
-          return Responses.databaseError(c, 'batch', 'Batch operation failed');
+          if (errorMessage.includes('timeout')) {
+            return Responses.databaseError(c, 'batch', 'Batch operation timed out (30 second limit exceeded)');
+          }
+          if (errorMessage.includes('size') || errorMessage.includes('limit')) {
+            return Responses.databaseError(c, 'batch', 'Batch size limit exceeded');
+          }
+          return Responses.databaseError(c, 'batch', 'Batch operation failed - all changes rolled back');
+        }
+
+        // D1 connection errors
+        if (errorMessage.includes('d1') || errorMessage.includes('database')) {
+          return Responses.databaseError(c, 'batch', 'Database operation failed');
         }
       }
 
-      // Generic database error
-      return Responses.databaseError(c, 'batch', 'Database operation failed');
+      // Generic error fallback
+      return Responses.internalServerError(c, 'An unexpected error occurred', operationName);
     }
   };
 

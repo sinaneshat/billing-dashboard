@@ -16,7 +16,7 @@ import { z } from 'zod';
 import { createError } from '@/api/common/error-handling';
 import type { FetchConfig } from '@/api/common/fetch-utilities';
 import { postJSON } from '@/api/common/fetch-utilities';
-import { createHandlerWithTransaction, Responses } from '@/api/core';
+import { createHandlerWithBatch, Responses } from '@/api/core';
 import { apiLogger } from '@/api/middleware/hono-logger';
 import { ZarinPalService } from '@/api/services/zarinpal';
 import type { ApiEnv } from '@/api/types';
@@ -819,9 +819,9 @@ async function validateWebhookSecurity(c: { req: { header: (name: string) => str
 
 /**
  * Enhanced ZarinPal Webhook Handler with Event Dispatching - Refactored
- * Now uses unified createHandlerWithTransaction pattern
+ * Now uses unified createHandlerWithBatch pattern for optimal D1 performance
  */
-export const zarinPalWebhookHandler: RouteHandler<typeof zarinPalWebhookRoute, ApiEnv> = createHandlerWithTransaction(
+export const zarinPalWebhookHandler: RouteHandler<typeof zarinPalWebhookRoute, ApiEnv> = createHandlerWithBatch(
   {
     auth: 'public', // Webhook comes from ZarinPal, not authenticated user
     validateBody: z.object({
@@ -835,10 +835,9 @@ export const zarinPalWebhookHandler: RouteHandler<typeof zarinPalWebhookRoute, A
     }),
     operationName: 'zarinPalWebhook',
   },
-  async (c, tx) => {
+  async (c, batch) => {
     // Enhanced security validation using our error handling pattern
     await validateWebhookSecurity(c);
-    // Use transaction context 'tx' instead of creating duplicate connection
 
     const webhookPayload = c.validated.body;
 
@@ -867,30 +866,37 @@ export const zarinPalWebhookHandler: RouteHandler<typeof zarinPalWebhookRoute, A
       })(),
     };
 
-    try {
-      await tx.insert(webhookEvent).values({
+    // Add webhook event to batch
+    batch.add(
+      batch.db.insert(webhookEvent).values({
         ...eventRecord,
-        id: crypto.randomUUID(),
+        id: eventId,
         createdAt: new Date(),
         updatedAt: new Date(),
-      });
-    } catch (error) {
-      apiLogger.error('Failed to create webhook event record', { error });
-    }
+      }),
+    );
 
     let paymentRecord = null;
     let subscriptionRecord = null;
     let processed = false;
 
-    // Find payment by authority
+    // Find payment by authority (read operation - doesn't go in batch)
     if (webhookPayload.authority) {
-      const paymentResults = await tx.select().from(payment).where(eq(payment.zarinpalAuthority, webhookPayload.authority)).limit(1);
+      const paymentResults = await batch.db
+        .select()
+        .from(payment)
+        .where(eq(payment.zarinpalAuthority, webhookPayload.authority))
+        .limit(1);
       paymentRecord = paymentResults[0];
 
       if (paymentRecord) {
-      // Get subscription if exists
+        // Get subscription if exists (read operation)
         if (paymentRecord.subscriptionId) {
-          const subscriptionResults = await tx.select().from(subscription).where(eq(subscription.id, paymentRecord.subscriptionId)).limit(1);
+          const subscriptionResults = await batch.db
+            .select()
+            .from(subscription)
+            .where(eq(subscription.id, paymentRecord.subscriptionId))
+            .limit(1);
           subscriptionRecord = subscriptionResults[0];
         }
 
@@ -905,31 +911,44 @@ export const zarinPalWebhookHandler: RouteHandler<typeof zarinPalWebhookRoute, A
             });
 
             if (verification.data?.code === 100 || verification.data?.code === 101) {
-            // Update payment record using direct DB access
-              await tx.update(payment)
-                .set({
-                  status: 'completed',
-                  zarinpalRefId: verification.data?.ref_id?.toString() || webhookPayload.ref_id,
-                  zarinpalCardHash: verification.data?.card_hash || webhookPayload.card_hash,
-                  paidAt: new Date(),
-                  updatedAt: new Date(),
-                })
-                .where(eq(payment.id, paymentRecord.id));
+              // Update payment record (add to batch)
+              batch.add(
+                batch.db.update(payment)
+                  .set({
+                    status: 'completed',
+                    zarinpalRefId: verification.data?.ref_id?.toString() || webhookPayload.ref_id,
+                    zarinpalCardHash: verification.data?.card_hash || webhookPayload.card_hash,
+                    paidAt: new Date(),
+                    updatedAt: new Date(),
+                  })
+                  .where(eq(payment.id, paymentRecord.id)),
+              );
 
-              // Get updated payment record
-              const updatedPaymentResults = await tx.select().from(payment).where(eq(payment.id, paymentRecord.id)).limit(1);
-              const updatedPayment = updatedPaymentResults[0];
-              if (!updatedPayment) {
-                throw new Error('Payment record not found after update');
-              }
+              // For webhook forwarding, use existing payment data with updated fields
+              const updatedPayment = {
+                ...paymentRecord,
+                status: 'completed',
+                zarinpalRefId: verification.data?.ref_id?.toString() || webhookPayload.ref_id,
+                zarinpalCardHash: verification.data?.card_hash || webhookPayload.card_hash,
+                paidAt: new Date(),
+                updatedAt: new Date(),
+              };
 
-              // Get product details and user details for metadata
-              const productResults = await tx.select().from(product).where(eq(product.id, updatedPayment.productId)).limit(1);
+              // Get product details and user details for metadata (read operations)
+              const productResults = await batch.db
+                .select()
+                .from(product)
+                .where(eq(product.id, updatedPayment.productId))
+                .limit(1);
               const productRecord = productResults[0];
 
               // Get user details for email mapping
               const { user } = await import('@/db/tables/auth');
-              const userResults = await tx.select({ email: user.email }).from(user).where(eq(user.id, updatedPayment.userId)).limit(1);
+              const userResults = await batch.db
+                .select({ email: user.email })
+                .from(user)
+                .where(eq(user.id, updatedPayment.userId))
+                .limit(1);
               const userRecord = userResults[0];
 
               // DISPATCH WEBHOOK EVENT: Payment succeeded (EMAIL-BASED)
@@ -962,22 +981,28 @@ export const zarinPalWebhookHandler: RouteHandler<typeof zarinPalWebhookRoute, A
                     ? new Date(startDate.getTime() + 30 * 24 * 60 * 60 * 1000)
                     : null;
 
-                  await tx.update(subscription)
-                    .set({
-                      status: 'active',
-                      startDate,
-                      nextBillingDate,
-                      directDebitContractId: verification.data?.card_hash || webhookPayload.card_hash,
-                      updatedAt: new Date(),
-                    })
-                    .where(eq(subscription.id, subscriptionRecord.id));
+                  // Add subscription update to batch
+                  batch.add(
+                    batch.db.update(subscription)
+                      .set({
+                        status: 'active',
+                        startDate,
+                        nextBillingDate,
+                        directDebitContractId: verification.data?.card_hash || webhookPayload.card_hash,
+                        updatedAt: new Date(),
+                      })
+                      .where(eq(subscription.id, subscriptionRecord.id)),
+                  );
 
-                  // Get updated subscription record
-                  const updatedSubscriptionResults = await tx.select().from(subscription).where(eq(subscription.id, subscriptionRecord.id)).limit(1);
-                  const updatedSubscription = updatedSubscriptionResults[0];
-                  if (!updatedSubscription) {
-                    throw new Error('Subscription record not found after update');
-                  }
+                  // Use updated subscription data for webhook forwarding
+                  const updatedSubscription = {
+                    ...subscriptionRecord,
+                    status: 'active',
+                    startDate,
+                    nextBillingDate,
+                    directDebitContractId: verification.data?.card_hash || webhookPayload.card_hash,
+                    updatedAt: new Date(),
+                  };
 
                   // DISPATCH WEBHOOK EVENT: Subscription activated (EMAIL-BASED)
                   const subscriptionEvent = WebhookEventBuilders.createSubscriptionUpdatedEvent(
@@ -1036,22 +1061,26 @@ export const zarinPalWebhookHandler: RouteHandler<typeof zarinPalWebhookRoute, A
 
               processed = true;
             } else {
-            // Verification failed
-              await tx.update(payment)
-                .set({
-                  status: 'failed',
-                  failureReason: `Verification failed: ${verification.data?.message || 'Unknown error'}`,
-                  failedAt: new Date(),
-                  updatedAt: new Date(),
-                })
-                .where(eq(payment.id, paymentRecord.id));
+              // Verification failed - add update to batch
+              batch.add(
+                batch.db.update(payment)
+                  .set({
+                    status: 'failed',
+                    failureReason: `Verification failed: ${verification.data?.message || 'Unknown error'}`,
+                    failedAt: new Date(),
+                    updatedAt: new Date(),
+                  })
+                  .where(eq(payment.id, paymentRecord.id)),
+              );
 
-              // Get updated payment record
-              const updatedPaymentResults = await tx.select().from(payment).where(eq(payment.id, paymentRecord.id)).limit(1);
-              const updatedPayment = updatedPaymentResults[0];
-              if (!updatedPayment) {
-                throw new Error('Payment record not found after update');
-              }
+              // Use updated payment data for webhook forwarding
+              const updatedPayment = {
+                ...paymentRecord,
+                status: 'failed',
+                failureReason: `Verification failed: ${verification.data?.message || 'Unknown error'}`,
+                failedAt: new Date(),
+                updatedAt: new Date(),
+              };
 
               // DISPATCH WEBHOOK EVENT: Payment failed
               const paymentEvent = WebhookEventBuilders.createPaymentFailedEvent(
@@ -1084,21 +1113,26 @@ export const zarinPalWebhookHandler: RouteHandler<typeof zarinPalWebhookRoute, A
               paymentId: paymentRecord.id,
             });
 
-            await tx.update(payment)
-              .set({
-                status: 'failed',
-                failureReason: `Verification error: ${verificationError instanceof Error ? verificationError.message : 'Unknown error'}`,
-                failedAt: new Date(),
-                updatedAt: new Date(),
-              })
-              .where(eq(payment.id, paymentRecord.id));
+            // Add payment failure update to batch
+            batch.add(
+              batch.db.update(payment)
+                .set({
+                  status: 'failed',
+                  failureReason: `Verification error: ${verificationError instanceof Error ? verificationError.message : 'Unknown error'}`,
+                  failedAt: new Date(),
+                  updatedAt: new Date(),
+                })
+                .where(eq(payment.id, paymentRecord.id)),
+            );
 
-            // Get updated payment record
-            const updatedPaymentResults = await tx.select().from(payment).where(eq(payment.id, paymentRecord.id)).limit(1);
-            const updatedPayment = updatedPaymentResults[0];
-            if (!updatedPayment) {
-              throw new Error('Payment record not found after update');
-            }
+            // Use updated payment data for webhook forwarding
+            const updatedPayment = {
+              ...paymentRecord,
+              status: 'failed',
+              failureReason: `Verification error: ${verificationError instanceof Error ? verificationError.message : 'Unknown error'}`,
+              failedAt: new Date(),
+              updatedAt: new Date(),
+            };
 
             // DISPATCH WEBHOOK EVENT: Payment failed due to error
             const paymentEvent = WebhookEventBuilders.createPaymentFailedEvent(
@@ -1118,22 +1152,26 @@ export const zarinPalWebhookHandler: RouteHandler<typeof zarinPalWebhookRoute, A
             processed = true;
           }
         } else {
-        // Payment failed from ZarinPal
-          await tx.update(payment)
-            .set({
-              status: 'failed',
-              failureReason: 'Payment was canceled or failed by user',
-              failedAt: new Date(),
-              updatedAt: new Date(),
-            })
-            .where(eq(payment.id, paymentRecord.id));
+          // Payment failed from ZarinPal - add update to batch
+          batch.add(
+            batch.db.update(payment)
+              .set({
+                status: 'failed',
+                failureReason: 'Payment was canceled or failed by user',
+                failedAt: new Date(),
+                updatedAt: new Date(),
+              })
+              .where(eq(payment.id, paymentRecord.id)),
+          );
 
-          // Get updated payment record
-          const updatedPaymentResults = await tx.select().from(payment).where(eq(payment.id, paymentRecord.id)).limit(1);
-          const updatedPayment = updatedPaymentResults[0];
-          if (!updatedPayment) {
-            throw new Error('Payment record not found after update');
-          }
+          // Use updated payment data for webhook forwarding
+          const updatedPayment = {
+            ...paymentRecord,
+            status: 'failed',
+            failureReason: 'Payment was canceled or failed by user',
+            failedAt: new Date(),
+            updatedAt: new Date(),
+          };
 
           // DISPATCH WEBHOOK EVENT: Payment failed
           const paymentEvent = WebhookEventBuilders.createPaymentFailedEvent(
@@ -1168,14 +1206,18 @@ export const zarinPalWebhookHandler: RouteHandler<typeof zarinPalWebhookRoute, A
     }
 
     // Update webhook event processing status
-    await tx
-      .update(webhookEvent)
-      .set({
-        processed,
-        processedAt: processed ? new Date() : null,
-        paymentId: paymentRecord?.id || null,
-      })
-      .where(eq(webhookEvent.id, eventId));
+    batch.add(
+      batch.db.update(webhookEvent)
+        .set({
+          processed,
+          processedAt: processed ? new Date() : null,
+          paymentId: paymentRecord?.id || null,
+        })
+        .where(eq(webhookEvent.id, eventId)),
+    );
+
+    // Execute all batch operations atomically
+    await batch.execute();
 
     // Webhook processing completed with Roundtable forwarding
     // Events are forwarded when processed - using 'processed' variable to track success

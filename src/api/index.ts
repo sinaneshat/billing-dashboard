@@ -49,6 +49,7 @@ import {
   contractCallbackHandler,
   createContractHandler,
   getPaymentMethodsHandler,
+  recoverContractHandler,
   setDefaultPaymentMethodHandler,
   verifyContractHandler,
 } from './routes/payment-methods/handler';
@@ -57,6 +58,7 @@ import {
   contractCallbackRoute,
   createContractRoute,
   getPaymentMethodsRoute,
+  recoverContractRoute,
   setDefaultPaymentMethodRoute,
   verifyContractRoute,
 } from './routes/payment-methods/route';
@@ -253,6 +255,7 @@ const appRoutes = app
   .openapi(createContractRoute, createContractHandler)
   .openapi(verifyContractRoute, verifyContractHandler)
   .openapi(cancelContractRoute, cancelContractHandler)
+  .openapi(recoverContractRoute, recoverContractHandler)
   // Payment routes
   .openapi(getPaymentsRoute, getPaymentsHandler)
   // Billing routes - Recurring payments and metrics
