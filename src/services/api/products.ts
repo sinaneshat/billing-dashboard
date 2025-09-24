@@ -8,15 +8,18 @@
 import type { InferRequestType, InferResponseType } from 'hono/client';
 import { parseResponse } from 'hono/client';
 
-import { apiClient } from '@/api/client';
+import type { ApiClientType } from '@/api/client';
+import { createApiClient } from '@/api/client';
 
 // ============================================================================
 //  Inferred Types for Components
 // ============================================================================
 
 // These types are 100% inferred from the RPC client
-export type GetProductsRequest = InferRequestType<typeof apiClient.products['$get']>;
-export type GetProductsResponse = InferResponseType<typeof apiClient.products['$get']>;
+// Using centralized ApiClientType from @/api/client
+
+export type GetProductsRequest = InferRequestType<ApiClientType['products']['$get']>;
+export type GetProductsResponse = InferResponseType<ApiClientType['products']['$get']>;
 
 /**
  * Get all active products - Context7 consistent pattern
@@ -24,8 +27,9 @@ export type GetProductsResponse = InferResponseType<typeof apiClient.products['$
  * CRITICAL FIX: Consistent argument handling for SSR/hydration
  */
 export async function getProductsService(args?: GetProductsRequest) {
+  const client = await createApiClient();
   // Fix: Only pass args if defined to ensure consistent behavior between server/client
   return args
-    ? parseResponse(apiClient.products.$get(args))
-    : parseResponse(apiClient.products.$get());
+    ? parseResponse(client.products.$get(args))
+    : parseResponse(client.products.$get());
 }

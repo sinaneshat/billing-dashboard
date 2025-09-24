@@ -1,23 +1,46 @@
 /**
- * Currency Formatting Utilities
- * Clean utilities for Iranian Toman and USD formatting
+ * Enhanced Currency Formatting Utilities
+ * Production-ready utilities for USD to Iranian Toman conversion and formatting
+ * Supports both English and Persian locales with proper number formatting
  */
 
+// =============================================================================
+// TYPE DEFINITIONS
+// =============================================================================
+
+export type CurrencyType = 'USD' | 'IRR' | 'TOMAN';
+export type LocaleType = 'en' | 'fa';
+
+export type CurrencyFormatOptions = {
+  showFree?: boolean;
+  showUnit?: boolean;
+  compact?: boolean;
+  showSymbol?: boolean;
+  locale?: LocaleType;
+  precision?: number;
+};
+
+// =============================================================================
+// CORE CURRENCY FORMATTING FUNCTIONS
+// =============================================================================
+
 /**
- * Format Toman currency with consistent English formatting
+ * Format Toman currency with enhanced localization and Persian number support
  */
 export function formatTomanCurrency(
   amount: number,
-  options: {
-    showFree?: boolean;
-    showUnit?: boolean;
-    compact?: boolean;
-  } = {},
+  options: CurrencyFormatOptions = {},
 ): string {
-  const { showFree = true, showUnit = true, compact = false } = options;
+  const {
+    showFree = true,
+    showUnit = true,
+    compact = false,
+    locale = 'en',
+    precision = 0,
+  } = options;
 
   if (amount === 0 && showFree) {
-    return 'Free';
+    return locale === 'fa' ? 'رایگان' : 'Free';
   }
 
   if (amount === 0) {
@@ -26,46 +49,108 @@ export function formatTomanCurrency(
 
   // Compact formatting
   if (compact) {
-    if (amount < 1000) {
-      const formatted = Math.round(amount).toLocaleString('en-US');
-      return showUnit ? `${formatted} Toman` : formatted;
-    }
-
-    if (amount < 1000000) {
-      const thousands = Math.round(amount / 1000 * 10) / 10;
-      return `${thousands}K${showUnit ? ' Toman' : ''}`;
-    }
-
-    if (amount < 1000000000) {
-      const millions = Math.round(amount / 1000000 * 10) / 10;
-      return `${millions}M${showUnit ? ' Toman' : ''}`;
-    }
-
-    const billions = Math.round(amount / 1000000000 * 10) / 10;
-    return `${billions}B${showUnit ? ' Toman' : ''}`;
+    return formatCompactCurrency(amount, 'TOMAN', locale, showUnit);
   }
 
-  // Standard formatting
-  const formatted = Math.round(amount).toLocaleString('en-US');
-  return showUnit ? `${formatted} Toman` : formatted;
+  // Standard formatting with locale support
+  const localeString = locale === 'fa' ? 'fa-IR' : 'en-US';
+  const formatted = Math.round(amount * 10 ** precision) / 10 ** precision;
+  const numberString = formatted.toLocaleString(localeString, {
+    minimumFractionDigits: precision,
+    maximumFractionDigits: precision,
+  });
+
+  if (!showUnit) {
+    return numberString;
+  }
+
+  const unitLabel = locale === 'fa' ? 'تومان' : 'Toman';
+  return locale === 'fa' ? `${numberString} ${unitLabel}` : `${numberString} ${unitLabel}`;
 }
 
 /**
- * Format currency with general options
+ * Format currency with comprehensive options and USD to Toman conversion support
  */
 export function formatCurrency(
   amount: number,
-  currency: 'USD' | 'IRR' | 'TOMAN' = 'USD',
-  locale = 'en-US',
+  currency: CurrencyType = 'USD',
+  locale: LocaleType = 'en',
+  options: CurrencyFormatOptions = {},
 ): string {
-  if (currency === 'TOMAN') {
-    return formatTomanCurrency(amount);
+  const { showFree = true, compact = false, precision } = options;
+
+  if (amount === 0 && showFree) {
+    return locale === 'fa' ? 'رایگان' : 'Free';
   }
 
-  return new Intl.NumberFormat(locale, {
+  if (currency === 'TOMAN') {
+    return formatTomanCurrency(amount, { ...options, locale });
+  }
+
+  if (compact) {
+    return formatCompactCurrency(amount, currency, locale);
+  }
+
+  const localeString = locale === 'fa' ? 'fa-IR' : 'en-US';
+  const actualCurrency = currency === 'IRR' ? 'IRR' : 'USD';
+
+  return new Intl.NumberFormat(localeString, {
     style: 'currency',
-    currency: currency === 'IRR' ? 'IRR' : 'USD',
-    minimumFractionDigits: currency === 'IRR' ? 0 : 2,
-    maximumFractionDigits: currency === 'IRR' ? 0 : 2,
+    currency: actualCurrency,
+    minimumFractionDigits: precision ?? (currency === 'IRR' ? 0 : 2),
+    maximumFractionDigits: precision ?? (currency === 'IRR' ? 0 : 2),
   }).format(amount);
+}
+
+// =============================================================================
+// UTILITY FUNCTIONS
+// =============================================================================
+
+/**
+ * Format compact currency (K, M, B suffixes)
+ */
+function formatCompactCurrency(
+  amount: number,
+  currency: CurrencyType,
+  locale: LocaleType,
+  showUnit = true,
+): string {
+  const absAmount = Math.abs(amount);
+  const sign = amount < 0 ? '-' : '';
+
+  let value: number;
+  let suffix: string;
+
+  if (absAmount < 1000) {
+    value = absAmount;
+    suffix = '';
+  } else if (absAmount < 1000000) {
+    value = absAmount / 1000;
+    suffix = locale === 'fa' ? 'هزار' : 'K';
+  } else if (absAmount < 1000000000) {
+    value = absAmount / 1000000;
+    suffix = locale === 'fa' ? 'میلیون' : 'M';
+  } else {
+    value = absAmount / 1000000000;
+    suffix = locale === 'fa' ? 'میلیارد' : 'B';
+  }
+
+  const localeString = locale === 'fa' ? 'fa-IR' : 'en-US';
+  const roundedValue = Math.round(value * 10) / 10;
+  const formatted = roundedValue.toLocaleString(localeString, {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 1,
+  });
+
+  if (!showUnit || currency === 'USD') {
+    return `${sign}${formatted}${suffix}`;
+  }
+
+  const unitLabel = currency === 'TOMAN'
+    ? (locale === 'fa' ? 'تومان' : 'Toman')
+    : (locale === 'fa' ? 'ریال' : 'Rial');
+
+  return locale === 'fa'
+    ? `${sign}${formatted}${suffix} ${unitLabel}`
+    : `${sign}${formatted}${suffix} ${unitLabel}`;
 }

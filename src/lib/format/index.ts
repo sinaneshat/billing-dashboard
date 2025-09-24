@@ -4,17 +4,21 @@
  */
 
 // Currency formatting
-export { formatCurrency, formatTomanCurrency } from './currency';
-
-// Date/time formatting
-export { formatDate, formatDateTime, formatRelativeTime, formatTime } from './date';
-
-// Text formatting
 export {
-  formatNumber,
-  formatPercent,
-  formatSlug,
-  formatTitle,
-  generateSlugFromName,
-  truncateText,
-} from './text';
+  type CurrencyFormatOptions,
+  type CurrencyType,
+  formatCurrency,
+  formatTomanCurrency,
+  type LocaleType,
+} from './currency';
+
+// Date/time formatting - Enhanced with billing-specific functions
+export {
+  formatBillingDate,
+  formatNextBillingDate,
+  formatRelativeTime,
+  getDaysUntil,
+  isOverdue,
+  isValidDate,
+  toPersianDigits,
+} from './date';

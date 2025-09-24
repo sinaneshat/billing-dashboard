@@ -83,6 +83,8 @@
       "oauthSignin": "خطای ورود",
       "oauthSigninDesc": "مشکلی در ورود با حساب شبکه اجتماعی شما وجود داشت. لطفاً دوباره تلاش کنید.",
       "passwordTooWeak": "رمز عبور باید حداقل ۸ کاراکتر باشد",
+      "restartProcess": "نیاز به راه‌اندازی مجدد فرآیند احراز هویت",
+      "restartProcessDesc": "فرآیند احراز هویت باید مجدداً راه‌اندازی شود. لطفاً از ابتدا دوباره وارد شوید.",
       "sessionExpired": "جلسه شما منقضی شده است. لطفاً دوباره وارد شوید.",
       "tryAgain": "تلاش مجدد",
       "verification": "تأیید لازم است",
@@ -297,6 +299,7 @@
     "monthlyPrice": "قیمت ماهانه",
     "nextBilling": "تاریخ صورتحساب بعدی",
     "noActiveSubscription": "شما اشتراک فعالی ندارید. برای شروع، طرح‌های ما را مرور کنید.",
+    "noValidContract": "قرارداد پرداخت معتبری یافت نشد. لطفاً ابتدا روش پرداخت خود را تنظیم کنید.",
     "noPaymentMethods": "هیچ روش پرداختی اضافه نشده است",
     "noPlan": "بدون طرح",
     "notScheduled": "زمان‌بندی نشده",
@@ -313,6 +316,7 @@
     "primaryDirectDebit": "اولیه • برداشت مستقیم",
     "quickActions": "عملیات سریع",
     "recentTransactions": "تراکنش‌های صورتحساب اخیر شما",
+    "upcomingBilling": "صورتحساب آتی",
     "setupDirectDebit": "راه‌اندازی برداشت مستقیم",
     "setupPayment": "راه‌اندازی پرداخت",
     "started": "شروع شده",
@@ -377,7 +381,43 @@
     "undoAction": "بازگشت"
   },
   "currency": {
-    "toman": "تومان"
+    "toman": "تومان",
+    "rial": "ریال",
+    "usd": "دلار",
+    "free": "رایگان",
+    "loading": "در حال بارگذاری قیمت...",
+    "error": "قیمت در دسترس نیست",
+    "conversionError": "تبدیل ارز ناموفق بود",
+    "conversionInfo": "اطلاعات نرخ تبدیل",
+    "exchangeRate": "نرخ تبدیل",
+    "lastUpdated": "آخرین بروزرسانی",
+    "approximate": "تقریباً",
+    "equivalent": "معادل",
+    "originalPrice": "قیمت اصلی",
+    "convertedPrice": "قیمت تبدیل شده",
+    "period": {
+      "monthly": "ماهانه",
+      "yearly": "سالانه",
+      "weekly": "هفتگی",
+      "daily": "روزانه",
+      "month": "ماه",
+      "year": "سال",
+      "week": "هفته",
+      "day": "روز"
+    },
+    "formatting": {
+      "compact": {
+        "thousand": "هزار",
+        "million": "میلیون",
+        "billion": "میلیارد"
+      }
+    },
+    "comparison": {
+      "save": "صرفه‌جویی",
+      "discount": "درصد تخفیف",
+      "wasPrice": "قبلاً",
+      "nowPrice": "اکنون"
+    }
   },
   "dashboard": {
     "description": "مدیریت صورتحساب و اشتراک‌های خود از داشبورد جامع",
@@ -975,6 +1015,12 @@
     }
   },
   "payment": {
+    "amount": "مبلغ",
+    "date": "تاریخ پرداخت",
+    "directDebitUsed": "برداشت مستقیم",
+    "paymentMethod": "روش پرداخت",
+    "referenceId": "شناسه مرجع",
+    "unknownProduct": "محصول ناشناخته",
     "callback": {
       "chooseAnotherPlan": "انتخاب طرح دیگر",
       "contractInfoNotFound": "اطلاعات قرارداد یافت نشد. لطفاً دوباره برداشت مستقیم را راه‌اندازی کنید.",
@@ -1017,14 +1063,52 @@
     "defaultMethod": "پیش‌فرض",
     "deleteConfirmDescription": "آیا مطمئن هستید که می‌خواهید این روش پرداخت را حذف کنید؟ این عمل قابل بازگشت نیست.",
     "deleteConfirmTitle": "حذف روش پرداخت",
-    "directDebit": "برداشت مستقیم",
+    "directDebit": {
+      "title": "قرارداد برداشت مستقیم",
+      "subtitle": "صورتحساب خودکار امن با زرین‌پال",
+      "processingContract": "پردازش قرارداد برداشت مستقیم شما",
+      "verifyingContract": "تأیید قرارداد",
+      "pleaseWait": "لطفاً منتظر بمانید تا قرارداد شما را با بانک تأیید کنیم",
+      "contractActivated": "قرارداد با موفقیت فعال شد",
+      "contractActivatedDescription": "قرارداد برداشت مستقیم شما اکنون فعال است و آماده صورتحساب خودکار می‌باشد",
+      "contractDetails": "جزئیات قرارداد",
+      "bankVerified": "مجوز بانک تأیید شد",
+      "signatureStored": "امضای قرارداد به صورت امن ذخیره شد",
+      "readyForPayments": "آماده برای پرداخت‌های خودکار",
+      "referenceCode": "کد مرجع",
+      "contractFailed": "راه‌اندازی قرارداد ناموفق بود",
+      "contractFailedDescription": "نتوانستیم راه‌اندازی قرارداد را کامل کنیم",
+      "contractFailedHelp": "این ممکن است به دلیل لغو یا مشکل تأیید باشد. لطفاً دوباره تلاش کنید یا در صورت تداوم مشکل با پشتیبانی تماس بگیرید."
+    },
+    "directDebitLegacy": "برداشت مستقیم",
     "directDebitContract": "قرارداد برداشت مستقیم",
     "empty": "روش پرداختی وجود ندارد",
     "emptyDescription": "برای فعال‌سازی صورتحساب خودکار اشتراک‌هایتان، روش پرداخت اضافه کنید.",
     "errorMessages": {
       "failedToRemove": "حذف روش پرداخت ناموفق بود",
       "failedToUpdateDefault": "به‌روزرسانی روش پرداخت پیش‌فرض ناموفق بود",
+      "failedToSetDefault": "تنظیم روش پرداخت پیش‌فرض ناموفق بود",
       "failedToCancelContract": "لغو قرارداد برداشت مستقیم ناموفق بود"
+    },
+    "errors": {
+      "invalidCallbackParameters": "پارامترهای callback نامعتبر",
+      "contractSigningCancelled": "امضای قرارداد لغو یا ناموفق بود",
+      "contractVerificationFailed": "تأیید قرارداد با زرین‌پال ناموفق بود",
+      "unexpectedError": "خطای غیرمنتظره‌ای رخ داد",
+      "invalidRequest": "درخواست نامعتبر"
+    },
+    "status": {
+      "active": "فعال",
+      "activeDescription": "قرارداد فعال است و آماده پرداخت‌های خودکار",
+      "pending": "در انتظار",
+      "pendingSignature": "در انتظار امضا",
+      "pendingDescription": "در انتظار امضای قرارداد بانکی",
+      "cancelled": "لغو شده",
+      "cancelledDescription": "قرارداد توسط کاربر لغو شده است",
+      "expired": "منقضی شده",
+      "expiredDescription": "قرارداد منقضی شده و نیاز به تمدید دارد",
+      "verificationFailed": "تأیید ناموفق",
+      "verificationFailedDescription": "تأیید قرارداد با بانک ناموفق بود"
     },
     "expired": "منقضی شده",
     "expires": "منقضی می‌شود {date}",
@@ -1049,11 +1133,23 @@
     "setPrimary": "تنظیم اصلی",
     "state": "استان",
     "subtitle": "روش‌های پرداخت و اطلاعات صورتحساب خود را مدیریت کنید",
+    "manageDirectDebitContracts": "قراردادهای برداشت مستقیم خود را مدیریت کنید و روش پرداخت پیش‌فرض تنظیم کنید",
     "successMessages": {
       "contractCancelled": "قرارداد برداشت مستقیم با موفقیت لغو شد",
       "defaultPaymentMethodUpdated": "روش پرداخت پیش‌فرض به‌روزرسانی شد",
+      "defaultMethodSet": "روش پرداخت پیش‌فرض با موفقیت تنظیم شد",
       "directDebitContractCreated": "قرارداد برداشت مستقیم با موفقیت ایجاد شد!",
-      "paymentMethodRemoved": "روش پرداخت با موفقیت حذف شد"
+      "paymentMethodRemoved": "روش پرداخت با موفقیت حذف شد",
+      "contractRecovered": "روش پرداخت با موفقیت بازیابی شد"
+    },
+    "success": {
+      "contractRecovered": "روش پرداخت شما با موفقیت بازیابی و فعال شد"
+    },
+    "actions": {
+      "viewPaymentMethods": "مشاهده روش‌های پرداخت",
+      "setupNewContract": "راه‌اندازی قرارداد جدید",
+      "tryAgain": "تلاش مجدد",
+      "returnToDashboard": "بازگشت به داشبورد"
     },
     "table": {
       "actions": {
@@ -1091,7 +1187,22 @@
     "updatePaymentMethod": "به‌روزرسانی روش پرداخت",
     "verified": "تأیید شده",
     "zarinpal": "زرین‌پال",
-    "zarinpalDirectDebit": "برداشت مستقیم زرین‌پال"
+    "zarinpalDirectDebit": "برداشت مستقیم زرین‌پال",
+    "limits": "محدودیت‌های تراکنش",
+    "transactionLimits": "محدودیت‌های تراکنش",
+    "maxTransaction": "حداکثر هر تراکنش",
+    "maxDaily": "حداکثر مبلغ روزانه",
+    "maxDailyTransactions": "حداکثر تراکنش روزانه",
+    "maxMonthlyTransactions": "حداکثر تراکنش ماهانه",
+    "transactions": "تراکنش",
+    "contractExpirationInfo": "قرارداد پس از این تاریخ نیاز به تمدید خواهد داشت",
+    "pendingSignature": "در انتظار امضا",
+    "cancelled": "لغو شده",
+    "maxTransactionAmount": "حداکثر مبلغ تراکنش",
+    "maxDailyAmount": "حداکثر مبلغ روزانه",
+    "maxDailyCount": "حداکثر تراکنش روزانه",
+    "maxMonthlyCount": "حداکثر تراکنش ماهانه",
+    "contractDuration": "مدت قرارداد"
   },
   "paymentWizard": {
     "allReady": "همه چیز آماده است!",
@@ -1477,6 +1588,8 @@
     "basic": "پایه",
     "cancelled": "لغو شده",
     "completed": "تکمیل شده",
+    "current": "فعلی",
+    "currentPlan": "طرح فعلی",
     "contract": {
       "draft": "پیش‌نویس قرارداد",
       "expired": "قرارداد منقضی شده",
@@ -1538,12 +1651,20 @@
     "cancelFailed": "لغو اشتراک ناموفق بود",
     "cancelSuccess": "اشتراک با موفقیت لغو شد",
     "cancellationReason": "درخواست لغو اشتراک توسط کاربر",
+    "cancelledByUser": "لغو شده توسط کاربر",
+    "cancelling": "در حال لغو...",
     "cancelled": "لغو شده",
     "cancelledOn": "لغو شده در {date}",
     "change": "تغییر طرح",
     "continueWithSetup": "ادامه راه‌اندازی",
     "createFailed": "ایجاد اشتراک ناموفق بود",
     "createSuccess": "اشتراک شما با موفقیت ایجاد شد!",
+    "createSuccessWithPayment": "اشتراک فعال شد و پرداخت با موفقیت انجام شد! مبلغ: {amount} ریال (کد پیگیری: {refId})",
+    "paymentFailed": "پرداخت ناموفق بود. لطفاً دوباره تلاش کنید.",
+    "paymentFailedInsufficientFunds": "پرداخت به دلیل عدم کفایت موجودی ناموفق بود. لطفاً موجودی حساب خود را بررسی کنید.",
+    "paymentMethodError": "خطا در روش پرداخت. لطفاً قرارداد برداشت مستقیم خود را بررسی کنید.",
+    "planChangeFailed": "تغییر طرح اشتراک ناموفق بود",
+    "planChangeSuccess": "طرح اشتراک با موفقیت تغییر کرد",
     "default": "اشتراک",
     "description": "طرح‌های اشتراک مناسب برای نیازهای خود انتخاب کنید و با روش‌های پرداخت امن زرین‌پال پرداخت کنید",
     "downgrade": "تنزل طرح",
@@ -1564,6 +1685,7 @@
     "monthly": "ماهانه",
     "nextBilling": "صورتحساب بعدی",
     "noActive": "اشتراک فعالی وجود ندارد",
+    "paymentMethod": "روش پرداخت",
     "noPlans": "طرحی در دسترس نیست",
     "noPlansDescription": "در حال حاضر طرح اشتراکی موجود نیست. لطفاً بعداً بررسی کنید.",
     "openSubscriptionActions": "باز کردن عملیات اشتراک",
@@ -1642,6 +1764,8 @@
     "monthly": "ماهانه",
     "perMonth": "در ماه",
     "perYear": "در سال",
+    "perDay": "در روز",
+    "days": "روز",
     "today": "امروز",
     "tomorrow": "فردا",
     "week": "{count} هفته",

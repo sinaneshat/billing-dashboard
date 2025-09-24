@@ -1,8 +1,4 @@
-// Auth service exports
-export {
-  type GetCurrentUserResponse,
-  getCurrentUserService,
-} from './auth';
+// Auth service removed - using Better Auth directly
 
 // Payment Methods service exports
 export {

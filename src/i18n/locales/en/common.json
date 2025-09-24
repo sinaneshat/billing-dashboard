@@ -299,6 +299,7 @@
     "monthlyPrice": "Monthly Price",
     "nextBilling": "Next Billing Date",
     "noActiveSubscription": "You don't have an active subscription. Browse our plans to get started.",
+    "noValidContract": "No valid payment contract found. Please set up your payment method first.",
     "noPaymentMethods": "No payment methods added",
     "noPlan": "No Plan",
     "notScheduled": "Not scheduled",
@@ -315,6 +316,7 @@
     "primaryDirectDebit": "Primary • Direct Debit",
     "quickActions": "Quick Actions",
     "recentTransactions": "Your recent billing transactions",
+    "upcomingBilling": "Upcoming Billing",
     "setupDirectDebit": "Setup Direct Debit",
     "setupPayment": "Setup Payment",
     "started": "Started",
@@ -379,7 +381,43 @@
     "undoAction": "Undo"
   },
   "currency": {
-    "toman": "Toman"
+    "toman": "Toman",
+    "rial": "Rial",
+    "usd": "USD",
+    "free": "Free",
+    "loading": "Loading price...",
+    "error": "Price unavailable",
+    "conversionError": "Currency conversion failed",
+    "conversionInfo": "Exchange Rate Info",
+    "exchangeRate": "Exchange Rate",
+    "lastUpdated": "Last Updated",
+    "approximate": "Approximately",
+    "equivalent": "Equivalent",
+    "originalPrice": "Original Price",
+    "convertedPrice": "Converted Price",
+    "period": {
+      "monthly": "monthly",
+      "yearly": "yearly",
+      "weekly": "weekly",
+      "daily": "daily",
+      "month": "month",
+      "year": "year",
+      "week": "week",
+      "day": "day"
+    },
+    "formatting": {
+      "compact": {
+        "thousand": "K",
+        "million": "M",
+        "billion": "B"
+      }
+    },
+    "comparison": {
+      "save": "Save",
+      "discount": "% off",
+      "wasPrice": "Was",
+      "nowPrice": "Now"
+    }
   },
   "dashboard": {
     "description": "Manage your billing and subscriptions from your comprehensive dashboard overview",
@@ -977,6 +1015,12 @@
     }
   },
   "payment": {
+    "amount": "Amount",
+    "date": "Payment Date",
+    "directDebitUsed": "Direct Debit",
+    "paymentMethod": "Payment Method",
+    "referenceId": "Reference ID",
+    "unknownProduct": "Unknown Product",
     "callback": {
       "chooseAnotherPlan": "Choose Another Plan",
       "contractInfoNotFound": "Contract information not found. Please try setting up direct debit again.",
@@ -1043,6 +1087,7 @@
     "errorMessages": {
       "failedToRemove": "Failed to remove payment method",
       "failedToUpdateDefault": "Failed to update default payment method",
+      "failedToSetDefault": "Failed to set default payment method",
       "failedToCancelContract": "Failed to cancel direct debit contract"
     },
     "errors": {
@@ -1053,7 +1098,17 @@
       "invalidRequest": "Invalid Request"
     },
     "status": {
-      "active": "Active"
+      "active": "Active",
+      "activeDescription": "Contract is active and ready for automatic payments",
+      "pending": "Pending",
+      "pendingSignature": "Pending Signature",
+      "pendingDescription": "Waiting for bank contract signing",
+      "cancelled": "Cancelled",
+      "cancelledDescription": "Contract has been cancelled by user",
+      "expired": "Expired",
+      "expiredDescription": "Contract has expired and needs renewal",
+      "verificationFailed": "Verification Failed",
+      "verificationFailedDescription": "Failed to verify contract with bank"
     },
     "expired": "Expired",
     "expires": "Expires {date}",
@@ -1078,9 +1133,11 @@
     "setPrimary": "Set Primary",
     "state": "State",
     "subtitle": "Manage your payment methods and billing information",
+    "manageDirectDebitContracts": "Manage your direct debit contracts and set default payment method",
     "successMessages": {
       "contractCancelled": "Direct debit contract cancelled successfully",
       "defaultPaymentMethodUpdated": "Default payment method updated",
+      "defaultMethodSet": "Default payment method set successfully",
       "directDebitContractCreated": "Direct debit contract created successfully!",
       "paymentMethodRemoved": "Payment method removed successfully",
       "contractRecovered": "Payment method recovered successfully"
@@ -1130,7 +1187,22 @@
     "updatePaymentMethod": "Update Payment Method",
     "verified": "Verified",
     "zarinpal": "ZarinPal",
-    "zarinpalDirectDebit": "ZarinPal Direct Debit"
+    "zarinpalDirectDebit": "ZarinPal Direct Debit",
+    "limits": "Transaction Limits",
+    "transactionLimits": "Transaction Limits",
+    "maxTransaction": "Max per transaction",
+    "maxDaily": "Max daily amount",
+    "maxDailyTransactions": "Max daily transactions",
+    "maxMonthlyTransactions": "Max monthly transactions",
+    "transactions": "transactions",
+    "contractExpirationInfo": "Contract will need renewal after this date",
+    "pendingSignature": "Pending Signature",
+    "cancelled": "Cancelled",
+    "maxTransactionAmount": "Max Transaction Amount",
+    "maxDailyAmount": "Max Daily Amount",
+    "maxDailyCount": "Max Daily Transactions",
+    "maxMonthlyCount": "Max Monthly Transactions",
+    "contractDuration": "Contract Duration"
   },
   "paymentWizard": {
     "allReady": "Everything is ready!",
@@ -1516,6 +1588,8 @@
     "basic": "Basic",
     "cancelled": "Cancelled",
     "completed": "Completed",
+    "current": "Current",
+    "currentPlan": "Current Plan",
     "contract": {
       "draft": "Contract Draft",
       "expired": "Contract Expired",
@@ -1577,12 +1651,20 @@
     "cancelFailed": "Failed to cancel subscription",
     "cancelSuccess": "Subscription canceled successfully",
     "cancellationReason": "Subscription cancellation requested by user",
+    "cancelledByUser": "Cancelled by user",
+    "cancelling": "Cancelling...",
     "cancelled": "Cancelled",
     "cancelledOn": "Cancelled on {date}",
     "change": "Change Plan",
     "continueWithSetup": "ادامه راه‌اندازی",
     "createFailed": "Failed to create subscription",
     "createSuccess": "Your subscription has been created successfully!",
+    "createSuccessWithPayment": "Subscription activated and payment processed successfully! Amount: {amount} IRR (Ref: {refId})",
+    "paymentFailed": "Payment failed. Please try again.",
+    "paymentFailedInsufficientFunds": "Payment failed due to insufficient funds. Please ensure your account has enough balance and try again.",
+    "paymentMethodError": "Payment method error. Please check your direct debit contract and try again.",
+    "planChangeFailed": "Failed to change subscription plan",
+    "planChangeSuccess": "Subscription plan changed successfully",
     "default": "Subscription",
     "description": "طرح‌های اشتراک مناسب برای نیازهای خود انتخاب کنید و با روش‌های پرداخت امن زرین‌پال پرداخت کنید",
     "downgrade": "Downgrade Plan",
@@ -1603,6 +1685,7 @@
     "monthly": "ماهانه",
     "nextBilling": "Next Billing",
     "noActive": "No Active Subscription",
+    "paymentMethod": "Payment Method",
     "noPlans": "طرحی در دسترس نیست",
     "noPlansDescription": "در حال حاضر طرح اشتراکی موجود نیست. لطفاً بعداً بررسی کنید.",
     "openSubscriptionActions": "Open subscription actions",
@@ -1681,6 +1764,8 @@
     "monthly": "Monthly",
     "perMonth": "per month",
     "perYear": "per year",
+    "perDay": "per day",
+    "days": "days",
     "today": "Today",
     "tomorrow": "Tomorrow",
     "week": "{count} week",

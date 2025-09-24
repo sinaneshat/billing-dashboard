@@ -8,15 +8,19 @@
 import type { InferRequestType, InferResponseType } from 'hono/client';
 import { parseResponse } from 'hono/client';
 
-import { apiClient } from '@/api/client';
+import type { ApiClientType } from '@/api/client';
+import { createApiClient } from '@/api/client';
 
 // ============================================================================
 //  Inferred Types for Components
 // ============================================================================
 
+// These types are 100% inferred from the RPC client
+// Using centralized ApiClientType from @/api/client
+
 // Get Payment Methods
-export type GetPaymentMethodsRequest = InferRequestType<(typeof apiClient)['payment-methods']['$get']>;
-export type GetPaymentMethodsResponse = InferResponseType<(typeof apiClient)['payment-methods']['$get']>;
+export type GetPaymentMethodsRequest = InferRequestType<ApiClientType['payment-methods']['$get']>;
+export type GetPaymentMethodsResponse = InferResponseType<ApiClientType['payment-methods']['$get']>;
 
 // Traditional payment method creation removed - use direct debit contract verification
 
@@ -32,24 +36,26 @@ export type GetPaymentMethodsResponse = InferResponseType<(typeof apiClient)['pa
  * CRITICAL FIX: Consistent argument handling for SSR/hydration
  */
 export async function getPaymentMethodsService(args?: GetPaymentMethodsRequest) {
+  const client = await createApiClient();
   // Fix: Only pass args if defined to ensure consistent behavior between server/client
   return args
-    ? parseResponse(apiClient['payment-methods'].$get(args))
-    : parseResponse(apiClient['payment-methods'].$get());
+    ? parseResponse(client['payment-methods'].$get(args))
+    : parseResponse(client['payment-methods'].$get());
 }
 
 // Traditional payment method creation removed - use direct debit contract verification
 
 // Set Default Payment Method
-export type SetDefaultPaymentMethodRequest = InferRequestType<(typeof apiClient)['payment-methods'][':id']['set-default']['$patch']>;
-export type SetDefaultPaymentMethodResponse = InferResponseType<(typeof apiClient)['payment-methods'][':id']['set-default']['$patch']>;
+export type SetDefaultPaymentMethodRequest = InferRequestType<ApiClientType['payment-methods'][':id']['set-default']['$patch']>;
+export type SetDefaultPaymentMethodResponse = InferResponseType<ApiClientType['payment-methods'][':id']['set-default']['$patch']>;
 
 /**
  * Set payment method as default
  * All types are inferred from the RPC client
  */
 export async function setDefaultPaymentMethodService(args: SetDefaultPaymentMethodRequest) {
-  return parseResponse(apiClient['payment-methods'][':id']['set-default'].$patch(args));
+  const client = await createApiClient();
+  return parseResponse(client['payment-methods'][':id']['set-default'].$patch(args));
 }
 
 // ============================================================================
@@ -57,20 +63,20 @@ export async function setDefaultPaymentMethodService(args: SetDefaultPaymentMeth
 // ============================================================================
 
 // Create Direct Debit Contract (Step 1) - Returns banks and signing URL
-export type CreateDirectDebitContractRequest = InferRequestType<(typeof apiClient)['payment-methods']['contracts']['$post']>;
-export type CreateDirectDebitContractResponse = InferResponseType<(typeof apiClient)['payment-methods']['contracts']['$post']>;
+export type CreateDirectDebitContractRequest = InferRequestType<ApiClientType['payment-methods']['contracts']['$post']>;
+export type CreateDirectDebitContractResponse = InferResponseType<ApiClientType['payment-methods']['contracts']['$post']>;
 
 // Verify Direct Debit Contract (Step 2) - Called after bank signing
-export type VerifyDirectDebitContractRequest = InferRequestType<(typeof apiClient)['payment-methods']['contracts'][':id']['verify']['$post']>;
-export type VerifyDirectDebitContractResponse = InferResponseType<(typeof apiClient)['payment-methods']['contracts'][':id']['verify']['$post']>;
+export type VerifyDirectDebitContractRequest = InferRequestType<ApiClientType['payment-methods']['contracts'][':id']['verify']['$post']>;
+export type VerifyDirectDebitContractResponse = InferResponseType<ApiClientType['payment-methods']['contracts'][':id']['verify']['$post']>;
 
 // Cancel Direct Debit Contract (Step 3) - Cancel active contract
-export type CancelDirectDebitContractRequest = InferRequestType<(typeof apiClient)['payment-methods']['contracts'][':id']['$delete']>;
-export type CancelDirectDebitContractResponse = InferResponseType<(typeof apiClient)['payment-methods']['contracts'][':id']['$delete']>;
+export type CancelDirectDebitContractRequest = InferRequestType<ApiClientType['payment-methods']['contracts'][':id']['$delete']>;
+export type CancelDirectDebitContractResponse = InferResponseType<ApiClientType['payment-methods']['contracts'][':id']['$delete']>;
 
 // Recover Direct Debit Contract - Recover failed contract verifications
-export type RecoverDirectDebitContractRequest = InferRequestType<(typeof apiClient)['payment-methods']['contracts']['recover']['$post']>;
-export type RecoverDirectDebitContractResponse = InferResponseType<(typeof apiClient)['payment-methods']['contracts']['recover']['$post']>;
+export type RecoverDirectDebitContractRequest = InferRequestType<ApiClientType['payment-methods']['contracts']['recover']['$post']>;
+export type RecoverDirectDebitContractResponse = InferResponseType<ApiClientType['payment-methods']['contracts']['recover']['$post']>;
 
 /**
  * Create Direct Debit Contract (Step 1)
@@ -78,7 +84,8 @@ export type RecoverDirectDebitContractResponse = InferResponseType<(typeof apiCl
  * Consolidated endpoint that replaces separate request + banks endpoints
  */
 export async function createDirectDebitContractService(args: CreateDirectDebitContractRequest) {
-  return parseResponse(apiClient['payment-methods'].contracts.$post(args));
+  const client = await createApiClient();
+  return parseResponse(client['payment-methods'].contracts.$post(args));
 }
 
 /**
@@ -86,7 +93,8 @@ export async function createDirectDebitContractService(args: CreateDirectDebitCo
  * Called after user signs contract with bank to get signature and create payment method
  */
 export async function verifyDirectDebitContractService(args: VerifyDirectDebitContractRequest) {
-  return parseResponse(apiClient['payment-methods'].contracts[':id'].verify.$post(args));
+  const client = await createApiClient();
+  return parseResponse(client['payment-methods'].contracts[':id'].verify.$post(args));
 }
 
 /**
@@ -94,7 +102,8 @@ export async function verifyDirectDebitContractService(args: VerifyDirectDebitCo
  * Allows users to cancel their direct debit contracts (legally required)
  */
 export async function cancelDirectDebitContractService(args: CancelDirectDebitContractRequest) {
-  return parseResponse(apiClient['payment-methods'].contracts[':id'].$delete(args));
+  const client = await createApiClient();
+  return parseResponse(client['payment-methods'].contracts[':id'].$delete(args));
 }
 
 /**
@@ -102,5 +111,6 @@ export async function cancelDirectDebitContractService(args: CancelDirectDebitCo
  * Recovers failed contract verifications using payman authority
  */
 export async function recoverDirectDebitContractService(args: RecoverDirectDebitContractRequest) {
-  return parseResponse(apiClient['payment-methods'].contracts.recover.$post(args));
+  const client = await createApiClient();
+  return parseResponse(client['payment-methods'].contracts.recover.$post(args));
 }
