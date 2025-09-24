@@ -42,7 +42,7 @@ import { validateWithSchema } from '@/api/core/validation';
  */
 export const ZarinPalDirectDebitConfigSchema = z.object({
   serviceName: z.string(),
-  baseUrl: z.string().url(),
+  baseUrl: z.string().url('Invalid URL format'),
   timeout: z.number().positive(),
   retries: z.number().int().min(0).max(5),
   circuitBreaker: z.object({
@@ -103,7 +103,7 @@ export const DirectDebitContractRequestSchema = z.object({
     example: '50000000',
     description: 'Maximum transaction amount in Iranian Rials',
   }),
-  callback_url: z.string().url().openapi({
+  callback_url: z.string().url('Invalid callback URL format').openapi({
     example: 'https://example.com/contract/callback',
     description: 'Return URL after contract signing',
   }),
@@ -338,9 +338,32 @@ export class ZarinPalDirectDebitService {
 
       clearTimeout(timeoutId);
 
+      // Handle HTTP 422 specifically to extract ZarinPal error details
+      if (response.status === 422) {
+        const responseText = await response.text();
+        let errorDetails = responseText;
+
+        try {
+          const parsedResponse = JSON.parse(responseText);
+          // Extract ZarinPal error message if available
+          if (parsedResponse.errors && Array.isArray(parsedResponse.errors) && parsedResponse.errors.length > 0) {
+            errorDetails = parsedResponse.errors[0].message || parsedResponse.errors[0].code || responseText;
+          } else if (parsedResponse.data && parsedResponse.data.message) {
+            errorDetails = parsedResponse.data.message;
+          }
+        } catch {
+          // Keep original responseText if JSON parsing fails
+        }
+
+        throw new HTTPException(422, {
+          message: `HTTP 422: Unprocessable Content. ${errorDetails}`,
+        });
+      }
+
       if (!response.ok) {
+        const responseText = await response.text();
         throw new HTTPException(response.status as 500, {
-          message: `HTTP ${response.status}: ${response.statusText}`,
+          message: `HTTP ${response.status}: ${response.statusText}. Response: ${responseText}`,
         });
       }
 
@@ -360,13 +383,43 @@ export class ZarinPalDirectDebitService {
   private handleError(
     error: unknown,
     operationName: string,
-    _context: { errorType: 'payment' | 'network'; provider: 'zarinpal' },
+    context: { errorType: 'payment' | 'network'; provider: 'zarinpal' },
   ): HTTPException {
     if (error instanceof HTTPException) {
+      // Enhanced handling for HTTP 422 errors
+      if (error.status === 422) {
+        const message = error.message || 'Unprocessable Content';
+
+        // Check for common ZarinPal validation errors
+        if (message.includes('insufficient') || message.includes('balance') || message.includes('funds')) {
+          return new HTTPException(422, {
+            message: `Payment failed: HTTP 422: Unprocessable Content. Please ensure your bank account has sufficient funds and try again.`,
+          });
+        }
+
+        if (message.includes('invalid') || message.includes('validation')) {
+          return new HTTPException(422, {
+            message: `Payment failed: HTTP 422: Invalid payment parameters. Please check your payment details and try again.`,
+          });
+        }
+
+        // Generic 422 handling
+        return new HTTPException(422, {
+          message: `Payment failed: HTTP 422: Unprocessable Content. Please ensure your bank account has sufficient funds and try again.`,
+        });
+      }
+
       return error;
     }
 
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+
+    // Handle specific ZarinPal error patterns
+    if (errorMessage.includes('422')) {
+      return new HTTPException(422, {
+        message: `Payment failed: HTTP 422: Unprocessable Content. Please ensure your bank account has sufficient funds and try again.`,
+      });
+    }
 
     if (errorMessage.includes('timeout') || errorMessage.includes('abort')) {
       return new HTTPException(HttpStatusCodes.REQUEST_TIMEOUT, {
@@ -377,6 +430,13 @@ export class ZarinPalDirectDebitService {
     if (errorMessage.includes('network') || errorMessage.includes('fetch')) {
       return new HTTPException(HttpStatusCodes.BAD_GATEWAY, {
         message: `ZarinPal Direct Debit ${operationName} network error: ${errorMessage}`,
+      });
+    }
+
+    // Enhanced error context for payment operations
+    if (context.errorType === 'payment') {
+      return new HTTPException(HttpStatusCodes.PAYMENT_REQUIRED, {
+        message: `ZarinPal Direct Debit ${operationName} failed: ${errorMessage}`,
       });
     }
 
@@ -787,6 +847,21 @@ export class ZarinPalDirectDebitService {
       error?: string;
     }> {
     try {
+      // Validate input parameters
+      if (!params.amount || params.amount < 1000) {
+        return {
+          success: false,
+          error: 'Invalid amount: Minimum amount is 1,000 IRR',
+        };
+      }
+
+      if (!params.contractSignature || params.contractSignature.length < 10) {
+        return {
+          success: false,
+          error: 'Invalid contract signature: Signature is required for direct debit',
+        };
+      }
+
       // Step 1: Create payment authority for the amount (like a regular payment request)
       const authPayload = {
         merchant_id: this.config.merchantId,
@@ -800,38 +875,95 @@ export class ZarinPalDirectDebitService {
         },
       };
 
-      const authResult = await this.post<typeof authPayload, { data?: { authority: string; code: number } }>(
-        '/pg/v4/payment/request.json',
-        authPayload,
-        { Authorization: this.getAuthorizationHeader() },
-        'create payment authority for direct debit',
-      );
+      let authResult;
+      try {
+        authResult = await this.post<typeof authPayload, { data?: { authority: string; code: number; message?: string } }>(
+          '/pg/v4/payment/request.json',
+          authPayload,
+          { Authorization: this.getAuthorizationHeader() },
+          'create payment authority for direct debit',
+        );
+      } catch (authError) {
+        // Handle specific errors during payment authority creation
+        if (authError instanceof HTTPException && authError.status === 422) {
+          return {
+            success: false,
+            error: authError.message,
+          };
+        }
+        throw authError; // Re-throw for general error handling
+      }
 
       if (!authResult.data?.authority || authResult.data.code !== 100) {
+        const errorMessage = authResult.data?.message || `ZarinPal error code: ${authResult.data?.code || 'unknown'}`;
         return {
           success: false,
-          error: `Failed to create payment authority: ${authResult.data?.code || 'unknown error'}`,
+          error: `Failed to create payment authority: ${errorMessage}`,
         };
       }
 
       // Step 2: Execute direct transaction using the signature
-      const checkoutResult = await this.executeDirectTransaction({
-        authority: authResult.data.authority,
-        signature: params.contractSignature,
-      });
+      let checkoutResult;
+      try {
+        checkoutResult = await this.executeDirectTransaction({
+          authority: authResult.data.authority,
+          signature: params.contractSignature,
+        });
+      } catch (checkoutError) {
+        // Handle specific errors during checkout
+        if (checkoutError instanceof HTTPException && checkoutError.status === 422) {
+          return {
+            success: false,
+            error: checkoutError.message,
+          };
+        }
+        throw checkoutError; // Re-throw for general error handling
+      }
 
-      if (checkoutResult.data && checkoutResult.data.code === 100 && checkoutResult.data.refrence_id) {
-        return {
-          success: true,
-          data: {
-            refId: checkoutResult.data.refrence_id,
-            amount: checkoutResult.data.amount,
-          },
-        };
+      // Log the actual response for debugging payment issues
+      console.warn('ZarinPal checkout response:', JSON.stringify(checkoutResult, null, 2));
+
+      if (checkoutResult.data && checkoutResult.data.code === 100) {
+        // Check if we have a valid reference ID (could be 0, so check for number type)
+        if (typeof checkoutResult.data.refrence_id === 'number') {
+          return {
+            success: true,
+            data: {
+              refId: checkoutResult.data.refrence_id,
+              amount: checkoutResult.data.amount,
+            },
+          };
+        } else {
+          // Success response but no reference ID - still consider it successful
+          // This can happen in some ZarinPal responses
+          return {
+            success: true,
+            data: {
+              refId: 0, // Use 0 as fallback reference ID
+              amount: checkoutResult.data.amount || params.amount,
+            },
+          };
+        }
       } else {
-        const errorMessage = checkoutResult.data?.message
-          || (checkoutResult.errors && checkoutResult.errors.length > 0 ? checkoutResult.errors[0]?.message : undefined)
-          || 'Direct debit transaction failed';
+        // Only treat as error if code is not 100 (success)
+        let errorMessage = 'Direct debit transaction failed';
+
+        if (checkoutResult.data?.code !== 100) {
+          if (checkoutResult.data?.message && checkoutResult.data.message !== 'Success') {
+            errorMessage = checkoutResult.data.message;
+          } else if (checkoutResult.data?.code) {
+            errorMessage = `ZarinPal error code: ${checkoutResult.data.code}`;
+          }
+        } else if (checkoutResult.errors && Array.isArray(checkoutResult.errors) && checkoutResult.errors.length > 0) {
+          const firstError = checkoutResult.errors[0];
+          if (typeof firstError === 'object' && firstError !== null) {
+            if ('message' in firstError && typeof firstError.message === 'string') {
+              errorMessage = firstError.message;
+            } else if ('code' in firstError && (typeof firstError.code === 'string' || typeof firstError.code === 'number')) {
+              errorMessage = `ZarinPal error code: ${String(firstError.code)}`;
+            }
+          }
+        }
 
         return {
           success: false,
@@ -839,9 +971,34 @@ export class ZarinPalDirectDebitService {
         };
       }
     } catch (error) {
+      // Enhanced error handling with specific HTTP status detection
+      if (error instanceof HTTPException) {
+        if (error.status === 422) {
+          return {
+            success: false,
+            error: error.message,
+          };
+        }
+        return {
+          success: false,
+          error: `Payment service error (HTTP ${error.status}): ${error.message}`,
+        };
+      }
+
+      // Handle other error types
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error during direct debit charge';
+
+      // Check if error message indicates specific issues
+      if (errorMessage.includes('422') || errorMessage.includes('Unprocessable')) {
+        return {
+          success: false,
+          error: 'Payment failed: HTTP 422: Unprocessable Content. Please ensure your bank account has sufficient funds and try again.',
+        };
+      }
+
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Unknown error during direct debit charge',
+        error: errorMessage,
       };
     }
   }

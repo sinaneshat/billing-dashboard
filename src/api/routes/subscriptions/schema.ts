@@ -33,7 +33,8 @@ const SubscriptionSchema = subscriptionSelectSchema.extend({
   },
 });
 
-// Subscription with related product data - extend from drizzle schemas
+// Subscription with related product and payment method data - extend from drizzle schemas
+// Simplified: only Toman amounts and formatted strings
 const SubscriptionWithProductSchema = SubscriptionSchema.extend({
   product: productSelectSchema.pick({
     id: true,
@@ -48,6 +49,29 @@ const SubscriptionWithProductSchema = SubscriptionSchema.extend({
       billingPeriod: 'monthly',
     },
   }),
+  paymentMethod: z.object({
+    id: z.string(),
+    contractDisplayName: z.string(),
+    contractMobile: z.string().nullable(),
+    contractStatus: z.string(),
+    bankCode: z.string().nullable(),
+    isPrimary: z.boolean().nullable(),
+    isActive: z.boolean().nullable(),
+  }).nullable().openapi({
+    example: {
+      id: 'pm_123',
+      contractDisplayName: 'بانک ملی ایران - 1234',
+      contractMobile: '09123456789',
+      contractStatus: 'active',
+      bankCode: '011',
+      isPrimary: true,
+      isActive: true,
+    },
+    description: 'Payment method details including bank contract information',
+  }),
+  // Simplified: only what frontend needs
+  currentPriceToman: z.number().describe('Subscription price in Toman'),
+  formattedPrice: z.string().describe('Pre-formatted price string (e.g., "99,000 تومان/ماه")'),
 });
 
 // Request schemas for Direct Debit Contract-based subscriptions
@@ -219,6 +243,26 @@ export const CreateSubscriptionResponseDataSchema = z.object({
   autoRenewalEnabled: z.boolean().openapi({
     example: true,
     description: 'Whether automatic renewal is enabled via direct debit contract',
+  }),
+  immediateBilling: z.boolean().openapi({
+    example: false,
+    description: 'Whether immediate billing was attempted for this subscription',
+  }),
+  paymentProcessed: z.boolean().openapi({
+    example: false,
+    description: 'Whether payment was successfully processed immediately',
+  }),
+  paymentId: CoreSchemas.id().optional().openapi({
+    example: 'pay_456',
+    description: 'Payment ID if immediate billing was successful',
+  }),
+  chargedAmount: z.number().optional().openapi({
+    example: 99000,
+    description: 'Amount charged in IRR if immediate billing was successful',
+  }),
+  zarinpalRefId: z.string().optional().openapi({
+    example: '123456789',
+    description: 'ZarinPal reference ID if payment was processed',
   }),
 }).openapi('CreateSubscriptionData');
 

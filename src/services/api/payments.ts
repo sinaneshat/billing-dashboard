@@ -8,15 +8,19 @@
 import type { InferRequestType, InferResponseType } from 'hono/client';
 import { parseResponse } from 'hono/client';
 
-import { apiClient } from '@/api/client';
+import type { ApiClientType } from '@/api/client';
+import { createApiClient } from '@/api/client';
 
 // ============================================================================
 //  Inferred Types for Components
 // ============================================================================
 
+// These types are 100% inferred from the RPC client
+// Using centralized ApiClientType from @/api/client
+
 // Get Payments
-export type GetPaymentsRequest = InferRequestType<(typeof apiClient)['payments']['$get']>;
-export type GetPaymentsResponse = InferResponseType<(typeof apiClient)['payments']['$get']>;
+export type GetPaymentsRequest = InferRequestType<ApiClientType['payments']['$get']>;
+export type GetPaymentsResponse = InferResponseType<ApiClientType['payments']['$get']>;
 
 // ============================================================================
 //  Service Functions
@@ -28,8 +32,9 @@ export type GetPaymentsResponse = InferResponseType<(typeof apiClient)['payments
  * CRITICAL FIX: Consistent argument handling for SSR/hydration
  */
 export async function getPaymentsService(args?: GetPaymentsRequest) {
+  const client = await createApiClient();
   // Fix: Only pass args if defined to ensure consistent behavior between server/client
   return args
-    ? parseResponse(apiClient.payments.$get(args))
-    : parseResponse(apiClient.payments.$get());
+    ? parseResponse(client.payments.$get(args))
+    : parseResponse(client.payments.$get());
 }

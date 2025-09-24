@@ -39,6 +39,8 @@ declare namespace Cloudflare {
 		ZARINPAL_ACCESS_TOKEN: string;
 		NEXT_PUBLIC_ROUNDTABLE_WEBHOOK_URL: string;
 		WEBHOOK_SECRET: string;
+		SUPABASE_ANON_KEY: string;
+		SUPABASE_SERVICE_ROLE_KEY: string;
 		NEXT_INC_CACHE_R2_BUCKET: R2Bucket;
 		UPLOADS_R2_BUCKET: R2Bucket;
 		DB: D1Database;

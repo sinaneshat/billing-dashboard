@@ -11,53 +11,53 @@ export const baseUrl = process.env.NEXT_PUBLIC_APP_URL
     ? `https://${process.env.VERCEL_URL}`
     : process.env.NODE_ENV === 'development' ? 'http://localhost:3000' : 'https://billing-dashboard-production.firstexhotic.workers.dev');
 
-// Brand Colors - Aligned with design system light mode
+// Brand Colors - Aligned with global.css design system light mode
 export const colors = {
-  // Primary Brand Color
-  primary: '#22D3EE', // New primary color
-  primaryForeground: '#FFFFFF', // White text on primary
-  primaryHover: '#0FBCDB', // Slightly darker for hover states
+  // Primary Brand Color - matching global.css primary
+  primary: '#606060', // hsl(0 0% 37.6471%) converted to hex
+  primaryForeground: '#FFFFFF', // hsl(0 0% 100%)
+  primaryHover: '#525252', // Slightly darker for hover states
 
-  // Core Colors from global.css light mode
-  background: '#FAFAFA', // hsl(0 0% 98%)
-  foreground: '#0C0C0D', // hsl(222.8571 84% 4.902%)
-  card: '#FFFFFF', // hsl(0 0% 100%)
-  cardForeground: '#0C0C0D', // hsl(222.8571 84% 4.902%)
+  // Core Colors from global.css light mode (exact matches)
+  background: '#F0F0F0', // hsl(0 0% 94.1176%)
+  foreground: '#333333', // hsl(0 0% 20%)
+  card: '#F5F5F5', // hsl(0 0% 96.0784%)
+  cardForeground: '#333333', // hsl(0 0% 20%)
 
-  // Secondary & Muted
-  secondary: '#F5F5F6', // hsl(210 40% 96.0784%)
-  secondaryForeground: '#1D1C20', // hsl(222.2222 47.3684% 11.1765%)
-  muted: '#F5F5F6', // hsl(210 40% 96.0784%)
-  mutedForeground: '#767679', // hsl(215.3846 16.318% 46.8627%)
+  // Secondary & Muted - exact global.css matches
+  secondary: '#E0E0E0', // hsl(0 0% 87.8431%)
+  secondaryForeground: '#333333', // hsl(0 0% 20%)
+  muted: '#D9D9D9', // hsl(0 0% 85.098%)
+  mutedForeground: '#666666', // hsl(0 0% 40%)
 
-  // Border
-  border: '#E6E6E6', // hsl(0 0% 90%)
-  input: '#E4E9F1', // hsl(214.2857 31.8182% 91.3725%)
+  // Accent matching global.css
+  accent: '#C0C0C0', // hsl(0 0% 75.2941%)
+  accentForeground: '#333333', // hsl(0 0% 20%)
 
-  // Semantic Colors (used sparingly)
-  destructive: '#EF4444', // hsl(0 84.2365% 60.1961%)
+  // Border matching global.css
+  border: '#D0D0D0', // hsl(0 0% 81.5686%)
+  input: '#E0E0E0', // hsl(0 0% 87.8431%)
+  ring: '#606060', // hsl(0 0% 37.6471%) - same as primary
+
+  // Semantic Colors (minimal, email-safe)
+  destructive: '#CC0000', // hsl(0 60% 50%) - from global.css
   destructiveForeground: '#FFFFFF',
-  success: '#22C55E', // hsl(142.1277 76.2162% 36.2745%)
-  warning: '#F8C110', // hsl(45.3982 93.3884% 47.451%)
-  error: '#EF4444', // Same as destructive for consistency
-  info: '#3B82F6', // Blue for informational messages
-  brandAccent: '#14B8A6', // Secondary brand color - teal
 
-  // Text hierarchy
-  textPrimary: '#0C0C0D', // Main text - foreground color
-  textSecondary: '#767679', // Secondary text - muted foreground
-  textMuted: '#A1A1AA', // Even more muted
+  // Text hierarchy aligned with global system
+  textPrimary: '#333333', // Main text - foreground color
+  textSecondary: '#666666', // Secondary text - muted foreground
+  textMuted: '#999999', // Even more muted
   textInverse: '#FFFFFF', // White text
 
   // Simplified backgrounds
   white: '#FFFFFF',
-  backgroundPrimary: '#FFFFFF',
-  backgroundSecondary: '#FAFAFA',
+  backgroundPrimary: '#F5F5F5', // Card color
+  backgroundSecondary: '#F0F0F0', // Background color
 };
 
-// Typography - Email-safe font stack
+// Typography - Matching global.css font system with email-safe fallbacks
 export const typography = {
-  fontFamily: 'system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
+  fontFamily: '"IBM Plex Sans Arabic", "Space Grotesk", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
 
   fontSize: {
     'xs': '12px',
@@ -117,14 +117,14 @@ export const containers = {
   mobile: '320px', // Mobile fallback
 };
 
-// Border radius
+// Border radius - Matching global.css system (--radius: 0.35rem = 5.6px)
 export const borderRadius = {
   none: '0px',
-  sm: '4px',
-  base: '6px',
-  md: '8px',
-  lg: '12px',
-  xl: '16px',
+  sm: '2px', // --radius - 4px
+  base: '4px', // --radius - 2px
+  md: '6px', // --radius (0.35rem = 5.6px, rounded to 6px for email)
+  lg: '10px', // --radius + 4px
+  xl: '14px', // larger variant
   full: '9999px',
 };
 
@@ -137,13 +137,14 @@ export const shadows = {
   none: 'none',
 };
 
-// Component variants
+// Component variants - Aligned with global.css design system
 export const components = {
   button: {
     primary: {
       'backgroundColor': colors.primary,
       'color': colors.primaryForeground,
       'borderColor': colors.primary,
+      'borderRadius': borderRadius.md,
       ':hover': {
         backgroundColor: colors.primaryHover,
       },
@@ -152,14 +153,16 @@ export const components = {
       'backgroundColor': colors.secondary,
       'color': colors.secondaryForeground,
       'borderColor': colors.border,
+      'borderRadius': borderRadius.md,
       ':hover': {
-        backgroundColor: '#EBEBEC', // Slightly darker than secondary
+        backgroundColor: colors.muted, // Use muted color for hover
       },
     },
     outline: {
       'backgroundColor': 'transparent',
       'color': colors.foreground,
       'borderColor': colors.border,
+      'borderRadius': borderRadius.md,
       ':hover': {
         backgroundColor: colors.secondary,
       },
@@ -168,6 +171,7 @@ export const components = {
       'backgroundColor': 'transparent',
       'color': colors.foreground,
       'borderColor': 'transparent',
+      'borderRadius': borderRadius.md,
       ':hover': {
         backgroundColor: colors.secondary,
       },
@@ -220,13 +224,14 @@ export const components = {
   },
 };
 
-// Layout presets
+// Layout presets - Using updated color system
 export const layouts = {
   container: {
     maxWidth: containers.content,
     margin: '40px auto',
     padding: spacing[5],
-    backgroundColor: colors.white,
+    backgroundColor: colors.backgroundPrimary,
+    borderRadius: borderRadius.md,
   },
 
   section: {
@@ -243,6 +248,7 @@ export const layouts = {
     margin: `${spacing[6]} 0`,
     padding: `${spacing[4]} 0`,
     borderTop: `1px solid ${colors.border}`,
+    color: colors.textSecondary,
   },
 };
 

@@ -15,7 +15,10 @@ import {
 } from 'lucide-react';
 import React from 'react';
 
-import { formatTomanCurrency } from '@/lib/format';
+// Import Zod-inferred types from backend API schemas - simplified
+import type { PaymentMethod } from '@/api/routes/payment-methods/schema';
+import type { PaymentWithDetails } from '@/api/routes/payments/schema';
+import { formatBillingDate, formatNextBillingDate } from '@/lib/format';
 
 import type { ActionConfig, ContentConfig, StatusConfig } from './billing-display';
 
@@ -33,50 +36,47 @@ export type SubscriptionData = {
     description?: string | null;
     billingPeriod?: string;
   } | null;
+  paymentMethod?: {
+    id: string;
+    contractDisplayName: string;
+    contractMobile?: string | null;
+    contractStatus: string;
+    bankCode?: string | null;
+    isPrimary?: boolean | null;
+    isActive?: boolean | null;
+  } | null;
   status: string;
-  currentPrice: number;
+  currentPriceToman: number; // Toman price (already converted)
   startDate: string;
   nextBillingDate?: string | null;
   endDate?: string | null;
+  // Simplified: only pre-formatted price from backend
+  formattedPrice: string;
 };
 
-// Payment data types (from existing codebase)
-export type PaymentData = {
-  id: string;
-  productName: string;
-  amount: number;
-  status: string;
-  paymentMethod: string;
-  paidAt: string | null;
-  createdAt: string;
-  failureReason?: string | null;
-  zarinpalRefId?: string | null;
-};
+// Use Zod-inferred PaymentWithDetails type from backend schema - no custom type needed
+export type PaymentData = PaymentWithDetails;
 
-// Plan/Product data types (from existing codebase)
+// Simplified Plan/Product data types (from existing codebase)
 export type PlanData = {
   id: string;
   name: string;
   description?: string | null;
-  price: number;
+  price: number; // Toman price (already converted)
   metadata?: {
     popular?: boolean;
     features?: string[];
     tier?: string;
     badgeText?: string;
   } | null;
+  // Simplified: pre-formatted price from API (optional for fallback)
+  formattedPrice?: string;
+  billingPeriod?: string;
 };
 
-// Payment method data types (for future use)
-export type PaymentMethodData = {
-  id: string;
-  contractDisplayName: string;
-  contractMobile?: string | null;
-  contractStatus: string;
-  isPrimary: boolean | null;
-  isActive: boolean | null;
-  lastUsedAt?: string | null;
-};
+// Following backend Zod patterns: use inferred types, no custom interfaces
+// Simplified: PaymentMethodData is just the Zod-inferred PaymentMethod type
+export type PaymentMethodData = PaymentMethod;
 
 // Upcoming bill data types (from existing codebase)
 export type UpcomingBillData = {
@@ -155,9 +155,28 @@ export function mapSubscriptionToContent(subscription: SubscriptionData, t: (key
   if (subscription.nextBillingDate) {
     metadata.push({
       label: t('subscription.nextBilling'),
-      value: new Date(subscription.nextBillingDate).toLocaleDateString(locale),
+      value: formatNextBillingDate(subscription.nextBillingDate, locale),
       icon: Calendar,
     });
+  }
+
+  // Add payment method information to metadata
+  if (subscription.paymentMethod) {
+    const bankContractInfo = formatBankContractInfo(subscription.paymentMethod);
+
+    metadata.push({
+      label: t('subscription.paymentMethod'),
+      value: bankContractInfo,
+      icon: CreditCard,
+    });
+
+    // Add mobile number if available and different from contract display name
+    if (subscription.paymentMethod.contractMobile) {
+      metadata.push({
+        label: t('paymentMethods.mobile'),
+        value: subscription.paymentMethod.contractMobile,
+      });
+    }
   }
 
   return {
@@ -165,7 +184,8 @@ export function mapSubscriptionToContent(subscription: SubscriptionData, t: (key
     description: subscription.product?.description || undefined,
     icon: <Package className="h-5 w-5" />,
     badge: getStatusConfig(subscription.status),
-    primaryValue: `${formatTomanCurrency(subscription.currentPrice)}${subscription.product?.billingPeriod ? `/${subscription.product.billingPeriod}` : ''}`,
+    // Simplified: use only pre-formatted price from API
+    primaryValue: subscription.formattedPrice,
     primaryLabel: t('subscription.price'),
     metadata,
     primaryAction,
@@ -203,17 +223,61 @@ export function mapPaymentToContent(payment: PaymentData, t: (key: string) => st
     });
   }
 
+  // Add payment method information (direct debit contract details)
+  if (payment.paymentMethod) {
+    const bankContractInfo = formatBankContractInfo({
+      id: payment.paymentMethod.id,
+      contractDisplayName: payment.paymentMethod.contractDisplayName,
+      contractMobile: payment.paymentMethod.contractMobile,
+      contractStatus: payment.paymentMethod.contractStatus,
+      bankCode: payment.paymentMethod.bankCode,
+      isPrimary: payment.paymentMethod.isPrimary,
+      isActive: true,
+    });
+
+    metadata.push({
+      label: t('payment.paymentMethod'),
+      value: bankContractInfo,
+      icon: CreditCard,
+    });
+
+    // Add mobile number if available and different from contract display name
+    if (payment.paymentMethod.contractMobile) {
+      const maskedMobile = payment.paymentMethod.contractMobile.length > 4
+        ? `****${payment.paymentMethod.contractMobile.slice(-4)}`
+        : payment.paymentMethod.contractMobile;
+      metadata.push({
+        label: t('paymentMethods.mobile'),
+        value: maskedMobile,
+      });
+    }
+  } else if (payment.zarinpalDirectDebitUsed) {
+    // Show that direct debit was used even if we don't have payment method details
+    metadata.push({
+      label: t('payment.paymentMethod'),
+      value: t('payment.directDebitUsed'),
+      icon: CreditCard,
+    });
+  }
+
+  // Show payment date separately from amount
+  if (payment.paidAt || payment.createdAt) {
+    metadata.push({
+      label: t('payment.date'),
+      value: formatBillingDate(payment.paidAt || payment.createdAt, locale, 'short'),
+      icon: Calendar,
+    });
+  }
+
   return {
-    title: payment.productName,
+    title: payment.product?.name || t('payment.unknownProduct'),
     description: payment.status === 'failed' && payment.failureReason
       ? payment.failureReason
       : undefined,
     icon: <ShoppingBag className="h-4 w-4" />,
     badge: getStatusConfig(payment.status),
-    primaryValue: `${formatTomanCurrency(payment.amount)} • ${new Date(payment.paidAt || payment.createdAt).toLocaleDateString(locale, {
-      month: 'short',
-      day: 'numeric',
-    })}`,
+    // Simplified: use only pre-formatted amount from API
+    primaryValue: payment.formattedAmount,
     primaryLabel: t('payment.amount'),
     metadata,
   };
@@ -222,7 +286,7 @@ export function mapPaymentToContent(payment: PaymentData, t: (key: string) => st
 /**
  * Maps plan/product data to unified ContentConfig
  */
-export function mapPlanToContent(plan: PlanData, t: (key: string) => string, onSelect?: (id: string) => void, canSelect?: boolean, contractMessage?: string): ContentConfig {
+export function mapPlanToContent(plan: PlanData, t: (key: string) => string, locale: string, onSelect?: (id: string) => void, canSelect?: boolean, contractMessage?: string): ContentConfig {
   const isFree = plan.price === 0;
   const isPopular = plan.metadata?.popular === true;
   const isPro = plan.name.toLowerCase().includes('pro');
@@ -233,7 +297,7 @@ export function mapPlanToContent(plan: PlanData, t: (key: string) => string, onS
     ? plan.metadata.features
     : (() => {
         const planType = isFree ? 'free' : isPro ? 'pro' : isPower ? 'power' : 'starter';
-        const baseKey = `pricing.${planType}`;
+        const baseKey = `plans.pricing.${planType}`;
         return [
           t(`${baseKey}.features.messagesPerMonth`),
           t(`${baseKey}.features.aiModels`),
@@ -268,25 +332,43 @@ export function mapPlanToContent(plan: PlanData, t: (key: string) => string, onS
         }
       : undefined;
 
-  // Metadata (features)
-  const metadata = features.map(feature => ({
+  // Metadata (features) with enhanced styling
+  const metadata = features.map((feature, _index) => ({
     label: '',
     value: (
-      <div className="flex items-start gap-2">
-        <Check className="h-4 w-4 mt-0.5 flex-shrink-0 text-primary" />
-        <span className="text-sm text-foreground leading-relaxed">{feature}</span>
+      <div className="flex items-start gap-3 py-1">
+        <div className="flex-shrink-0 w-5 h-5 rounded-full bg-gradient-to-br from-primary/20 to-primary/10 border border-primary/25 flex items-center justify-center mt-0.5 shadow-sm transition-all duration-200">
+          <Check className="h-3 w-3 text-primary font-bold drop-shadow-sm" />
+        </div>
+        <span className="text-sm text-foreground/90 leading-relaxed font-medium tracking-tight group-hover:text-foreground transition-colors duration-200">
+          {feature}
+        </span>
       </div>
     ),
   }));
 
+  // Simplified: use pre-formatted price from API or fallback
+  const getPrimaryValue = () => {
+    if (isFree) {
+      return t('plans.free');
+    }
+
+    // Use pre-formatted price if available, otherwise format Toman price
+    if (plan.formattedPrice) {
+      return plan.formattedPrice;
+    }
+
+    // Fallback: simple Toman formatting
+    const periodLabel = locale === 'fa' ? 'ماه' : 'month';
+    return `${plan.price.toLocaleString()} تومان/${periodLabel}`;
+  };
+
   return {
     title: plan.name,
-    description: plan.description || t(`pricing.${isFree ? 'free' : isPro ? 'pro' : isPower ? 'power' : 'starter'}.description`),
+    description: plan.description || t(`plans.pricing.${isFree ? 'free' : isPro ? 'pro' : isPower ? 'power' : 'starter'}.description`),
     icon: <FileText className="h-5 w-5" />,
     badge,
-    primaryValue: isFree
-      ? t('plans.free')
-      : `${plan.price.toLocaleString('fa-IR')} ${t('pricing.currency')}`,
+    primaryValue: getPrimaryValue(),
     primaryLabel: isFree ? t('time.forever') : t('time.perMonth'),
     primaryAction,
     metadata,
@@ -301,38 +383,41 @@ export function mapPlanToContent(plan: PlanData, t: (key: string) => string, onS
 }
 
 /**
- * Maps payment method data to unified ContentConfig
+ * Maps payment method data to unified ContentConfig with enhanced bank contract information
  */
-export function mapPaymentMethodToContent(paymentMethod: PaymentMethodData, t: (key: string) => string, onSetPrimary?: (id: string) => void, onRemove?: (id: string) => void): ContentConfig {
-  // Status configuration
+export function mapPaymentMethodToContent(paymentMethod: PaymentMethodData, t: (key: string) => string, locale: string, onSetPrimary?: (id: string) => void, onRemove?: (id: string) => void): ContentConfig {
+  // Enhanced status configuration with comprehensive states
   const getStatusConfig = (status: string): StatusConfig => {
     switch (status) {
       case 'active':
-        return { variant: 'default', label: t('status.active'), color: 'success' };
+        return { variant: 'success', label: t('paymentMethods.status.active'), color: 'success' };
       case 'pending_signature':
-        return { variant: 'secondary', label: t('status.pendingSignature'), color: 'warning' };
+        return { variant: 'warning', label: t('paymentMethods.status.pendingSignature'), color: 'warning' };
       case 'cancelled_by_user':
-        return { variant: 'destructive', label: t('status.cancelled'), color: 'error' };
+        return { variant: 'destructive', label: t('paymentMethods.status.cancelled'), color: 'error' };
+      case 'verification_failed':
+        return { variant: 'destructive', label: t('paymentMethods.status.verificationFailed'), color: 'error' };
       case 'expired':
-        return { variant: 'outline', label: t('status.expired'), color: 'warning' };
+        return { variant: 'outline', label: t('paymentMethods.status.expired'), color: 'warning' };
       default:
         return { variant: 'outline', label: status, color: 'default' };
     }
   };
 
-  // Actions
+  // Enhanced actions with proper conditions
   const actions: ActionConfig[] = [];
 
-  if (onSetPrimary && !paymentMethod.isPrimary && paymentMethod.isActive) {
+  if (onSetPrimary && !paymentMethod.isPrimary && paymentMethod.contractStatus === 'active' && paymentMethod.isActive) {
     actions.push({
-      label: t('paymentMethods.setPrimary'),
+      label: t('paymentMethods.setAsDefault'),
       variant: 'outline',
       size: 'sm',
+      icon: FileText,
       onClick: () => onSetPrimary(paymentMethod.id),
     });
   }
 
-  if (onRemove && paymentMethod.contractStatus === 'active') {
+  if (onRemove && ['active', 'cancelled_by_user', 'expired'].includes(paymentMethod.contractStatus)) {
     actions.push({
       label: t('actions.remove'),
       variant: 'ghost',
@@ -342,31 +427,156 @@ export function mapPaymentMethodToContent(paymentMethod: PaymentMethodData, t: (
     });
   }
 
-  // Metadata
+  // Enhanced metadata with bank contract information
   const metadata = [];
-  if (paymentMethod.contractMobile) {
+
+  // Bank information
+  if (paymentMethod.bankCode) {
+    const bankName = getBankName(paymentMethod.bankCode);
     metadata.push({
-      label: t('paymentMethods.mobile'),
-      value: paymentMethod.contractMobile,
-    });
-  }
-  if (paymentMethod.lastUsedAt) {
-    metadata.push({
-      label: t('paymentMethods.lastUsed'),
-      value: new Date(paymentMethod.lastUsedAt).toLocaleDateString(),
+      label: t('paymentMethods.bankName'),
+      value: bankName,
+      icon: CreditCard,
     });
   }
 
+  // Mobile number with proper masking
+  if (paymentMethod.contractMobile) {
+    const maskedMobile = paymentMethod.contractMobile.length > 4
+      ? `****${paymentMethod.contractMobile.slice(-4)}`
+      : paymentMethod.contractMobile;
+    metadata.push({
+      label: t('paymentMethods.phoneNumber'),
+      value: maskedMobile,
+    });
+  }
+
+  // Contract reference
+  if (paymentMethod.contractSignatureHash) {
+    metadata.push({
+      label: t('paymentMethods.reference'),
+      value: `#${paymentMethod.contractSignatureHash.slice(-8)}`,
+    });
+  }
+
+  // Last used date - using string timestamp from API
+  if (paymentMethod.lastUsedAt) {
+    const dateStr = paymentMethod.lastUsedAt;
+    metadata.push({
+      label: t('paymentMethods.table.lastUsed'),
+      value: formatBillingDate(dateStr, locale, 'short'),
+      icon: Calendar,
+    });
+  }
+
+  // Contract expiration - using string timestamp from API
+  if (paymentMethod.contractExpiresAt) {
+    const dateStr = paymentMethod.contractExpiresAt;
+    const expiryDate = formatBillingDate(dateStr, locale, 'short');
+    metadata.push({
+      label: t('paymentMethods.expires'),
+      value: expiryDate,
+      icon: AlertTriangle,
+    });
+  }
+
+  // Security verification indicator - using string timestamp from API
+  if (paymentMethod.contractVerifiedAt) {
+    const dateStr = paymentMethod.contractVerifiedAt;
+    metadata.push({
+      label: t('paymentMethods.directDebit.bankVerified'),
+      value: formatBillingDate(dateStr, locale, 'short'),
+      icon: Check,
+    });
+  }
+
+  // Transaction limits - simplified (amounts already in IRR, convert to Toman for display)
+  if (paymentMethod.maxTransactionAmount) {
+    const tomanAmount = paymentMethod.maxTransactionAmount / 10; // Convert IRR to Toman
+    metadata.push({
+      label: t('paymentMethods.maxTransactionAmount'),
+      value: `${tomanAmount.toLocaleString()} تومان`,
+    });
+  }
+
+  // Daily limit - simplified (amounts already in IRR, convert to Toman for display)
+  if (paymentMethod.maxDailyAmount) {
+    const tomanAmount = paymentMethod.maxDailyAmount / 10; // Convert IRR to Toman
+    metadata.push({
+      label: t('paymentMethods.maxDailyAmount'),
+      value: `${tomanAmount.toLocaleString()} تومان`,
+    });
+  }
+
+  // Daily transaction count
+  if (paymentMethod.maxDailyCount) {
+    metadata.push({
+      label: t('paymentMethods.maxDailyCount'),
+      value: `${paymentMethod.maxDailyCount} ${t('transactions.perDay')}`,
+    });
+  }
+
+  // Monthly transaction count
+  if (paymentMethod.maxMonthlyCount) {
+    metadata.push({
+      label: t('paymentMethods.maxMonthlyCount'),
+      value: `${paymentMethod.maxMonthlyCount} ${t('transactions.perMonth')}`,
+    });
+  }
+
+  // Contract duration
+  if (paymentMethod.contractDurationDays) {
+    metadata.push({
+      label: t('paymentMethods.contractDuration'),
+      value: `${paymentMethod.contractDurationDays} ${t('time.days')}`,
+    });
+  }
+
+  // Contract display name with bank info
+  const displayTitle = paymentMethod.contractDisplayName !== 'Direct Debit Contract'
+    ? paymentMethod.contractDisplayName
+    : formatBankContractDisplayName(paymentMethod, t);
+
+  // Primary value with status-based display
+  const primaryValue = paymentMethod.isPrimary
+    ? t('paymentMethods.defaultMethod')
+    : paymentMethod.contractStatus === 'active'
+      ? t('paymentMethods.zarinpalDirectDebit')
+      : t(`paymentMethods.status.${paymentMethod.contractStatus}`);
+
   return {
-    title: paymentMethod.contractDisplayName,
+    title: displayTitle,
+    subtitle: paymentMethod.contractType === 'direct_debit_contract'
+      ? t('paymentMethods.directDebitContract')
+      : t('paymentMethods.contract'),
+    description: getStatusConfig(paymentMethod.contractStatus).color === 'error'
+      ? t(`paymentMethods.status.${paymentMethod.contractStatus}Description`)
+      : undefined,
     icon: <CreditCard className="h-5 w-5" />,
     badge: getStatusConfig(paymentMethod.contractStatus),
-    primaryValue: paymentMethod.isPrimary ? t('paymentMethods.defaultMethod') : t('paymentMethods.zarinpalDirectDebit'),
+    primaryValue,
     primaryLabel: t('paymentMethods.type'),
     metadata,
-    primaryAction: actions.find(a => a.label === t('paymentMethods.setPrimary')),
-    secondaryActions: actions.filter(a => a.label !== t('paymentMethods.setPrimary')),
+    primaryAction: actions.find(a => a.label === t('paymentMethods.setAsDefault')),
+    secondaryActions: actions.filter(a => a.label !== t('paymentMethods.setAsDefault')),
   };
+}
+
+/**
+ * Helper function to format bank contract display name with bank information
+ * Now uses proper PaymentMethod type from Zod schema
+ */
+function formatBankContractDisplayName(paymentMethod: PaymentMethod, _t: (key: string) => string): string {
+  const bankName = getBankName(paymentMethod.bankCode);
+
+  // If we have mobile number, show last 4 digits
+  let accountInfo = '';
+  if (paymentMethod.contractMobile) {
+    const last4 = paymentMethod.contractMobile.slice(-4);
+    accountInfo = ` ••••${last4}`;
+  }
+
+  return `${bankName}${accountInfo}`;
 }
 
 /**
@@ -420,12 +630,9 @@ export function mapUpcomingBillToContent(bill: UpcomingBillData, t: (key: string
     title: bill.productName,
     icon: React.createElement(statusInfo.icon, { className: 'h-4 w-4' }),
     badge: statusInfo.status,
-    primaryValue: `${formatTomanCurrency(bill.amount)} • ${isToday
+    primaryValue: `${bill.amount.toLocaleString()} تومان • ${isToday
       ? t('time.today')
-      : dueDate.toLocaleDateString(locale, {
-          month: 'short',
-          day: 'numeric',
-        })}`,
+      : formatBillingDate(dueDate, locale, 'short')}`,
     primaryLabel: t('billing.amount'),
   };
 }
@@ -469,6 +676,80 @@ export function mapMetricToContent(metric: MetricData, _t: (key: string) => stri
 // =============================================================================
 // HELPER FUNCTIONS FOR COMMON TRANSFORMATIONS
 // =============================================================================
+
+/**
+ * Bank code to bank name mapping for Iranian banks
+ */
+const IRANIAN_BANKS: Record<string, string> = {
+  '011': 'بانک صنعت و معدن',
+  '012': 'بانک ملت',
+  '013': 'بانک رفاه کارگران',
+  '014': 'بانک مسکن',
+  '015': 'بانک سپه',
+  '016': 'بانک کشاورزی',
+  '017': 'بانک ملی ایران',
+  '018': 'بانک تجارت',
+  '019': 'بانک صادرات ایران',
+  '020': 'بانک توسعه تعاون',
+  '021': 'پست بانک ایران',
+  '022': 'بانک توسعه صادرات ایران',
+  '051': 'موسسه اعتباری توسعه',
+  '053': 'بانک کارآفرین',
+  '054': 'بانک پارسیان',
+  '055': 'بانک اقتصاد نوین',
+  '056': 'بانک سامان',
+  '057': 'بانک پاسارگاد',
+  '058': 'بانک سرمایه',
+  '059': 'بانک سینا',
+  '060': 'بانک تات',
+  '061': 'بانک شهر',
+  '062': 'بانک آینده',
+  '063': 'بانک انصار',
+  '064': 'بانک گردشگری',
+  '065': 'بانک حکمت ایرانیان',
+  '066': 'بانک دی',
+  '069': 'بانک ایران زمین',
+  '070': 'بانک رسالت',
+  '073': 'بانک کوثر',
+  '075': 'بانک مهر اقتصاد',
+  '076': 'بانک مور',
+  '078': 'بانک مهر ایران',
+  '079': 'بانک نور',
+  '080': 'بانک مرکزی جمهوری اسلامی ایران',
+  '090': 'بانک قوامین',
+  '095': 'بانک ایران اروپا',
+};
+
+/**
+ * Helper function to get bank name from bank code
+ */
+function getBankName(bankCode?: string | null): string {
+  if (!bankCode)
+    return 'بانک نامشخص';
+  return IRANIAN_BANKS[bankCode] || `بانک ${bankCode}`;
+}
+
+/**
+ * Helper function to format bank contract display name
+ * Updated to handle both PaymentMethod and subscription paymentMethod types
+ */
+function formatBankContractInfo(paymentMethod: NonNullable<SubscriptionData['paymentMethod']>): string {
+  const bankName = getBankName(paymentMethod.bankCode);
+
+  // If contractDisplayName already contains bank info, use it
+  if (paymentMethod.contractDisplayName && paymentMethod.contractDisplayName !== 'Direct Debit Contract') {
+    return paymentMethod.contractDisplayName;
+  }
+
+  // Extract last 4 digits from contract mobile or use default
+  let accountInfo = '';
+  if (paymentMethod.contractMobile) {
+    const last4 = paymentMethod.contractMobile.slice(-4);
+    accountInfo = ` - ${last4}`;
+  }
+
+  return `${bankName}${accountInfo}`;
+}
 
 /**
  * Creates a welcome/hero content configuration

@@ -1,6 +1,6 @@
 import { dehydrate, HydrationBoundary } from '@tanstack/react-query';
 
-import { SubscriptionBillingScreen } from '@/containers/screens/dashboard/billing';
+import { CustomerBillingOverviewScreen } from '@/containers/screens/dashboard/billing';
 import { getQueryClient } from '@/lib/data/query-client';
 import { queryKeys } from '@/lib/data/query-keys';
 import {
@@ -38,7 +38,7 @@ export default async function SubscriptionBillingPage() {
 
   return (
     <HydrationBoundary state={dehydrate(queryClient)}>
-      <SubscriptionBillingScreen />
+      <CustomerBillingOverviewScreen />
     </HydrationBoundary>
   );
 }

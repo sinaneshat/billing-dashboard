@@ -62,11 +62,6 @@ function getNavigation(t: ReturnType<typeof useTranslations>) {
       forceExpanded: true, // Keep billing section expanded by default
       items: [
         {
-          titleKey: 'navigation.subscriptions',
-          title: t('navigation.subscriptions'),
-          url: '/dashboard/billing/subscriptions',
-        },
-        {
           titleKey: 'navigation.plans',
           title: t('navigation.plans'),
           url: '/dashboard/billing/plans',

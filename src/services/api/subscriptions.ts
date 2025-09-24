@@ -8,31 +8,35 @@
 import type { InferRequestType, InferResponseType } from 'hono/client';
 import { parseResponse } from 'hono/client';
 
-import { apiClient } from '@/api/client';
+import type { ApiClientType } from '@/api/client';
+import { createApiClient } from '@/api/client';
 
 // ============================================================================
 //  Inferred Types for Components
 // ============================================================================
 
+// These types are 100% inferred from the RPC client
+// Using centralized ApiClientType from @/api/client
+
 // Get Subscriptions
-export type GetSubscriptionsRequest = InferRequestType<typeof apiClient.subscriptions.$get>;
-export type GetSubscriptionsResponse = InferResponseType<typeof apiClient.subscriptions.$get>;
+export type GetSubscriptionsRequest = InferRequestType<ApiClientType['subscriptions']['$get']>;
+export type GetSubscriptionsResponse = InferResponseType<ApiClientType['subscriptions']['$get']>;
 
 // Get Single Subscription
-export type GetSubscriptionRequest = InferRequestType<(typeof apiClient.subscriptions)[':id']['$get']>;
-export type GetSubscriptionResponse = InferResponseType<(typeof apiClient.subscriptions)[':id']['$get']>;
+export type GetSubscriptionRequest = InferRequestType<ApiClientType['subscriptions'][':id']['$get']>;
+export type GetSubscriptionResponse = InferResponseType<ApiClientType['subscriptions'][':id']['$get']>;
 
 // Create Subscription
-export type CreateSubscriptionRequest = InferRequestType<typeof apiClient.subscriptions.$post>;
-export type CreateSubscriptionResponse = InferResponseType<typeof apiClient.subscriptions.$post>;
+export type CreateSubscriptionRequest = InferRequestType<ApiClientType['subscriptions']['$post']>;
+export type CreateSubscriptionResponse = InferResponseType<ApiClientType['subscriptions']['$post']>;
 
 // Change Subscription Plan
-export type ChangePlanRequest = InferRequestType<(typeof apiClient.subscriptions)[':id']['$patch']>;
-export type ChangePlanResponse = InferResponseType<(typeof apiClient.subscriptions)[':id']['$patch']>;
+export type ChangePlanRequest = InferRequestType<ApiClientType['subscriptions'][':id']['$patch']>;
+export type ChangePlanResponse = InferResponseType<ApiClientType['subscriptions'][':id']['$patch']>;
 
 // Cancel Subscription
-export type CancelSubscriptionRequest = InferRequestType<(typeof apiClient.subscriptions)[':id']['cancel']['$patch']>;
-export type CancelSubscriptionResponse = InferResponseType<(typeof apiClient.subscriptions)[':id']['cancel']['$patch']>;
+export type CancelSubscriptionRequest = InferRequestType<ApiClientType['subscriptions'][':id']['cancel']['$patch']>;
+export type CancelSubscriptionResponse = InferResponseType<ApiClientType['subscriptions'][':id']['cancel']['$patch']>;
 
 // ============================================================================
 //  Service Functions
@@ -44,10 +48,11 @@ export type CancelSubscriptionResponse = InferResponseType<(typeof apiClient.sub
  * CRITICAL FIX: Consistent argument handling for SSR/hydration
  */
 export async function getSubscriptionsService(args?: GetSubscriptionsRequest) {
+  const client = await createApiClient();
   // Fix: Only pass args if defined to ensure consistent behavior between server/client
   return args
-    ? parseResponse(apiClient.subscriptions.$get(args))
-    : parseResponse(apiClient.subscriptions.$get());
+    ? parseResponse(client.subscriptions.$get(args))
+    : parseResponse(client.subscriptions.$get());
 }
 
 /**
@@ -55,7 +60,8 @@ export async function getSubscriptionsService(args?: GetSubscriptionsRequest) {
  * All types are inferred from the RPC client
  */
 export async function getSubscriptionService(subscriptionId: string) {
-  return parseResponse(apiClient.subscriptions[':id'].$get({
+  const client = await createApiClient();
+  return parseResponse(client.subscriptions[':id'].$get({
     param: { id: subscriptionId },
   }));
 }
@@ -65,7 +71,8 @@ export async function getSubscriptionService(subscriptionId: string) {
  * All types are inferred from the RPC client
  */
 export async function createSubscriptionService(args: CreateSubscriptionRequest) {
-  return parseResponse(apiClient.subscriptions.$post(args));
+  const client = await createApiClient();
+  return parseResponse(client.subscriptions.$post(args));
 }
 
 /**
@@ -73,7 +80,8 @@ export async function createSubscriptionService(args: CreateSubscriptionRequest)
  * All types are inferred from the RPC client
  */
 export async function changePlanService(args: ChangePlanRequest) {
-  return parseResponse(apiClient.subscriptions[':id'].$patch(args));
+  const client = await createApiClient();
+  return parseResponse(client.subscriptions[':id'].$patch(args));
 }
 
 /**
@@ -81,5 +89,6 @@ export async function changePlanService(args: ChangePlanRequest) {
  * All types are inferred from the RPC client
  */
 export async function cancelSubscriptionService(args: CancelSubscriptionRequest) {
-  return parseResponse(apiClient.subscriptions[':id'].cancel.$patch(args));
+  const client = await createApiClient();
+  return parseResponse(client.subscriptions[':id'].cancel.$patch(args));
 }

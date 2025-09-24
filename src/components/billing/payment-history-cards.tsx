@@ -3,24 +3,14 @@
 import { useLocale, useTranslations } from 'next-intl';
 import { memo } from 'react';
 
-import type { PaymentData } from './unified';
+// Import Zod-inferred type from backend schema - API already provides converted amounts
+import type { PaymentWithDetails } from '@/api/routes/payments/schema';
+
 import { BillingDisplayContainer, mapPaymentToContent } from './unified';
 
-// Simplified payment type for display only
-type PaymentHistoryItem = {
-  id: string;
-  productName: string;
-  amount: number;
-  status: string;
-  paymentMethod: string;
-  paidAt: string | null;
-  createdAt: string;
-  failureReason?: string | null;
-  zarinpalRefId?: string | null;
-};
-
+// Use Zod-inferred PaymentWithDetails type from backend schema - no custom type needed
 type PaymentHistoryCardsProps = {
-  payments: PaymentHistoryItem[];
+  payments: PaymentWithDetails[];
   isLoading?: boolean;
   emptyStateTitle?: string;
   emptyStateDescription?: string;
@@ -35,6 +25,7 @@ export const PaymentHistoryCards = memo(({
   const t = useTranslations();
   const locale = useLocale();
 
+  // API already provides converted amounts - no client-side conversion needed
   return (
     <BillingDisplayContainer
       data={payments}
@@ -47,9 +38,9 @@ export const PaymentHistoryCards = memo(({
       containerClassName={className}
       emptyTitle={t('states.empty.payments')}
       emptyDescription={t('states.empty.paymentsDescription')}
-      mapItem={(payment: PaymentHistoryItem) =>
+      mapItem={(payment: PaymentWithDetails) =>
         mapPaymentToContent(
-          payment as PaymentData,
+          payment,
           t,
           locale,
         )}

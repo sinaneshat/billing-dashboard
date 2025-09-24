@@ -10,12 +10,14 @@ import crypto from 'node:crypto';
 
 import type { RouteHandler } from '@hono/zod-openapi';
 import { and, eq } from 'drizzle-orm';
+import { HTTPException } from 'hono/http-exception';
 
 import { createError } from '@/api/common/error-handling';
 import { createHandler, createHandlerWithBatch, Responses } from '@/api/core';
+import { convertUsdToRial, convertUsdToToman } from '@/api/services/unified-currency-service';
 import type { ApiEnv } from '@/api/types';
 import { getDbAsync } from '@/db';
-import { billingEvent, paymentMethod as paymentMethodTable, product, subscription } from '@/db/tables/billing';
+import { billingEvent, payment, paymentMethod as paymentMethodTable, product, subscription } from '@/db/tables/billing';
 
 import type {
   cancelSubscriptionRoute,
@@ -56,20 +58,44 @@ export const getSubscriptionsHandler: RouteHandler<typeof getSubscriptionsRoute,
     // Direct database access for subscriptions
     const subscriptions = await db.select().from(subscription).where(eq(subscription.userId, user.id));
 
-    // Transform to match response schema with product data
+    // Transform to match response schema with product, payment method data and currency conversion
     const subscriptionsWithProduct = await Promise.all(
       subscriptions.map(async (subscription) => {
         const productResults = await db.select().from(product).where(eq(product.id, subscription.productId)).limit(1);
         const productRecord = productResults[0] || null;
 
+        // Fetch payment method data if available
+        let paymentMethodRecord = null;
+        if (subscription.paymentMethodId) {
+          const paymentMethodResults = await db.select().from(paymentMethodTable).where(eq(paymentMethodTable.id, subscription.paymentMethodId)).limit(1);
+          paymentMethodRecord = paymentMethodResults[0] || null;
+        }
+
+        // Convert USD subscription currentPrice to Toman - simplified response
+        const conversionResult = await convertUsdToToman(subscription.currentPrice);
+
         return {
           ...subscription,
+          // Simplified: only Toman amount and formatted string
+          currentPriceToman: conversionResult.tomanPrice,
+          formattedPrice: conversionResult.formattedPrice,
           product: productRecord
             ? {
                 id: productRecord.id,
                 name: productRecord.name,
                 description: productRecord.description,
                 billingPeriod: productRecord.billingPeriod,
+              }
+            : null,
+          paymentMethod: paymentMethodRecord
+            ? {
+                id: paymentMethodRecord.id,
+                contractDisplayName: paymentMethodRecord.contractDisplayName,
+                contractMobile: paymentMethodRecord.contractMobile,
+                contractStatus: paymentMethodRecord.contractStatus,
+                bankCode: paymentMethodRecord.bankCode,
+                isPrimary: paymentMethodRecord.isPrimary,
+                isActive: paymentMethodRecord.isActive,
               }
             : null,
         };
@@ -119,6 +145,13 @@ export const getSubscriptionHandler: RouteHandler<typeof getSubscriptionRoute, A
     const productResults = await db.select().from(product).where(eq(product.id, subscriptionRecord.productId)).limit(1);
     const productRecord = productResults[0];
 
+    // Get payment method details if available
+    let paymentMethodRecord = null;
+    if (subscriptionRecord.paymentMethodId) {
+      const paymentMethodResults = await db.select().from(paymentMethodTable).where(eq(paymentMethodTable.id, subscriptionRecord.paymentMethodId)).limit(1);
+      paymentMethodRecord = paymentMethodResults[0] || null;
+    }
+
     const subscriptionWithProduct = {
       ...subscriptionRecord,
       product: productRecord
@@ -127,6 +160,17 @@ export const getSubscriptionHandler: RouteHandler<typeof getSubscriptionRoute, A
             name: productRecord.name,
             description: productRecord.description,
             billingPeriod: productRecord.billingPeriod,
+          }
+        : null,
+      paymentMethod: paymentMethodRecord
+        ? {
+            id: paymentMethodRecord.id,
+            contractDisplayName: paymentMethodRecord.contractDisplayName,
+            contractMobile: paymentMethodRecord.contractMobile,
+            contractStatus: paymentMethodRecord.contractStatus,
+            bankCode: paymentMethodRecord.bankCode,
+            isPrimary: paymentMethodRecord.isPrimary,
+            isActive: paymentMethodRecord.isActive,
           }
         : null,
     };
@@ -208,9 +252,106 @@ export const createSubscriptionHandler: RouteHandler<typeof createSubscriptionRo
 
       c.logger.info('Using direct debit contract', { logType: 'operation', operationName: 'createSubscription', resource: contractId });
 
-      // Create subscription with direct debit
+      // IMMEDIATE BILLING: Charge user immediately for paid plans
+      const isFreeProduct = productRecord.price === 0;
+      let paymentRecord = null;
+      let zarinpalRefId = null;
+
+      if (!isFreeProduct) {
+        c.logger.info('Attempting immediate billing for paid plan', {
+          logType: 'operation',
+          operationName: 'createSubscription',
+        });
+
+        try {
+          // Convert USD product price to IRR for ZarinPal
+          const conversionResult = await convertUsdToRial(productRecord.price);
+          const amountInRial = conversionResult.rialPrice;
+
+          c.logger.info(`Currency conversion for billing: $${productRecord.price} USD -> ${amountInRial} IRR (rate: ${conversionResult.exchangeRate})`, {
+            logType: 'operation',
+            operationName: 'createSubscription',
+          });
+
+          // Import ZarinPal direct debit service
+          const { ZarinPalDirectDebitService } = await import('@/api/services/zarinpal-direct-debit');
+          const zarinpalDirectDebitService = new ZarinPalDirectDebitService({
+            serviceName: 'ZarinPal-DirectDebit',
+            baseUrl: 'https://api.zarinpal.com',
+            timeout: 30000,
+            retries: 2,
+            merchantId: c.env.NEXT_PUBLIC_ZARINPAL_MERCHANT_ID,
+            accessToken: c.env.ZARINPAL_ACCESS_TOKEN,
+            isSandbox: false,
+          });
+
+          // Decrypt the contract signature for charging
+          const { decryptSignature } = await import('@/api/utils/crypto');
+          let contractSignature: string;
+
+          try {
+            if (!paymentMethodRecord.contractSignatureEncrypted) {
+              throw new Error('No contract signature found');
+            }
+            contractSignature = await decryptSignature(paymentMethodRecord.contractSignatureEncrypted);
+          } catch (decryptError) {
+            c.logger.error('Failed to decrypt contract signature', decryptError instanceof Error ? decryptError : new Error(String(decryptError)));
+            throw createError.paymentMethodInvalid('Invalid payment contract signature');
+          }
+
+          // Attempt immediate charge using converted IRR amount
+          const chargeResult = await zarinpalDirectDebitService.chargeDirectDebit({
+            amount: amountInRial,
+            currency: 'IRR' as const,
+            description: `Subscription to ${productRecord.name} - Immediate Billing`,
+            contractSignature,
+            metadata: {
+              userId: user.id,
+              productId: productRecord.id,
+              subscriptionType: 'immediate_billing',
+            },
+          });
+
+          if (!chargeResult.success) {
+            c.logger.error('Immediate billing failed');
+
+            throw createError.paymentFailed(`Payment failed: ${chargeResult.error}. Please ensure your bank account has sufficient funds and try again.`);
+          }
+
+          zarinpalRefId = chargeResult.data?.refId;
+          c.logger.info('Immediate billing successful', {
+            logType: 'operation',
+            operationName: 'createSubscription',
+          });
+
+          // Create payment record for successful charge using converted IRR amount
+          const paymentData = {
+            userId: user.id,
+            subscriptionId: null as string | null, // Will be set after subscription creation
+            productId: productRecord.id,
+            amount: amountInRial,
+            currency: 'IRR',
+            status: 'completed' as const,
+            paymentMethod: 'zarinpal',
+            zarinpalRefId: String(zarinpalRefId),
+            zarinpalDirectDebitUsed: true,
+          };
+
+          paymentRecord = paymentData;
+        } catch (billingError) {
+          // If billing fails, don't create the subscription
+          c.logger.error('Immediate billing error, cancelling subscription creation', billingError instanceof Error ? billingError : new Error(String(billingError)));
+
+          if (billingError instanceof HTTPException) {
+            throw billingError;
+          }
+
+          throw createError.paymentFailed('Failed to process payment. Please check your payment method and try again.');
+        }
+      }
+
+      // Create subscription with direct debit (only after successful payment for paid plans)
       const subscriptionData = {
-        id: crypto.randomUUID(),
         userId: user.id,
         productId: productRecord.id,
         status: 'active' as const,
@@ -222,22 +363,52 @@ export const createSubscriptionHandler: RouteHandler<typeof createSubscriptionRo
         billingPeriod: productRecord.billingPeriod,
         paymentMethodId: paymentMethodRecord.id,
         directDebitContractId: contractId,
-        createdAt: new Date(),
-        updatedAt: new Date(),
       };
 
-      // Add subscription creation to batch
-      batch.add(batch.db.insert(subscription).values(subscriptionData));
-      const newSubscriptionId = subscriptionData.id;
+      // Insert subscription to get database-generated ID
+      const subscriptionResult = await batch.db.insert(subscription).values(subscriptionData).returning();
+      if (!subscriptionResult[0]) {
+        throw createError.internal('Failed to create subscription record');
+      }
+      const newSubscriptionId = subscriptionResult[0].id;
 
-      // Add billing event logging to batch
+      // Add payment record if there was a successful payment
+      let paymentId: string | null = null;
+      if (paymentRecord) {
+        // Update payment record with subscription ID
+        paymentRecord.subscriptionId = newSubscriptionId;
+        const paymentResult = await batch.db.insert(payment).values(paymentRecord).returning();
+        if (!paymentResult[0]) {
+          throw createError.internal('Failed to create payment record');
+        }
+        paymentId = paymentResult[0].id;
+
+        // Add payment success billing event
+        batch.add(batch.db.insert(billingEvent).values({
+          userId: user.id,
+          subscriptionId: newSubscriptionId,
+          paymentId,
+          paymentMethodId: paymentMethodRecord.id,
+          eventType: 'payment_success_immediate',
+          eventData: {
+            productId: productRecord.id,
+            productName: productRecord.name,
+            amount: paymentRecord.amount,
+            zarinpalRefId,
+            paymentType: 'immediate_billing',
+            billingType: 'direct_debit',
+          },
+          severity: 'info',
+        }));
+      }
+
+      // Add subscription creation billing event
       batch.add(batch.db.insert(billingEvent).values({
-        id: crypto.randomUUID(),
         userId: user.id,
         subscriptionId: newSubscriptionId,
-        paymentId: null,
+        paymentId,
         paymentMethodId: paymentMethodRecord.id,
-        eventType: 'subscription_created_direct_debit',
+        eventType: isFreeProduct ? 'subscription_created_free' : 'subscription_created_direct_debit',
         eventData: {
           productId: productRecord.id,
           productName: productRecord.name,
@@ -245,10 +416,10 @@ export const createSubscriptionHandler: RouteHandler<typeof createSubscriptionRo
           billingPeriod: productRecord.billingPeriod,
           contractId,
           autoRenewalEnabled: enableAutoRenew,
+          immediateBilling: !isFreeProduct,
+          paymentSuccessful: !isFreeProduct,
         },
         severity: 'info',
-        createdAt: new Date(),
-        updatedAt: new Date(),
       }));
 
       // DISPATCH ROUNDTABLE WEBHOOK: Subscription created with direct debit
@@ -324,6 +495,13 @@ export const createSubscriptionHandler: RouteHandler<typeof createSubscriptionRo
         paymentMethod: 'direct-debit-contract',
         contractId,
         autoRenewalEnabled: enableAutoRenew,
+        immediateBilling: !isFreeProduct,
+        paymentProcessed: paymentRecord !== null,
+        ...(paymentRecord && {
+          paymentId,
+          zarinpalRefId: String(zarinpalRefId),
+          chargedAmount: paymentRecord.amount,
+        }),
       });
     } else {
       throw createError.badRequest('Invalid payment method. Only direct-debit-contract is supported.');
@@ -385,13 +563,11 @@ export const cancelSubscriptionHandler: RouteHandler<typeof cancelSubscriptionRo
         endDate: canceledAt,
         cancellationReason: reason,
         nextBillingDate: null, // Stop future billing
-        updatedAt: new Date(),
       })
       .where(eq(subscription.id, id));
 
     // Log cancellation event
     await db.insert(billingEvent).values({
-      id: crypto.randomUUID(),
       userId: user.id,
       subscriptionId: id,
       paymentId: null,
@@ -403,8 +579,6 @@ export const cancelSubscriptionHandler: RouteHandler<typeof cancelSubscriptionRo
         previousStatus: subscriptionRecord.status,
       },
       severity: 'info',
-      createdAt: new Date(),
-      updatedAt: new Date(),
     });
 
     // DISPATCH ROUNDTABLE WEBHOOK: Subscription canceled
@@ -597,7 +771,6 @@ export const changePlanHandler: RouteHandler<typeof changePlanRoute, ApiEnv> = c
 
     // 8. Create billing event for audit trail - add to batch
     batch.add(batch.db.insert(billingEvent).values({
-      id: crypto.randomUUID(),
       userId: user.id,
       subscriptionId: id,
       paymentId: null,

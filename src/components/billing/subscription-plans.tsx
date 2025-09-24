@@ -2,15 +2,14 @@
 
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
-import React, { useCallback, useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
 
-import type { ApiResponse } from '@/api/core/schemas';
 import { PricingPlans } from '@/components/billing/pricing-plans';
 import { EmptyState, ErrorState, LoadingState } from '@/components/dashboard/dashboard-states';
-import type { Product } from '@/db/validation/billing';
 import { useCreateSubscriptionMutation } from '@/hooks/mutations/subscriptions';
 import { useDirectDebitContract } from '@/hooks/queries/direct-debit';
 import { useProductsQuery } from '@/hooks/queries/products';
+import { useCurrentSubscriptionQuery } from '@/hooks/queries/subscriptions';
 import { toastManager } from '@/lib/toast/toast-manager';
 
 /**
@@ -30,17 +29,17 @@ export function SubscriptionPlans() {
   const router = useRouter();
   const { data: products, isLoading, error, refetch } = useProductsQuery();
   const directDebitContract = useDirectDebitContract();
+  const { data: currentSubscription } = useCurrentSubscriptionQuery();
 
   // Extract and sort products by price
   const sortedProducts = useMemo(() => {
-    const data = products as ApiResponse<Product[]> | undefined;
-    const productList = data?.success && Array.isArray(data.data) ? data.data : [];
-    return [...productList].sort((a, b) => a.price - b.price);
+    return [...(products?.data || [])].sort((a, b) => a.price - b.price);
   }, [products]);
 
   const createSubscription = useCreateSubscriptionMutation();
 
-  const handleCreateSubscription = useCallback(async (product: Product) => {
+  // eslint-disable-next-line ts/no-explicit-any
+  const handleCreateSubscription = useCallback(async (product: any) => {
     try {
       if (!directDebitContract.data?.contractId) {
         toastManager.error(t('subscription.noValidContract'));
@@ -57,12 +56,34 @@ export function SubscriptionPlans() {
       });
 
       if (result.success) {
-        toastManager.success(t('subscription.createSuccess'));
+        if (result.data.immediateBilling && result.data.paymentProcessed) {
+          toastManager.success(t('subscription.createSuccessWithPayment', {
+            amount: result.data.chargedAmount?.toLocaleString() || '0',
+            refId: result.data.zarinpalRefId || '',
+          }));
+        } else {
+          toastManager.success(t('subscription.createSuccess'));
+        }
       } else {
         toastManager.error(t('subscription.createFailed'));
       }
-    } catch {
-      toastManager.error(t('subscription.createFailed'));
+    } catch (error: unknown) {
+      // Enhanced error handling for payment failures
+      if (error && typeof error === 'object' && 'message' in error) {
+        const errorMessage = String(error.message).toLowerCase();
+
+        if (errorMessage.includes('payment failed') || errorMessage.includes('insufficient funds')) {
+          toastManager.error(t('subscription.paymentFailedInsufficientFunds'));
+        } else if (errorMessage.includes('payment method') || errorMessage.includes('contract')) {
+          toastManager.error(t('subscription.paymentMethodError'));
+        } else if (errorMessage.includes('payment')) {
+          toastManager.error(t('subscription.paymentFailed'));
+        } else {
+          toastManager.error(t('subscription.createFailed'));
+        }
+      } else {
+        toastManager.error(t('subscription.createFailed'));
+      }
     }
   }, [createSubscription, directDebitContract.data?.contractId, t]);
 
@@ -115,11 +136,12 @@ export function SubscriptionPlans() {
   if (sortedProducts.length > 0) {
     return (
       <PricingPlans
-        products={sortedProducts}
+        products={sortedProducts as any} // eslint-disable-line ts/no-explicit-any
         onPlanSelect={handlePlanSelect}
         contractStatus={directDebitContract.data?.status}
         contractMessage={directDebitContract.data?.message}
         canMakePayments={directDebitContract.data?.canMakePayments}
+        currentSubscription={currentSubscription}
       />
     );
   }

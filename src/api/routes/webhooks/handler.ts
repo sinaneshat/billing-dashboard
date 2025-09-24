@@ -632,6 +632,15 @@ export class RoundtableWebhookForwarder {
     }
   }
 
+  private static getSupabaseAuthToken(): string | null {
+    try {
+      const { env } = getCloudflareContext();
+      return env.SUPABASE_ANON_KEY || env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY || null;
+    } catch {
+      return process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY || null;
+    }
+  }
+
   static async forwardEvent(event: WebhookEvent): Promise<boolean> {
     const url = this.getRoundtableWebhookUrl();
     if (!url) {
@@ -649,6 +658,7 @@ export class RoundtableWebhookForwarder {
     const timestamp = Math.floor(Date.now() / 1000);
     const signature = this.generateSignature(payload, secret, timestamp);
 
+    const authToken = this.getSupabaseAuthToken();
     const headers = {
       'Content-Type': 'application/json',
       'User-Agent': 'BillingDashboard-Webhooks/1.0',
@@ -657,6 +667,7 @@ export class RoundtableWebhookForwarder {
       'X-Webhook-Event-Type': event.type,
       'X-Webhook-Event-Id': event.id,
       'X-Webhook-Source': 'billing-dashboard',
+      ...(authToken && { Authorization: `Bearer ${authToken}` }),
     };
 
     const fetchConfig: FetchConfig = {

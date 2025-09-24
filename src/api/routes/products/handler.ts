@@ -22,7 +22,7 @@ export const getProductsHandler: RouteHandler<typeof getProductsRoute, ApiEnv> =
     const db = await getDbAsync();
     const rawProducts = await db.select().from(product).where(eq(product.isActive, true));
 
-    // Convert USD prices to Iranian currency
+    // Convert USD prices to Toman - simplified response
     const currencyService = createCurrencyExchangeService();
     const productsWithTomanPricing = await Promise.all(
       rawProducts.map(async (prod) => {
@@ -31,10 +31,8 @@ export const getProductsHandler: RouteHandler<typeof getProductsRoute, ApiEnv> =
 
         return {
           ...prod,
-          price: conversion.tomanPrice, // Return Toman price for display
-          originalUsdPrice: prod.price, // Keep original USD for reference
-          exchangeRate: conversion.exchangeRate,
-          formattedPrice: conversion.formattedPrice,
+          price: conversion.tomanPrice, // Return Toman price
+          formattedPrice: conversion.formattedPrice, // Pre-formatted string
         };
       }),
     );

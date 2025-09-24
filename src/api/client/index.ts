@@ -28,7 +28,7 @@ function getBaseUrl() {
     if (process.env.NEXT_PUBLIC_APP_URL) {
       return `${process.env.NEXT_PUBLIC_APP_URL}/api/v1`;
     }
-    return process.env.NODE_ENV === 'development' ? 'http://localhost:3000/api/v1' : 'https://billing-dashboard-production.firstexhotic.workers.dev/api/v1';
+    return process.env.NODE_ENV === 'development' ? 'http://localhost:3000/api/v1' : 'https://billing.roundtable.now/api/v1';
   }
 
   // Client-side: use same origin
@@ -36,24 +36,46 @@ function getBaseUrl() {
 }
 
 /**
- * Type-safe Hono RPC client
+ * Create a type-safe Hono RPC client
  *
- * This client automatically infers types from the backend AppType,
- * providing full type safety for requests and responses.
+ * Factory function that creates a fresh client instance with proper cookie handling:
+ * - Client-side: Uses credentials: 'include' for automatic cookie handling
+ * - Server-side: Dynamically imports cookies() and manually forwards them to overcome
+ *   the limitation where credentials: 'include' doesn't work in server contexts
  */
-export const apiClient = hc<AppType>(getBaseUrl(), {
-  headers: {
-    Accept: 'application/json',
-  },
-  init: {
-    credentials: 'include',
-  },
-});
+export async function createApiClient() {
+  // Check if we're on server-side (Next.js server component or API route)
+  if (typeof window === 'undefined') {
+    // Server-side: Dynamically import cookies to avoid client-side bundling issues
+    // credentials: 'include' doesn't work in server contexts with Hono client
+    const { cookies } = await import('next/headers');
+    const cookieStore = cookies();
+    const cookieHeader = cookieStore.toString();
+
+    return hc<AppType>(getBaseUrl(), {
+      headers: {
+        Accept: 'application/json',
+        ...(cookieHeader && { Cookie: cookieHeader }),
+      },
+    });
+  }
+
+  // Client-side: Use standard credentials approach
+  return hc<AppType>(getBaseUrl(), {
+    headers: {
+      Accept: 'application/json',
+    },
+    init: {
+      credentials: 'include',
+    },
+  });
+}
 
 /**
- * Type helper to extract request types from API client
+ * Centralized type for awaited API client - used across all services
+ * This eliminates the need to repeat this type definition in every service
  */
-export type ApiClient = typeof apiClient;
+export type ApiClientType = Awaited<ReturnType<typeof createApiClient>>;
 
 /**
  * Export AppType for use in services layer
