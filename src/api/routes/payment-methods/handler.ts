@@ -7,8 +7,6 @@
  * 3. DELETE /payment-methods/contracts/{id} - Cancel contract
  */
 
-import crypto from 'node:crypto';
-
 import type { RouteHandler } from '@hono/zod-openapi';
 import { and, eq } from 'drizzle-orm';
 
@@ -128,7 +126,7 @@ export const setDefaultPaymentMethodHandler: RouteHandler<typeof setDefaultPayme
       // D1 batch mode - add operations to batch
       batch.add(batch.db
         .update(paymentMethod)
-        .set({ isPrimary: false, updatedAt: new Date() })
+        .set({ isPrimary: false })
         .where(eq(paymentMethod.userId, user.id)));
 
       batch.add(batch.db
@@ -136,12 +134,10 @@ export const setDefaultPaymentMethodHandler: RouteHandler<typeof setDefaultPayme
         .set({
           isPrimary: true,
           lastUsedAt: new Date(),
-          updatedAt: new Date(),
         })
         .where(eq(paymentMethod.id, id)));
 
       batch.add(batch.db.insert(billingEvent).values({
-        id: crypto.randomUUID(),
         userId: user.id,
         paymentMethodId: id,
         eventType: 'default_payment_method_changed',
@@ -163,7 +159,7 @@ export const setDefaultPaymentMethodHandler: RouteHandler<typeof setDefaultPayme
       // Transaction fallback mode - execute operations immediately
       await batch.db
         .update(paymentMethod)
-        .set({ isPrimary: false, updatedAt: new Date() })
+        .set({ isPrimary: false })
         .where(eq(paymentMethod.userId, user.id));
 
       await batch.db
@@ -171,12 +167,10 @@ export const setDefaultPaymentMethodHandler: RouteHandler<typeof setDefaultPayme
         .set({
           isPrimary: true,
           lastUsedAt: new Date(),
-          updatedAt: new Date(),
         })
         .where(eq(paymentMethod.id, id));
 
       await batch.db.insert(billingEvent).values({
-        id: crypto.randomUUID(),
         userId: user.id,
         paymentMethodId: id,
         eventType: 'default_payment_method_changed',
@@ -250,7 +244,7 @@ export const createContractHandler: RouteHandler<typeof createContractRoute, Api
     // Validate against bank limits
     if (requestedMaxAmount > maxSupportedDailyAmount) {
       throw createError.badRequest(
-        `Maximum transaction amount (${requestedMaxAmount.toLocaleString('fa-IR')} IRR) exceeds the maximum supported by banks (${maxSupportedDailyAmount.toLocaleString('fa-IR')} IRR). Please reduce the amount.`,
+        `Maximum transaction amount (${(requestedMaxAmount / 10).toLocaleString('fa-IR')} Toman) exceeds the maximum supported by banks (${(maxSupportedDailyAmount / 10).toLocaleString('fa-IR')} Toman). Please reduce the amount.`,
       );
     }
 
@@ -393,7 +387,6 @@ export const verifyContractHandler: RouteHandler<typeof verifyContractRoute, Api
 
     // Add billing event to batch
     batch.add(batch.db.insert(billingEvent).values({
-      id: crypto.randomUUID(),
       userId: user.id,
       eventType: 'direct_debit_contract_verified',
       eventData: {
@@ -403,8 +396,6 @@ export const verifyContractHandler: RouteHandler<typeof verifyContractRoute, Api
         contractId, // Include the contract ID for debugging
       },
       severity: 'info',
-      createdAt: now,
-      updatedAt: now,
     }));
 
     // Execute all batch operations
@@ -472,36 +463,48 @@ export const cancelContractHandler: RouteHandler<typeof cancelContractRoute, Api
     // Decrypt signature to call ZarinPal cancel contract API
     const decryptedSignature = await decryptSignature(existingMethod.contractSignatureEncrypted);
 
+    let zarinpalCancellationSuccess = false;
+    let zarinpalCancellationError = null;
+
     try {
       const cancelResult = await zarinpalService.cancelContract({
         signature: decryptedSignature,
       });
 
-      if (!cancelResult.data || cancelResult.data.code !== 100) {
-        throw createError.badRequest('Failed to cancel contract with ZarinPal');
+      if (cancelResult.data && cancelResult.data.code === 100) {
+        zarinpalCancellationSuccess = true;
+      } else {
+        zarinpalCancellationError = 'ZarinPal returned non-success code';
       }
     } catch (error) {
-      // Log the error but continue with local cancellation for user control
-      // This ensures users can still cancel contracts even if ZarinPal API is temporarily unavailable
+      // Handle ZarinPal API errors gracefully
+      // Common case: "Contract is not active" (error -70) - this should not prevent cancellation
+      zarinpalCancellationError = error instanceof Error ? error.message : 'Unknown error';
       console.error('ZarinPal contract cancellation failed:', error);
+
+      // Continue with local cancellation for user control
+      // This ensures users can still cancel contracts even if ZarinPal API reports issues
     }
 
     // Add billing event to batch (BEFORE deletion for audit trail)
+    // NOTE: Do NOT set paymentMethodId FK since we're deleting the payment method in the same batch
+    // This avoids foreign key constraint violations
     batch.add(batch.db.insert(billingEvent).values({
-      id: crypto.randomUUID(),
       userId: user.id,
-      paymentMethodId: id, // Will be deleted, so log it now
+      paymentMethodId: null, // Don't set FK to avoid constraint violation on deletion
       eventType: 'payment_method_hard_deleted',
       eventData: {
+        paymentMethodId: id, // Store in JSON for audit purposes
         contractSignatureHash: existingMethod.contractSignatureHash, // Log hash instead of sensitive data
         contractDisplayName: existingMethod.contractDisplayName,
         contractMobile: existingMethod.contractMobile,
+        contractType: existingMethod.contractType,
+        contractStatus: existingMethod.contractStatus,
         deletionReason: 'user_requested',
-        zarinpalCancellationSuccess: true,
+        zarinpalCancellationSuccess,
+        zarinpalCancellationError,
       },
       severity: 'info',
-      createdAt: new Date(),
-      updatedAt: new Date(),
     }));
 
     // Add hard delete to batch
@@ -659,7 +662,6 @@ export const contractCallbackHandler: RouteHandler<typeof contractCallbackRoute,
 
           // Create billing event
           await db.insert(billingEvent).values({
-            id: crypto.randomUUID(),
             userId: user.id,
             eventType: 'direct_debit_contract_verified',
             eventData: {
@@ -771,13 +773,10 @@ export const recoverContractHandler: RouteHandler<typeof recoverContractRoute, A
         contractDisplayName: 'Mock Test Bank',
         contractMobile: '09123456789',
         lastUsedAt: null,
-        createdAt: new Date(),
-        updatedAt: new Date(),
       }));
 
       // Log billing event (don't set paymentMethodId FK as it doesn't exist yet)
       batch.add(batch.db.insert(billingEvent).values({
-        id: `be_${crypto.randomUUID()}`,
         userId: user.id,
         eventType: 'direct_debit_contract_verified',
         eventData: {
@@ -787,8 +786,6 @@ export const recoverContractHandler: RouteHandler<typeof recoverContractRoute, A
           source: 'recovery_mock',
         },
         severity: 'info',
-        createdAt: new Date(),
-        updatedAt: new Date(),
       }));
 
       await batch.execute();
@@ -840,7 +837,6 @@ export const recoverContractHandler: RouteHandler<typeof recoverContractRoute, A
 
         // Add billing event for recovery attempt
         batch.add(batch.db.insert(billingEvent).values({
-          id: crypto.randomUUID(),
           userId: user.id,
           paymentMethodId: existingMethod.id,
           eventType: 'payment_method_recovery_idempotent',
@@ -849,8 +845,6 @@ export const recoverContractHandler: RouteHandler<typeof recoverContractRoute, A
             source: 'recovery_endpoint',
           },
           severity: 'info',
-          createdAt: new Date(),
-          updatedAt: new Date(),
         }));
 
         await batch.execute();
@@ -874,7 +868,7 @@ export const recoverContractHandler: RouteHandler<typeof recoverContractRoute, A
         contractType: 'direct_debit_contract' as const,
         contractSignatureEncrypted: encrypted,
         contractSignatureHash: hash,
-        contractDisplayName: 'پرداخت مستقیم (بازیابی شده)', // Direct Payment (Recovered)
+        contractDisplayName: 'پرداخت مستقیم', // Direct Payment
         contractMobile: '',
         contractStatus: 'active' as const,
         isPrimary: existingMethods.length === 0, // Set as primary if first method
@@ -886,7 +880,6 @@ export const recoverContractHandler: RouteHandler<typeof recoverContractRoute, A
       // Add to batch
       batch.add(batch.db.insert(paymentMethod).values(paymentMethodData));
       batch.add(batch.db.insert(billingEvent).values({
-        id: crypto.randomUUID(),
         userId: user.id,
         // Don't set paymentMethodId FK - it doesn't exist yet in same batch
         eventType: 'payment_method_recovered',

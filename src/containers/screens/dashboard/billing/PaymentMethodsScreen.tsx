@@ -6,13 +6,12 @@ import { useTranslations } from 'next-intl';
 import React from 'react';
 
 import type { ApiResponse } from '@/api/core/schemas';
-import type { PaymentMethodData } from '@/components/billing/unified';
-import { BillingDisplayContainer, mapPaymentMethodToContent } from '@/components/billing/unified';
+import type { PaymentMethod } from '@/api/routes/payment-methods/schema';
+import { SimplifiedPaymentMethodCard } from '@/components/billing/simplified-payment-method-card';
 import { DashboardPageHeader } from '@/components/dashboard/dashboard-header';
 import { DashboardPage, DashboardSection, EmptyState, ErrorState, LoadingState } from '@/components/dashboard/dashboard-states';
 import { Button } from '@/components/ui/button';
-import type { PaymentMethod } from '@/db/validation/billing';
-import { useCancelDirectDebitContractMutation } from '@/hooks/mutations/payment-methods';
+import { useCancelDirectDebitContractMutation, useSetDefaultPaymentMethodMutation } from '@/hooks/mutations/payment-methods';
 import { usePaymentMethodsQuery } from '@/hooks/queries/payment-methods';
 import { toastManager } from '@/lib/toast/toast-manager';
 
@@ -21,6 +20,7 @@ export default function PaymentMethodsScreen() {
   const router = useRouter();
   const paymentMethodsQuery = usePaymentMethodsQuery();
   const cancelContractMutation = useCancelDirectDebitContractMutation();
+  const setDefaultMutation = useSetDefaultPaymentMethodMutation();
 
   // Handle mutation feedback with direct mutation state
   React.useEffect(() => {
@@ -35,6 +35,19 @@ export default function PaymentMethodsScreen() {
     }
   }, [cancelContractMutation.isSuccess, cancelContractMutation.isError, cancelContractMutation.isPending, cancelContractMutation.error, t]);
 
+  // Handle set default payment method feedback
+  React.useEffect(() => {
+    if (setDefaultMutation.isSuccess && !setDefaultMutation.isPending) {
+      toastManager.success(t('paymentMethods.successMessages.defaultMethodSet'));
+    }
+    if (setDefaultMutation.isError && !setDefaultMutation.isPending && setDefaultMutation.error) {
+      const errorMessage = setDefaultMutation.error instanceof Error
+        ? setDefaultMutation.error.message
+        : t('paymentMethods.errorMessages.failedToSetDefault');
+      toastManager.error(errorMessage);
+    }
+  }, [setDefaultMutation.isSuccess, setDefaultMutation.isError, setDefaultMutation.isPending, setDefaultMutation.error, t]);
+
   const paymentMethodList: PaymentMethod[] = (() => {
     const data = paymentMethodsQuery.data as ApiResponse<PaymentMethod[]> | undefined;
     return data?.success && Array.isArray(data.data) ? data.data : [];
@@ -44,16 +57,15 @@ export default function PaymentMethodsScreen() {
     cancelContractMutation.mutate(paymentMethodId);
   };
 
-  // Convert PaymentMethod to PaymentMethodData for the unified mapper
-  const mapPaymentMethodToData = (method: PaymentMethod): PaymentMethodData => ({
-    id: method.id,
-    contractDisplayName: method.contractDisplayName || t('paymentMethods.directDebitContract'),
-    contractMobile: method.contractMobile,
-    contractStatus: method.contractStatus,
-    isPrimary: method.isPrimary,
-    isActive: method.contractStatus === 'active',
-    lastUsedAt: method.lastUsedAt ? method.lastUsedAt.toISOString() : null,
-  });
+  const handleSetPrimary = (paymentMethodId: string) => {
+    setDefaultMutation.mutate({
+      param: { id: paymentMethodId },
+    });
+  };
+
+  const handleAddPaymentMethod = () => {
+    router.push('/dashboard/billing/methods/setup');
+  };
 
   if (paymentMethodsQuery.isLoading) {
     return (
@@ -102,38 +114,29 @@ export default function PaymentMethodsScreen() {
       <DashboardPageHeader
         title={t('paymentMethods.title')}
         description={t('paymentMethods.subtitle')}
+        action={paymentMethodList.length > 0
+          ? (
+              <Button onClick={handleAddPaymentMethod} className="gap-2">
+                <Plus className="h-4 w-4" />
+                {t('paymentMethods.addPaymentMethod')}
+              </Button>
+            )
+          : undefined}
       />
 
       <DashboardSection delay={0.1}>
         {paymentMethodList.length > 0
           ? (
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-lg font-medium">
-                    {t('paymentMethods.activeContracts')}
-                  </h3>
-                  <span className="text-sm text-muted-foreground">
-                    {paymentMethodList.length}
-                    {' '}
-                    {paymentMethodList.length === 1 ? t('paymentMethods.contract') : t('paymentMethods.contracts')}
-                  </span>
-                </div>
-                <BillingDisplayContainer
-                  data={paymentMethodList}
-                  isLoading={false}
-                  dataType="paymentMethod"
-                  variant="card"
-                  size="md"
-                  columns="auto"
-                  gap="md"
-                  mapItem={(method: PaymentMethod) =>
-                    mapPaymentMethodToContent(
-                      mapPaymentMethodToData(method),
-                      t,
-                      undefined, // onSetPrimary - not implemented yet
-                      handleDelete,
-                    )}
-                />
+              <div className="grid gap-4">
+                {paymentMethodList.map(method => (
+                  <SimplifiedPaymentMethodCard
+                    key={method.id}
+                    paymentMethod={method}
+                    onSetPrimary={handleSetPrimary}
+                    onDelete={handleDelete}
+                    className="hover:shadow-lg transition-shadow duration-200"
+                  />
+                ))}
               </div>
             )
           : (
@@ -147,9 +150,10 @@ export default function PaymentMethodsScreen() {
                 action={(
                   <Button
                     size="lg"
-                    onClick={() => router.push('/dashboard/billing/methods/setup')}
+                    onClick={handleAddPaymentMethod}
+                    className="gap-2"
                   >
-                    <Plus className="h-4 w-4 mr-2" />
+                    <Plus className="h-4 w-4" />
                     {t('paymentMethods.createFirstContract')}
                   </Button>
                 )}

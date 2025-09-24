@@ -35,22 +35,13 @@ export default function CustomerBillingOverviewScreen() {
     ? paymentMethodsQuery.data.data
     : [];
 
-  // Transform real payment data for component consumption
+  // Use Zod-inferred PaymentWithDetails data directly - no transformation needed
   const recentPayments = useMemo(() => {
     const paymentsData = paymentsQuery.data?.success && Array.isArray(paymentsQuery.data.data)
       ? paymentsQuery.data.data
       : [];
-    return paymentsData.map(paymentRecord => ({
-      id: paymentRecord.id,
-      productName: paymentRecord.product?.name || t('billing.unknownProduct'),
-      amount: paymentRecord.amount,
-      status: paymentRecord.status,
-      paidAt: paymentRecord.paidAt,
-      createdAt: paymentRecord.createdAt,
-      paymentMethod: paymentRecord.paymentMethod,
-      hasReceipt: paymentRecord.status === 'completed',
-    })).slice(0, 5); // Show recent 5 payments
-  }, [paymentsQuery.data, t]);
+    return paymentsData.slice(0, 5); // Show recent 5 payments
+  }, [paymentsQuery.data]);
 
   const isLoading = subscriptionQuery.isLoading || paymentMethodsQuery.isLoading || paymentsQuery.isLoading;
 

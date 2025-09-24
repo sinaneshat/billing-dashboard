@@ -3,9 +3,14 @@
 import { CreditCard, Package } from 'lucide-react';
 import type { AppRouterInstance } from 'next/dist/shared/lib/app-router-context.shared-runtime';
 import { useRouter } from 'next/navigation';
-import { useTranslations } from 'next-intl';
+import { useLocale, useTranslations } from 'next-intl';
 import { memo } from 'react';
 
+import type { PaymentMethod } from '@/api/routes/payment-methods/schema';
+import type { PaymentWithDetails } from '@/api/routes/payments/schema';
+// Import Zod-inferred types from backend API schemas
+import type { SubscriptionWithProduct } from '@/api/routes/subscriptions/schema';
+// Import CurrencyConversionResult for proper typing
 // Import unified billing system
 import { BillingDisplayContainer, BillingDisplayItem } from '@/components/billing/unified/billing-display';
 import type { PaymentMethodData, SubscriptionData } from '@/components/billing/unified/mappers';
@@ -17,45 +22,11 @@ import {
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/ui/cn';
 
-// Types for customer billing overview
-type CustomerSubscription = {
-  id: string;
-  product: {
-    name: string;
-    description?: string | null;
-    billingPeriod?: string;
-  } | null;
-  status: string;
-  currentPrice: number;
-  startDate: string;
-  nextBillingDate?: string | null;
-  endDate?: string | null;
-};
-
-type CustomerPayment = {
-  id: string;
-  productName: string;
-  amount: number;
-  status: string;
-  paidAt: string | null;
-  createdAt: string;
-  paymentMethod: string;
-};
-
-type CustomerPaymentMethod = {
-  id: string;
-  contractDisplayName: string;
-  contractMobile?: string | null;
-  contractStatus: string;
-  isPrimary: boolean | null;
-  isActive: boolean | null;
-  lastUsedAt?: string | null;
-};
-
+// Use Zod-inferred types from backend schemas - no custom types needed
 type CustomerBillingOverviewProps = {
-  subscription: CustomerSubscription | null;
-  recentPayments: CustomerPayment[];
-  paymentMethods: CustomerPaymentMethod[];
+  subscription: SubscriptionWithProduct | null;
+  recentPayments: PaymentWithDetails[];
+  paymentMethods: PaymentMethod[];
   isLoading?: boolean;
   className?: string;
 };
@@ -87,8 +58,8 @@ function WelcomeHero({ hasData, t, router }: {
 
 // Current status cards for active users using unified system
 function StatusCards({ subscription, paymentMethods, t, locale }: {
-  subscription: CustomerSubscription | null;
-  paymentMethods: CustomerPaymentMethod[];
+  subscription: SubscriptionWithProduct | null;
+  paymentMethods: PaymentMethod[];
   t: (key: string) => string;
   locale: string;
 }) {
@@ -99,18 +70,37 @@ function StatusCards({ subscription, paymentMethods, t, locale }: {
 
   // Add subscription if exists
   if (subscription) {
+    // Enhanced subscription data with proper paymentMethod integration
+    const firstPaymentMethod = paymentMethods[0]; // Safe to access since we check length above
+    const subscriptionWithPaymentMethod: SubscriptionData = {
+      ...subscription,
+      // If subscription has payment method info, use it; otherwise fall back to paymentMethods array
+      paymentMethod: subscription.paymentMethod || (paymentMethods.length > 0 && firstPaymentMethod
+        ? {
+            id: firstPaymentMethod.id,
+            contractDisplayName: firstPaymentMethod.contractDisplayName,
+            contractMobile: firstPaymentMethod.contractMobile,
+            contractStatus: firstPaymentMethod.contractStatus,
+            bankCode: null, // This would need to be added to the CustomerPaymentMethod type
+            isPrimary: firstPaymentMethod.isPrimary,
+            isActive: firstPaymentMethod.isActive,
+          }
+        : null),
+    };
+
     items.push({
       type: 'subscription' as const,
-      data: subscription as SubscriptionData,
+      data: subscriptionWithPaymentMethod,
     });
   }
 
-  // Add primary payment method if exists
-  if (paymentMethods.length > 0) {
+  // Only add separate payment method card if no subscription exists
+  // When subscription exists, payment method info is shown within the subscription card
+  if (!subscription && paymentMethods.length > 0) {
     const primaryMethod = paymentMethods.find(m => m.isPrimary) || paymentMethods[0];
     items.push({
       type: 'paymentMethod' as const,
-      data: primaryMethod as PaymentMethodData,
+      data: primaryMethod,
     });
   }
 
@@ -119,13 +109,35 @@ function StatusCards({ subscription, paymentMethods, t, locale }: {
       data={items}
       variant="card"
       size="md"
-      columns={2}
+      columns={items.length === 1 ? 1 : 2}
       gap="md"
       mapItem={(item) => {
         if (item.type === 'subscription') {
-          return mapSubscriptionToContent(item.data as SubscriptionData, t, locale);
+          return mapSubscriptionToContent(
+            item.data as SubscriptionData,
+            t,
+            locale,
+            (_id) => {
+              // Handle manage subscription action
+              // This would typically navigate to subscription management page
+            },
+            (_id) => {
+              // Handle cancel subscription action
+              // This would typically show cancellation dialog
+            },
+          );
         } else {
-          return mapPaymentMethodToContent(item.data as PaymentMethodData, t);
+          return mapPaymentMethodToContent(
+            item.data as PaymentMethodData,
+            t,
+            locale,
+            (_id) => {
+              // Handle set primary action
+            },
+            (_id) => {
+              // Handle remove payment method action
+            },
+          );
         }
       }}
     />
@@ -134,9 +146,9 @@ function StatusCards({ subscription, paymentMethods, t, locale }: {
 
 // Quick actions section
 function QuickActions({ subscription, paymentMethods, _recentPayments, t, router }: {
-  subscription: CustomerSubscription | null;
-  paymentMethods: CustomerPaymentMethod[];
-  _recentPayments: CustomerPayment[];
+  subscription: SubscriptionWithProduct | null;
+  paymentMethods: PaymentMethod[];
+  _recentPayments: PaymentWithDetails[];
   t: (key: string) => string;
   router: AppRouterInstance;
 }) {
@@ -211,7 +223,7 @@ function QuickActions({ subscription, paymentMethods, _recentPayments, t, router
 
 // Recent activity summary - show important alerts using unified system
 function RecentActivity({ payments, t, router }: {
-  payments: CustomerPayment[];
+  payments: PaymentWithDetails[];
   t: (key: string) => string;
   router: AppRouterInstance;
 }) {
@@ -264,7 +276,7 @@ export const CustomerBillingOverview = memo(({
   const router = useRouter();
 
   // Get current locale for date formatting
-  const locale = 'fa-IR'; // Default to Persian, could be determined from router or context
+  const currentLocale = useLocale() as 'en' | 'fa';
 
   const hasData = !!subscription || paymentMethods.length > 0;
 
@@ -306,7 +318,7 @@ export const CustomerBillingOverview = memo(({
         subscription={subscription}
         paymentMethods={paymentMethods}
         t={t}
-        locale={locale}
+        locale={currentLocale}
       />
 
       {/* Quick actions */}

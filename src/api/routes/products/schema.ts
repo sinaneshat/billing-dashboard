@@ -3,20 +3,16 @@ import { z } from '@hono/zod-openapi';
 import { createApiResponseSchema } from '@/api/core/schemas';
 import { productSelectSchema } from '@/db/validation/billing';
 
-// Extended product schema with currency conversion fields
+// Simplified product schema - only Toman amounts and formatted strings
 const ProductSchema = productSelectSchema.extend({
-  originalUsdPrice: z.number().optional().describe('Original USD price from database'),
-  exchangeRate: z.number().optional().describe('USD to IRR exchange rate used'),
-  formattedPrice: z.string().optional().describe('Formatted price in Toman currency'),
+  formattedPrice: z.string().describe('Pre-formatted price string (e.g., "99,000 تومان/ماه")'),
 }).openapi({
   example: {
     id: '375e4aee-6dfc-48b3-bd11-5ba892f17edd',
     name: 'Pro',
     description: 'For those who think big and often.',
-    price: 62450000, // Toman price (converted from USD)
-    originalUsdPrice: 59, // Original USD price from database
-    exchangeRate: 1027876.5, // Current USD to IRR exchange rate
-    formattedPrice: '62,450,000 Toman', // Formatted Toman price
+    price: 624500, // Toman price (already converted)
+    formattedPrice: '624,500 تومان/ماه', // Pre-formatted Toman price with period
     billingPeriod: 'monthly',
     isActive: true,
     // Roundtable integration fields

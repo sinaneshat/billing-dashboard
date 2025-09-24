@@ -1,10 +1,17 @@
 import { z } from '@hono/zod-openapi';
 
-import { createApiResponseSchema } from '@/api/core/schemas';
-import { paymentSelectSchema, productSelectSchema, subscriptionSelectSchema } from '@/db/validation/billing';
+import { CoreSchemas, createApiResponseSchema } from '@/api/core/schemas';
+import { paymentMethodSelectSchema, paymentSelectSchema, productSelectSchema, subscriptionSelectSchema } from '@/db/validation/billing';
 
 // Single source of truth - use drizzle-zod schemas with OpenAPI metadata
-const PaymentSchema = paymentSelectSchema.openapi({
+// Override timestamp fields to be strings (as they are serialized in API responses)
+const PaymentSchema = paymentSelectSchema.extend({
+  paidAt: CoreSchemas.timestamp().nullable(),
+  failedAt: CoreSchemas.timestamp().nullable(),
+  nextRetryAt: CoreSchemas.timestamp().nullable(),
+  createdAt: CoreSchemas.timestamp(),
+  updatedAt: CoreSchemas.timestamp(),
+}).openapi({
   example: {
     id: 'pay_123',
     userId: 'user_123',
@@ -23,6 +30,7 @@ const PaymentSchema = paymentSelectSchema.openapi({
 });
 
 // Payment with related data - extend from drizzle schemas
+// Simplified: only Toman amounts and formatted strings
 const PaymentWithDetailsSchema = PaymentSchema.extend({
   product: productSelectSchema.pick({
     id: true,
@@ -44,6 +52,28 @@ const PaymentWithDetailsSchema = PaymentSchema.extend({
       status: 'active',
     },
   }),
+  paymentMethod: paymentMethodSelectSchema.pick({
+    id: true,
+    contractDisplayName: true,
+    contractMobile: true,
+    contractStatus: true,
+    contractType: true,
+    isPrimary: true,
+    bankCode: true,
+  }).nullable().openapi({
+    example: {
+      id: 'pm_123',
+      contractDisplayName: 'پرداخت مستقیم بانک ملی',
+      contractMobile: '09121234567',
+      contractStatus: 'active',
+      contractType: 'direct_debit_contract',
+      isPrimary: true,
+      bankCode: '017',
+    },
+  }),
+  // Simplified: only what frontend needs
+  tomanAmount: z.number().describe('Payment amount in Toman'),
+  formattedAmount: z.string().describe('Pre-formatted amount string (e.g., "99,000 تومان")'),
 });
 
 // Response schemas

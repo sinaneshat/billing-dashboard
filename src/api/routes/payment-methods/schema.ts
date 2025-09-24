@@ -4,7 +4,14 @@ import { CoreSchemas, createApiResponseSchema } from '@/api/core/schemas';
 import { paymentMethodSelectSchema } from '@/db/validation/billing';
 
 // Single source of truth - use drizzle-zod schema with OpenAPI metadata
-const PaymentMethodSchema = paymentMethodSelectSchema.openapi({
+// Override timestamp fields to be strings (as they are serialized in API responses)
+const PaymentMethodSchema = paymentMethodSelectSchema.extend({
+  lastUsedAt: CoreSchemas.timestamp().nullable(),
+  contractExpiresAt: CoreSchemas.timestamp().nullable(),
+  contractVerifiedAt: CoreSchemas.timestamp().nullable(),
+  createdAt: CoreSchemas.timestamp(),
+  updatedAt: CoreSchemas.timestamp(),
+}).openapi({
   example: {
     id: 'pm_123',
     userId: 'user_123',
@@ -353,3 +360,6 @@ export type ContractCallbackResponse = z.infer<typeof ContractCallbackResponseSc
 // Contract recovery types
 export type RecoverContractRequest = z.infer<typeof RecoverContractRequestSchema>;
 export type RecoverContractResponse = z.infer<typeof RecoverContractResponseSchema>;
+
+// Main PaymentMethod type for API responses
+export type PaymentMethod = z.infer<typeof PaymentMethodSchema>;
