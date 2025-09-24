@@ -4,18 +4,16 @@ import { colors, typography } from '@/emails/design-tokens';
 
 type EmailHighlightProps = {
   children: ReactNode;
-  color?: 'brand' | 'accent' | 'success' | 'warning' | 'error' | 'info';
+  color?: 'brand' | 'accent' | 'destructive' | 'secondary';
   weight?: 'medium' | 'semibold' | 'bold';
   style?: CSSProperties;
 };
 
 const colorStyles: Record<string, string> = {
   brand: colors.primary,
-  accent: colors.brandAccent,
-  success: colors.success,
-  warning: colors.warning,
-  error: colors.error,
-  info: colors.info,
+  accent: colors.accent,
+  destructive: colors.destructive,
+  secondary: colors.textSecondary,
 };
 
 export function EmailHighlight({

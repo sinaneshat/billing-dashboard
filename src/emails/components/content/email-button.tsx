@@ -1,7 +1,7 @@
 import { Button } from '@react-email/components';
 import type { CSSProperties, ReactNode } from 'react';
 
-import { colors, spacing, typography } from '@/emails/design-tokens';
+import { borderRadius, colors, spacing, typography } from '@/emails/design-tokens';
 
 type EmailButtonProps = {
   children: ReactNode;
@@ -54,7 +54,7 @@ export function EmailButton({
   target = '_blank',
 }: EmailButtonProps) {
   const baseStyle: CSSProperties = {
-    borderRadius: '6px',
+    borderRadius: borderRadius.md,
     fontFamily: typography.fontFamily,
     fontWeight: typography.fontWeight.medium,
     textAlign: 'center',

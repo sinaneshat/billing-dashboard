@@ -2,12 +2,7 @@ import { SendEmailCommand, SESClient } from '@aws-sdk/client-ses';
 import { render } from '@react-email/render';
 
 import { BRAND } from '@/constants';
-import {
-  EmailVerification,
-  MagicLink,
-  SecurityAlert,
-  Welcome,
-} from '@/emails/templates';
+import { MagicLink } from '@/emails/templates';
 
 type EmailConfig = {
   accessKeyId?: string;
@@ -90,33 +85,6 @@ class EmailService {
     return response;
   }
 
-  async sendWelcomeEmail(to: string, userName: string) {
-    const html = await render(Welcome({
-      userName,
-      dashboardUrl: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard`,
-    }));
-    const text = `Welcome to ${BRAND.name}, ${userName}!`;
-
-    return this.sendEmail({
-      to,
-      subject: `Welcome to ${BRAND.name}!`,
-      html,
-      text,
-    });
-  }
-
-  async sendEmailVerification(to: string, verificationUrl: string) {
-    const html = await render(EmailVerification({ verificationUrl }));
-    const text = `Please verify your email by visiting: ${verificationUrl}`;
-
-    return this.sendEmail({
-      to,
-      subject: `Verify your email - ${BRAND.name}`,
-      html,
-      text,
-    });
-  }
-
   async sendMagicLink(to: string, magicLink: string) {
     const html = await render(MagicLink({
       loginUrl: magicLink,
@@ -126,26 +94,6 @@ class EmailService {
     return this.sendEmail({
       to,
       subject: `Your sign-in link - ${BRAND.name}`,
-      html,
-      text,
-    });
-  }
-
-  async sendSecurityAlert(to: string, alertType: 'login' | 'suspicious_activity' | 'password_change' | 'email_change' | 'account_locked', details: Record<string, unknown>) {
-    const html = await render(SecurityAlert({
-      alertType,
-      userName: (details.userName as string) || 'User',
-      timestamp: (details.timestamp as string) || new Date().toISOString(),
-      ipAddress: (details.ipAddress as string) || 'Unknown',
-      location: details.location as string | undefined,
-      deviceInfo: details.deviceInfo as string | undefined,
-      secureAccountUrl: (details.secureAccountUrl as string) || `${process.env.NEXT_PUBLIC_APP_URL}/dashboard`,
-    }));
-    const text = `Security Alert: ${alertType}. Please check your account.`;
-
-    return this.sendEmail({
-      to,
-      subject: `Security Alert - ${BRAND.name}`,
       html,
       text,
     });
