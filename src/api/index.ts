@@ -230,6 +230,8 @@ app.use('/subscriptions/*', csrfMiddleware, requireSession);
 // Payment methods require authentication and CSRF protection
 // The callback endpoint was already registered, so this won't affect it
 app.use('/payment-methods/*', csrfMiddleware, requireSession);
+// Payments require authentication and CSRF protection
+app.use('/payments/*', csrfMiddleware, requireSession);
 app.use('/webhooks/events', csrfMiddleware, requireSession);
 app.use('/webhooks/test', csrfMiddleware, requireSession);
 
