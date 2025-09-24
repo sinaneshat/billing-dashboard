@@ -1,74 +1,53 @@
 #!/bin/bash
-# Claude Code hook for notification when agents complete tasks.
-# Plays a notification sound only (no desktop notifications).
+# Optimized Claude Code notification hook - lightweight completion sounds.
+# Fast notification with minimal resource usage.
 
 set -euo pipefail
 
-# Read JSON input from stdin
+# Read JSON input efficiently
 INPUT=$(cat)
 
 # Extract hook event name using jq
 HOOK_EVENT=$(echo "$INPUT" | jq -r '.hook_event_name // ""')
 TOOL_NAME=$(echo "$INPUT" | jq -r '.tool_name // ""')
 
-# Function to play notification sound
+# Optimized notification sound function
 play_notification_sound() {
     local system=$(uname -s)
 
     case "$system" in
         "Darwin")
-            # macOS - use afplay with built-in system sound
-            afplay "/System/Library/Sounds/Ping.aiff" 2>/dev/null || echo -e "\a"
+            # macOS - use fastest available method
+            afplay "/System/Library/Sounds/Ping.aiff" 2>/dev/null &
             ;;
         "Linux")
-            # Linux - try multiple sound options
+            # Linux - simplified and faster
             if command -v paplay >/dev/null 2>&1; then
-                paplay "/usr/share/sounds/alsa/Front_Left.wav" 2>/dev/null || \
-                paplay "/usr/share/sounds/sound-icons/prompt.wav" 2>/dev/null || \
-                echo -e "\a"
-            elif command -v aplay >/dev/null 2>&1; then
-                aplay "/usr/share/sounds/alsa/Front_Left.wav" 2>/dev/null || echo -e "\a"
-            elif command -v speaker-test >/dev/null 2>&1; then
-                timeout 1s speaker-test -t sine -f 1000 -l 1 2>/dev/null || echo -e "\a"
+                paplay "/usr/share/sounds/sound-icons/prompt.wav" 2>/dev/null &
             else
                 echo -e "\a"
             fi
             ;;
         "MINGW"*|"CYGWIN"*|"MSYS"*)
-            # Windows - use PowerShell beep
-            powershell -c "[console]::beep(800,300)" 2>/dev/null || echo -e "\a"
+            # Windows - lightweight beep
+            echo -e "\a"
             ;;
         *)
             # Fallback - bell character
             echo -e "\a"
             ;;
     esac
+    # Don't wait for sound to finish
 }
 
-# Handle different hook events
+# Simplified event handling
 case "$HOOK_EVENT" in
     "Stop")
-        TITLE="🤖 Claude Task Complete"
-        MESSAGE="Claude has finished processing your request"
         play_notification_sound
-        echo "✅ $TITLE: $MESSAGE"
-        ;;
-    "SubagentStop")
-        TITLE="🤖 Agent Task Complete"
-        MESSAGE="A specialized agent has finished processing"
-        play_notification_sound
-        echo "✅ $TITLE: $MESSAGE"
-        ;;
-    "PostToolUse")
-        if [ "$TOOL_NAME" = "Task" ]; then
-            TITLE="🎯 Subagent Task Complete"
-            MESSAGE="A specialized agent has completed its task"
-            play_notification_sound
-            echo "✅ $TITLE: $MESSAGE"
-        fi
+        echo "✅ Claude task complete"
         ;;
     *)
-        # Unknown event - do nothing
+        # For any other event, just exit quietly
         exit 0
         ;;
 esac
