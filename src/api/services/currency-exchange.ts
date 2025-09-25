@@ -8,7 +8,7 @@
 
 import { z } from '@hono/zod-openapi';
 
-import { apiLogger } from '../middleware/hono-logger';
+// Removed apiLogger import due to ExecutionContext dependency
 
 // =============================================================================
 // ZOD SCHEMAS
@@ -168,13 +168,11 @@ export class CurrencyExchangeService {
 
       return rate;
     } catch (error) {
-      // Log the error but use fallback rate using structured logging
-      apiLogger.warn('Exchange rate API failed, using fallback rate', {
-        logType: 'api',
-        method: 'GET',
-        path: '/exchange-rate',
+      // Log the error but use fallback rate using console logging (no context dependency)
+      console.warn('[CURRENCY-SERVICE] Exchange rate API failed, using fallback rate', {
         fallbackRate: this.FALLBACK_RATE,
         error: error instanceof Error ? error.message : String(error),
+        timestamp: new Date().toISOString(),
       });
 
       // Cache the fallback rate to avoid repeated API calls
