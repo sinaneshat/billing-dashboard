@@ -2,7 +2,6 @@ import { SendEmailCommand, SESClient } from '@aws-sdk/client-ses';
 import { render } from '@react-email/render';
 
 import { BRAND } from '@/constants';
-import { MagicLink } from '@/emails/templates';
 
 type EmailConfig = {
   accessKeyId?: string;
@@ -86,6 +85,9 @@ class EmailService {
   }
 
   async sendMagicLink(to: string, magicLink: string) {
+    // Dynamic import to avoid Next.js build issues with React Email components
+    const { MagicLink } = await import('@/emails/templates');
+
     const html = await render(MagicLink({
       loginUrl: magicLink,
     }));

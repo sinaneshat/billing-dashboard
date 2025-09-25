@@ -427,7 +427,7 @@ export const createSubscriptionHandler: RouteHandler<typeof createSubscriptionRo
       try {
         // Get user details for webhook
         const { user: userTable } = await import('@/db/tables/auth');
-        const userResults = await batch.db.select({ email: userTable.email }).from(userTable).where(eq(userTable.id, user.id)).limit(1);
+        const userResults = await batch.db.select().from(userTable).where(eq(userTable.id, user.id)).limit(1);
         const userRecord = userResults[0];
 
         if (userRecord?.email) {
@@ -586,7 +586,7 @@ export const cancelSubscriptionHandler: RouteHandler<typeof cancelSubscriptionRo
     try {
       // Get user details for webhook
       const { user: userTable } = await import('@/db/tables/auth');
-      const userResults = await db.select({ email: userTable.email }).from(userTable).where(eq(userTable.id, user.id)).limit(1);
+      const userResults = await db.select().from(userTable).where(eq(userTable.id, user.id)).limit(1);
       const userRecord = userResults[0];
 
       // Get product details

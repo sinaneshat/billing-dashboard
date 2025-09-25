@@ -26,13 +26,11 @@ export const subscriptionSecurityMiddleware = createMiddleware<ApiEnv>(async (c,
   // Use existing 'organization' rate limiter preset that's closest to what we need
   const rateLimiter = RateLimiterFactory.create('organization');
 
-  // Apply the rate limiter middleware directly
-  await rateLimiter(c, next);
+  // Apply the rate limiter middleware directly - it handles calling next()
+  return await rateLimiter(c, next);
 
-  // Rate limiting is handled by the middleware itself
-  // No additional logging needed here
-
-  await next();
+  // CRITICAL FIX: Removed duplicate next() call that was causing "next() called multiple times" error
+  // The rateLimiter already calls next() internally, so we don't need to call it again
 });
 
 /**
@@ -52,13 +50,11 @@ export const strictSubscriptionSecurityMiddleware = createMiddleware<ApiEnv>(asy
   // Use existing 'auth' rate limiter preset for stricter limiting
   const rateLimiter = RateLimiterFactory.create('auth');
 
-  // Apply the rate limiter middleware directly
-  await rateLimiter(c, next);
+  // Apply the rate limiter middleware directly - it handles calling next()
+  return await rateLimiter(c, next);
 
-  // Rate limiting is handled by the middleware itself
-  // No additional logging needed here
-
-  await next();
+  // CRITICAL FIX: Removed duplicate next() call that was causing "next() called multiple times" error
+  // The rateLimiter already calls next() internally, so we don't need to call it again
 });
 
 /**

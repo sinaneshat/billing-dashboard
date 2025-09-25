@@ -956,7 +956,7 @@ export const zarinPalWebhookHandler: RouteHandler<typeof zarinPalWebhookRoute, A
               // Get user details for email mapping
               const { user } = await import('@/db/tables/auth');
               const userResults = await batch.db
-                .select({ email: user.email })
+                .select()
                 .from(user)
                 .where(eq(user.id, updatedPayment.userId))
                 .limit(1);

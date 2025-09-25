@@ -8,7 +8,7 @@
  */
 
 import type { RouteHandler } from '@hono/zod-openapi';
-import { and, count, eq, gte, isNotNull, lte, sum } from 'drizzle-orm';
+import { and, eq, gte, isNotNull, lte } from 'drizzle-orm';
 
 import { createError } from '@/api/common/error-handling';
 import type { HandlerContext } from '@/api/core';
@@ -644,7 +644,7 @@ export const getBillingMetricsHandler: RouteHandler<typeof getBillingMetricsRout
     });
 
     try {
-      // Subscription metrics
+      // Subscription metrics - using simple select and count in JavaScript (like base repository)
       const [
         totalSubscriptions,
         activeSubscriptions,
@@ -652,11 +652,11 @@ export const getBillingMetricsHandler: RouteHandler<typeof getBillingMetricsRout
         canceledSubscriptions,
         dueTodaySubscriptions,
       ] = await Promise.all([
-        db.select({ count: count() }).from(subscription),
-        db.select({ count: count() }).from(subscription).where(eq(subscription.status, 'active')),
-        db.select({ count: count() }).from(subscription).where(eq(subscription.status, 'pending')),
-        db.select({ count: count() }).from(subscription).where(eq(subscription.status, 'canceled')),
-        db.select({ count: count() }).from(subscription).where(
+        db.select().from(subscription),
+        db.select().from(subscription).where(eq(subscription.status, 'active')),
+        db.select().from(subscription).where(eq(subscription.status, 'pending')),
+        db.select().from(subscription).where(eq(subscription.status, 'canceled')),
+        db.select().from(subscription).where(
           and(
             eq(subscription.status, 'active'),
             lte(subscription.nextBillingDate, new Date()),
@@ -664,37 +664,43 @@ export const getBillingMetricsHandler: RouteHandler<typeof getBillingMetricsRout
         ),
       ]);
 
-      // Payment metrics
+      // Payment metrics - using simple select and calculation in JavaScript
       const now = new Date();
       const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
       const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
       const endOfLastMonth = new Date(now.getFullYear(), now.getMonth(), 0);
 
       const [
-        totalRevenue,
-        thisMonthRevenue,
-        lastMonthRevenue,
-        averageOrderValue,
+        allCompletedPayments,
+        thisMonthPayments,
+        lastMonthPayments,
+        paymentsForAverage,
       ] = await Promise.all([
-        db.select({ total: sum(payment.amount) }).from(payment).where(eq(payment.status, 'completed')),
-        db.select({ total: sum(payment.amount) }).from(payment).where(
+        db.select().from(payment).where(eq(payment.status, 'completed')),
+        db.select().from(payment).where(
           and(
             eq(payment.status, 'completed'),
             gte(payment.paidAt, startOfMonth),
           ),
         ),
-        db.select({ total: sum(payment.amount) }).from(payment).where(
+        db.select().from(payment).where(
           and(
             eq(payment.status, 'completed'),
             gte(payment.paidAt, startOfLastMonth),
             lte(payment.paidAt, endOfLastMonth),
           ),
         ),
-        db.select({
-          count: count(),
-          total: sum(payment.amount),
-        }).from(payment).where(eq(payment.status, 'completed')),
+        db.select().from(payment).where(eq(payment.status, 'completed')),
       ]);
+
+      // Calculate totals in JavaScript
+      const totalRevenue = { total: allCompletedPayments.reduce((sum, p) => sum + p.amount, 0) };
+      const thisMonthRevenue = { total: thisMonthPayments.reduce((sum, p) => sum + p.amount, 0) };
+      const lastMonthRevenue = { total: lastMonthPayments.reduce((sum, p) => sum + p.amount, 0) };
+      const averageOrderValue = {
+        count: paymentsForAverage.length,
+        total: paymentsForAverage.reduce((sum, p) => sum + p.amount, 0),
+      };
 
       // Direct debit contract metrics
       const [
@@ -702,9 +708,9 @@ export const getBillingMetricsHandler: RouteHandler<typeof getBillingMetricsRout
         pendingContracts,
         expiredContracts,
       ] = await Promise.all([
-        db.select({ count: count() }).from(paymentMethod).where(eq(paymentMethod.contractStatus, 'active')),
-        db.select({ count: count() }).from(paymentMethod).where(eq(paymentMethod.contractStatus, 'pending_signature')),
-        db.select({ count: count() }).from(paymentMethod).where(eq(paymentMethod.contractStatus, 'expired')),
+        db.select().from(paymentMethod).where(eq(paymentMethod.contractStatus, 'active')),
+        db.select().from(paymentMethod).where(eq(paymentMethod.contractStatus, 'pending_signature')),
+        db.select().from(paymentMethod).where(eq(paymentMethod.contractStatus, 'expired')),
       ]);
 
       // Webhook metrics
@@ -715,40 +721,40 @@ export const getBillingMetricsHandler: RouteHandler<typeof getBillingMetricsRout
         failedWebhooks,
         lastWeekWebhooks,
       ] = await Promise.all([
-        db.select({ count: count() }).from(webhookEvent),
-        db.select({ count: count() }).from(webhookEvent).where(eq(webhookEvent.processed, true)),
-        db.select({ count: count() }).from(webhookEvent).where(eq(webhookEvent.processed, false)),
-        db.select({ count: count() }).from(webhookEvent).where(gte(webhookEvent.createdAt, lastWeek)),
+        db.select().from(webhookEvent),
+        db.select().from(webhookEvent).where(eq(webhookEvent.processed, true)),
+        db.select().from(webhookEvent).where(eq(webhookEvent.processed, false)),
+        db.select().from(webhookEvent).where(gte(webhookEvent.createdAt, lastWeek)),
       ]);
 
-      const avgOrderValue = averageOrderValue[0]?.count && averageOrderValue[0]?.total
-        ? Number(averageOrderValue[0].total) / averageOrderValue[0].count
+      const avgOrderValue = averageOrderValue.count && averageOrderValue.total
+        ? Number(averageOrderValue.total) / averageOrderValue.count
         : 0;
 
       return Responses.ok(c, {
         subscriptions: {
-          total: totalSubscriptions[0]?.count || 0,
-          active: activeSubscriptions[0]?.count || 0,
-          pending: pendingSubscriptions[0]?.count || 0,
-          canceled: canceledSubscriptions[0]?.count || 0,
-          dueTodayCount: dueTodaySubscriptions[0]?.count || 0,
+          total: totalSubscriptions.length,
+          active: activeSubscriptions.length,
+          pending: pendingSubscriptions.length,
+          canceled: canceledSubscriptions.length,
+          dueTodayCount: dueTodaySubscriptions.length,
         },
         payments: {
-          totalRevenue: Number(totalRevenue[0]?.total || 0),
-          thisMonth: Number(thisMonthRevenue[0]?.total || 0),
-          lastMonth: Number(lastMonthRevenue[0]?.total || 0),
+          totalRevenue: Number(totalRevenue.total || 0),
+          thisMonth: Number(thisMonthRevenue.total || 0),
+          lastMonth: Number(lastMonthRevenue.total || 0),
           averageOrderValue: avgOrderValue,
         },
         directDebits: {
-          activeContracts: activeContracts[0]?.count || 0,
-          pendingContracts: pendingContracts[0]?.count || 0,
-          expiredContracts: expiredContracts[0]?.count || 0,
+          activeContracts: activeContracts.length,
+          pendingContracts: pendingContracts.length,
+          expiredContracts: expiredContracts.length,
         },
         webhooks: {
-          totalSent: totalWebhooks[0]?.count || 0,
-          successfulDeliveries: successfulWebhooks[0]?.count || 0,
-          failedDeliveries: failedWebhooks[0]?.count || 0,
-          lastWeekActivity: lastWeekWebhooks[0]?.count || 0,
+          totalSent: totalWebhooks.length,
+          successfulDeliveries: successfulWebhooks.length,
+          failedDeliveries: failedWebhooks.length,
+          lastWeekActivity: lastWeekWebhooks.length,
         },
       });
     } catch (error) {
