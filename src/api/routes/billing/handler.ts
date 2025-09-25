@@ -38,7 +38,7 @@ type RecurringPaymentResult = {
 type SubscriptionRow = {
   subscription: typeof subscription.$inferSelect;
   product: typeof product.$inferSelect;
-  paymentMethod: typeof paymentMethod.$inferSelect;
+  payment_method: typeof paymentMethod.$inferSelect;
   user: typeof user.$inferSelect;
 };
 
@@ -136,10 +136,7 @@ async function validateDailyLimits(
   endOfDay.setDate(endOfDay.getDate() + 1);
 
   const dailyPayments = await db
-    .select({
-      totalAmount: sum(payment.amount),
-      transactionCount: count(payment.id),
-    })
+    .select()
     .from(payment)
     .where(
       and(
@@ -150,8 +147,8 @@ async function validateDailyLimits(
       ),
     );
 
-  const dailyTotal = Number(dailyPayments[0]?.totalAmount || 0);
-  const dailyCount = Number(dailyPayments[0]?.transactionCount || 0);
+  const dailyTotal = dailyPayments.reduce((sum, payment) => sum + payment.amount, 0);
+  const dailyCount = dailyPayments.length;
 
   if (paymentMethodRecord.maxDailyAmount && (dailyTotal + amountInRials) > paymentMethodRecord.maxDailyAmount) {
     throw createError.badRequest(
@@ -180,9 +177,7 @@ async function validateMonthlyLimits(
   endOfMonth.setMonth(endOfMonth.getMonth() + 1);
 
   const monthlyPayments = await db
-    .select({
-      transactionCount: count(payment.id),
-    })
+    .select()
     .from(payment)
     .where(
       and(
@@ -193,7 +188,7 @@ async function validateMonthlyLimits(
       ),
     );
 
-  const monthlyCount = Number(monthlyPayments[0]?.transactionCount || 0);
+  const monthlyCount = monthlyPayments.length;
 
   if (paymentMethodRecord.maxMonthlyCount && (monthlyCount + 1) > paymentMethodRecord.maxMonthlyCount) {
     throw createError.badRequest(
@@ -243,7 +238,7 @@ async function processSuccessfulPayment(
     userId: sub.userId,
     subscriptionId: sub.id,
     paymentId,
-    paymentMethodId: subscriptionData.paymentMethod.id,
+    paymentMethodId: subscriptionData.payment_method.id,
     eventType: 'recurring_payment_success',
     eventData: {
       amount: amountInRials,
@@ -323,7 +318,7 @@ async function processFailedPayment(
     userId: sub.userId,
     subscriptionId: sub.id,
     paymentId,
-    paymentMethodId: subscriptionData.paymentMethod.id,
+    paymentMethodId: subscriptionData.payment_method.id,
     eventType: failedAttempts >= maxFailedAttempts ? 'subscription_cancelled_payment_failure' : 'recurring_payment_failed',
     eventData: {
       amount: amountInRials,
@@ -462,12 +457,7 @@ export const processRecurringPaymentsHandler: RouteHandler<typeof processRecurri
 
     // Find subscriptions due for billing today
     const dueSubscriptions = await db
-      .select({
-        subscription,
-        product,
-        paymentMethod,
-        user,
-      })
+      .select()
       .from(subscription)
       .innerJoin(product, eq(subscription.productId, product.id))
       .innerJoin(paymentMethod, eq(subscription.paymentMethodId, paymentMethod.id))
@@ -527,21 +517,21 @@ export const processRecurringPaymentsHandler: RouteHandler<typeof processRecurri
         const paymentId = newPayment.id;
 
         // Validate contract signature exists
-        if (!subscriptionRow.paymentMethod.contractSignatureEncrypted) {
+        if (!subscriptionRow.payment_method.contractSignatureEncrypted) {
           throw createError.badRequest('Payment method has no valid contract signature');
         }
 
         // Validate contract status and transaction limits
         await validateContractAndLimits(
           db,
-          subscriptionRow.paymentMethod,
+          subscriptionRow.payment_method,
           amountInRials,
           subscriptionRow.subscription.userId,
           today,
         );
 
         // Process payment with ZarinPal Direct Debit
-        const decryptedSignature = await decryptSignature(subscriptionRow.paymentMethod.contractSignatureEncrypted);
+        const decryptedSignature = await decryptSignature(subscriptionRow.payment_method.contractSignatureEncrypted);
         const zarinPalDirectDebit = ZarinPalDirectDebitService.create(c.env);
 
         const directDebitResult = await zarinPalDirectDebit.chargeDirectDebit({

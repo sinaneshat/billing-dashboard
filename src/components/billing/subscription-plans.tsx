@@ -6,7 +6,7 @@ import { useCallback, useMemo } from 'react';
 
 import { PricingPlans } from '@/components/billing/pricing-plans';
 import { EmptyState, ErrorState, LoadingState } from '@/components/dashboard/dashboard-states';
-import { useCreateSubscriptionMutation } from '@/hooks/mutations/subscriptions';
+import { useCreateSubscriptionMutation, useSwitchSubscriptionMutation } from '@/hooks/mutations/subscriptions';
 import { useDirectDebitContract } from '@/hooks/queries/direct-debit';
 import { useProductsQuery } from '@/hooks/queries/products';
 import { useCurrentSubscriptionQuery } from '@/hooks/queries/subscriptions';
@@ -37,6 +37,7 @@ export function SubscriptionPlans() {
   }, [products]);
 
   const createSubscription = useCreateSubscriptionMutation();
+  const switchSubscription = useSwitchSubscriptionMutation();
 
   // eslint-disable-next-line ts/no-explicit-any
   const handleCreateSubscription = useCallback(async (product: any) => {
@@ -87,6 +88,78 @@ export function SubscriptionPlans() {
     }
   }, [createSubscription, directDebitContract.data?.contractId, t]);
 
+  // eslint-disable-next-line ts/no-explicit-any
+  const handleSwitchSubscription = useCallback(async (product: any) => {
+    try {
+      if (!currentSubscription?.id) {
+        toastManager.error(t('subscription.noActiveSubscription'));
+        return;
+      }
+
+      if (currentSubscription.productId === product.id) {
+        toastManager.error(t('subscription.alreadyOnThisPlan'));
+        return;
+      }
+
+      const result = await switchSubscription.mutateAsync({
+        json: {
+          newProductId: product.id,
+          effectiveDate: 'immediate' as const,
+          confirmProration: true,
+        },
+      } as Parameters<typeof switchSubscription.mutateAsync>[0]);
+
+      if ('success' in result && result.success) {
+        const data = 'data' in result ? result.data : null;
+        const netAmount = (data && 'netAmount' in data) ? (data as { netAmount: number }).netAmount : 0;
+        const isUpgrade = netAmount > 0;
+        const isDowngrade = netAmount < 0;
+        const isEvenSwitch = netAmount === 0;
+
+        if (isUpgrade) {
+          toastManager.success(t('subscription.switchSuccessUpgrade', {
+            planName: product.name,
+            amount: Math.abs(netAmount).toLocaleString(),
+          }));
+        } else if (isDowngrade) {
+          toastManager.success(t('subscription.switchSuccessDowngrade', {
+            planName: product.name,
+            creditAmount: Math.abs(netAmount).toLocaleString(),
+          }));
+        } else if (isEvenSwitch) {
+          toastManager.success(t('subscription.switchSuccessEven', {
+            planName: product.name,
+          }));
+        } else {
+          toastManager.success(t('subscription.switchSuccess', {
+            planName: product.name,
+          }));
+        }
+      } else {
+        toastManager.error(t('subscription.switchFailed'));
+      }
+    } catch (error: unknown) {
+      // Enhanced error handling for switch failures
+      if (error && typeof error === 'object' && 'message' in error) {
+        const errorMessage = String(error.message).toLowerCase();
+
+        if (errorMessage.includes('payment failed') || errorMessage.includes('insufficient funds')) {
+          toastManager.error(t('subscription.switchFailedInsufficientFunds'));
+        } else if (errorMessage.includes('already has active subscription')) {
+          toastManager.error(t('subscription.alreadyHasActiveSubscription'));
+        } else if (errorMessage.includes('same product') || errorMessage.includes('already on')) {
+          toastManager.error(t('subscription.alreadyOnThisPlan'));
+        } else if (errorMessage.includes('contract') || errorMessage.includes('payment method')) {
+          toastManager.error(t('subscription.paymentMethodError'));
+        } else {
+          toastManager.error(t('subscription.switchFailed'));
+        }
+      } else {
+        toastManager.error(t('subscription.switchFailed'));
+      }
+    }
+  }, [switchSubscription, currentSubscription, t]);
+
   const handlePlanSelect = useCallback((productId: string) => {
     const product = sortedProducts.find(p => p.id === productId);
     if (!product) {
@@ -106,9 +179,17 @@ export function SubscriptionPlans() {
       return;
     }
 
-    // Contract is valid, proceed with subscription creation
-    handleCreateSubscription(product);
-  }, [sortedProducts, directDebitContract, handleCreateSubscription, t, router]);
+    // Determine action based on current subscription status
+    const hasActiveSubscription = currentSubscription?.status === 'active';
+
+    if (hasActiveSubscription) {
+      // User has active subscription - switch to new plan
+      handleSwitchSubscription(product);
+    } else {
+      // No active subscription - create new subscription
+      handleCreateSubscription(product);
+    }
+  }, [sortedProducts, directDebitContract, currentSubscription, handleCreateSubscription, handleSwitchSubscription, t, router]);
 
   if (isLoading) {
     return (

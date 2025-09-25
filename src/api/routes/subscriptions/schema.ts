@@ -1,6 +1,6 @@
 import { z } from '@hono/zod-openapi';
 
-import { CoreSchemas, createApiResponseSchema } from '@/api/core/schemas';
+import { CoreSchemas } from '@/api/core/schemas';
 import { productSelectSchema, subscriptionSelectSchema } from '@/db/validation/billing';
 
 // Single source of truth - use drizzle-zod schemas with OpenAPI metadata
@@ -101,21 +101,6 @@ export const CancelSubscriptionRequestSchema = z.object({
   }),
 }).openapi('CancelSubscriptionRequest');
 
-export const ChangePlanRequestSchema = z.object({
-  productId: z.string().min(1).openapi({
-    example: 'prod_456',
-    description: 'New product ID to change subscription to',
-  }),
-  effectiveDate: z.enum(['immediate', 'next_cycle']).default('immediate').openapi({
-    example: 'immediate',
-    description: 'When to apply the plan change: immediately or at next billing cycle',
-  }),
-  paymentMethodId: z.string().optional().openapi({
-    example: 'pm_abc123',
-    description: 'Payment method to use for immediate billing (required for upgrades)',
-  }),
-}).openapi('ChangePlanRequest');
-
 // ============================================================================
 // ENHANCED SUBSCRIPTION UPDATE SCHEMAS
 // ============================================================================
@@ -149,78 +134,6 @@ export const IranianValidationSchemas = {
       description: 'Product identifier',
     }),
 };
-
-// Comprehensive subscription update response schema
-export const ChangePlanResponseDataSchema = z.object({
-  subscriptionId: CoreSchemas.id().openapi({
-    example: 'sub_123',
-    description: 'Updated subscription ID',
-  }),
-  planChanged: z.boolean().openapi({
-    description: 'Whether the plan was successfully changed',
-  }),
-  previousProductId: z.string().openapi({
-    example: 'prod_basic_monthly',
-    description: 'Previous product ID',
-  }),
-  newProductId: z.string().openapi({
-    example: 'prod_premium_monthly',
-    description: 'New product ID',
-  }),
-  prorationDetails: z.object({
-    creditAmount: z.number().int().openapi({
-      example: 15000,
-      description: 'Credit amount for unused time (in IRR)',
-    }),
-    chargeAmount: z.number().int().openapi({
-      example: 25000,
-      description: 'Charge amount for new plan (in IRR)',
-    }),
-    netAmount: z.number().int().openapi({
-      example: 10000,
-      description: 'Net amount charged/credited (in IRR)',
-    }),
-    effectiveDate: CoreSchemas.timestamp().openapi({
-      description: 'When the change took effect',
-    }),
-    nextBillingDate: CoreSchemas.timestamp().openapi({
-      description: 'Next billing date for the subscription',
-    }),
-  }).openapi({
-    description: 'Proration calculation details',
-  }),
-  autoRenewalEnabled: z.boolean().openapi({
-    description: 'Whether automatic renewal is still enabled',
-  }),
-}).openapi('ChangePlanResponseData');
-
-export const ChangePlanResponseSchema = createApiResponseSchema(
-  ChangePlanResponseDataSchema,
-);
-
-// Plan change specific error responses
-export const PlanChangeErrorResponseSchema = z.object({
-  success: z.literal(false),
-  error: z.object({
-    code: z.enum([
-      'PLAN_CHANGE_NOT_ALLOWED',
-      'SAME_PLAN_ERROR',
-      'PAYMENT_METHOD_REQUIRED',
-      'INSUFFICIENT_PAYMENT_METHOD',
-      'SUBSCRIPTION_NOT_ACTIVE',
-      'PRODUCT_NOT_FOUND',
-      'PRORATION_CALCULATION_ERROR',
-    ]),
-    message: z.string(),
-    context: z.object({
-      errorType: z.literal('plan_change'),
-      currentPlan: z.string().optional(),
-      targetPlan: z.string().optional(),
-      requiredAmount: z.number().optional(),
-      availablePaymentMethods: z.array(z.string()).optional(),
-    }),
-  }),
-}).openapi('PlanChangeError');
 
 // Refactored: Direct data schemas, response wrapper handled by Responses.* methods
 export const GetSubscriptionsResponseDataSchema = z.array(SubscriptionWithProductSchema).openapi('GetSubscriptionsData');
@@ -290,6 +203,56 @@ export const SubscriptionParamsSchema = z.object({
 });
 
 // ============================================================================
+// SUBSCRIPTION SWITCHING SCHEMAS
+// ============================================================================
+
+export const SwitchSubscriptionRequestSchema = z.object({
+  newProductId: CoreSchemas.id().openapi({
+    example: 'prod_456',
+    description: 'ID of the product to switch to',
+  }),
+  effectiveDate: z.enum(['immediate', 'next_cycle']).default('immediate').openapi({
+    example: 'immediate',
+    description: 'When the switch should take effect',
+  }),
+  confirmProration: z.boolean().default(true).openapi({
+    example: true,
+    description: 'Confirm understanding of proration charges/credits',
+  }),
+}).openapi('SwitchSubscriptionRequest');
+
+export const SwitchSubscriptionResponseDataSchema = z.object({
+  oldSubscriptionId: CoreSchemas.id().openapi({
+    example: 'sub_123',
+    description: 'ID of the cancelled subscription',
+  }),
+  newSubscriptionId: CoreSchemas.id().openapi({
+    example: 'sub_456',
+    description: 'ID of the newly created subscription',
+  }),
+  proratedCredit: z.number().openapi({
+    example: 25000,
+    description: 'Credit amount from unused time in IRR',
+  }),
+  chargeAmount: z.number().openapi({
+    example: 50000,
+    description: 'Amount charged for the new plan in IRR',
+  }),
+  netAmount: z.number().openapi({
+    example: 25000,
+    description: 'Net amount charged (positive) or credited (negative) in IRR',
+  }),
+  paymentStatus: z.enum(['completed', 'failed', 'credited']).openapi({
+    example: 'completed',
+    description: 'Status of the payment for the switch',
+  }),
+  effectiveDate: CoreSchemas.timestamp().openapi({
+    example: new Date().toISOString(),
+    description: 'When the switch became effective',
+  }),
+}).openapi('SwitchSubscriptionData');
+
+// ============================================================================
 // TYPE EXPORTS
 // ============================================================================
 
@@ -298,7 +261,7 @@ export type Subscription = z.infer<typeof SubscriptionSchema>;
 export type SubscriptionWithProduct = z.infer<typeof SubscriptionWithProductSchema>;
 export type CreateSubscriptionRequest = z.infer<typeof CreateSubscriptionRequestSchema>;
 export type CancelSubscriptionRequest = z.infer<typeof CancelSubscriptionRequestSchema>;
-export type ChangePlanRequest = z.infer<typeof ChangePlanRequestSchema>;
+export type SwitchSubscriptionRequest = z.infer<typeof SwitchSubscriptionRequestSchema>;
 export type SubscriptionParams = z.infer<typeof SubscriptionParamsSchema>;
 
 // Response data types for handlers
@@ -306,5 +269,4 @@ export type GetSubscriptionsResponseData = z.infer<typeof GetSubscriptionsRespon
 export type GetSubscriptionResponseData = z.infer<typeof GetSubscriptionResponseDataSchema>;
 export type CreateSubscriptionResponseData = z.infer<typeof CreateSubscriptionResponseDataSchema>;
 export type CancelSubscriptionResponseData = z.infer<typeof CancelSubscriptionResponseDataSchema>;
-export type ChangePlanResponseData = z.infer<typeof ChangePlanResponseDataSchema>;
-export type ChangePlanResponse = z.infer<typeof ChangePlanResponseSchema>;
+export type SwitchSubscriptionResponseData = z.infer<typeof SwitchSubscriptionResponseDataSchema>;

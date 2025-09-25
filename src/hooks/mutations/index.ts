@@ -17,6 +17,5 @@ export {
 // Subscription lifecycle management
 export {
   useCancelSubscriptionMutation,
-  useChangePlanMutation,
   useCreateSubscriptionMutation,
 } from './subscriptions';

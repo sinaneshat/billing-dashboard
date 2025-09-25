@@ -32,6 +32,8 @@ import { attachSession, requireSession } from './middleware';
 import { enhancedErrorHandler } from './middleware/enhanced-error-handler';
 import { apiLogger, errorLoggerMiddleware, honoLoggerMiddleware } from './middleware/hono-logger';
 import { RateLimiterFactory } from './middleware/rate-limiter-factory';
+// Subscription security middleware for critical operations
+import { strictSubscriptionSecurityMiddleware, subscriptionSecurityMiddleware } from './middleware/subscription-security';
 // Import routes and handlers directly for proper RPC type inference
 import { secureMeHandler } from './routes/auth/handler';
 import { secureMeRoute } from './routes/auth/route';
@@ -70,17 +72,17 @@ import { getProductsHandler } from './routes/products/handler';
 import { getProductsRoute } from './routes/products/route';
 import {
   cancelSubscriptionHandler,
-  changePlanHandler,
   createSubscriptionHandler,
   getSubscriptionHandler,
   getSubscriptionsHandler,
+  switchSubscriptionHandler,
 } from './routes/subscriptions/handler';
 import {
   cancelSubscriptionRoute,
-  changePlanRoute,
   createSubscriptionRoute,
   getSubscriptionRoute,
   getSubscriptionsRoute,
+  switchSubscriptionRoute,
 } from './routes/subscriptions/route';
 // System/health routes
 import {
@@ -233,8 +235,14 @@ app.use('/products', cache({
 // Apply CSRF protection and authentication to protected routes
 // Following Hono best practices: apply CSRF only to authenticated routes
 app.use('/auth/me', csrfMiddleware, requireSession);
-// Subscriptions require authentication and CSRF protection
-app.use('/subscriptions/*', csrfMiddleware, requireSession);
+
+// Subscription routes with security middleware based on criticality
+// Critical operations (create, switch) require strict security
+app.use('/subscriptions', csrfMiddleware, requireSession, strictSubscriptionSecurityMiddleware);
+app.use('/subscriptions/switch', csrfMiddleware, requireSession, strictSubscriptionSecurityMiddleware);
+// Regular subscription operations require standard security
+app.use('/subscriptions/*', csrfMiddleware, requireSession, subscriptionSecurityMiddleware);
+
 // Payment methods require authentication and CSRF protection
 // The callback endpoint was already registered, so this won't affect it
 app.use('/payment-methods/*', csrfMiddleware, requireSession);
@@ -252,11 +260,11 @@ const appRoutes = app
   .openapi(secureMeRoute, secureMeHandler)
   // Products routes
   .openapi(getProductsRoute, getProductsHandler)
-  // Subscriptions routes
+  // Subscriptions routes (with security middleware)
   .openapi(getSubscriptionsRoute, getSubscriptionsHandler)
   .openapi(getSubscriptionRoute, getSubscriptionHandler)
   .openapi(createSubscriptionRoute, createSubscriptionHandler)
-  .openapi(changePlanRoute, changePlanHandler)
+  .openapi(switchSubscriptionRoute, switchSubscriptionHandler)
   .openapi(cancelSubscriptionRoute, cancelSubscriptionHandler)
   // Payment methods routes - Consolidated 3-endpoint direct debit flow
   .openapi(getPaymentMethodsRoute, getPaymentMethodsHandler)

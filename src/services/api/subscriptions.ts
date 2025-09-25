@@ -30,13 +30,13 @@ export type GetSubscriptionResponse = InferResponseType<ApiClientType['subscript
 export type CreateSubscriptionRequest = InferRequestType<ApiClientType['subscriptions']['$post']>;
 export type CreateSubscriptionResponse = InferResponseType<ApiClientType['subscriptions']['$post']>;
 
-// Change Subscription Plan
-export type ChangePlanRequest = InferRequestType<ApiClientType['subscriptions'][':id']['$patch']>;
-export type ChangePlanResponse = InferResponseType<ApiClientType['subscriptions'][':id']['$patch']>;
-
 // Cancel Subscription
 export type CancelSubscriptionRequest = InferRequestType<ApiClientType['subscriptions'][':id']['cancel']['$patch']>;
 export type CancelSubscriptionResponse = InferResponseType<ApiClientType['subscriptions'][':id']['cancel']['$patch']>;
+
+// Switch Subscription
+export type SwitchSubscriptionRequest = InferRequestType<ApiClientType['subscriptions']['switch']['$patch']>;
+export type SwitchSubscriptionResponse = InferResponseType<ApiClientType['subscriptions']['switch']['$patch']>;
 
 // ============================================================================
 //  Service Functions
@@ -76,19 +76,20 @@ export async function createSubscriptionService(args: CreateSubscriptionRequest)
 }
 
 /**
- * Change subscription plan
- * All types are inferred from the RPC client
- */
-export async function changePlanService(args: ChangePlanRequest) {
-  const client = await createApiClient();
-  return parseResponse(client.subscriptions[':id'].$patch(args));
-}
-
-/**
  * Cancel an active subscription
  * All types are inferred from the RPC client
  */
 export async function cancelSubscriptionService(args: CancelSubscriptionRequest) {
   const client = await createApiClient();
   return parseResponse(client.subscriptions[':id'].cancel.$patch(args));
+}
+
+/**
+ * Switch to a different subscription plan
+ * Handles the single active subscription constraint by switching to a new plan
+ * with prorated billing. All types are inferred from the RPC client.
+ */
+export async function switchSubscriptionService(args: SwitchSubscriptionRequest) {
+  const client = await createApiClient();
+  return parseResponse(client.subscriptions.switch.$patch(args));
 }

@@ -44,9 +44,6 @@ export {
   type CancelSubscriptionRequest,
   type CancelSubscriptionResponse,
   cancelSubscriptionService,
-  type ChangePlanRequest,
-  type ChangePlanResponse,
-  changePlanService,
   type CreateSubscriptionRequest,
   type CreateSubscriptionResponse,
   createSubscriptionService,
@@ -56,4 +53,7 @@ export {
   type GetSubscriptionsRequest,
   type GetSubscriptionsResponse,
   getSubscriptionsService,
+  type SwitchSubscriptionRequest,
+  type SwitchSubscriptionResponse,
+  switchSubscriptionService,
 } from './subscriptions';

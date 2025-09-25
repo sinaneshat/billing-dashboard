@@ -123,16 +123,17 @@ export type RegularHandler<
   c: HandlerContext<TEnv, TBody, TQuery, TParams>
 ) => Promise<Response>;
 
+/**
+ * @deprecated Use BatchHandler instead. D1 doesn't support transactions.
+ * This is now an alias for BatchHandler for backward compatibility.
+ */
 export type TransactionHandler<
-  _TRoute extends RouteConfig,
+  TRoute extends RouteConfig,
   TEnv extends Env = ApiEnv,
   TBody extends z.ZodSchema = never,
   TQuery extends z.ZodSchema = never,
   TParams extends z.ZodSchema = never,
-> = (
-  c: HandlerContext<TEnv, TBody, TQuery, TParams>,
-  tx: Parameters<Parameters<Awaited<ReturnType<typeof getDbAsync>>['transaction']>[0]>[0]
-) => Promise<Response>;
+> = BatchHandler<TRoute, TEnv, TBody, TQuery, TParams>;
 
 /**
  * D1 Batch Context - Provides utilities for building batch operations
@@ -477,7 +478,9 @@ export function createHandler<
 }
 
 /**
- * Create a route handler with database transaction
+ * Create a route handler with database batch operations
+ * @deprecated Use createHandlerWithBatch instead. D1 doesn't support transactions.
+ * This is now an alias for createHandlerWithBatch for backward compatibility.
  */
 export function createHandlerWithTransaction<
   TRoute extends RouteConfig,
@@ -487,125 +490,10 @@ export function createHandlerWithTransaction<
   TParams extends z.ZodSchema = never,
 >(
   config: HandlerConfig<TRoute, TBody, TQuery, TParams>,
-  implementation: TransactionHandler<TRoute, TEnv, TBody, TQuery, TParams>,
+  implementation: BatchHandler<TRoute, TEnv, TBody, TQuery, TParams>,
 ): RouteHandler<TRoute, TEnv> {
-  const handler = async (c: Context<TEnv>) => {
-    const operationName = config.operationName || `${c.req.method} ${c.req.path}`;
-    const logger = createOperationLogger(c, operationName);
-    const performance = createPerformanceTracker();
-
-    // Set start time in context for response metadata
-    (c as Context & { set: (key: string, value: unknown) => void }).set('startTime', performance.startTime);
-
-    logger.debug('Transaction handler started');
-
-    try {
-      // Apply authentication
-      if (config.auth && config.auth !== 'public') {
-        logger.debug('Applying authentication', { logType: 'auth', mode: config.auth });
-        await applyAuthentication(c, config.auth);
-      }
-
-      // Validate request
-      logger.debug('Validating request');
-      const validated = await validateRequest<TBody, TQuery, TParams>(c, config);
-
-      // Create enhanced context
-      const enhancedContext = Object.assign(c, {
-        validated,
-        logger,
-      }) as HandlerContext<TEnv, TBody, TQuery, TParams>;
-
-      // Execute implementation with proper database transaction
-      logger.debug('Executing handler implementation with transaction');
-      const db = await getDbAsync();
-
-      // According to Drizzle ORM best practices, wrap implementation in transaction
-      const result = await db.transaction(async (tx) => {
-        logger.debug('Transaction started');
-        return await implementation(enhancedContext, tx);
-      });
-
-      const duration = performance.getDuration();
-      logger.info('Transaction handler completed successfully', {
-        logType: 'performance',
-        duration,
-        marks: performance.getMarks(),
-      });
-
-      return result;
-    } catch (error) {
-      const duration = performance.getDuration();
-      logger.error('Transaction handler failed', error as Error, { logType: 'performance', duration });
-
-      if (error instanceof HTTPException) {
-        // Handle validation errors with our unified system
-        if (error.status === HttpStatusCodes.UNPROCESSABLE_ENTITY) {
-          // Check for EnhancedHTTPException with details
-          if ('details' in error && error.details && typeof error.details === 'object') {
-            const details = error.details as { validationErrors?: Array<{ field: string; message: string; code?: string }> };
-            if (details.validationErrors) {
-              return Responses.validationError(c, details.validationErrors, error.message);
-            }
-          } else if (error.cause && typeof error.cause === 'object') {
-            const cause = error.cause as { validationErrors?: Array<{ field: string; message: string; code?: string }> };
-            if (cause.validationErrors) {
-              return Responses.validationError(c, cause.validationErrors, error.message);
-            }
-          }
-        }
-        throw error;
-      }
-
-      if (error instanceof AppError) {
-        // Convert AppError instances to appropriate HTTP responses
-        switch (error.code) {
-          case 'PAYMENT_METHOD_INVALID':
-          case 'CONTRACT_NOT_ACTIVE':
-          case 'PAYMENT_FAILED':
-            return Responses.paymentError(c, error.message, 'other');
-          case 'RESOURCE_NOT_FOUND':
-            return Responses.notFound(c, 'Resource');
-          case 'RESOURCE_CONFLICT':
-          case 'RESOURCE_ALREADY_EXISTS':
-            return Responses.conflict(c, error.message);
-          case 'UNAUTHENTICATED':
-          case 'TOKEN_EXPIRED':
-          case 'TOKEN_INVALID':
-            return Responses.authenticationError(c, error.message);
-          case 'UNAUTHORIZED':
-          case 'INSUFFICIENT_PERMISSIONS':
-            return Responses.authorizationError(c, error.message);
-          case 'VALIDATION_ERROR':
-          case 'INVALID_INPUT':
-            return Responses.badRequest(c, error.message, error.details);
-          case 'DATABASE_ERROR':
-            return Responses.databaseError(c, 'batch', error.message);
-          case 'ZARINPAL_ERROR':
-            return Responses.externalServiceError(c, 'ZarinPal', error.message);
-          case 'EXTERNAL_SERVICE_ERROR':
-            return Responses.externalServiceError(c, 'External Service', error.message);
-          default:
-            // For internal server errors and other unknown AppError codes
-            return Responses.internalServerError(c, error.message, operationName);
-        }
-      }
-
-      // Convert database errors to appropriate responses
-      if (error instanceof Error && error.message.includes('UNIQUE constraint')) {
-        return Responses.conflict(c, 'Resource already exists');
-      }
-
-      if (error instanceof Error && error.message.includes('FOREIGN KEY constraint')) {
-        return Responses.badRequest(c, 'Invalid reference to related resource');
-      }
-
-      // Generic database error
-      return Responses.databaseError(c, 'batch', 'Database operation failed');
-    }
-  };
-
-  return handler as unknown as RouteHandler<TRoute, TEnv>;
+  // D1 doesn't support transactions, so redirect to batch operations
+  return createHandlerWithBatch(config, implementation);
 }
 
 /**

@@ -11,9 +11,21 @@ import * as HttpStatusCodes from 'stoker/http-status-codes';
  * Derive encryption key from BETTER_AUTH_SECRET
  */
 async function getEncryptionKey(): Promise<CryptoKey> {
-  const { env } = getCloudflareContext();
+  let secret: string | undefined;
 
-  if (!env.BETTER_AUTH_SECRET) {
+  try {
+    const { env } = getCloudflareContext();
+    secret = env.BETTER_AUTH_SECRET;
+  } catch (error) {
+    // Fallback to process.env when Cloudflare context is not available
+    console.warn('[CRYPTO] Cloudflare context not available, falling back to process.env', {
+      error: error instanceof Error ? error.message : String(error),
+      timestamp: new Date().toISOString(),
+    });
+    secret = process.env.BETTER_AUTH_SECRET;
+  }
+
+  if (!secret) {
     throw new HTTPException(HttpStatusCodes.INTERNAL_SERVER_ERROR, {
       message: 'BETTER_AUTH_SECRET not configured',
     });
@@ -23,7 +35,7 @@ async function getEncryptionKey(): Promise<CryptoKey> {
   const encoder = new TextEncoder();
   const keyMaterial = await crypto.subtle.importKey(
     'raw',
-    encoder.encode(env.BETTER_AUTH_SECRET),
+    encoder.encode(secret),
     'PBKDF2',
     false,
     ['deriveKey'],

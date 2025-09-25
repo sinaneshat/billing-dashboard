@@ -27,21 +27,29 @@ function createAuthAdapter() {
   // For Cloudflare Workers (production/preview) - use D1 with batch operations
   try {
     const { env } = getCloudflareContext();
-    const d1Db = drizzleD1(env.DB, { schema: authSchema });
+    if (env.DB) {
+      const d1Db = drizzleD1(env.DB, { schema: authSchema });
 
-    return drizzleAdapter(d1Db, {
-      provider: 'sqlite',
-      schema: authSchema,
-      // Disable transactions for D1 compatibility (D1 doesn't support BEGIN/COMMIT)
-      transaction: false,
-    });
-  } catch {
-    // Fallback to regular db proxy (keep transactions enabled for local SQLite)
-    return drizzleAdapter(db, {
-      provider: 'sqlite',
-      schema: authSchema,
+      return drizzleAdapter(d1Db, {
+        provider: 'sqlite',
+        schema: authSchema,
+        // Disable transactions for D1 compatibility (D1 doesn't support BEGIN/COMMIT)
+        transaction: false,
+      });
+    }
+  } catch (error) {
+    // Fallback when Cloudflare context is not available
+    console.warn('[AUTH] Cloudflare context not available, falling back to regular db adapter', {
+      error: error instanceof Error ? error.message : String(error),
+      timestamp: new Date().toISOString(),
     });
   }
+
+  // Fallback to regular db proxy (keep transactions enabled for local SQLite)
+  return drizzleAdapter(db, {
+    provider: 'sqlite',
+    schema: authSchema,
+  });
 }
 
 /**
