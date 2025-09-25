@@ -78,18 +78,19 @@ async function executeDatabaseOperations(
       throw error;
     }
   } else {
-    // Use transaction for BetterSQLite3 (development)
-    // According to Drizzle Context7 docs, use transaction wrapper
-    return await db.transaction(async (_tx) => {
-      const results = [];
-      for (const operation of operations) {
-        // For BetterSQLite3, operations need to be executed with transaction context
-        // Note: The operations are Drizzle query builders, they get executed with tx context
-        const result = await operation;
-        results.push(result);
-      }
+    // Use Promise.all for BetterSQLite3 (development)
+    // Avoid transaction complexity and use simple Promise.all
+    try {
+      const results = await Promise.all(operations as Promise<unknown>[]);
       return results;
-    });
+    } catch (error) {
+      apiLogger.error('SQLite operation failed', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        operationCount: operations.length,
+        component: 'monthly-billing',
+      });
+      throw error;
+    }
   }
 }
 
@@ -323,8 +324,8 @@ async function processSingleSubscription(
         ),
       ),
     ]);
-    existingPendingPayments = paymentChecks[0] || [];
-    failedPaymentsToday = paymentChecks[1] || [];
+    existingPendingPayments = (paymentChecks[0] as PaymentRecord[]) || [];
+    failedPaymentsToday = (paymentChecks[1] as PaymentRecord[]) || [];
   } else {
     // Use Promise.all for BetterSQLite3 (development)
     const paymentChecks = await Promise.all([

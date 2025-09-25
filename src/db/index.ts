@@ -84,18 +84,40 @@ function getD1Binding(): D1Database | null {
 /**
  * Create database instance following official OpenNext.js patterns
  * Uses React cache for optimal performance in server components
+ * CRITICAL FIX: Added error handling for ExecutionContext availability
  */
 export const getDb = cache(() => {
-  const { env } = getCloudflareContext();
-  return drizzleD1(env.DB, { schema });
+  try {
+    const { env } = getCloudflareContext();
+    return drizzleD1(env.DB, { schema });
+  } catch (error) {
+    // CRITICAL FIX: Fallback to createDbInstance if ExecutionContext not available
+    // This handles the "This context has no ExecutionContext" production error
+    console.warn('[DB] ExecutionContext not available, using fallback database instance', {
+      error: error instanceof Error ? error.message : String(error),
+      timestamp: new Date().toISOString(),
+    });
+    return createDbInstance();
+  }
 });
 
 /**
  * Async version for static routes (ISR/SSG) following OpenNext.js patterns
+ * CRITICAL FIX: Added error handling for ExecutionContext availability
  */
 export const getDbAsync = cache(async () => {
-  const { env } = await getCloudflareContext({ async: true });
-  return drizzleD1(env.DB, { schema });
+  try {
+    const { env } = await getCloudflareContext({ async: true });
+    return drizzleD1(env.DB, { schema });
+  } catch (error) {
+    // CRITICAL FIX: Fallback to createDbInstance if ExecutionContext not available
+    // This handles the "This context has no ExecutionContext" production error
+    console.warn('[DB] ExecutionContext not available (async), using fallback database instance', {
+      error: error instanceof Error ? error.message : String(error),
+      timestamp: new Date().toISOString(),
+    });
+    return createDbInstance();
+  }
 });
 
 /**
