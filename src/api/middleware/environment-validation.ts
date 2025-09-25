@@ -301,8 +301,21 @@ export function validateEnvironmentConfiguration(env: CloudflareEnv): {
  */
 export function createEnvironmentValidationMiddleware() {
   return async (_c: { env: CloudflareEnv }, next: () => Promise<void>) => {
-    const { getCloudflareContext } = await import('@opennextjs/cloudflare');
-    const { env } = getCloudflareContext();
+    let env: CloudflareEnv;
+
+    try {
+      const { getCloudflareContext } = await import('@opennextjs/cloudflare');
+      const context = getCloudflareContext();
+      env = context.env;
+    } catch (error) {
+      // Fallback when Cloudflare context is not available
+      console.warn('[ENV-VALIDATION] Cloudflare context not available, skipping environment validation', {
+        error: error instanceof Error ? error.message : String(error),
+        timestamp: new Date().toISOString(),
+      });
+      return next();
+    }
+
     // Skip validation in test environment
     if (process.env.NODE_ENV === 'test') {
       return next();

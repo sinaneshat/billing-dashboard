@@ -7,7 +7,7 @@ import type { Product } from '@/api/routes/products/schema';
 import type { SubscriptionWithProduct } from '@/api/routes/subscriptions/schema';
 import { SetupBankAuthorizationButton } from '@/components/billing/setup-bank-authorization-button';
 import { Button } from '@/components/ui/button';
-import { useCancelSubscriptionMutation, useChangePlanMutation } from '@/hooks/mutations/subscriptions';
+import { useCancelSubscriptionMutation, useSwitchSubscriptionMutation } from '@/hooks/mutations/subscriptions';
 import { toastManager } from '@/lib/toast/toast-manager';
 import { cn } from '@/lib/ui/cn';
 
@@ -36,7 +36,7 @@ export function PricingPlans({
   const t = useTranslations();
   const locale = useLocale();
   const cancelSubscription = useCancelSubscriptionMutation();
-  const changePlan = useChangePlanMutation();
+  const switchSubscription = useSwitchSubscriptionMutation();
 
   // Sort products: Free first, then by price
   const sortedProducts = useMemo(() => {
@@ -76,21 +76,68 @@ export function PricingPlans({
     }
   };
 
-  // Handle plan upgrade/downgrade
-  const handleChangePlan = async (productId: string) => {
+  // Handle plan upgrade/downgrade using the secure switchSubscription endpoint
+  const handleChangePlan = async (productId: string, productName: string) => {
     if (!currentSubscription?.id) {
       toastManager.error(t('subscription.noActiveSubscription'));
       return;
     }
 
+    if (currentSubscription.productId === productId || currentSubscription.product?.id === productId) {
+      toastManager.error(t('subscription.alreadyOnThisPlan'));
+      return;
+    }
+
     try {
-      await changePlan.mutateAsync({
-        param: { id: currentSubscription.id },
-        json: { productId },
-      });
-      toastManager.success(t('subscription.planChangeSuccess'));
-    } catch {
-      toastManager.error(t('subscription.planChangeFailed'));
+      const result = await switchSubscription.mutateAsync({
+        json: {
+          newProductId: productId,
+          effectiveDate: 'immediate' as const,
+          confirmProration: true,
+        },
+      } as Parameters<typeof switchSubscription.mutateAsync>[0]);
+
+      if ('success' in result && result.success) {
+        const data = 'data' in result ? result.data : null;
+        const netAmount = (data && 'netAmount' in data) ? (data as { netAmount: number }).netAmount : 0;
+        const isUpgrade = netAmount > 0;
+        const isDowngrade = netAmount < 0;
+
+        if (isUpgrade) {
+          toastManager.success(t('subscription.switchSuccessUpgrade', {
+            planName: productName,
+            amount: Math.abs(netAmount).toLocaleString(),
+          }));
+        } else if (isDowngrade) {
+          toastManager.success(t('subscription.switchSuccessDowngrade', {
+            planName: productName,
+            creditAmount: Math.abs(netAmount).toLocaleString(),
+          }));
+        } else {
+          toastManager.success(t('subscription.switchSuccess', {
+            planName: productName,
+          }));
+        }
+      } else {
+        toastManager.error(t('subscription.switchFailed'));
+      }
+    } catch (error: unknown) {
+      // Enhanced error handling for switch failures
+      if (error && typeof error === 'object' && 'message' in error) {
+        const errorMessage = String(error.message).toLowerCase();
+
+        if (errorMessage.includes('payment failed') || errorMessage.includes('insufficient funds')) {
+          toastManager.error(t('subscription.switchFailedInsufficientFunds'));
+        } else if (errorMessage.includes('same product') || errorMessage.includes('already on')) {
+          toastManager.error(t('subscription.alreadyOnThisPlan'));
+        } else if (errorMessage.includes('contract') || errorMessage.includes('payment method')) {
+          toastManager.error(t('subscription.paymentMethodError'));
+        } else {
+          toastManager.error(t('subscription.switchFailed'));
+        }
+      } else {
+        toastManager.error(t('subscription.switchFailed'));
+      }
     }
   };
 
@@ -111,7 +158,7 @@ export function PricingPlans({
 
     if (hasActiveSubscription) {
       // User has active subscription - upgrade/downgrade
-      handleChangePlan(product.id);
+      handleChangePlan(product.id, product.name);
     } else {
       // New subscription creation
       onPlanSelect(product.id);
@@ -177,7 +224,7 @@ export function PricingPlans({
             primaryAction = {
               label: isUpgrade ? t('actions.upgrade') : t('actions.downgrade'),
               variant: isUpgrade ? 'default' : 'outline',
-              onClick: () => handlePlanSelect(product),
+              onClick: () => handleChangePlan(product.id, product.name),
             };
           } else {
             // No subscription - show choose plan

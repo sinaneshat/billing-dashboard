@@ -139,6 +139,8 @@ export const subscription = sqliteTable('subscription', {
   index('subscription_status_billing_date_idx').on(table.status, table.nextBillingDate),
   // Index for billing automation queries
   index('subscription_billing_automation_idx').on(table.status, table.nextBillingDate, table.paymentMethodId),
+  // Security indexes for subscription constraints
+  index('subscription_security_audit_idx').on(table.userId, table.status, table.createdAt),
 ]);
 
 // Payments table - transaction log for all payment attempts

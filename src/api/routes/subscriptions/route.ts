@@ -6,13 +6,13 @@ import { createApiResponseSchema } from '@/api/core/schemas';
 import {
   CancelSubscriptionRequestSchema,
   CancelSubscriptionResponseDataSchema,
-  ChangePlanRequestSchema,
-  ChangePlanResponseDataSchema,
   CreateSubscriptionRequestSchema,
   CreateSubscriptionResponseDataSchema,
   GetSubscriptionResponseDataSchema,
   GetSubscriptionsResponseDataSchema,
   SubscriptionParamsSchema,
+  SwitchSubscriptionRequestSchema,
+  SwitchSubscriptionResponseDataSchema,
 } from './schema';
 
 export const getSubscriptionsRoute = createRoute({
@@ -111,31 +111,33 @@ export const cancelSubscriptionRoute = createRoute({
   },
 });
 
-export const changePlanRoute = createRoute({
+export const switchSubscriptionRoute = createRoute({
   method: 'patch',
-  path: '/subscriptions/{id}',
+  path: '/subscriptions/switch',
   tags: ['subscriptions'],
-  summary: 'Change subscription plan',
-  description: 'Change the subscription to a different product plan with proration calculation',
+  summary: 'Switch to a different subscription plan',
+  description: 'Cancel current subscription and create a new one with prorated billing. This is the secure way to change subscriptions when single active subscription constraint is enforced.',
   request: {
-    params: SubscriptionParamsSchema,
     body: {
       content: {
-        'application/json': { schema: ChangePlanRequestSchema },
+        'application/json': { schema: SwitchSubscriptionRequestSchema },
       },
     },
   },
   responses: {
     [HttpStatusCodes.OK]: {
-      description: 'Subscription plan changed successfully',
+      description: 'Subscription switched successfully',
       content: {
-        'application/json': { schema: createApiResponseSchema(ChangePlanResponseDataSchema) },
+        'application/json': { schema: createApiResponseSchema(SwitchSubscriptionResponseDataSchema) },
       },
     },
-    [HttpStatusCodes.BAD_REQUEST]: { description: 'Bad Request' },
-    [HttpStatusCodes.NOT_FOUND]: { description: 'Not Found' },
+    [HttpStatusCodes.BAD_REQUEST]: { description: 'Bad Request - Invalid request data' },
+    [HttpStatusCodes.UNAUTHORIZED]: { description: 'Unauthorized - Authentication required' },
+    [HttpStatusCodes.NOT_FOUND]: { description: 'Not Found - No active subscription or target product not found' },
+    [HttpStatusCodes.CONFLICT]: { description: 'Conflict - Cannot switch to same product or invalid state' },
+    [HttpStatusCodes.PAYMENT_REQUIRED]: { description: 'Payment Failed - Could not process payment for upgrade' },
     [HttpStatusCodes.UNPROCESSABLE_ENTITY]: { description: 'Validation Error' },
-    [HttpStatusCodes.CONFLICT]: { description: 'Conflict - Cannot change to same plan or invalid state' },
+    [HttpStatusCodes.TOO_MANY_REQUESTS]: { description: 'Rate Limited - Too many subscription operations' },
     [HttpStatusCodes.INTERNAL_SERVER_ERROR]: { description: 'Internal Server Error' },
   },
 });
