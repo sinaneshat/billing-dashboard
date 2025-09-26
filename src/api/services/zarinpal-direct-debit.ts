@@ -501,9 +501,14 @@ export class ZarinPalDirectDebitService {
       }
     }
 
+    // Fix environment detection for Cloudflare Workers
+    const webappEnv = env.NEXT_PUBLIC_WEBAPP_ENV || 'production';
+    const isSandboxEnvironment = webappEnv === 'local' || webappEnv === 'development';
+
     const config = {
       serviceName: 'ZarinPal-DirectDebit',
-      baseUrl: 'https://api.zarinpal.com', // Direct debit only works on production
+      // Use sandbox for local development, production API for preview/production
+      baseUrl: isSandboxEnvironment ? 'https://sandbox.zarinpal.com' : 'https://api.zarinpal.com',
       timeout: 30000,
       retries: 2,
       circuitBreaker: {
@@ -512,8 +517,8 @@ export class ZarinPalDirectDebitService {
       },
       merchantId: env.NEXT_PUBLIC_ZARINPAL_MERCHANT_ID,
       accessToken: env.ZARINPAL_ACCESS_TOKEN,
-      isSandbox,
-      isPlaceholder: isPlaceholder && !(isSandboxValue && isSandbox), // Don't treat sandbox values as placeholders in development
+      isSandbox: isSandboxEnvironment,
+      isPlaceholder: isPlaceholder && !(isSandboxValue && isSandboxEnvironment), // Don't treat sandbox values as placeholders in development
       isSandboxValue,
     };
 
