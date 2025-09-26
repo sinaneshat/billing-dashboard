@@ -284,7 +284,9 @@ export class ZarinPalService {
 
     const merchantId = env.NEXT_PUBLIC_ZARINPAL_MERCHANT_ID;
     const accessToken = env.ZARINPAL_ACCESS_TOKEN;
-    const isSandbox = env.NODE_ENV === 'development';
+    // Fix environment detection for Cloudflare Workers
+    const webappEnv = env.NEXT_PUBLIC_WEBAPP_ENV || 'production';
+    const isSandbox = webappEnv === 'local' || webappEnv === 'development';
 
     const config = {
       serviceName: 'ZarinPal',
