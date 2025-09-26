@@ -1,7 +1,7 @@
 import { z } from '@hono/zod-openapi';
 
 import { CoreSchemas } from '@/api/core/schemas';
-import { productSelectSchema, subscriptionSelectSchema } from '@/db/validation/billing';
+import { subscriptionSelectSchema } from '@/db/validation/billing';
 
 // Single source of truth - use drizzle-zod schemas with OpenAPI metadata
 // Override timestamp fields to be strings (as they are serialized in API responses)
@@ -24,55 +24,18 @@ const SubscriptionSchema = subscriptionSelectSchema.extend({
     startDate: new Date().toISOString(),
     endDate: null,
     nextBillingDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-    currentPrice: 99000,
+    currentPrice: 62.45, // Raw USD price from database
     billingPeriod: 'monthly',
-    directDebitContractId: 'contract_abc123',
-    directDebitSignature: 'signature_200chars...',
+    paymentMethodId: 'pm_123',
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   },
 });
 
-// Subscription with related product and payment method data - extend from drizzle schemas
-// Simplified: only Toman amounts and formatted strings
-const SubscriptionWithProductSchema = SubscriptionSchema.extend({
-  product: productSelectSchema.pick({
-    id: true,
-    name: true,
-    description: true,
-    billingPeriod: true,
-  }).openapi({
-    example: {
-      id: 'prod_123',
-      name: 'Premium Plan',
-      description: 'Full access to all features',
-      billingPeriod: 'monthly',
-    },
-  }),
-  paymentMethod: z.object({
-    id: z.string(),
-    contractDisplayName: z.string(),
-    contractMobile: z.string().nullable(),
-    contractStatus: z.string(),
-    bankCode: z.string().nullable(),
-    isPrimary: z.boolean().nullable(),
-    isActive: z.boolean().nullable(),
-  }).nullable().openapi({
-    example: {
-      id: 'pm_123',
-      contractDisplayName: 'بانک ملی ایران - 1234',
-      contractMobile: '09123456789',
-      contractStatus: 'active',
-      bankCode: '011',
-      isPrimary: true,
-      isActive: true,
-    },
-    description: 'Payment method details including bank contract information',
-  }),
-  // Simplified: only what frontend needs
-  currentPriceToman: z.number().describe('Subscription price in Toman'),
-  formattedPrice: z.string().describe('Pre-formatted price string (e.g., "99,000 تومان/ماه")'),
-});
+// SOLID-compliant subscription schema - ONLY raw subscription domain data
+// Following Single Responsibility Principle: subscriptions endpoint serves ONLY raw subscription data from database
+// Frontend should fetch related data separately and handle ALL formatting/transformations
+// NO data transformations in backend - only raw database values
 
 // Request schemas for Direct Debit Contract-based subscriptions
 export const CreateSubscriptionRequestSchema = z.object({
@@ -135,10 +98,11 @@ export const IranianValidationSchemas = {
     }),
 };
 
-// Refactored: Direct data schemas, response wrapper handled by Responses.* methods
-export const GetSubscriptionsResponseDataSchema = z.array(SubscriptionWithProductSchema).openapi('GetSubscriptionsData');
+// SOLID-compliant response schemas - single responsibility for subscription domain only
+// Returns RAW database data only - no transformations
+export const GetSubscriptionsResponseDataSchema = z.array(SubscriptionSchema).openapi('GetSubscriptionsData');
 
-export const GetSubscriptionResponseDataSchema = SubscriptionWithProductSchema.openapi('GetSubscriptionData');
+export const GetSubscriptionResponseDataSchema = SubscriptionSchema.openapi('GetSubscriptionData');
 
 export const CreateSubscriptionResponseDataSchema = z.object({
   subscriptionId: CoreSchemas.id().openapi({
@@ -256,15 +220,15 @@ export const SwitchSubscriptionResponseDataSchema = z.object({
 // TYPE EXPORTS
 // ============================================================================
 
-// Export types - now consistent with database schema and unified response system
+// Export types - SOLID-compliant with single responsibility principle
+// Only raw database types - no transformations
 export type Subscription = z.infer<typeof SubscriptionSchema>;
-export type SubscriptionWithProduct = z.infer<typeof SubscriptionWithProductSchema>;
 export type CreateSubscriptionRequest = z.infer<typeof CreateSubscriptionRequestSchema>;
 export type CancelSubscriptionRequest = z.infer<typeof CancelSubscriptionRequestSchema>;
 export type SwitchSubscriptionRequest = z.infer<typeof SwitchSubscriptionRequestSchema>;
 export type SubscriptionParams = z.infer<typeof SubscriptionParamsSchema>;
 
-// Response data types for handlers
+// Response data types for handlers - raw database data only
 export type GetSubscriptionsResponseData = z.infer<typeof GetSubscriptionsResponseDataSchema>;
 export type GetSubscriptionResponseData = z.infer<typeof GetSubscriptionResponseDataSchema>;
 export type CreateSubscriptionResponseData = z.infer<typeof CreateSubscriptionResponseDataSchema>;

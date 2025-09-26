@@ -57,16 +57,16 @@ export type FetchResult<T> = {
  * Response parsing result with ZERO CASTING
  * Discriminated union for type safety
  */
-export type ParsedResponse<T> =
-  | { success: true; data: T; contentType: string }
-  | { success: false; error: string; contentType: string };
+export type ParsedResponse<T>
+  = | { success: true; data: T; contentType: string }
+    | { success: false; error: string; contentType: string };
 
 /**
  * Response parsing result for unvalidated data
  */
-export type UnvalidatedParseResult =
-  | { success: true; data: unknown; contentType: string }
-  | { success: false; error: string; contentType: string };
+export type UnvalidatedParseResult
+  = | { success: true; data: unknown; contentType: string }
+    | { success: false; error: string; contentType: string };
 
 // ============================================================================
 // CIRCUIT BREAKER STATE MANAGEMENT

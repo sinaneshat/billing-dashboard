@@ -66,12 +66,12 @@ export type SubscriptionMetadata = z.infer<typeof SubscriptionMetadataSchema>;
 export type UserMetadata = z.infer<typeof UserMetadataSchema>;
 
 // Union type for all metadata types
-export type TypedMetadata =
-  | ProductMetadata
-  | PaymentMetadata
-  | SubscriptionMetadata
-  | UserMetadata
-  | BaseMetadata;
+export type TypedMetadata
+  = | ProductMetadata
+    | PaymentMetadata
+    | SubscriptionMetadata
+    | UserMetadata
+    | BaseMetadata;
 
 // Validation functions
 export function validateProductMetadata(data: unknown): ProductMetadata {

@@ -49,7 +49,7 @@ export async function createApiClient() {
     // Server-side: Dynamically import cookies to avoid client-side bundling issues
     // credentials: 'include' doesn't work in server contexts with Hono client
     const { cookies } = await import('next/headers');
-    const cookieStore = cookies();
+    const cookieStore = await cookies();
     const cookieHeader = cookieStore.toString();
 
     return hc<AppType>(getBaseUrl(), {

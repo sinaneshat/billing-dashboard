@@ -1,7 +1,7 @@
 import { z } from '@hono/zod-openapi';
 
 import { CoreSchemas, createApiResponseSchema } from '@/api/core/schemas';
-import { paymentMethodSelectSchema, paymentSelectSchema, productSelectSchema, subscriptionSelectSchema } from '@/db/validation/billing';
+import { paymentSelectSchema } from '@/db/validation/billing';
 
 // Single source of truth - use drizzle-zod schemas with OpenAPI metadata
 // Override timestamp fields to be strings (as they are serialized in API responses)
@@ -29,58 +29,17 @@ const PaymentSchema = paymentSelectSchema.extend({
   },
 });
 
-// Payment with related data - extend from drizzle schemas
-// Simplified: only Toman amounts and formatted strings
-const PaymentWithDetailsSchema = PaymentSchema.extend({
-  product: productSelectSchema.pick({
-    id: true,
-    name: true,
-    description: true,
-  }).openapi({
-    example: {
-      id: 'prod_123',
-      name: 'Premium Plan',
-      description: 'Full access to all features',
-    },
-  }),
-  subscription: subscriptionSelectSchema.pick({
-    id: true,
-    status: true,
-  }).nullable().openapi({
-    example: {
-      id: 'sub_123',
-      status: 'active',
-    },
-  }),
-  paymentMethod: paymentMethodSelectSchema.pick({
-    id: true,
-    contractDisplayName: true,
-    contractMobile: true,
-    contractStatus: true,
-    contractType: true,
-    isPrimary: true,
-    bankCode: true,
-  }).nullable().openapi({
-    example: {
-      id: 'pm_123',
-      contractDisplayName: 'پرداخت مستقیم بانک ملی',
-      contractMobile: '09121234567',
-      contractStatus: 'active',
-      contractType: 'direct_debit_contract',
-      isPrimary: true,
-      bankCode: '017',
-    },
-  }),
-  // Simplified: only what frontend needs
-  tomanAmount: z.number().describe('Payment amount in Toman'),
-  formattedAmount: z.string().describe('Pre-formatted amount string (e.g., "99,000 تومان")'),
-});
+// SOLID-compliant payment schema - ONLY raw payment domain data
+// Following Single Responsibility Principle: payments endpoint serves ONLY raw payment data from database
+// Frontend should fetch related data separately and handle ALL formatting/transformations
+// NO data transformations in backend - only raw database values
 
-// Response schemas
+// SOLID-compliant response schemas - single responsibility for payment domain only
+// Returns RAW database data only - no transformations
 export const GetPaymentsResponseSchema = createApiResponseSchema(
-  z.array(PaymentWithDetailsSchema),
+  z.array(PaymentSchema),
 ).openapi('GetPaymentsResponse');
 
-// Export types - now consistent with database schema
+// Export types - SOLID-compliant with single responsibility principle
+// Only raw database types - no transformations
 export type Payment = z.infer<typeof PaymentSchema>;
-export type PaymentWithDetails = z.infer<typeof PaymentWithDetailsSchema>;

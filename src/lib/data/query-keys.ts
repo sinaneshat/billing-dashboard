@@ -329,16 +329,16 @@ export type QueryKeyFunction = (...args: unknown[]) => readonly string[];
 /**
  * Resource types for type-safe factory usage
  */
-export type ResourceType =
-  | 'auth'
-  | 'organizations'
-  | 'users'
-  | 'health'
-  | 'products'
-  | 'subscriptions'
-  | 'payments'
-  | 'paymentMethods'
-  | 'directDebit';
+export type ResourceType
+  = | 'auth'
+    | 'organizations'
+    | 'users'
+    | 'health'
+    | 'products'
+    | 'subscriptions'
+    | 'payments'
+    | 'paymentMethods'
+    | 'directDebit';
 
 // ============================================================================
 // VALIDATION HELPERS - Runtime Safety

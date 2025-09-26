@@ -35,7 +35,7 @@ export default function CustomerBillingOverviewScreen() {
     ? paymentMethodsQuery.data.data
     : [];
 
-  // Use Zod-inferred PaymentWithDetails data directly - no transformation needed
+  // Use raw payment data from API - no transformation needed
   const recentPayments = useMemo(() => {
     const paymentsData = paymentsQuery.data?.success && Array.isArray(paymentsQuery.data.data)
       ? paymentsQuery.data.data

@@ -62,7 +62,7 @@ export class CurrencyExchangeService {
   private config: CurrencyExchangeConfig;
   private cachedRate: number | null = null;
   private lastFetch: number = 0;
-  private readonly FALLBACK_RATE = 1073016; // From the API screenshot
+  // REMOVED: No fallback rates allowed - system must fail if API unavailable
 
   constructor(config: CurrencyExchangeConfig) {
     this.config = config;
@@ -168,18 +168,18 @@ export class CurrencyExchangeService {
 
       return rate;
     } catch (error) {
-      // Log the error but use fallback rate using console logging (no context dependency)
-      console.warn('[CURRENCY-SERVICE] Exchange rate API failed, using fallback rate', {
-        fallbackRate: this.FALLBACK_RATE,
+      // CRITICAL: No fallback rates - system must fail if exchange rate unavailable
+      console.error('[CURRENCY-SERVICE] Exchange rate API failed - blocking all operations', {
         error: error instanceof Error ? error.message : String(error),
         timestamp: new Date().toISOString(),
+        message: 'SYSTEM BLOCKED: Exchange rate API unavailable - no transactions allowed',
       });
 
-      // Cache the fallback rate to avoid repeated API calls
-      this.cachedRate = this.FALLBACK_RATE;
-      this.lastFetch = now;
+      // Clear any cached rate and throw error to block operations
+      this.cachedRate = null;
+      this.lastFetch = 0;
 
-      return this.FALLBACK_RATE;
+      throw new Error(`Exchange rate API unavailable: ${error instanceof Error ? error.message : String(error)}. Operations blocked for financial safety.`);
     }
   }
 

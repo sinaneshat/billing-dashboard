@@ -4,14 +4,14 @@ import { useLocale, useTranslations } from 'next-intl';
 import { useMemo } from 'react';
 
 import type { Product } from '@/api/routes/products/schema';
-import type { SubscriptionWithProduct } from '@/api/routes/subscriptions/schema';
+import type { Subscription } from '@/api/routes/subscriptions/schema';
 import { SetupBankAuthorizationButton } from '@/components/billing/setup-bank-authorization-button';
 import { Button } from '@/components/ui/button';
 import { useCancelSubscriptionMutation, useSwitchSubscriptionMutation } from '@/hooks/mutations/subscriptions';
 import { toastManager } from '@/lib/toast/toast-manager';
 import { cn } from '@/lib/ui/cn';
 
-import type { PlanData } from './unified';
+import type { ProductData } from './unified';
 import { BillingDisplayContainer, mapPlanToContent } from './unified';
 
 type PricingPlansProps = {
@@ -21,7 +21,7 @@ type PricingPlansProps = {
   contractStatus?: string;
   contractMessage?: string;
   canMakePayments?: boolean;
-  currentSubscription?: SubscriptionWithProduct | null;
+  currentSubscription?: Subscription | null;
 };
 
 export function PricingPlans({
@@ -83,7 +83,7 @@ export function PricingPlans({
       return;
     }
 
-    if (currentSubscription.productId === productId || currentSubscription.product?.id === productId) {
+    if (currentSubscription.productId === productId) {
       toastManager.error(t('subscription.alreadyOnThisPlan'));
       return;
     }
@@ -192,7 +192,7 @@ export function PricingPlans({
           const isRecommended = product.id === recommendedPlanId;
           const isFree = product.price === 0;
           // Fix: Current subscription has nested product object, compare with product.id
-          const isCurrentPlan = currentSubscription?.product?.id === product.id || currentSubscription?.productId === product.id;
+          const isCurrentPlan = currentSubscription?.productId === product.id;
           const hasActiveSubscription = currentSubscription?.status === 'active';
 
           // Determine the primary action based on current subscription status
@@ -218,7 +218,7 @@ export function PricingPlans({
             primaryAction = undefined;
           } else if (hasActiveSubscription) {
             // User has a subscription - show upgrade/downgrade
-            const currentProductId = currentSubscription?.product?.id || currentSubscription?.productId;
+            const currentProductId = currentSubscription?.productId;
             const currentPrice = products.find(p => p.id === currentProductId)?.price || 0;
             const isUpgrade = product.price > currentPrice;
             primaryAction = {
@@ -236,7 +236,7 @@ export function PricingPlans({
           }
 
           const content = mapPlanToContent(
-            product as PlanData,
+            product as ProductData,
             t,
             locale,
             undefined, // Remove click handler - only buttons should be clickable

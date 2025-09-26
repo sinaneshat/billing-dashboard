@@ -104,9 +104,8 @@ export const subscription = sqliteTable('subscription', {
   endDate: integer('end_date', { mode: 'timestamp' }), // null for active, set when canceled
   nextBillingDate: integer('next_billing_date', { mode: 'timestamp' }), // For recurring subscriptions
 
-  // ZarinPal Direct Debit Contract integration fields (Payman API)
-  directDebitContractId: text('direct_debit_contract_id'), // ZarinPal Payman contract ID
-  directDebitSignature: text('direct_debit_signature'), // ZarinPal contract signature
+  // Removed redundant direct debit fields - use paymentMethodId reference instead
+  // These fields duplicated data already stored in the paymentMethod table
 
   // Billing details
   currentPrice: real('current_price').notNull(), // Price when subscribed (for historical tracking)
@@ -132,7 +131,6 @@ export const subscription = sqliteTable('subscription', {
   index('subscription_product_id_idx').on(table.productId),
   index('subscription_status_idx').on(table.status),
   index('subscription_next_billing_date_idx').on(table.nextBillingDate),
-  index('subscription_direct_debit_contract_id_idx').on(table.directDebitContractId),
   // Composite indexes for common query patterns
   index('subscription_user_status_idx').on(table.userId, table.status),
   index('subscription_user_product_idx').on(table.userId, table.productId),
