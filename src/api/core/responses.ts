@@ -474,17 +474,17 @@ export function internalServerError(
 /**
  * Create a service unavailable error response
  */
-export function serviceUnavailable<T>(
+export function serviceUnavailable(
   c: Context,
-  data: T,
   message = 'Service temporarily unavailable',
+  details?: unknown,
 ): Response {
   const response = {
-    success: true as const,
-    data,
+    success: false as const,
     error: {
       code: 'SERVICE_UNAVAILABLE',
       message,
+      details,
     },
     meta: extractResponseMetadata(c),
   };
@@ -537,9 +537,9 @@ export function validateErrorResponse(
 /**
  * Create a response with custom status and headers
  */
-export function customResponse(
+export function customResponse<T>(
   c: Context,
-  data: unknown,
+  data: T,
   status: number,
   headers: Record<string, string> = {},
 ): Response {
@@ -550,7 +550,7 @@ export function customResponse(
     meta: extractResponseMetadata(c),
   };
 
-  return c.json(response, status as 200, headers);
+  return c.json(response, status as 200 | 201 | 400 | 404 | 500, headers);
 }
 
 /**
