@@ -614,7 +614,11 @@ export class WebhookEventBuilders {
  * Handles forwarding billing events to the Roundtable application
  */
 export class RoundtableWebhookForwarder {
-  private static getRoundtableWebhookUrl(): string | null {
+  private static getRoundtableWebhookUrl(env?: ApiEnv['Bindings']): string | null {
+    if (env) {
+      return env.NEXT_PUBLIC_ROUNDTABLE_WEBHOOK_URL || null;
+    }
+    // Fallback to old pattern for compatibility
     try {
       const { env } = getCloudflareContext();
       return env.NEXT_PUBLIC_ROUNDTABLE_WEBHOOK_URL || process.env.NEXT_PUBLIC_ROUNDTABLE_WEBHOOK_URL || null;
@@ -623,7 +627,11 @@ export class RoundtableWebhookForwarder {
     }
   }
 
-  private static getWebhookSecret(): string {
+  private static getWebhookSecret(env?: ApiEnv['Bindings']): string {
+    if (env) {
+      return env.WEBHOOK_SECRET || 'default-secret';
+    }
+    // Fallback to old pattern for compatibility
     try {
       const { env } = getCloudflareContext();
       return env.WEBHOOK_SECRET || process.env.WEBHOOK_SECRET || 'default-secret';
@@ -632,7 +640,11 @@ export class RoundtableWebhookForwarder {
     }
   }
 
-  private static getSupabaseAuthToken(): string | null {
+  private static getSupabaseAuthToken(env?: ApiEnv['Bindings']): string | null {
+    if (env) {
+      return env.SUPABASE_ANON_KEY || env.SUPABASE_SERVICE_ROLE_KEY || null;
+    }
+    // Fallback to old pattern for compatibility
     try {
       const { env } = getCloudflareContext();
       return env.SUPABASE_ANON_KEY || env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY || null;
@@ -641,8 +653,8 @@ export class RoundtableWebhookForwarder {
     }
   }
 
-  static async forwardEvent(event: WebhookEvent): Promise<boolean> {
-    const url = this.getRoundtableWebhookUrl();
+  static async forwardEvent(event: WebhookEvent, env?: ApiEnv['Bindings']): Promise<boolean> {
+    const url = this.getRoundtableWebhookUrl(env);
     if (!url) {
       apiLogger.info('No Roundtable webhook URL configured', {
         logType: 'api' as const,
@@ -653,7 +665,7 @@ export class RoundtableWebhookForwarder {
       return false;
     }
 
-    const secret = this.getWebhookSecret();
+    const secret = this.getWebhookSecret(env);
     const payload = JSON.stringify(event);
     const timestamp = Math.floor(Date.now() / 1000);
     const signature = this.generateSignature(payload, secret, timestamp);
@@ -867,14 +879,7 @@ export const zarinPalWebhookHandler: RouteHandler<typeof zarinPalWebhookRoute, A
       rawPayload: webhookPayload,
       processed: false,
       forwardedToExternal: false,
-      externalWebhookUrl: (() => {
-        try {
-          const { env } = getCloudflareContext();
-          return env.NEXT_PUBLIC_ROUNDTABLE_WEBHOOK_URL || null;
-        } catch {
-          return process.env.NEXT_PUBLIC_ROUNDTABLE_WEBHOOK_URL || null;
-        }
-      })(),
+      externalWebhookUrl: c.env.NEXT_PUBLIC_ROUNDTABLE_WEBHOOK_URL || process.env.NEXT_PUBLIC_ROUNDTABLE_WEBHOOK_URL || null,
     };
 
     // Add webhook event to batch
@@ -982,7 +987,7 @@ export const zarinPalWebhookHandler: RouteHandler<typeof zarinPalWebhookRoute, A
                 },
                 verification.data?.card_hash || webhookPayload.card_hash, // payment method ID
               );
-              await RoundtableWebhookForwarder.forwardEvent(paymentEvent);
+              await RoundtableWebhookForwarder.forwardEvent(paymentEvent, c.env);
 
               // Update subscription if exists
               if (paymentRecord.subscriptionId && subscriptionRecord) {
@@ -1036,7 +1041,7 @@ export const zarinPalWebhookHandler: RouteHandler<typeof zarinPalWebhookRoute, A
                       interval: subscriptionRecord.billingPeriod === 'monthly' ? 'month' : 'year',
                     },
                   );
-                  await RoundtableWebhookForwarder.forwardEvent(subscriptionEvent);
+                  await RoundtableWebhookForwarder.forwardEvent(subscriptionEvent, c.env);
 
                   // Also dispatch customer.subscription.created for new subscriptions
                   if (subscriptionRecord.status === 'pending') {
@@ -1053,7 +1058,7 @@ export const zarinPalWebhookHandler: RouteHandler<typeof zarinPalWebhookRoute, A
                         roundtableProductId: productRecord?.roundtableId || '',
                       },
                     );
-                    await RoundtableWebhookForwarder.forwardEvent(customerSubEvent);
+                    await RoundtableWebhookForwarder.forwardEvent(customerSubEvent, c.env);
                   }
 
                   subscriptionRecord = updatedSubscription;
@@ -1107,7 +1112,7 @@ export const zarinPalWebhookHandler: RouteHandler<typeof zarinPalWebhookRoute, A
                 },
                 verification.data?.card_hash || webhookPayload.card_hash,
               );
-              await RoundtableWebhookForwarder.forwardEvent(paymentEvent);
+              await RoundtableWebhookForwarder.forwardEvent(paymentEvent, c.env);
 
               apiLogger.warn('Payment verification failed with webhook events', {
                 operation: 'payment_verification_failed',
@@ -1158,7 +1163,7 @@ export const zarinPalWebhookHandler: RouteHandler<typeof zarinPalWebhookRoute, A
                 errorType: 'verification_error',
               },
             );
-            await RoundtableWebhookForwarder.forwardEvent(paymentEvent);
+            await RoundtableWebhookForwarder.forwardEvent(paymentEvent, c.env);
 
             processed = true;
           }
@@ -1198,7 +1203,7 @@ export const zarinPalWebhookHandler: RouteHandler<typeof zarinPalWebhookRoute, A
               zarinpalStatus: webhookPayload.status,
             },
           );
-          await RoundtableWebhookForwarder.forwardEvent(paymentEvent);
+          await RoundtableWebhookForwarder.forwardEvent(paymentEvent, c.env);
 
           apiLogger.info('Payment failed with webhook events', {
             operation: 'payment_webhook_failed',
