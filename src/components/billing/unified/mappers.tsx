@@ -17,8 +17,11 @@ import React from 'react';
 
 // Import Zod-inferred types from backend API schemas - simplified
 import type { PaymentMethod } from '@/api/routes/payment-methods/schema';
-import type { PaymentWithDetails } from '@/api/routes/payments/schema';
+import type { Payment } from '@/api/routes/payments/schema';
+import type { Product } from '@/api/routes/products/schema';
+import { convertRialToToman } from '@/lib/currency/conversion';
 import { formatBillingDate, formatNextBillingDate } from '@/lib/format';
+import { formatTomanCurrency } from '@/lib/format/currency';
 
 import type { ActionConfig, ContentConfig, StatusConfig } from './billing-display';
 
@@ -28,14 +31,11 @@ import type { ActionConfig, ContentConfig, StatusConfig } from './billing-displa
 // Eliminates the need for each component to handle data transformation differently
 // =============================================================================
 
-// Subscription data types (from existing codebase)
+// Subscription data types (from existing codebase) - SOLID-compliant without cross-domain data
+// Raw database values - NO transformations from backend
 export type SubscriptionData = {
   id: string;
-  product?: {
-    name: string;
-    description?: string | null;
-    billingPeriod?: string;
-  } | null;
+  productId: string; // Reference to product - fetch separately
   paymentMethod?: {
     id: string;
     contractDisplayName: string;
@@ -46,36 +46,17 @@ export type SubscriptionData = {
     isActive?: boolean | null;
   } | null;
   status: string;
-  currentPriceToman: number; // Toman price (already converted)
+  currentPrice: number; // USD price from database - frontend converts to Toman
   startDate: string;
   nextBillingDate?: string | null;
   endDate?: string | null;
-  // Simplified: only pre-formatted price from backend
-  formattedPrice: string;
 };
 
-// Use Zod-inferred PaymentWithDetails type from backend schema - no custom type needed
-export type PaymentData = PaymentWithDetails;
+// Use raw API types directly
+export type ProductData = Product;
+export type PaymentData = Payment;
 
-// Simplified Plan/Product data types (from existing codebase)
-export type PlanData = {
-  id: string;
-  name: string;
-  description?: string | null;
-  price: number; // Toman price (already converted)
-  metadata?: {
-    popular?: boolean;
-    features?: string[];
-    tier?: string;
-    badgeText?: string;
-  } | null;
-  // Simplified: pre-formatted price from API (optional for fallback)
-  formattedPrice?: string;
-  billingPeriod?: string;
-};
-
-// Following backend Zod patterns: use inferred types, no custom interfaces
-// Simplified: PaymentMethodData is just the Zod-inferred PaymentMethod type
+// Use raw PaymentMethod type from backend schema
 export type PaymentMethodData = PaymentMethod;
 
 // Upcoming bill data types (from existing codebase)
@@ -107,9 +88,16 @@ export type MetricData = {
 // =============================================================================
 
 /**
- * Maps subscription data to unified ContentConfig
+ * Maps subscription data to unified ContentConfig with separate product data
  */
-export function mapSubscriptionToContent(subscription: SubscriptionData, t: (key: string) => string, locale: string, onManage?: (id: string) => void, onCancel?: (id: string) => void): ContentConfig {
+export function mapSubscriptionToContent(
+  subscription: SubscriptionData,
+  product: Product | null,
+  t: (key: string) => string,
+  locale: string,
+  onManage?: (id: string) => void,
+  onCancel?: (id: string) => void,
+): ContentConfig {
   // Status configuration
   const getStatusConfig = (status: string): StatusConfig => {
     switch (status) {
@@ -179,13 +167,20 @@ export function mapSubscriptionToContent(subscription: SubscriptionData, t: (key
     }
   }
 
+  // TEMPORARY: Subscription still needs conversion until backend updated
+  // TODO: Update subscription endpoints to return converted prices like products
+  // For now, show raw USD price to avoid wrong conversions
+  const formattedPrice = subscription.currentPrice === 0
+    ? 'Free'
+    : `$${subscription.currentPrice}/month`; // Show USD until backend conversion implemented
+
   return {
-    title: subscription.product?.name || t('subscription.unknownProduct'),
-    description: subscription.product?.description || undefined,
+    title: product?.name || t('subscription.unknownProduct'),
+    description: product?.description || undefined,
     icon: <Package className="h-5 w-5" />,
     badge: getStatusConfig(subscription.status),
-    // Simplified: use only pre-formatted price from API
-    primaryValue: subscription.formattedPrice,
+    // Frontend handles all formatting
+    primaryValue: formattedPrice,
     primaryLabel: t('subscription.price'),
     metadata,
     primaryAction,
@@ -194,9 +189,14 @@ export function mapSubscriptionToContent(subscription: SubscriptionData, t: (key
 }
 
 /**
- * Maps payment data to unified ContentConfig
+ * Maps payment data to unified ContentConfig with separate product data
  */
-export function mapPaymentToContent(payment: PaymentData, t: (key: string) => string, locale: string): ContentConfig {
+export function mapPaymentToContent(
+  payment: PaymentData,
+  product: Product | null,
+  t: (key: string) => string,
+  locale: string,
+): ContentConfig {
   // Status configuration
   const getStatusConfig = (status: string): StatusConfig => {
     switch (status) {
@@ -223,39 +223,18 @@ export function mapPaymentToContent(payment: PaymentData, t: (key: string) => st
     });
   }
 
-  // Add payment method information (direct debit contract details)
-  if (payment.paymentMethod) {
-    const bankContractInfo = formatBankContractInfo({
-      id: payment.paymentMethod.id,
-      contractDisplayName: payment.paymentMethod.contractDisplayName,
-      contractMobile: payment.paymentMethod.contractMobile,
-      contractStatus: payment.paymentMethod.contractStatus,
-      bankCode: payment.paymentMethod.bankCode,
-      isPrimary: payment.paymentMethod.isPrimary,
-      isActive: true,
-    });
-
-    metadata.push({
-      label: t('payment.paymentMethod'),
-      value: bankContractInfo,
-      icon: CreditCard,
-    });
-
-    // Add mobile number if available and different from contract display name
-    if (payment.paymentMethod.contractMobile) {
-      const maskedMobile = payment.paymentMethod.contractMobile.length > 4
-        ? `****${payment.paymentMethod.contractMobile.slice(-4)}`
-        : payment.paymentMethod.contractMobile;
-      metadata.push({
-        label: t('paymentMethods.mobile'),
-        value: maskedMobile,
-      });
-    }
-  } else if (payment.zarinpalDirectDebitUsed) {
-    // Show that direct debit was used even if we don't have payment method details
+  // Show payment method type if direct debit was used
+  // Note: Payment method details should be fetched separately following SOLID principles
+  if (payment.zarinpalDirectDebitUsed) {
     metadata.push({
       label: t('payment.paymentMethod'),
       value: t('payment.directDebitUsed'),
+      icon: CreditCard,
+    });
+  } else if (payment.paymentMethod === 'zarinpal') {
+    metadata.push({
+      label: t('payment.paymentMethod'),
+      value: t('payment.zarinpal'),
       icon: CreditCard,
     });
   }
@@ -269,15 +248,23 @@ export function mapPaymentToContent(payment: PaymentData, t: (key: string) => st
     });
   }
 
+  // Frontend handles currency conversion and formatting
+  // Payment amounts are stored in IRR in database, convert to Toman for display
+  const tomanAmount = convertRialToToman(payment.amount);
+  const formattedAmount = formatTomanCurrency(tomanAmount, {
+    locale: locale as 'en' | 'fa',
+    showUnit: true,
+  });
+
   return {
-    title: payment.product?.name || t('payment.unknownProduct'),
+    title: product?.name || t('payment.unknownProduct'),
     description: payment.status === 'failed' && payment.failureReason
       ? payment.failureReason
       : undefined,
     icon: <ShoppingBag className="h-4 w-4" />,
     badge: getStatusConfig(payment.status),
-    // Simplified: use only pre-formatted amount from API
-    primaryValue: payment.formattedAmount,
+    // Frontend handles all formatting
+    primaryValue: formattedAmount,
     primaryLabel: t('payment.amount'),
     metadata,
   };
@@ -286,15 +273,18 @@ export function mapPaymentToContent(payment: PaymentData, t: (key: string) => st
 /**
  * Maps plan/product data to unified ContentConfig
  */
-export function mapPlanToContent(plan: PlanData, t: (key: string) => string, locale: string, onSelect?: (id: string) => void, canSelect?: boolean, contractMessage?: string): ContentConfig {
+export function mapPlanToContent(plan: Product, t: (key: string) => string, locale: string, onSelect?: (id: string) => void, canSelect?: boolean, contractMessage?: string): ContentConfig {
   const isFree = plan.price === 0;
-  const isPopular = plan.metadata?.popular === true;
+
+  // Safely access metadata with type assertion
+  const planMetadata = plan.metadata as { popular?: boolean; features?: string[]; tier?: string; badgeText?: string } | null;
+  const isPopular = planMetadata?.popular === true;
   const isPro = plan.name.toLowerCase().includes('pro');
   const isPower = plan.name.toLowerCase().includes('power');
 
   // Features from metadata or default i18n keys
-  const features = plan.metadata?.features && plan.metadata.features.length > 0
-    ? plan.metadata.features
+  const features = planMetadata?.features && planMetadata.features.length > 0
+    ? planMetadata.features
     : (() => {
         const planType = isFree ? 'free' : isPro ? 'pro' : isPower ? 'power' : 'starter';
         const baseKey = `plans.pricing.${planType}`;
@@ -313,7 +303,7 @@ export function mapPlanToContent(plan: PlanData, t: (key: string) => string, loc
   const badge = isPopular
     ? {
         variant: 'default' as const,
-        label: plan.metadata?.badgeText || (isPower ? t('plans.bestValue') : t('plans.mostPopular')),
+        label: planMetadata?.badgeText || (isPower ? t('plans.bestValue') : t('plans.mostPopular')),
       }
     : undefined;
 
@@ -333,7 +323,7 @@ export function mapPlanToContent(plan: PlanData, t: (key: string) => string, loc
       : undefined;
 
   // Metadata (features) with enhanced styling
-  const metadata = features.map((feature, _index) => ({
+  const featureMetadata = features.map((feature, _index) => ({
     label: '',
     value: (
       <div className="flex items-start gap-3 py-1">
@@ -347,20 +337,26 @@ export function mapPlanToContent(plan: PlanData, t: (key: string) => string, loc
     ),
   }));
 
-  // Simplified: use pre-formatted price from API or fallback
+  // Frontend handles currency conversion and formatting
   const getPrimaryValue = () => {
     if (isFree) {
       return t('plans.free');
     }
 
-    // Use pre-formatted price if available, otherwise format Toman price
-    if (plan.formattedPrice) {
-      return plan.formattedPrice;
-    }
+    // Use backend-converted price (backend handles exchange rate conversion)
+    // Backend fails if exchange rate API unavailable - no fallbacks
+    const planWithConvertedPrices = plan as ProductData & {
+      formattedPrice?: string;
+      priceToman?: number;
+    };
+    const formattedPrice = planWithConvertedPrices.formattedPrice || formatTomanCurrency(planWithConvertedPrices.priceToman || 0, {
+      locale: locale as 'en' | 'fa',
+      showUnit: true,
+    });
 
-    // Fallback: simple Toman formatting
+    // Add billing period to the formatted price
     const periodLabel = locale === 'fa' ? 'ماه' : 'month';
-    return `${plan.price.toLocaleString()} تومان/${periodLabel}`;
+    return `${formattedPrice}/${periodLabel}`;
   };
 
   return {
@@ -371,7 +367,7 @@ export function mapPlanToContent(plan: PlanData, t: (key: string) => string, loc
     primaryValue: getPrimaryValue(),
     primaryLabel: isFree ? t('time.forever') : t('time.perMonth'),
     primaryAction,
-    metadata,
+    metadata: featureMetadata,
     contentExtra: contractMessage && !canSelect && !isFree
       ? (
           <div className="text-xs text-muted-foreground text-center px-2">

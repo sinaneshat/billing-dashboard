@@ -8,7 +8,7 @@ import { and, eq, isNull, lte } from 'drizzle-orm';
 
 import { parseMetadata } from '@/api/common/metadata-utils';
 import { apiLogger } from '@/api/middleware/hono-logger';
-import { CurrencyExchangeService } from '@/api/services/currency-exchange';
+import { convertUsdToRial } from '@/api/services/unified-currency-service';
 import { ZarinPalService } from '@/api/services/zarinpal';
 import { ZarinPalDirectDebitService } from '@/api/services/zarinpal-direct-debit';
 import type { ApiEnv } from '@/api/types';
@@ -275,9 +275,9 @@ async function processSingleSubscription(
   result: BillingResult,
   db: Awaited<ReturnType<typeof getDbAsync>>,
 ) {
-  // Find the active direct debit contract for this subscription
-  if (!sub.directDebitContractId) {
-    throw new Error('No direct debit contract available');
+  // Find the active payment method with direct debit contract for this subscription
+  if (!sub.paymentMethodId) {
+    throw new Error('No payment method available for subscription');
   }
 
   // Get the payment method record with contract signature - optimized query
@@ -287,7 +287,7 @@ async function processSingleSubscription(
     .where(
       and(
         eq(paymentMethod.userId, sub.userId),
-        eq(paymentMethod.id, sub.directDebitContractId),
+        eq(paymentMethod.id, sub.paymentMethodId), // Use paymentMethodId instead of directDebitContractId
         eq(paymentMethod.isActive, true),
         eq(paymentMethod.contractType, 'direct_debit_contract'),
       ),
@@ -383,13 +383,12 @@ async function processSingleSubscription(
     }
   }
 
-  // Convert USD to IRR using centralized service
-  const currencyService = CurrencyExchangeService.create();
-  const exchangeResult = await currencyService.convertUsdToToman(sub.currentPrice);
+  // Convert USD to IRR using unified currency service
+  const exchangeResult = await convertUsdToRial(sub.currentPrice);
   const exchangeRate = exchangeResult.exchangeRate;
 
-  // Use the converted amount from the service
-  const irrAmount = exchangeResult.tomanPrice;
+  // Use the IRR amount for ZarinPal API
+  const irrAmount = exchangeResult.rialPrice;
 
   apiLogger.info('Currency conversion for billing', {
     subscriptionId: sub.id,
@@ -421,7 +420,7 @@ async function processSingleSubscription(
       conversionTimestamp: now.toISOString(),
       billingCycle: 'monthly',
       isAutomaticBilling: true,
-      directDebitContractId: contract.id,
+      paymentMethodId: contract.id, // Contract is stored in payment method
     },
   };
 

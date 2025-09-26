@@ -116,9 +116,9 @@ export const QueryResultSchema = z.discriminatedUnion('success', [
   }),
 ]);
 
-export type QueryResult<T> =
-  | { success: true; data: T }
-  | { success: false; error: string; validationErrors?: z.ZodIssue[] };
+export type QueryResult<T>
+  = | { success: true; data: T }
+    | { success: false; error: string; validationErrors?: z.ZodIssue[] };
 
 /**
  * Parse database query results with ZERO CASTING

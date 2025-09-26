@@ -39,7 +39,7 @@ export type {
   MetricData,
   PaymentData,
   PaymentMethodData,
-  PlanData,
+  ProductData,
   SubscriptionData,
   UpcomingBillData,
 } from './mappers';

@@ -21,24 +21,24 @@ import { cn } from '@/lib/ui/cn';
 // =============================================================================
 
 // Core billing data types that this component can handle
-export type BillingDataType =
-  | 'subscription'
-  | 'payment'
-  | 'plan'
-  | 'paymentMethod'
-  | 'metric'
-  | 'bill'
-  | 'overview'
-  | 'custom';
+export type BillingDataType
+  = | 'subscription'
+    | 'payment'
+    | 'plan'
+    | 'paymentMethod'
+    | 'metric'
+    | 'bill'
+    | 'overview'
+    | 'custom';
 
 // Layout variants
-export type BillingDisplayVariant =
-  | 'card' // Standard card with full information
-  | 'row' // Horizontal row layout (for tables/lists)
-  | 'compact' // Minimal card with essential info only
-  | 'detailed' // Expanded card with all possible information
-  | 'hero' // Large featured card (for overview/welcome)
-  | 'mini'; // Very small card for metrics
+export type BillingDisplayVariant
+  = | 'card' // Standard card with full information
+    | 'row' // Horizontal row layout (for tables/lists)
+    | 'compact' // Minimal card with essential info only
+    | 'detailed' // Expanded card with all possible information
+    | 'hero' // Large featured card (for overview/welcome)
+    | 'mini'; // Very small card for metrics
 
 // Display sizes
 export type BillingDisplaySize = 'sm' | 'md' | 'lg' | 'xl';

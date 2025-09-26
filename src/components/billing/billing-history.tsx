@@ -5,10 +5,16 @@ import { useLocale, useTranslations } from 'next-intl';
 
 import { EmptyState, ErrorState, LoadingState } from '@/components/dashboard/dashboard-states';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { usePaymentMethodsQuery } from '@/hooks/queries/payment-methods';
 import { usePaymentsQuery } from '@/hooks/queries/payments';
+import { useProductsQuery } from '@/hooks/queries/products';
 import { useSubscriptionsQuery } from '@/hooks/queries/subscriptions';
+// REMOVED: import { convertUsdToToman } from '@/lib/currency/conversion';
+// Backend now handles all currency conversion
 import { formatBillingDate } from '@/lib/format';
 
+// REMOVED: import { formatTomanCurrency } from '@/lib/format/currency';
+// Backend now handles all currency formatting
 import { PaymentHistoryCards } from './payment-history-cards';
 
 export default function BillingHistory() {
@@ -16,6 +22,8 @@ export default function BillingHistory() {
   const locale = useLocale();
   const paymentsQuery = usePaymentsQuery();
   const subscriptionsQuery = useSubscriptionsQuery();
+  const productsQuery = useProductsQuery();
+  const paymentMethodsQuery = usePaymentMethodsQuery();
 
   const payments = paymentsQuery.data?.success && Array.isArray(paymentsQuery.data.data)
     ? paymentsQuery.data.data
@@ -25,10 +33,27 @@ export default function BillingHistory() {
     ? subscriptionsQuery.data.data
     : [];
 
+  const products = productsQuery.data?.success && Array.isArray(productsQuery.data.data)
+    ? productsQuery.data.data
+    : [];
+
+  const paymentMethods = paymentMethodsQuery.data?.success && Array.isArray(paymentMethodsQuery.data.data)
+    ? paymentMethodsQuery.data.data
+    : [];
+
   // Get active subscription with upcoming billing
   const activeSubscription = subscriptions.find(sub => sub.status === 'active' && sub.nextBillingDate);
 
-  if (paymentsQuery.isLoading || subscriptionsQuery.isLoading) {
+  // Find product and payment method for active subscription
+  const activeSubscriptionProduct = activeSubscription
+    ? products.find(product => product.id === activeSubscription.productId)
+    : null;
+
+  const activeSubscriptionPaymentMethod = activeSubscription && activeSubscription.paymentMethodId
+    ? paymentMethods.find(pm => pm.id === activeSubscription.paymentMethodId)
+    : null;
+
+  if (paymentsQuery.isLoading || subscriptionsQuery.isLoading || productsQuery.isLoading || paymentMethodsQuery.isLoading) {
     return (
       <LoadingState
         variant="card"
@@ -40,7 +65,7 @@ export default function BillingHistory() {
     );
   }
 
-  if ((paymentsQuery.isError && !paymentsQuery.isLoading) || (subscriptionsQuery.isError && !subscriptionsQuery.isLoading)) {
+  if ((paymentsQuery.isError && !paymentsQuery.isLoading) || (subscriptionsQuery.isError && !subscriptionsQuery.isLoading) || (productsQuery.isError && !productsQuery.isLoading) || (paymentMethodsQuery.isError && !paymentMethodsQuery.isLoading)) {
     return (
       <ErrorState
         variant="card"
@@ -49,6 +74,8 @@ export default function BillingHistory() {
         onRetry={() => {
           paymentsQuery.refetch();
           subscriptionsQuery.refetch();
+          productsQuery.refetch();
+          paymentMethodsQuery.refetch();
         }}
         retryLabel={t('actions.tryAgain')}
       />
@@ -77,22 +104,28 @@ export default function BillingHistory() {
               <div className="space-y-2">
                 <div className="text-sm text-muted-foreground">{t('billing.amount')}</div>
                 <div className="text-lg font-semibold text-primary">
-                  {activeSubscription.formattedPrice}
+                  {(() => {
+                    // TEMPORARY: Show USD price until subscription endpoints updated
+                    // TODO: Update subscription endpoints to return converted prices
+                    return activeSubscription.currentPrice === 0
+                      ? 'Free'
+                      : `$${activeSubscription.currentPrice}/month`;
+                  })()}
                 </div>
               </div>
               <div className="space-y-2">
                 <div className="text-sm text-muted-foreground">{t('billing.currentPlan')}</div>
                 <div className="font-medium">
-                  {activeSubscription.product?.name || t('billing.noPlan')}
+                  {activeSubscriptionProduct?.name || t('billing.noPlan')}
                 </div>
               </div>
-              {activeSubscription.paymentMethod && (
+              {activeSubscriptionPaymentMethod && (
                 <div className="space-y-2">
                   <div className="text-sm text-muted-foreground">{t('payment.paymentMethod')}</div>
                   <div className="flex items-center gap-2">
                     <CreditCard className="h-4 w-4 text-muted-foreground" />
                     <span className="font-medium">
-                      {activeSubscription.paymentMethod.contractDisplayName}
+                      {activeSubscriptionPaymentMethod.contractDisplayName}
                     </span>
                   </div>
                 </div>

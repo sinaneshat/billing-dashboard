@@ -14,7 +14,7 @@ import { HTTPException } from 'hono/http-exception';
 
 import { createError } from '@/api/common/error-handling';
 import { createHandler, createHandlerWithBatch, Responses } from '@/api/core';
-import { convertUsdToRial, convertUsdToToman } from '@/api/services/unified-currency-service';
+import { convertUsdToRial } from '@/api/services/unified-currency-service';
 import type { ApiEnv } from '@/api/types';
 import { getDbAsync } from '@/db';
 import { billingEvent, payment, paymentMethod as paymentMethodTable, product, subscription } from '@/db/tables/billing';
@@ -55,60 +55,20 @@ export const getSubscriptionsHandler: RouteHandler<typeof getSubscriptionsRoute,
     }
     c.logger.info('Fetching subscriptions for user', { logType: 'operation', operationName: 'getSubscriptions', userId: user.id });
 
-    // Direct database access for subscriptions
+    // SOLID-compliant database access - ONLY subscription domain data
+    // Following Single Responsibility Principle: no cross-domain data fetching
     const subscriptions = await db.select().from(subscription).where(eq(subscription.userId, user.id));
 
-    // Transform to match response schema with product, payment method data and currency conversion
-    const subscriptionsWithProduct = await Promise.all(
-      subscriptions.map(async (subscription) => {
-        const productResults = await db.select().from(product).where(eq(product.id, subscription.productId)).limit(1);
-        const productRecord = productResults[0] || null;
-
-        // Fetch payment method data if available
-        let paymentMethodRecord = null;
-        if (subscription.paymentMethodId) {
-          const paymentMethodResults = await db.select().from(paymentMethodTable).where(eq(paymentMethodTable.id, subscription.paymentMethodId)).limit(1);
-          paymentMethodRecord = paymentMethodResults[0] || null;
-        }
-
-        // Convert USD subscription currentPrice to Toman - simplified response
-        const conversionResult = await convertUsdToToman(subscription.currentPrice);
-
-        return {
-          ...subscription,
-          // Simplified: only Toman amount and formatted string
-          currentPriceToman: conversionResult.tomanPrice,
-          formattedPrice: conversionResult.formattedPrice,
-          product: productRecord
-            ? {
-                id: productRecord.id,
-                name: productRecord.name,
-                description: productRecord.description,
-                billingPeriod: productRecord.billingPeriod,
-              }
-            : null,
-          paymentMethod: paymentMethodRecord
-            ? {
-                id: paymentMethodRecord.id,
-                contractDisplayName: paymentMethodRecord.contractDisplayName,
-                contractMobile: paymentMethodRecord.contractMobile,
-                contractStatus: paymentMethodRecord.contractStatus,
-                bankCode: paymentMethodRecord.bankCode,
-                isPrimary: paymentMethodRecord.isPrimary,
-                isActive: paymentMethodRecord.isActive,
-              }
-            : null,
-        };
-      }),
-    );
+    // Return RAW database data - NO transformations
+    // Frontend handles all currency conversion and formatting
 
     c.logger.info('Subscriptions retrieved successfully', {
       logType: 'operation',
       operationName: 'getSubscriptions',
-      resource: `subscriptions[${subscriptionsWithProduct.length}]`,
+      resource: `subscriptions[${subscriptions.length}]`,
     });
 
-    return Responses.ok(c, subscriptionsWithProduct);
+    return Responses.ok(c, subscriptions);
   },
 );
 
@@ -141,43 +101,14 @@ export const getSubscriptionHandler: RouteHandler<typeof getSubscriptionRoute, A
       throw createError.notFound('Subscription');
     }
 
-    // Get product details
-    const productResults = await db.select().from(product).where(eq(product.id, subscriptionRecord.productId)).limit(1);
-    const productRecord = productResults[0];
-
-    // Get payment method details if available
-    let paymentMethodRecord = null;
-    if (subscriptionRecord.paymentMethodId) {
-      const paymentMethodResults = await db.select().from(paymentMethodTable).where(eq(paymentMethodTable.id, subscriptionRecord.paymentMethodId)).limit(1);
-      paymentMethodRecord = paymentMethodResults[0] || null;
-    }
-
-    const subscriptionWithProduct = {
-      ...subscriptionRecord,
-      product: productRecord
-        ? {
-            id: productRecord.id,
-            name: productRecord.name,
-            description: productRecord.description,
-            billingPeriod: productRecord.billingPeriod,
-          }
-        : null,
-      paymentMethod: paymentMethodRecord
-        ? {
-            id: paymentMethodRecord.id,
-            contractDisplayName: paymentMethodRecord.contractDisplayName,
-            contractMobile: paymentMethodRecord.contractMobile,
-            contractStatus: paymentMethodRecord.contractStatus,
-            bankCode: paymentMethodRecord.bankCode,
-            isPrimary: paymentMethodRecord.isPrimary,
-            isActive: paymentMethodRecord.isActive,
-          }
-        : null,
-    };
+    // SOLID-compliant response - ONLY raw subscription domain data from database
+    // Following Single Responsibility Principle: no cross-domain data, no transformations
+    // Frontend should make separate API calls for related data (/products, /payment-methods)
+    // Frontend handles all currency conversion and formatting
 
     c.logger.info('Subscription retrieved successfully', { logType: 'operation', operationName: 'getSubscription', resource: id });
 
-    return Responses.ok(c, subscriptionWithProduct);
+    return Responses.ok(c, subscriptionRecord);
   },
 );
 
@@ -362,8 +293,7 @@ export const createSubscriptionHandler: RouteHandler<typeof createSubscriptionRo
           : null,
         currentPrice: productRecord.price,
         billingPeriod: productRecord.billingPeriod,
-        paymentMethodId: paymentMethodRecord.id,
-        directDebitContractId: contractId,
+        paymentMethodId: paymentMethodRecord.id, // Contract ID is the payment method ID
       };
 
       // Insert subscription to get database-generated ID
@@ -802,8 +732,7 @@ export const switchSubscriptionHandler: RouteHandler<typeof switchSubscriptionRo
       nextBillingDate: newNextBillingDate,
       currentPrice: newProduct.price,
       billingPeriod: newProduct.billingPeriod,
-      paymentMethodId: currentSubscription.paymentMethodId,
-      directDebitContractId: currentSubscription.directDebitContractId,
+      paymentMethodId: currentSubscription.paymentMethodId, // Contains all contract information
       prorationCredit: proratedCredit,
       createdAt: now,
       updatedAt: now,

@@ -7,9 +7,10 @@ import { useLocale, useTranslations } from 'next-intl';
 import { memo } from 'react';
 
 import type { PaymentMethod } from '@/api/routes/payment-methods/schema';
-import type { PaymentWithDetails } from '@/api/routes/payments/schema';
-// Import Zod-inferred types from backend API schemas
-import type { SubscriptionWithProduct } from '@/api/routes/subscriptions/schema';
+import type { Payment } from '@/api/routes/payments/schema';
+import type { Product } from '@/api/routes/products/schema';
+// Import raw Zod-inferred types from backend API schemas
+import type { Subscription } from '@/api/routes/subscriptions/schema';
 // Import CurrencyConversionResult for proper typing
 // Import unified billing system
 import { BillingDisplayContainer, BillingDisplayItem } from '@/components/billing/unified/billing-display';
@@ -20,12 +21,13 @@ import {
   mapSubscriptionToContent,
 } from '@/components/billing/unified/mappers';
 import { Button } from '@/components/ui/button';
+import { useProductsQuery } from '@/hooks/queries/products';
 import { cn } from '@/lib/ui/cn';
 
-// Use Zod-inferred types from backend schemas - no custom types needed
+// Use raw Zod-inferred types from backend schemas - no legacy aliases
 type CustomerBillingOverviewProps = {
-  subscription: SubscriptionWithProduct | null;
-  recentPayments: PaymentWithDetails[];
+  subscription: Subscription | null;
+  recentPayments: Payment[];
   paymentMethods: PaymentMethod[];
   isLoading?: boolean;
   className?: string;
@@ -57,9 +59,10 @@ function WelcomeHero({ hasData, t, router }: {
 }
 
 // Current status cards for active users using unified system
-function StatusCards({ subscription, paymentMethods, t, locale }: {
-  subscription: SubscriptionWithProduct | null;
+function StatusCards({ subscription, paymentMethods, products, t, locale }: {
+  subscription: Subscription | null;
   paymentMethods: PaymentMethod[];
+  products: Product[];
   t: (key: string) => string;
   locale: string;
 }) {
@@ -70,22 +73,26 @@ function StatusCards({ subscription, paymentMethods, t, locale }: {
 
   // Add subscription if exists
   if (subscription) {
-    // Enhanced subscription data with proper paymentMethod integration
-    const firstPaymentMethod = paymentMethods[0]; // Safe to access since we check length above
+    // Enhanced subscription data with proper paymentMethod integration - SOLID-compliant
+    const subscriptionPaymentMethod = subscription.paymentMethodId
+      ? paymentMethods.find(pm => pm.id === subscription.paymentMethodId)
+      : paymentMethods[0]; // Fallback to first payment method
+
     const subscriptionWithPaymentMethod: SubscriptionData = {
       ...subscription,
-      // If subscription has payment method info, use it; otherwise fall back to paymentMethods array
-      paymentMethod: subscription.paymentMethod || (paymentMethods.length > 0 && firstPaymentMethod
+      productId: subscription.productId,
+      // Map payment method data to the format expected by SubscriptionData
+      paymentMethod: subscriptionPaymentMethod
         ? {
-            id: firstPaymentMethod.id,
-            contractDisplayName: firstPaymentMethod.contractDisplayName,
-            contractMobile: firstPaymentMethod.contractMobile,
-            contractStatus: firstPaymentMethod.contractStatus,
-            bankCode: null, // This would need to be added to the CustomerPaymentMethod type
-            isPrimary: firstPaymentMethod.isPrimary,
-            isActive: firstPaymentMethod.isActive,
+            id: subscriptionPaymentMethod.id,
+            contractDisplayName: subscriptionPaymentMethod.contractDisplayName,
+            contractMobile: subscriptionPaymentMethod.contractMobile,
+            contractStatus: subscriptionPaymentMethod.contractStatus,
+            bankCode: subscriptionPaymentMethod.bankCode,
+            isPrimary: subscriptionPaymentMethod.isPrimary,
+            isActive: subscriptionPaymentMethod.isActive,
           }
-        : null),
+        : null,
     };
 
     items.push({
@@ -113,8 +120,11 @@ function StatusCards({ subscription, paymentMethods, t, locale }: {
       gap="md"
       mapItem={(item) => {
         if (item.type === 'subscription') {
+          const subscriptionData = item.data as SubscriptionData;
+          const product = products.find(p => p.id === subscriptionData.productId) || null;
           return mapSubscriptionToContent(
-            item.data as SubscriptionData,
+            subscriptionData,
+            product,
             t,
             locale,
             (_id) => {
@@ -146,9 +156,9 @@ function StatusCards({ subscription, paymentMethods, t, locale }: {
 
 // Quick actions section
 function QuickActions({ subscription, paymentMethods, _recentPayments, t, router }: {
-  subscription: SubscriptionWithProduct | null;
+  subscription: Subscription | null;
   paymentMethods: PaymentMethod[];
-  _recentPayments: PaymentWithDetails[];
+  _recentPayments: Payment[];
   t: (key: string) => string;
   router: AppRouterInstance;
 }) {
@@ -223,7 +233,7 @@ function QuickActions({ subscription, paymentMethods, _recentPayments, t, router
 
 // Recent activity summary - show important alerts using unified system
 function RecentActivity({ payments, t, router }: {
-  payments: PaymentWithDetails[];
+  payments: Payment[];
   t: (key: string) => string;
   router: AppRouterInstance;
 }) {
@@ -274,13 +284,18 @@ export const CustomerBillingOverview = memo(({
 }: CustomerBillingOverviewProps) => {
   const t = useTranslations();
   const router = useRouter();
+  const productsQuery = useProductsQuery();
 
   // Get current locale for date formatting
   const currentLocale = useLocale() as 'en' | 'fa';
 
+  const products = productsQuery.data?.success && Array.isArray(productsQuery.data.data)
+    ? productsQuery.data.data
+    : [];
+
   const hasData = !!subscription || paymentMethods.length > 0;
 
-  if (isLoading) {
+  if (isLoading || productsQuery.isLoading) {
     return (
       <div className={cn('space-y-8', className)}>
         {/* Loading state for welcome hero */}
@@ -317,6 +332,7 @@ export const CustomerBillingOverview = memo(({
       <StatusCards
         subscription={subscription}
         paymentMethods={paymentMethods}
+        products={products}
         t={t}
         locale={currentLocale}
       />

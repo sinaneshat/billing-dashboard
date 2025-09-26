@@ -124,18 +124,6 @@ export type RegularHandler<
 ) => Promise<Response>;
 
 /**
- * @deprecated Use BatchHandler instead. D1 doesn't support transactions.
- * This is now an alias for BatchHandler for backward compatibility.
- */
-export type TransactionHandler<
-  TRoute extends RouteConfig,
-  TEnv extends Env = ApiEnv,
-  TBody extends z.ZodSchema = never,
-  TQuery extends z.ZodSchema = never,
-  TParams extends z.ZodSchema = never,
-> = BatchHandler<TRoute, TEnv, TBody, TQuery, TParams>;
-
-/**
  * D1 Batch Context - Provides utilities for building batch operations
  */
 export type BatchContext = {
@@ -475,25 +463,6 @@ export function createHandler<
   };
 
   return handler as unknown as RouteHandler<TRoute, TEnv>;
-}
-
-/**
- * Create a route handler with database batch operations
- * @deprecated Use createHandlerWithBatch instead. D1 doesn't support transactions.
- * This is now an alias for createHandlerWithBatch for backward compatibility.
- */
-export function createHandlerWithTransaction<
-  TRoute extends RouteConfig,
-  TEnv extends Env = ApiEnv,
-  TBody extends z.ZodSchema = never,
-  TQuery extends z.ZodSchema = never,
-  TParams extends z.ZodSchema = never,
->(
-  config: HandlerConfig<TRoute, TBody, TQuery, TParams>,
-  implementation: BatchHandler<TRoute, TEnv, TBody, TQuery, TParams>,
-): RouteHandler<TRoute, TEnv> {
-  // D1 doesn't support transactions, so redirect to batch operations
-  return createHandlerWithBatch(config, implementation);
 }
 
 /**

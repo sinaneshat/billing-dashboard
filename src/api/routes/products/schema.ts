@@ -1,18 +1,36 @@
 import { z } from '@hono/zod-openapi';
 
-import { createApiResponseSchema } from '@/api/core/schemas';
+import { CoreSchemas, createApiResponseSchema } from '@/api/core/schemas';
 import { productSelectSchema } from '@/db/validation/billing';
 
-// Simplified product schema - only Toman amounts and formatted strings
+// Product schema with backend currency conversion
+// Backend converts USD prices to Iranian currency using live exchange rates
+// CRITICAL: API fails if exchange rate unavailable (no fallbacks)
 const ProductSchema = productSelectSchema.extend({
-  formattedPrice: z.string().describe('Pre-formatted price string (e.g., "99,000 تومان/ماه")'),
+  createdAt: CoreSchemas.timestamp(),
+  updatedAt: CoreSchemas.timestamp(),
+  // Backend-converted Iranian currency fields
+  priceIrr: z.number().min(0).openapi({
+    example: 67080944,
+    description: 'Price in Iranian Rials (converted from USD using live exchange rate)',
+  }),
+  priceToman: z.number().min(0).openapi({
+    example: 6708094,
+    description: 'Price in Iranian Toman (IRR / 10, converted using live exchange rate)',
+  }),
+  formattedPrice: z.string().openapi({
+    example: '6,708,100 Toman',
+    description: 'Formatted price string with smart rounding and localization',
+  }),
 }).openapi({
   example: {
     id: '375e4aee-6dfc-48b3-bd11-5ba892f17edd',
     name: 'Pro',
     description: 'For those who think big and often.',
-    price: 624500, // Toman price (already converted)
-    formattedPrice: '624,500 تومان/ماه', // Pre-formatted Toman price with period
+    price: 62.45, // Original USD price from database
+    priceIrr: 67080944, // Converted to Iranian Rials
+    priceToman: 6708094, // Converted to Iranian Toman
+    formattedPrice: '6,708,100 Toman', // Formatted for display
     billingPeriod: 'monthly',
     isActive: true,
     // Roundtable integration fields

@@ -48,11 +48,9 @@ export {
   // Handler factories
   createHandler,
   createHandlerWithBatch,
-  createHandlerWithTransaction,
   type HandlerConfig,
   type HandlerContext,
   type RegularHandler,
-  type TransactionHandler,
 } from './handlers';
 export {
   // Migration utilities for existing code

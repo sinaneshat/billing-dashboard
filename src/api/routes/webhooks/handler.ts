@@ -999,7 +999,7 @@ export const zarinPalWebhookHandler: RouteHandler<typeof zarinPalWebhookRoute, A
                         status: 'active',
                         startDate,
                         nextBillingDate,
-                        directDebitContractId: verification.data?.card_hash || webhookPayload.card_hash,
+                        // Contract ID data is available through paymentMethodId relationship
                         updatedAt: new Date(),
                       })
                       .where(eq(subscription.id, subscriptionRecord.id)),
@@ -1011,7 +1011,7 @@ export const zarinPalWebhookHandler: RouteHandler<typeof zarinPalWebhookRoute, A
                     status: 'active',
                     startDate,
                     nextBillingDate,
-                    directDebitContractId: verification.data?.card_hash || webhookPayload.card_hash,
+                    // Contract ID data is available through paymentMethodId relationship
                     updatedAt: new Date(),
                   };
 
