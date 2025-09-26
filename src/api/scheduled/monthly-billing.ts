@@ -484,7 +484,7 @@ async function processSingleSubscription(
     }
 
     // Decrypt the signature for ZarinPal API call
-    const decryptedSignature = await decryptSignature(contract.contractSignatureEncrypted);
+    const decryptedSignature = await decryptSignature(contract.contractSignatureEncrypted, env);
     const directDebitResult = await directDebitService.executeDirectTransaction({
       authority,
       signature: decryptedSignature,

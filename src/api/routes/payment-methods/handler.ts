@@ -346,7 +346,7 @@ export const verifyContractHandler: RouteHandler<typeof verifyContractRoute, Api
     }
 
     // Check if this signature already exists (prevent duplicates)
-    const { hash } = await encryptSignature(verifyResult.data.signature);
+    const { hash } = await encryptSignature(verifyResult.data.signature, c.env);
     const existingMethodWithSignature = existingPaymentMethods.find(
       pm => pm.contractSignatureHash === hash,
     );
@@ -360,7 +360,7 @@ export const verifyContractHandler: RouteHandler<typeof verifyContractRoute, Api
     }
 
     // Encrypt the signature before storing
-    const { encrypted } = await encryptSignature(verifyResult.data.signature);
+    const { encrypted } = await encryptSignature(verifyResult.data.signature, c.env);
 
     // Generate payment method ID upfront for batch operations
     const newPaymentMethodId = crypto.randomUUID();
@@ -461,7 +461,7 @@ export const cancelContractHandler: RouteHandler<typeof cancelContractRoute, Api
     const zarinpalService = ZarinPalDirectDebitService.create(c.env);
 
     // Decrypt signature to call ZarinPal cancel contract API
-    const decryptedSignature = await decryptSignature(existingMethod.contractSignatureEncrypted);
+    const decryptedSignature = await decryptSignature(existingMethod.contractSignatureEncrypted, c.env);
 
     let zarinpalCancellationSuccess = false;
     let zarinpalCancellationError = null;
@@ -619,7 +619,7 @@ export const contractCallbackHandler: RouteHandler<typeof contractCallbackRoute,
           const db = await getDbAsync();
 
           // Check if this signature already exists (prevent duplicates)
-          const { hash } = await encryptSignature(verifyResult.data.signature);
+          const { hash } = await encryptSignature(verifyResult.data.signature, c.env);
           const existingPaymentMethods = await db
             .select()
             .from(paymentMethod)
@@ -640,7 +640,7 @@ export const contractCallbackHandler: RouteHandler<typeof contractCallbackRoute,
           }
 
           // Encrypt the signature before storing
-          const { encrypted } = await encryptSignature(verifyResult.data.signature);
+          const { encrypted } = await encryptSignature(verifyResult.data.signature, c.env);
           const newPaymentMethodId = crypto.randomUUID();
           const now = new Date();
 
@@ -825,7 +825,7 @@ export const recoverContractHandler: RouteHandler<typeof recoverContractRoute, A
       }
 
       // Check if payment method already exists with this signature (idempotent check)
-      const { hash, encrypted } = await encryptSignature(verifyResult.data.signature);
+      const { hash, encrypted } = await encryptSignature(verifyResult.data.signature, c.env);
       const existingMethod = existingMethods.find(pm => pm.contractSignatureHash === hash);
 
       if (existingMethod) {
