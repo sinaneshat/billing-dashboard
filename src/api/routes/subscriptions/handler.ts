@@ -225,7 +225,7 @@ export const createSubscriptionHandler: RouteHandler<typeof createSubscriptionRo
             if (!paymentMethodRecord.contractSignatureEncrypted) {
               throw new Error('No contract signature found');
             }
-            contractSignature = await decryptSignature(paymentMethodRecord.contractSignatureEncrypted);
+            contractSignature = await decryptSignature(paymentMethodRecord.contractSignatureEncrypted, c.env);
           } catch (decryptError) {
             c.logger.error('Failed to decrypt contract signature', decryptError instanceof Error ? decryptError : new Error(String(decryptError)));
             throw createError.paymentMethodInvalid('Invalid payment contract signature');

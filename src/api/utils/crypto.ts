@@ -3,27 +3,17 @@
  * Uses Web Crypto API with BETTER_AUTH_SECRET as the encryption key
  */
 
-import { getCloudflareContext } from '@opennextjs/cloudflare';
 import { HTTPException } from 'hono/http-exception';
 import * as HttpStatusCodes from 'stoker/http-status-codes';
 
+import type { ApiEnv } from '@/api/types';
+
 /**
  * Derive encryption key from BETTER_AUTH_SECRET
+ * Following the same pattern as ZarinPal services - receive env from handler context
  */
-async function getEncryptionKey(): Promise<CryptoKey> {
-  let secret: string | undefined;
-
-  try {
-    const { env } = getCloudflareContext();
-    secret = env.BETTER_AUTH_SECRET;
-  } catch (error) {
-    // Fallback to process.env when Cloudflare context is not available
-    console.warn('[CRYPTO] Cloudflare context not available, falling back to process.env', {
-      error: error instanceof Error ? error.message : String(error),
-      timestamp: new Date().toISOString(),
-    });
-    secret = process.env.BETTER_AUTH_SECRET;
-  }
+async function getEncryptionKey(env: ApiEnv['Bindings']): Promise<CryptoKey> {
+  const secret = env.BETTER_AUTH_SECRET || process.env.BETTER_AUTH_SECRET;
 
   if (!secret) {
     throw new HTTPException(HttpStatusCodes.INTERNAL_SERVER_ERROR, {
@@ -58,8 +48,9 @@ async function getEncryptionKey(): Promise<CryptoKey> {
 
 /**
  * Encrypt ZarinPal contract signature (200 chars or JWT token)
+ * Following the same pattern as ZarinPal services - receive env from handler context
  */
-export async function encryptSignature(signature: string): Promise<{
+export async function encryptSignature(signature: string, env: ApiEnv['Bindings']): Promise<{
   encrypted: string;
   hash: string;
 }> {
@@ -69,7 +60,7 @@ export async function encryptSignature(signature: string): Promise<{
   }
 
   try {
-    const key = await getEncryptionKey();
+    const key = await getEncryptionKey(env);
     const encoder = new TextEncoder();
     const data = encoder.encode(signature);
 
@@ -107,10 +98,11 @@ export async function encryptSignature(signature: string): Promise<{
 
 /**
  * Decrypt ZarinPal contract signature
+ * Following the same pattern as ZarinPal services - receive env from handler context
  */
-export async function decryptSignature(encryptedSignature: string): Promise<string> {
+export async function decryptSignature(encryptedSignature: string, env: ApiEnv['Bindings']): Promise<string> {
   try {
-    const key = await getEncryptionKey();
+    const key = await getEncryptionKey(env);
 
     // Decode base64
     const combined = new Uint8Array(

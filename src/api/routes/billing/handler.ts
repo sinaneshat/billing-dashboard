@@ -531,7 +531,7 @@ export const processRecurringPaymentsHandler: RouteHandler<typeof processRecurri
         );
 
         // Process payment with ZarinPal Direct Debit
-        const decryptedSignature = await decryptSignature(subscriptionRow.payment_method.contractSignatureEncrypted);
+        const decryptedSignature = await decryptSignature(subscriptionRow.payment_method.contractSignatureEncrypted, c.env);
         const zarinPalDirectDebit = ZarinPalDirectDebitService.create(c.env);
 
         const directDebitResult = await zarinPalDirectDebit.chargeDirectDebit({
