@@ -59,11 +59,14 @@ export const getProductsHandler: RouteHandler<typeof getProductsRoute, ApiEnv> =
       // If exchange rate API is unavailable, fail the entire request
       // This prevents showing products with incorrect pricing
       if (error instanceof Error && error.message.includes('Exchange rate API unavailable')) {
-        return Responses.serviceUnavailable(c, {
-          error: 'EXCHANGE_RATE_UNAVAILABLE',
-          message: 'Product pricing unavailable due to exchange rate API failure. Please try again later.',
-          retryAfter: 300,
-        });
+        return Responses.serviceUnavailable(
+          c,
+          'Product pricing unavailable due to exchange rate API failure. Please try again later.',
+          {
+            error: 'EXCHANGE_RATE_UNAVAILABLE',
+            retryAfter: 300,
+          },
+        );
       }
 
       // For other errors, return internal server error

@@ -474,17 +474,17 @@ export function internalServerError(
 /**
  * Create a service unavailable error response
  */
-export function serviceUnavailable<T>(
+export function serviceUnavailable(
   c: Context,
-  data: T,
   message = 'Service temporarily unavailable',
+  details?: unknown,
 ): Response {
   const response = {
-    success: true as const,
-    data,
+    success: false as const,
     error: {
       code: 'SERVICE_UNAVAILABLE',
       message,
+      details,
     },
     meta: extractResponseMetadata(c),
   };
