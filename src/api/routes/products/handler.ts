@@ -18,14 +18,14 @@ export const getProductsHandler: RouteHandler<typeof getProductsRoute, ApiEnv> =
     operationName: 'getProducts',
   },
   async (c) => {
-    // Get products from database (prices stored in USD)
+    // Get products from database using proper database pattern (prices stored in USD)
     const db = await getDbAsync();
     const rawProducts = await db.select().from(product).where(eq(product.isActive, true));
 
     // Convert USD prices to Toman - simplified response
     const currencyService = createCurrencyExchangeService();
     const productsWithTomanPricing = await Promise.all(
-      rawProducts.map(async (prod) => {
+      rawProducts.map(async (prod: typeof rawProducts[0]) => {
         // Convert USD to Toman for each product
         const conversion = await currencyService.convertUsdToToman(prod.price);
 
