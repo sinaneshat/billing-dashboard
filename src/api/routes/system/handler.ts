@@ -110,7 +110,7 @@ export const detailedHealthHandler: RouteHandler<typeof detailedHealthRoute, Api
     if (overallStatus === 'healthy') {
       return Responses.ok(c, payload);
     } else {
-      return c.json({ success: true, data: payload }, 503);
+      return Responses.serviceUnavailable(c, 'System is unhealthy', payload);
     }
   },
 );

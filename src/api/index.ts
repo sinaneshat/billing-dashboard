@@ -12,7 +12,6 @@ import { Scalar } from '@scalar/hono-api-reference';
 import { createMarkdownFromOpenApi } from '@scalar/openapi-to-markdown';
 import type { Context, Next } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
-import { cache } from 'hono/cache';
 import { contextStorage } from 'hono/context-storage';
 import { cors } from 'hono/cors';
 import { csrf } from 'hono/csrf';
@@ -224,13 +223,6 @@ app.notFound(notFound);
 // Register the public callback route FIRST (before middleware)
 // This ensures it doesn't get CSRF or auth middleware
 app.openapi(contractCallbackRoute, contractCallbackHandler);
-
-// Apply cache middleware for APIs that don't need frequent updates
-// Products/Plans API - Cache for 1 hour (3600 seconds) since pricing doesn't change often
-app.use('/products', cache({
-  cacheName: 'billing-dashboard-products',
-  cacheControl: 'max-age=3600', // 1 hour cache
-}));
 
 // Apply CSRF protection and authentication to protected routes
 // Following Hono best practices: apply CSRF only to authenticated routes

@@ -537,9 +537,9 @@ export function validateErrorResponse(
 /**
  * Create a response with custom status and headers
  */
-export function customResponse(
+export function customResponse<T>(
   c: Context,
-  data: unknown,
+  data: T,
   status: number,
   headers: Record<string, string> = {},
 ): Response {
@@ -550,7 +550,7 @@ export function customResponse(
     meta: extractResponseMetadata(c),
   };
 
-  return c.json(response, status as 200, headers);
+  return c.json(response, status as 200 | 201 | 400 | 404 | 500, headers);
 }
 
 /**
