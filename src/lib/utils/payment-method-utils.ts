@@ -240,6 +240,146 @@ export function hasTransactionLimits(paymentMethod: {
 }
 
 // =============================================================================
+// CALCULATION UTILITIES
+// =============================================================================
+
+/**
+ * Calculate days remaining until contract expiry
+ */
+export function getDaysRemaining(expiryDate: Date | string | null | undefined): number | null {
+  if (!expiryDate)
+    return null;
+
+  const expiry = expiryDate instanceof Date ? expiryDate : new Date(expiryDate);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  expiry.setHours(0, 0, 0, 0);
+
+  const diffTime = expiry.getTime() - today.getTime();
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+  return diffDays > 0 ? diffDays : 0;
+}
+
+/**
+ * Get expiry status with appropriate urgency level
+ */
+export function getExpiryStatus(daysRemaining: number | null): {
+  urgency: 'critical' | 'warning' | 'normal' | 'expired';
+  color: string;
+  message?: string;
+} {
+  if (daysRemaining === null) {
+    return { urgency: 'normal', color: 'text-muted-foreground' };
+  }
+
+  if (daysRemaining <= 0) {
+    return {
+      urgency: 'expired',
+      color: 'text-red-600 dark:text-red-400',
+      message: 'Contract expired',
+    };
+  }
+  if (daysRemaining <= 7) {
+    return {
+      urgency: 'critical',
+      color: 'text-red-600 dark:text-red-400',
+      message: `Expires in ${daysRemaining} days`,
+    };
+  }
+  if (daysRemaining <= 30) {
+    return {
+      urgency: 'warning',
+      color: 'text-yellow-600 dark:text-yellow-400',
+      message: `Expires in ${daysRemaining} days`,
+    };
+  }
+
+  return {
+    urgency: 'normal',
+    color: 'text-green-600 dark:text-green-400',
+    message: `${daysRemaining} days remaining`,
+  };
+}
+
+/**
+ * Calculate age of the contract in days
+ */
+export function getContractAge(createdAt: Date | string | null | undefined): number | null {
+  if (!createdAt)
+    return null;
+
+  const created = createdAt instanceof Date ? createdAt : new Date(createdAt);
+  const today = new Date();
+
+  const diffTime = today.getTime() - created.getTime();
+  const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+
+  return diffDays >= 0 ? diffDays : 0;
+}
+
+/**
+ * Format contract duration for display
+ */
+export function formatContractDuration(durationDays?: number | null): string {
+  if (!durationDays)
+    return '';
+
+  if (durationDays === 365)
+    return '1 year';
+  if (durationDays === 180)
+    return '6 months';
+  if (durationDays === 90)
+    return '3 months';
+  if (durationDays === 30)
+    return '1 month';
+
+  if (durationDays >= 365) {
+    const years = Math.floor(durationDays / 365);
+    return `${years} year${years > 1 ? 's' : ''}`;
+  }
+
+  if (durationDays >= 30) {
+    const months = Math.floor(durationDays / 30);
+    return `${months} month${months > 1 ? 's' : ''}`;
+  }
+
+  return `${durationDays} days`;
+}
+
+/**
+ * Get usage statistics message
+ */
+export function getUsageStats(lastUsedAt: Date | string | null | undefined): string {
+  if (!lastUsedAt) {
+    return 'Never used';
+  }
+
+  const lastUsed = lastUsedAt instanceof Date ? lastUsedAt : new Date(lastUsedAt);
+  const today = new Date();
+
+  const diffTime = today.getTime() - lastUsed.getTime();
+  const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+
+  if (diffDays === 0)
+    return 'Used today';
+  if (diffDays === 1)
+    return 'Used yesterday';
+  if (diffDays < 7)
+    return `Used ${diffDays} days ago`;
+  if (diffDays < 30) {
+    const weeks = Math.floor(diffDays / 7);
+    return `Used ${weeks} week${weeks > 1 ? 's' : ''} ago`;
+  }
+  if (diffDays < 365) {
+    const months = Math.floor(diffDays / 30);
+    return `Used ${months} month${months > 1 ? 's' : ''} ago`;
+  }
+
+  return 'Used over a year ago';
+}
+
+// =============================================================================
 // VALIDATION UTILITIES
 // =============================================================================
 

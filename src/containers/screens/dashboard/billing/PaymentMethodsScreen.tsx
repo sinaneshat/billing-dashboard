@@ -2,12 +2,13 @@
 
 import { CreditCard, Plus } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { useTranslations } from 'next-intl';
+import { useLocale, useTranslations } from 'next-intl';
 import React from 'react';
 
 import type { ApiResponse } from '@/api/core/schemas';
 import type { PaymentMethod } from '@/api/routes/payment-methods/schema';
-import { SimplifiedPaymentMethodCard } from '@/components/billing/simplified-payment-method-card';
+import { BillingDisplayContainer } from '@/components/billing/unified/billing-display';
+import { mapPaymentMethodToContent } from '@/components/billing/unified/mappers';
 import { DashboardPageHeader } from '@/components/dashboard/dashboard-header';
 import { DashboardPage, DashboardSection, EmptyState, ErrorState, LoadingState } from '@/components/dashboard/dashboard-states';
 import { Button } from '@/components/ui/button';
@@ -17,6 +18,7 @@ import { toastManager } from '@/lib/toast/toast-manager';
 
 export default function PaymentMethodsScreen() {
   const t = useTranslations();
+  const locale = useLocale();
   const router = useRouter();
   const paymentMethodsQuery = usePaymentMethodsQuery();
   const cancelContractMutation = useCancelDirectDebitContractMutation();
@@ -127,17 +129,22 @@ export default function PaymentMethodsScreen() {
       <DashboardSection delay={0.1}>
         {paymentMethodList.length > 0
           ? (
-              <div className="grid gap-4">
-                {paymentMethodList.map(method => (
-                  <SimplifiedPaymentMethodCard
-                    key={method.id}
-                    paymentMethod={method}
-                    onSetPrimary={handleSetPrimary}
-                    onDelete={handleDelete}
-                    className="hover:shadow-lg transition-shadow duration-200"
-                  />
-                ))}
-              </div>
+              <BillingDisplayContainer
+                data={paymentMethodList}
+                variant="card"
+                size="md"
+                dataType="paymentMethod"
+                columns={1}
+                gap="md"
+                mapItem={method =>
+                  mapPaymentMethodToContent(
+                    method,
+                    t,
+                    locale,
+                    handleSetPrimary,
+                    handleDelete,
+                  )}
+              />
             )
           : (
               <EmptyState

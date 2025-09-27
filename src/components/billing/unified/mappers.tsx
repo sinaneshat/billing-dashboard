@@ -22,6 +22,16 @@ import type { Product } from '@/api/routes/products/schema';
 import { convertRialToToman } from '@/lib/currency/conversion';
 import { formatBillingDate, formatNextBillingDate } from '@/lib/format';
 import { formatTomanCurrency } from '@/lib/format/currency';
+import {
+  formatContractDuration,
+  formatPhoneNumber,
+  getBankName,
+  getContractAge,
+  getContractReference,
+  getDaysRemaining,
+  getExpiryStatus,
+  getUsageStats,
+} from '@/lib/utils/payment-method-utils';
 
 import type { ActionConfig, ContentConfig, StatusConfig } from './billing-display';
 
@@ -379,9 +389,15 @@ export function mapPlanToContent(plan: Product, t: (key: string) => string, loca
 }
 
 /**
- * Maps payment method data to unified ContentConfig with enhanced bank contract information
+ * Maps payment method data to unified ContentConfig with comprehensive bank contract information
  */
-export function mapPaymentMethodToContent(paymentMethod: PaymentMethodData, t: (key: string) => string, locale: string, onSetPrimary?: (id: string) => void, onRemove?: (id: string) => void): ContentConfig {
+export function mapPaymentMethodToContent(
+  paymentMethod: PaymentMethodData,
+  t: (key: string) => string,
+  locale: string,
+  onSetPrimary?: (id: string) => void,
+  onRemove?: (id: string) => void,
+): ContentConfig {
   // Enhanced status configuration with comprehensive states
   const getStatusConfig = (status: string): StatusConfig => {
     switch (status) {
@@ -399,6 +415,12 @@ export function mapPaymentMethodToContent(paymentMethod: PaymentMethodData, t: (
         return { variant: 'outline', label: status, color: 'default' };
     }
   };
+
+  // Calculate expiry information
+  const daysRemaining = getDaysRemaining(paymentMethod.contractExpiresAt);
+  const expiryStatus = getExpiryStatus(daysRemaining);
+  const contractAge = getContractAge(paymentMethod.createdAt);
+  const usageStats = getUsageStats(paymentMethod.lastUsedAt);
 
   // Enhanced actions with proper conditions
   const actions: ActionConfig[] = [];
@@ -423,14 +445,14 @@ export function mapPaymentMethodToContent(paymentMethod: PaymentMethodData, t: (
     });
   }
 
-  // Enhanced metadata with bank contract information
+  // Enhanced metadata with all useful information
   const metadata = [];
 
-  // Bank information
+  // Bank and account information section
   if (paymentMethod.bankCode) {
     const bankName = getBankName(paymentMethod.bankCode);
     metadata.push({
-      label: t('paymentMethods.bankName'),
+      label: t('paymentMethods.bank'),
       value: bankName,
       icon: CreditCard,
     });
@@ -438,141 +460,176 @@ export function mapPaymentMethodToContent(paymentMethod: PaymentMethodData, t: (
 
   // Mobile number with proper masking
   if (paymentMethod.contractMobile) {
-    const maskedMobile = paymentMethod.contractMobile.length > 4
-      ? `****${paymentMethod.contractMobile.slice(-4)}`
-      : paymentMethod.contractMobile;
+    const maskedMobile = formatPhoneNumber(paymentMethod.contractMobile);
     metadata.push({
-      label: t('paymentMethods.phoneNumber'),
+      label: t('paymentMethods.mobile'),
       value: maskedMobile,
     });
   }
 
-  // Contract reference
+  // Contract reference ID
   if (paymentMethod.contractSignatureHash) {
     metadata.push({
-      label: t('paymentMethods.reference'),
-      value: `#${paymentMethod.contractSignatureHash.slice(-8)}`,
+      label: t('paymentMethods.contractId'),
+      value: getContractReference(paymentMethod.contractSignatureHash, 8),
     });
   }
 
-  // Last used date - using string timestamp from API
-  if (paymentMethod.lastUsedAt) {
-    const dateStr = paymentMethod.lastUsedAt;
+  // Contract duration and age
+  if (paymentMethod.contractDurationDays) {
+    const duration = formatContractDuration(paymentMethod.contractDurationDays);
     metadata.push({
-      label: t('paymentMethods.table.lastUsed'),
-      value: formatBillingDate(dateStr, locale, 'short'),
+      label: t('paymentMethods.duration'),
+      value: duration,
+    });
+  }
+
+  // Days remaining with urgency indicator
+  if (daysRemaining !== null && paymentMethod.contractStatus === 'active') {
+    const expiryMessage = expiryStatus.message || `${daysRemaining} days`;
+    metadata.push({
+      label: t('paymentMethods.validity'),
+      value: (
+        <span className={expiryStatus.color}>
+          {expiryMessage}
+        </span>
+      ),
+      icon: expiryStatus.urgency === 'critical' || expiryStatus.urgency === 'expired' ? AlertTriangle : Calendar,
+    });
+  }
+
+  // Exact expiry date
+  if (paymentMethod.contractExpiresAt) {
+    const expiryDate = formatBillingDate(paymentMethod.contractExpiresAt, locale, 'medium');
+    metadata.push({
+      label: t('paymentMethods.expiryDate'),
+      value: expiryDate,
       icon: Calendar,
     });
   }
 
-  // Contract expiration - using string timestamp from API
-  if (paymentMethod.contractExpiresAt) {
-    const dateStr = paymentMethod.contractExpiresAt;
-    const expiryDate = formatBillingDate(dateStr, locale, 'short');
+  // Usage statistics
+  metadata.push({
+    label: t('paymentMethods.usage'),
+    value: usageStats,
+    icon: Clock,
+  });
+
+  // Contract age
+  if (contractAge !== null) {
     metadata.push({
-      label: t('paymentMethods.expires'),
-      value: expiryDate,
-      icon: AlertTriangle,
+      label: t('paymentMethods.established'),
+      value: contractAge === 0 ? t('today') : `${contractAge} ${t('daysAgo')}`,
     });
   }
 
-  // Security verification indicator - using string timestamp from API
+  // Security verification
   if (paymentMethod.contractVerifiedAt) {
-    const dateStr = paymentMethod.contractVerifiedAt;
+    const verifiedDate = formatBillingDate(paymentMethod.contractVerifiedAt, locale, 'short');
     metadata.push({
-      label: t('paymentMethods.directDebit.bankVerified'),
-      value: formatBillingDate(dateStr, locale, 'short'),
+      label: t('paymentMethods.verified'),
+      value: verifiedDate,
       icon: Check,
     });
   }
 
-  // Transaction limits - simplified (amounts already in IRR, convert to Toman for display)
+  // Transaction limits section - show all limits clearly
   if (paymentMethod.maxTransactionAmount) {
-    const tomanAmount = paymentMethod.maxTransactionAmount / 10; // Convert IRR to Toman
+    const tomanAmount = Math.floor(paymentMethod.maxTransactionAmount / 10);
     metadata.push({
-      label: t('paymentMethods.maxTransactionAmount'),
-      value: `${tomanAmount.toLocaleString()} تومان`,
+      label: t('paymentMethods.perTransactionLimit'),
+      value: `${tomanAmount.toLocaleString(locale === 'fa' ? 'fa-IR' : 'en-US')} ${t('currency.toman')}`,
     });
   }
 
-  // Daily limit - simplified (amounts already in IRR, convert to Toman for display)
   if (paymentMethod.maxDailyAmount) {
-    const tomanAmount = paymentMethod.maxDailyAmount / 10; // Convert IRR to Toman
+    const tomanAmount = Math.floor(paymentMethod.maxDailyAmount / 10);
     metadata.push({
-      label: t('paymentMethods.maxDailyAmount'),
-      value: `${tomanAmount.toLocaleString()} تومان`,
+      label: t('paymentMethods.dailyLimit'),
+      value: `${tomanAmount.toLocaleString(locale === 'fa' ? 'fa-IR' : 'en-US')} ${t('currency.toman')}`,
     });
   }
 
-  // Daily transaction count
   if (paymentMethod.maxDailyCount) {
     metadata.push({
-      label: t('paymentMethods.maxDailyCount'),
-      value: `${paymentMethod.maxDailyCount} ${t('transactions.perDay')}`,
+      label: t('paymentMethods.dailyTransactions'),
+      value: `${paymentMethod.maxDailyCount} ${t('transactions')}`,
     });
   }
 
-  // Monthly transaction count
   if (paymentMethod.maxMonthlyCount) {
     metadata.push({
-      label: t('paymentMethods.maxMonthlyCount'),
-      value: `${paymentMethod.maxMonthlyCount} ${t('transactions.perMonth')}`,
+      label: t('paymentMethods.monthlyTransactions'),
+      value: `${paymentMethod.maxMonthlyCount} ${t('transactions')}`,
     });
   }
 
-  // Contract duration
-  if (paymentMethod.contractDurationDays) {
-    metadata.push({
-      label: t('paymentMethods.contractDuration'),
-      value: `${paymentMethod.contractDurationDays} ${t('time.days')}`,
-    });
+  // Primary indicator badge
+  const primaryBadge = paymentMethod.isPrimary
+    ? {
+        variant: 'default' as const,
+        label: t('paymentMethods.primary'),
+      }
+    : undefined;
+
+  // Build the title with bank name and display name
+  const bankName = paymentMethod.bankCode ? getBankName(paymentMethod.bankCode) : '';
+  const title = paymentMethod.contractDisplayName || bankName || t('paymentMethods.directDebit');
+
+  // Primary value - show expiry countdown prominently
+  let primaryValue: string | React.ReactNode = '';
+  let primaryLabel = '';
+
+  if (paymentMethod.contractStatus === 'active' && daysRemaining !== null) {
+    if (daysRemaining <= 7) {
+      primaryValue = (
+        <span className="text-red-600 dark:text-red-400 font-bold">
+          {daysRemaining}
+          {' '}
+          {t('days')}
+        </span>
+      );
+      primaryLabel = t('paymentMethods.expiringIn');
+    } else if (daysRemaining <= 30) {
+      primaryValue = (
+        <span className="text-yellow-600 dark:text-yellow-400 font-semibold">
+          {daysRemaining}
+          {' '}
+          {t('days')}
+        </span>
+      );
+      primaryLabel = t('paymentMethods.validFor');
+    } else {
+      primaryValue = (
+        <span className="text-green-600 dark:text-green-400">
+          {daysRemaining}
+          {' '}
+          {t('days')}
+        </span>
+      );
+      primaryLabel = t('paymentMethods.validFor');
+    }
+  } else if (paymentMethod.contractStatus === 'expired') {
+    primaryValue = t('paymentMethods.expired');
+    primaryLabel = t('status');
+  } else {
+    // For other statuses, show the status
+    const statusConfig = getStatusConfig(paymentMethod.contractStatus);
+    primaryValue = statusConfig.label;
+    primaryLabel = t('status');
   }
-
-  // Contract display name with bank info
-  const displayTitle = paymentMethod.contractDisplayName !== 'Direct Debit Contract'
-    ? paymentMethod.contractDisplayName
-    : formatBankContractDisplayName(paymentMethod, t);
-
-  // Primary value with status-based display
-  const primaryValue = paymentMethod.isPrimary
-    ? t('paymentMethods.defaultMethod')
-    : paymentMethod.contractStatus === 'active'
-      ? t('paymentMethods.zarinpalDirectDebit')
-      : t(`paymentMethods.status.${paymentMethod.contractStatus}`);
 
   return {
-    title: displayTitle,
-    subtitle: paymentMethod.contractType === 'direct_debit_contract'
-      ? t('paymentMethods.directDebitContract')
-      : t('paymentMethods.contract'),
-    description: getStatusConfig(paymentMethod.contractStatus).color === 'error'
-      ? t(`paymentMethods.status.${paymentMethod.contractStatus}Description`)
-      : undefined,
+    title,
+    description: paymentMethod.isPrimary ? t('paymentMethods.primaryDescription') : undefined,
     icon: <CreditCard className="h-5 w-5" />,
-    badge: getStatusConfig(paymentMethod.contractStatus),
+    badge: primaryBadge || getStatusConfig(paymentMethod.contractStatus),
     primaryValue,
-    primaryLabel: t('paymentMethods.type'),
+    primaryLabel,
     metadata,
-    primaryAction: actions.find(a => a.label === t('paymentMethods.setAsDefault')),
-    secondaryActions: actions.filter(a => a.label !== t('paymentMethods.setAsDefault')),
+    primaryAction: actions[0],
+    secondaryActions: actions.slice(1),
   };
-}
-
-/**
- * Helper function to format bank contract display name with bank information
- * Now uses proper PaymentMethod type from Zod schema
- */
-function formatBankContractDisplayName(paymentMethod: PaymentMethod, _t: (key: string) => string): string {
-  const bankName = getBankName(paymentMethod.bankCode);
-
-  // If we have mobile number, show last 4 digits
-  let accountInfo = '';
-  if (paymentMethod.contractMobile) {
-    const last4 = paymentMethod.contractMobile.slice(-4);
-    accountInfo = ` ••••${last4}`;
-  }
-
-  return `${bankName}${accountInfo}`;
 }
 
 /**
@@ -672,58 +729,6 @@ export function mapMetricToContent(metric: MetricData, _t: (key: string) => stri
 // =============================================================================
 // HELPER FUNCTIONS FOR COMMON TRANSFORMATIONS
 // =============================================================================
-
-/**
- * Bank code to bank name mapping for Iranian banks
- */
-const IRANIAN_BANKS: Record<string, string> = {
-  '011': 'بانک صنعت و معدن',
-  '012': 'بانک ملت',
-  '013': 'بانک رفاه کارگران',
-  '014': 'بانک مسکن',
-  '015': 'بانک سپه',
-  '016': 'بانک کشاورزی',
-  '017': 'بانک ملی ایران',
-  '018': 'بانک تجارت',
-  '019': 'بانک صادرات ایران',
-  '020': 'بانک توسعه تعاون',
-  '021': 'پست بانک ایران',
-  '022': 'بانک توسعه صادرات ایران',
-  '051': 'موسسه اعتباری توسعه',
-  '053': 'بانک کارآفرین',
-  '054': 'بانک پارسیان',
-  '055': 'بانک اقتصاد نوین',
-  '056': 'بانک سامان',
-  '057': 'بانک پاسارگاد',
-  '058': 'بانک سرمایه',
-  '059': 'بانک سینا',
-  '060': 'بانک تات',
-  '061': 'بانک شهر',
-  '062': 'بانک آینده',
-  '063': 'بانک انصار',
-  '064': 'بانک گردشگری',
-  '065': 'بانک حکمت ایرانیان',
-  '066': 'بانک دی',
-  '069': 'بانک ایران زمین',
-  '070': 'بانک رسالت',
-  '073': 'بانک کوثر',
-  '075': 'بانک مهر اقتصاد',
-  '076': 'بانک مور',
-  '078': 'بانک مهر ایران',
-  '079': 'بانک نور',
-  '080': 'بانک مرکزی جمهوری اسلامی ایران',
-  '090': 'بانک قوامین',
-  '095': 'بانک ایران اروپا',
-};
-
-/**
- * Helper function to get bank name from bank code
- */
-function getBankName(bankCode?: string | null): string {
-  if (!bankCode)
-    return 'بانک نامشخص';
-  return IRANIAN_BANKS[bankCode] || `بانک ${bankCode}`;
-}
 
 /**
  * Helper function to format bank contract display name
