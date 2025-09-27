@@ -207,15 +207,7 @@ export const createSubscriptionHandler: RouteHandler<typeof createSubscriptionRo
 
           // Import ZarinPal direct debit service
           const { ZarinPalDirectDebitService } = await import('@/api/services/zarinpal-direct-debit');
-          const zarinpalDirectDebitService = new ZarinPalDirectDebitService({
-            serviceName: 'ZarinPal-DirectDebit',
-            baseUrl: 'https://api.zarinpal.com',
-            timeout: 30000,
-            retries: 2,
-            merchantId: c.env.NEXT_PUBLIC_ZARINPAL_MERCHANT_ID,
-            accessToken: c.env.ZARINPAL_ACCESS_TOKEN,
-            isSandbox: false,
-          });
+          const zarinpalDirectDebitService = ZarinPalDirectDebitService.create(c.env);
 
           // Decrypt the contract signature for charging
           const { decryptSignature } = await import('@/api/utils/crypto');
