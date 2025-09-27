@@ -1,4 +1,9 @@
 {
+  "1": {
+    "0": {
+      "0": "0"
+    }
+  },
   "accessibility": {
     "breadcrumb": "breadcrumb",
     "continueToBankSigning": "Continue to bank for contract signing",
@@ -12,7 +17,18 @@
     "selectRow": "Select row",
     "settingUpContract": "Setting up contract...",
     "setupDirectDebitContract": "Setup direct debit contract",
-    "toggleSidebar": "Toggle Sidebar"
+    "toggleSidebar": "Toggle Sidebar",
+    "disableHighContrast": "DisableHighContrast",
+    "enableHighContrast": "EnableHighContrast",
+    "highContrast": "HighContrast",
+    "enableMotion": "EnableMotion",
+    "disableMotion": "DisableMotion",
+    "reducedMotion": "ReducedMotion",
+    "normalText": "NormalText",
+    "largeText": "LargeText",
+    "openToolbar": "OpenToolbar",
+    "accessibility": "Accessibility",
+    "settings": "Settings"
   },
   "actions": {
     "add": "Add",
@@ -54,7 +70,8 @@
     "upgrade": "Upgrade",
     "upload": "Upload",
     "view": "View",
-    "viewAll": "View All"
+    "viewAll": "View All",
+    "cancelling": "Cancelling"
   },
   "auth": {
     "email": "Email",
@@ -261,6 +278,9 @@
       }
     },
     "status": {
+      "active": "Active",
+      "current": "Current",
+      "currentPlan": "Current Plan",
       "noContract": "No direct debit contract set up"
     },
     "subtitle": "Set up secure bank authorization for automated payments",
@@ -350,7 +370,14 @@
     "welcome": {
       "description": "Get started by choosing a subscription plan and setting up your payment method for seamless automated billing.",
       "title": "Welcome to Your Billing Dashboard"
-    }
+    },
+    "date": "Date",
+    "${itemType}Downloaded": "${ItemType}Downloaded",
+    "${itemType}DownloadFailed": "${ItemType}DownloadFailed",
+    "${itemType}Deleted": "${ItemType}Deleted",
+    "${itemType}DeleteFailed": "${ItemType}DeleteFailed",
+    "retryInitiated": "RetryInitiated",
+    "retryFailed": "RetryFailed"
   },
   "billingActions": {
     "invoiceDownloadFailed": "Failed to download invoice",
@@ -368,7 +395,8 @@
   "common": {
     "optional": "(optional)",
     "or": "Or",
-    "upTo": "Up to"
+    "upTo": "Up to",
+    "errorOccurred": "ErrorOccurred"
   },
   "confirmDialog": {
     "cancelAction": "Cancel",
@@ -390,42 +418,7 @@
   },
   "currency": {
     "toman": "Toman",
-    "rial": "Rial",
-    "usd": "USD",
-    "free": "Free",
-    "loading": "Loading price...",
-    "error": "Price unavailable",
-    "conversionError": "Currency conversion failed",
-    "conversionInfo": "Exchange Rate Info",
-    "exchangeRate": "Exchange Rate",
-    "lastUpdated": "Last Updated",
-    "approximate": "Approximately",
-    "equivalent": "Equivalent",
-    "originalPrice": "Original Price",
-    "convertedPrice": "Converted Price",
-    "period": {
-      "monthly": "monthly",
-      "yearly": "yearly",
-      "weekly": "weekly",
-      "daily": "daily",
-      "month": "month",
-      "year": "year",
-      "week": "week",
-      "day": "day"
-    },
-    "formatting": {
-      "compact": {
-        "thousand": "K",
-        "million": "M",
-        "billion": "B"
-      }
-    },
-    "comparison": {
-      "save": "Save",
-      "discount": "% off",
-      "wasPrice": "Was",
-      "nowPrice": "Now"
-    }
+    "rial": "Rial"
   },
   "dashboard": {
     "description": "Manage your billing and subscriptions from your comprehensive dashboard overview",
@@ -745,7 +738,11 @@
     "timezone": "Timezone",
     "title": "Title",
     "type": "Type",
-    "uploadFile": "Upload File"
+    "uploadFile": "Upload File",
+    "pickDate": "PickDate",
+    "noResultsFound": "NoResultsFound",
+    "noOptionsAvailable": "NoOptionsAvailable",
+    "loading": "Loading"
   },
   "language": {
     "current": "Current language",
@@ -1048,169 +1045,92 @@
       "returnToDashboard": "Return to Dashboard",
       "setupNotCompleted": "Unfortunately the setup was not completed.",
       "viewBillingDashboard": "View Billing Dashboard"
-    }
+    },
+    "zarinpal": "Zarinpal"
   },
   "paymentMethods": {
-    "accountHolderName": "Account Holder Name",
-    "accountNumber": "Account Number",
-    "activeContract": "active contract",
-    "activeContracts": "active contracts",
-    "addContract": "Add Contract",
-    "addPaymentMethod": "Add Payment Method",
-    "addedOn": "Added on {date}",
-    "address": "Address",
-    "bankName": "Bank Name",
-    "billingAddress": "Billing Address",
-    "cardNumber": "Card Number",
-    "city": "City",
-    "contract": "Contract",
-    "contracts": "Contracts",
-    "country": "Country",
-    "createFirstContract": "Create First Contract",
-    "cvv": "CVV",
-    "defaultMethod": "Default",
-    "deleteConfirmDescription": "Are you sure you want to remove this payment method? This action cannot be undone.",
-    "deleteConfirmTitle": "Remove Payment Method",
-    "directDebit": {
-      "title": "Direct Debit Contract",
-      "subtitle": "Secure automated billing with ZarinPal",
-      "processingContract": "Processing your direct debit contract",
-      "verifyingContract": "Verifying Contract",
-      "pleaseWait": "Please wait while we verify your contract with the bank",
-      "contractActivated": "Contract Activated Successfully",
-      "contractActivatedDescription": "Your direct debit contract is now active and ready for automatic billing",
-      "contractDetails": "Contract Details",
-      "bankVerified": "Bank authorization verified",
-      "signatureStored": "Contract signature stored securely",
-      "readyForPayments": "Ready for automatic payments",
-      "referenceCode": "Reference Code",
-      "contractFailed": "Contract Setup Failed",
-      "contractFailedDescription": "We couldn't complete the contract setup",
-      "contractFailedHelp": "This could be due to cancellation or a verification issue. Please try again or contact support if the problem persists."
-    },
-    "directDebitLegacy": "Direct Debit",
-    "directDebitContract": "Direct Debit Contract",
-    "empty": "No payment methods",
-    "emptyDescription": "Add a payment method to enable automatic billing for your subscriptions.",
-    "errorMessages": {
-      "failedToRemove": "Failed to remove payment method",
-      "failedToUpdateDefault": "Failed to update default payment method",
-      "failedToSetDefault": "Failed to set default payment method",
-      "failedToCancelContract": "Failed to cancel direct debit contract"
-    },
-    "errors": {
-      "invalidCallbackParameters": "Invalid callback parameters",
-      "contractSigningCancelled": "Contract signing was cancelled or failed",
-      "contractVerificationFailed": "Failed to verify the contract with ZarinPal",
-      "unexpectedError": "An unexpected error occurred",
-      "invalidRequest": "Invalid Request"
-    },
-    "status": {
-      "active": "Active",
-      "activeDescription": "Contract is active and ready for automatic payments",
-      "pending": "Pending",
-      "pendingSignature": "Pending Signature",
-      "pendingDescription": "Waiting for bank contract signing",
-      "cancelled": "Cancelled",
-      "cancelledDescription": "Contract has been cancelled by user",
-      "expired": "Expired",
-      "expiredDescription": "Contract has expired and needs renewal",
-      "verificationFailed": "Verification Failed",
-      "verificationFailedDescription": "Failed to verify contract with bank"
-    },
-    "expired": "Expired",
-    "expires": "Expires {date}",
-    "expiryDate": "Expiry Date",
-    "iban": "IBAN",
-    "lastUsed": "Last used {date}",
-    "loadingMessages": {
-      "removingPaymentMethod": "Removing payment method...",
-      "setting": "Setting...",
-      "updatingDefault": "Updating default payment method..."
-    },
-    "nameOnCard": "Name on Card",
-    "pending": "Pending Verification",
-    "phoneNumber": "Phone Number",
-    "postalCode": "Postal Code",
-    "primary": "Primary",
-    "reference": "Ref",
-    "removePaymentMethod": "Remove Payment Method",
-    "setAsDefault": "Set as Default",
-    "setDefaultConfirmDescription": "This payment method will be used for all future payments.",
-    "setDefaultConfirmTitle": "Set as Default",
-    "setPrimary": "Set Primary",
-    "state": "State",
-    "subtitle": "Manage your payment methods and billing information",
-    "manageDirectDebitContracts": "Manage your direct debit contracts and set default payment method",
-    "successMessages": {
-      "contractCancelled": "Direct debit contract cancelled successfully",
-      "defaultPaymentMethodUpdated": "Default payment method updated",
-      "defaultMethodSet": "Default payment method set successfully",
-      "directDebitContractCreated": "Direct debit contract created successfully!",
-      "paymentMethodRemoved": "Payment method removed successfully",
-      "contractRecovered": "Payment method recovered successfully"
-    },
-    "success": {
-      "contractRecovered": "Your payment method has been successfully recovered and activated"
-    },
-    "actions": {
-      "viewPaymentMethods": "View Payment Methods",
-      "setupNewContract": "Setup New Contract",
-      "tryAgain": "Try Again",
-      "returnToDashboard": "Return to Dashboard"
-    },
-    "table": {
-      "actions": {
-        "managePermissions": "Manage Permissions",
-        "openActions": "Open payment method actions",
-        "removeMethod": "Remove Method",
-        "setAsDefault": "Set as Default",
-        "viewContract": "View Contract"
-      },
-      "addMethod": "Add Method",
-      "directDebitContract": "Direct Debit Contract",
-      "emptyStateDescription": "You haven't added any payment methods yet. Add one to get started.",
-      "emptyStateTitle": "No Payment Methods",
-      "filters": {
-        "allStatus": "All Status",
-        "allTypes": "All Types",
-        "secondary": "Secondary",
-        "selectStatus": "Select status",
-        "signed": "Signed"
-      },
-      "lastUsed": "Last Used",
-      "mobile": "Mobile",
-      "never": "Never",
-      "paymentMethod": "Payment Method",
-      "searchPlaceholder": "Search payment methods...",
-      "tableAriaLabel": "Payment methods table",
-      "tabs": {
-        "active": "Active",
-        "allMethods": "All Methods",
-        "inactive": "Inactive"
-      }
-    },
     "title": "Payment Methods",
-    "unverified": "Unverified",
-    "updatePaymentMethod": "Update Payment Method",
-    "verified": "Verified",
-    "zarinpal": "ZarinPal",
+    "subtitle": "Manage your bank authorizations and direct debit contracts",
+    "empty": "No payment methods",
+    "emptyDescription": "Add a payment method to enable automatic billing",
+    "addPaymentMethod": "Add Payment Method",
+    "createFirstContract": "Setup Your First Bank Authorization",
+    "setAsDefault": "Set as Default",
+    "primary": "Primary",
+    "primaryDescription": "Your default payment method for automatic billing",
+    "defaultMethod": "Default Payment Method",
+    "directDebit": {
+      "contractDetails": "Contract Details",
+      "bankVerified": "Bank Verified",
+      "signatureStored": "Signature Stored",
+      "readyForPayments": "Ready for automatic payments",
+      "referenceCode": "Reference Code"
+    },
     "zarinpalDirectDebit": "ZarinPal Direct Debit",
-    "limits": "Transaction Limits",
-    "transactionLimits": "Transaction Limits",
-    "maxTransaction": "Max per transaction",
-    "maxDaily": "Max daily amount",
-    "maxDailyTransactions": "Max daily transactions",
-    "maxMonthlyTransactions": "Max monthly transactions",
-    "transactions": "transactions",
-    "contractExpirationInfo": "Contract will need renewal after this date",
-    "pendingSignature": "Pending Signature",
-    "cancelled": "Cancelled",
+    "bank": "Bank",
+    "mobile": "Mobile",
+    "phoneNumber": "Phone Number",
+    "contractId": "Contract ID",
+    "reference": "Reference",
+    "duration": "Duration",
+    "validity": "Validity",
+    "expiryDate": "Expiry Date",
+    "usage": "Usage Status",
+    "established": "Established",
+    "verified": "Bank Verified",
+    "contractDuration": "Contract Duration",
+    "days": "days",
+    "expiringIn": "Expiring in",
+    "validFor": "Valid for",
+    "expired": "Expired",
+    "contractExpired": "Contract has expired",
+    "expiresInDays": "Expires in {days} days",
+    "daysRemaining": "{days} days remaining",
+    "neverUsed": "Never used",
+    "usedToday": "Used today",
+    "usedYesterday": "Used yesterday",
+    "usedDaysAgo": "Used {days} days ago",
+    "usedWeeksAgo": "Used {weeks} week(s) ago",
+    "usedMonthsAgo": "Used {months} month(s) ago",
+    "usedOverYearAgo": "Used over a year ago",
+    "perTransactionLimit": "Per Transaction Limit",
+    "dailyLimit": "Daily Limit",
+    "dailyTransactions": "Daily Transactions",
+    "monthlyTransactions": "Monthly Transactions",
     "maxTransactionAmount": "Max Transaction Amount",
     "maxDailyAmount": "Max Daily Amount",
-    "maxDailyCount": "Max Daily Transactions",
-    "maxMonthlyCount": "Max Monthly Transactions",
-    "contractDuration": "Contract Duration"
+    "maxDailyCount": "Max Daily Count",
+    "maxMonthlyCount": "Max Monthly Count",
+    "limits": "Transaction Limits",
+    "transactionLimits": "Transaction Limits",
+    "status": {
+      "active": "Active",
+      "activeDescription": "Ready for automatic payments",
+      "pendingSignature": "Pending Signature",
+      "pendingDescription": "Awaiting bank authorization",
+      "cancelled": "Cancelled",
+      "cancelledDescription": "Contract cancelled by user",
+      "verificationFailed": "Verification Failed",
+      "verificationFailedDescription": "Bank verification failed",
+      "expired": "Expired",
+      "expiredDescription": "Contract has expired and needs renewal"
+    },
+    "successMessages": {
+      "contractCancelled": "Payment method removed successfully",
+      "defaultMethodSet": "Default payment method updated",
+      "contractSetup": "Bank authorization setup successfully"
+    },
+    "errorMessages": {
+      "failedToCancelContract": "Failed to remove payment method",
+      "failedToSetDefault": "Failed to set default payment method",
+      "failedToSetupContract": "Failed to setup bank authorization"
+    },
+    "contractExpirationInfo": "You will need to renew before this date",
+    "expires": "Expires {date}",
+    "addedOn": "Added on {date}",
+    "table": {
+      "lastUsed": "Last Used"
+    }
   },
   "paymentWizard": {
     "allReady": "Everything is ready!",
@@ -1251,55 +1171,7 @@
     },
     "zarinpalDirectPayment": "ZarinPal (Direct Payment)"
   },
-  "payments": {
-    "allTime": "All Time",
-    "amount": "Amount",
-    "cancelled": "Cancelled",
-    "date": "Date",
-    "description": "Description",
-    "dispute": "Dispute Payment",
-    "disputed": "Disputed",
-    "downloadInvoice": "Download Invoice",
-    "downloadReceipt": "Download Receipt",
-    "empty": "No payment history",
-    "emptyDescription": "Your payment transactions will appear here once you make your first purchase.",
-    "failed": "Failed",
-    "failureReason": "Failure Reason",
-    "filter": "Filter",
-    "filterByDate": "Filter by Date",
-    "filterByMethod": "Filter by Payment Method",
-    "filterByStatus": "Filter by Status",
-    "invoice": "Invoice",
-    "invoiceDownloadFailed": "Failed to download invoice",
-    "invoiceDownloaded": "Invoice downloaded successfully",
-    "invoiceNumber": "Invoice Number",
-    "lastMonth": "Last Month",
-    "method": "Payment Method",
-    "payment": "Payment",
-    "payments": "Payments",
-    "pending": "Pending",
-    "processing": "Processing",
-    "receipt": "Receipt",
-    "receiptDownloadFailed": "Failed to download receipt",
-    "receiptDownloaded": "Receipt downloaded successfully",
-    "reference": "Reference",
-    "refundRequest": "Request Refund",
-    "refunded": "Refunded",
-    "retryFailed": "Failed to retry payment",
-    "retryInitiated": "Payment retry initiated successfully",
-    "searchTransactions": "Search transactions...",
-    "status": "Status",
-    "subtitle": "View your payment transactions and invoices",
-    "successful": "Successful",
-    "thisMonth": "This Month",
-    "thisYear": "This Year",
-    "title": "Payment History",
-    "totalPaid": "Total Paid",
-    "totalRefunded": "Total Refunded",
-    "transaction": "Transaction",
-    "transactionId": "Transaction ID",
-    "viewDetails": "View Details"
-  },
+  "payments": "Payments",
   "placeholders": {
     "chooseFile": "Choose file",
     "enterAmount": "Enter amount",
@@ -1423,7 +1295,8 @@
           "premiumModels": "Premium AI models"
         },
         "name": "Starter"
-      }
+      },
+      "${isFree ? ": "${IsFree ? "
     },
     "pricingDescription": "All prices calculated with live exchange rates. Start free and upgrade as you grow.",
     "pricingLabel": "Pricing",
@@ -1469,9 +1342,7 @@
   "product": {
     "unknown": "Unknown Product"
   },
-  "products": {
-    "unknownProduct": "Unknown Product"
-  },
+  "products": "Products",
   "screenReader": {
     "alert": "Alert",
     "currentPage": "Current page {page} of {total}",
@@ -1565,7 +1436,9 @@
       "tryAgain": "Try again",
       "unauthorized": "Unauthorized Access",
       "unauthorizedDescription": "You don't have permission to access this resource.",
-      "unexpectedError": "An unexpected error occurred. Please try again."
+      "unexpectedError": "An unexpected error occurred. Please try again.",
+      "loadPaymentMethods": "LoadPaymentMethods",
+      "loadPaymentMethodsDescription": "LoadPaymentMethodsDescription"
     },
     "loading": {
       "default": "Loading...",
@@ -1575,7 +1448,8 @@
       "please_wait": "Please wait while we fetch your data...",
       "products": "Loading plans...",
       "subscriptions": "Loading subscriptions...",
-      "upcoming_bills": "Loading upcoming bills..."
+      "upcoming_bills": "Loading upcoming bills...",
+      "paymentMethods": "PaymentMethods"
     },
     "success": {
       "created": "Created successfully",
@@ -1590,154 +1464,8 @@
       "uploaded": "Uploaded successfully"
     }
   },
-  "status": {
-    "active": "Active",
-    "approved": "Approved",
-    "basic": "Basic",
-    "cancelled": "Cancelled",
-    "completed": "Completed",
-    "current": "Current",
-    "currentPlan": "Current Plan",
-    "contract": {
-      "draft": "Contract Draft",
-      "expired": "Contract Expired",
-      "pending": "Contract Pending",
-      "rejected": "Contract Rejected",
-      "signed": "Contract Signed"
-    },
-    "default": {
-      "active": "Active",
-      "inactive": "Inactive",
-      "primary": "Primary"
-    },
-    "due": "Due",
-    "error": "Error",
-    "expired": "Expired",
-    "failed": "Failed",
-    "inactive": "Inactive",
-    "info": "Information",
-    "overdue": "Overdue",
-    "paid": "Paid",
-    "payment": {
-      "canceled": "Payment Canceled",
-      "completed": "Payment Completed",
-      "failed": "Payment Failed",
-      "pending": "Payment Pending",
-      "processing": "Payment Processing"
-    },
-    "pending": "Pending",
-    "premium": "Premium",
-    "pro": "Pro",
-    "processing": "Processing",
-    "rejected": "Rejected",
-    "subscription": {
-      "active": "Active Subscription",
-      "canceled": "Canceled Subscription",
-      "expired": "Expired Subscription",
-      "inactive": "Inactive Subscription",
-      "pending": "Pending Subscription"
-    },
-    "success": "Success",
-    "trial": "Trial",
-    "unpaid": "Unpaid",
-    "upcoming": "Upcoming",
-    "verified": "Verified",
-    "warning": "Warning"
-  },
-  "subscription": {
-    "activateSubscription": "فعال‌سازی اشتراک",
-    "activationError": "Failed to activate subscription",
-    "activationFailed": "Failed to activate subscription",
-    "activationSuccess": "Your subscription has been activated successfully!",
-    "active": "Active Subscription",
-    "annual": "سالانه",
-    "annualComingSoon": "طرح‌های سالانه به زودی",
-    "annualDescription": "طرح‌های اشتراک سالانه با تخفیف‌های ویژه به زودی در دسترس خواهند بود.",
-    "autoRenewalEnabled": "Auto-renewal enabled",
-    "billingInDays": "Billing in {days} days",
-    "cancel": "Cancel Subscription",
-    "cancelFailed": "Failed to cancel subscription",
-    "cancelSuccess": "Subscription canceled successfully",
-    "cancellationReason": "Subscription cancellation requested by user",
-    "cancelledByUser": "Cancelled by user",
-    "cancelling": "Cancelling...",
-    "cancelled": "Cancelled",
-    "cancelledOn": "Cancelled on {date}",
-    "change": "Change Plan",
-    "continueWithSetup": "ادامه راه‌اندازی",
-    "createFailed": "Failed to create subscription",
-    "createSuccess": "Your subscription has been created successfully!",
-    "createSuccessWithPayment": "Subscription activated and payment processed successfully! Amount: {amount} IRR (Ref: {refId})",
-    "paymentFailed": "Payment failed. Please try again.",
-    "paymentFailedInsufficientFunds": "Payment failed due to insufficient funds. Please ensure your account has enough balance and try again.",
-    "paymentMethodError": "Payment method error. Please check your direct debit contract and try again.",
-    "planChangeFailed": "Failed to change subscription plan",
-    "planChangeSuccess": "Subscription plan changed successfully",
-    "default": "Subscription",
-    "description": "طرح‌های اشتراک مناسب برای نیازهای خود انتخاب کنید و با روش‌های پرداخت امن زرین‌پال پرداخت کنید",
-    "downgrade": "Downgrade Plan",
-    "downloadInvoice": "Download Invoice",
-    "empty": "No active subscriptions",
-    "emptyDescription": "You don't have any active subscriptions yet. Browse our plans to get started.",
-    "endDate": "End Date",
-    "expired": "Expired",
-    "expiredOn": "Expired on {date}",
-    "features": "Features",
-    "inactive": "Inactive",
-    "invoiceDownloadFailed": "Failed to download invoice",
-    "invoiceDownloaded": "Invoice downloaded successfully",
-    "limits": "Limits",
-    "loadingSubscription": "Loading subscription...",
-    "manage": "Manage Subscription",
-    "managementFailed": "Failed to open subscription management",
-    "monthly": "ماهانه",
-    "nextBilling": "Next Billing",
-    "noActive": "No Active Subscription",
-    "paymentMethod": "Payment Method",
-    "noPlans": "طرحی در دسترس نیست",
-    "noPlansDescription": "در حال حاضر طرح اشتراکی موجود نیست. لطفاً بعداً بررسی کنید.",
-    "openSubscriptionActions": "Open subscription actions",
-    "pause": "Pause Subscription",
-    "paymentMethodRequired": "راه‌اندازی روش پرداخت لازم است",
-    "paymentMethodRequiredDescription": "برای ایجاد اشتراک، ابتدا باید روش پرداخت خود را راه‌اندازی کنید.",
-    "paymentSetupComplete": "راه‌اندازی پرداخت تکمیل شد",
-    "paymentSetupSuccess": "روش پرداخت با موفقیت راه‌اندازی شد",
-    "perMonth": "per month",
-    "plan": "Plan",
-    "premiumPlan": "طرح ویژه با امکانات پیشرفته",
-    "price": "Price",
-    "productNotFound": "Product not found",
-    "renew": "Renew Subscription",
-    "renewsOn": "Renews on {date}",
-    "resume": "Resume Subscription",
-    "selectedPlan": "طرح انتخابی",
-    "setupPayment": "راه‌اندازی روش پرداخت",
-    "setupPaymentFirst": "ابتدا روش پرداخت راه‌اندازی کنید",
-    "setupPaymentMethod": "راه‌اندازی روش پرداخت",
-    "startDate": "Start Date",
-    "subscription": "Subscription",
-    "subscriptionCount_one": "subscription",
-    "subscriptionCount_other": "subscriptions",
-    "subscriptionService": "Subscription service",
-    "subscriptions": "Subscriptions",
-    "success": {
-      "description": "Your subscription has been successfully activated and payment method is set up. You can now access all features.",
-      "goToDashboard": "Go to Dashboard",
-      "title": "Subscription Activated Successfully!"
-    },
-    "title": "Subscriptions",
-    "toBeDecided": "TBD",
-    "trial": "Trial Period",
-    "trialEnds": "Trial ends {date}",
-    "unknownPlan": "Unknown Plan",
-    "unknownProduct": "Unknown Product",
-    "upgrade": "Upgrade Plan",
-    "usage": "Usage",
-    "usageViewFailed": "Failed to view subscription usage",
-    "userCancellationReason": "User requested cancellation",
-    "viewUsage": "View Usage",
-    "yourSubscriptions": "Your Subscriptions"
-  },
+  "status": "Status",
+  "subscription": "Subscription",
   "table": {
     "columns": "Columns",
     "dataTable": "Data table",
@@ -1928,94 +1656,229 @@
     "urlFormat": "Please enter a valid URL",
     "weakPassword": "Password is too weak"
   },
-  "zarinpal": {
-    "contract": {
-      "amount": "500,000 Toman",
-      "dailyLimit": "Daily limit:",
-      "dailyTransaction": "Daily transaction:",
-      "duration": "Contract duration:",
-      "monthlyTransaction": "Monthly transaction:",
-      "ready": "Contract is ready!",
-      "readyDescription": "Now select your preferred bank to be transferred to the bank website.",
-      "securityDescription": "After selecting a bank, you will be transferred to the official bank website and sign the contract in the bank's secure environment.",
-      "securityGuaranteed": "Guaranteed Security",
-      "selectBank": "Select Bank",
-      "selectBankPlaceholder": "Select your bank...",
-      "transferToBank": "Transfer to Bank"
+  "zarinpal": "Zarinpal",
+  "@/api/common/storage-keys": "@/Api/Common/Storage-Keys",
+  "NEXT_LOCALE": "NEXT LOCALE",
+  "": {
+    "/locales/${locale}/common": {
+      "json": "Json"
     },
-    "errors": {
-      "-10": {
-        "action": "Contact technical support to verify merchant configuration",
-        "message": "Payment system configuration error. Please contact support.",
-        "title": "Invalid IP or merchant configuration"
-      },
-      "-11": {
-        "action": "Contact support to activate your merchant account",
-        "message": "Merchant account is not active. Please contact support.",
-        "title": "Merchant is not active"
-      },
-      "-9": {
-        "action": "Retry payment with same or different payment method",
-        "message": "Payment transaction failed. Please try again.",
-        "title": "Transaction failure"
-      }
+    "/locales/${requestLocale}/common": {
+      "json": "Json"
     },
+    "/scheduled/monthly-billing": "/Scheduled/Monthly-Billing",
+    "/unified": "/Unified",
+    "/local": {
+      "db": "Db"
+    },
+    "/src/db/migrations": "/Src/Db/Migrations",
+    "": ""
+  },
+  "metadata": "Metadata",
+  "en-US": "En-US",
+  "/dashboard": "/Dashboard",
+  "/auth/sign-in": "/Auth/Sign-In",
+  "Payload Too Large": "Payload Too Large",
+  "/openapi": {
+    "json": "Json"
+  },
+  "/api/v1/doc": "/Api/V1/Doc",
+  "/scalar": "/Scalar",
+  "/llms": {
+    "txt": "Txt"
+  },
+  "LLMs document unavailable": "LLMs Document Unavailable",
+  "@": "@",
+  "+": "+",
+  "@/emails/templates": "@/Emails/Templates",
+  "organizations": "Organizations",
+  "users": "Users",
+  "subscriptions": "Subscriptions",
+  "id": "Id",
+  "name": "Name",
+  "url": "Url",
+  "secret_key": "Secret Key",
+  "enabled_events": "Enabled Events",
+  "[": "[",
+  "webhook_event_id": "Webhook Event Id",
+  "endpoint_id": "Endpoint Id",
+  "response_body": "Response Body",
+  "response_headers": "Response Headers",
+  "error_message": "Error Message",
+  "error_type": "Error Type",
+  "billing_period": "Billing Period",
+  "one_time": "One Time",
+  "roundtable_id": "Roundtable Id",
+  "features": "Features",
+  "stripe_product_id": "Stripe Product Id",
+  "stripe_price_id": "Stripe Price Id",
+  "usage_type": "Usage Type",
+  "system_prompt_id": "System Prompt Id",
+  "user_id": "User Id",
+  "contract_type": "Contract Type",
+  "pending_contract": "Pending Contract",
+  "contract_signature_encrypted": "Contract Signature Encrypted",
+  "contract_signature_hash": "Contract Signature Hash",
+  "contract_status": "Contract Status",
+  "pending_signature": "Pending Signature",
+  "payman_authority": "Payman Authority",
+  "contract_display_name": "Contract Display Name",
+  "Direct Debit Contract": "Direct Debit Contract",
+  "contract_mobile": "Contract Mobile",
+  "contract_ssn": "Contract Ssn",
+  "bank_code": "Bank Code",
+  "product_id": "Product Id",
+  "pending": "Pending",
+  "payment_method_id": "Payment Method Id",
+  "cancellation_reason": "Cancellation Reason",
+  "subscription_id": "Subscription Id",
+  "IRR": "IRR",
+  "payment_method": "Payment Method",
+  "zarinpal_authority": "Zarinpal Authority",
+  "zarinpal_ref_id": "Zarinpal Ref Id",
+  "zarinpal_card_hash": "Zarinpal Card Hash",
+  "failure_reason": "Failure Reason",
+  "payment_id": "Payment Id",
+  "event_type": "Event Type",
+  "event_data": "Event Data",
+  "severity": "Severity",
+  "info": "Info",
+  "source": "Source",
+  "raw_payload": "Raw Payload",
+  "external_webhook_url": "External Webhook Url",
+  "processing_error": "Processing Error",
+  "forwarding_error": "Forwarding Error",
+  "email": "Email",
+  "image": "Image",
+  "role": "Role",
+  "ban_reason": "Ban Reason",
+  "token": "Token",
+  "ip_address": "Ip Address",
+  "user_agent": "User Agent",
+  "impersonated_by": "Impersonated By",
+  "account_id": "Account Id",
+  "provider_id": "Provider Id",
+  "access_token": "Access Token",
+  "refresh_token": "Refresh Token",
+  "id_token": "Id Token",
+  "scope": "Scope",
+  "password": "Password",
+  "identifier": "Identifier",
+  "value": "Value",
+  "terms": {
+    "title": "Title",
+    "description": "Description"
+  },
+  "privacy": {
+    "title": "Title",
+    "description": "Description"
+  },
+  "toggle": "Toggle",
+  "light": "Light",
+  "dark": "Dark",
+  "system": "System",
+  "priority": {
+    "${priority}": "${Priority}"
+  },
+  "roles": {
+    "${role}": "${Role}"
+  },
+  "sectionTitle": "SectionTitle",
+  "sectionMessage": "SectionMessage",
+  "sectionUnavailable": "SectionUnavailable",
+  "sectionDescription": "SectionDescription",
+  "componentError": "ComponentError",
+  "componentUnavailable": "ComponentUnavailable",
+  "pageTitle": "PageTitle",
+  "pageDescription": "PageDescription",
+  "copyErrorDetails": "CopyErrorDetails",
+  "errorDetailsCopied": "ErrorDetailsCopied",
+  "errorDetailsCopyFailed": "ErrorDetailsCopyFailed",
+  "refreshPage": "RefreshPage",
+  "refreshing": "Refreshing",
+  "goHome": "GoHome",
+  "retrying": "Retrying",
+  "retry": "Retry",
+  " ": " ",
+  "empty": {
+    "plansDescription": "PlansDescription"
+  },
+  "SHA-256": "SHA-256",
+  "desc": "Desc",
+  "session": "Session",
+  "content-type": "Content-Type",
+  "content-length": "Content-Length",
+  "fileSize": "FileSize",
+  "@opennextjs/cloudflare": "@Opennextjs/Cloudflare",
+  "retry-after": "Retry-After",
+  "@/db": "@/Db",
+  "requestId": "RequestId",
+  "Retry-After": "Retry-After",
+  "X-Error-ID": "X-Error-ID",
+  "X-Error-Category": "X-Error-Category",
+  "Amount must be a whole number": "Amount Must Be A Whole Number",
+  "startTime": "StartTime",
+  "correlationId": "CorrelationId",
+  "@/lib/auth/server": "@/Lib/Auth/Server",
+  "development": "Development",
+  "Roundtable Billing Dashboard": "Roundtable Billing Dashboard",
+  "/api": "/Api",
+  "v1": "V1",
+  "roundtable-session": "Roundtable-Session",
+  "v4": "V4",
+  "resend": "Resend",
+  "image/*,application/pdf": "Image/*,Application/Pdf",
+  "json": "Json",
+  "x-correlation-id": "X-Correlation-Id",
+  "next/headers": "Next/Headers",
+  "@/lib/email/ses-service": "@/Lib/Email/Ses-Service",
+  "error": "Error",
+  "${baseKey}": {
     "features": {
-      "control": {
-        "description": "Cancel anytime",
-        "title": "Full Control"
-      },
-      "easy": {
-        "description": "No need to enter card details",
-        "title": "Easy Payment"
-      },
-      "secure": {
-        "description": "Approved by Central Bank",
-        "title": "Secure and Reliable"
-      }
-    },
-    "process": {
-      "returnConfirm": "Return and final confirmation",
-      "selectBank": "Select your preferred bank",
-      "signContract": "Sign contract on bank website",
-      "steps": "Setup Steps"
-    },
-    "setup": {
-      "easySecurePayment": "Easy and secure payment without entering card details",
-      "setupDirectPayment": "Setup Direct Payment ZarinPal",
-      "startSetup": "Start Setup"
-    },
-    "statuses": {
-      "continue": "Continue",
-      "creating": "Creating..."
-    },
-    "steps": {
-      "about": "About Direct Payment",
-      "bankSelection": "Bank Selection",
-      "bankSelectionDescription": "Select your bank",
-      "contractSigning": "Contract Signing",
-      "contractSigningDescription": "Confirm with bank"
-    },
-    "success": {
-      "benefits": [
-        "• Direct payment contract with bank activated",
-        "• Your subscriptions will be automatically renewed",
-        "• You can cancel the contract anytime"
-      ],
-      "description": "Your direct payment has been set up and is ready to use.",
-      "title": "Contract Successfully Activated!"
-    },
-    "transfer": {
-      "description": "Please wait, you are being transferred to the secure bank website...",
-      "instructions": [
-        "• Sign the contract on the bank website",
-        "• After signing, you will return to this page"
-      ],
-      "title": "Transferring to Bank"
-    },
-    "verification": {
-      "description": "Your contract is being reviewed and verified...",
-      "title": "Verifying Contract"
+      "messagesPerMonth": "MessagesPerMonth",
+      "aiModels": "AiModels",
+      "conversationsPerMonth": "ConversationsPerMonth",
+      "basicSupport": "BasicSupport",
+      "premiumModels": "PremiumModels"
     }
-  }
+  },
+  "today": "Today",
+  "daysAgo": "days ago",
+  "transactions": "transactions",
+  "days": "days",
+  "hex": "Hex",
+  "Webhook rate limit exceeded": "Webhook Rate Limit Exceeded",
+  "Invalid content type for webhook": "Invalid Content Type For Webhook",
+  "@/db/tables/auth": "@/Db/Tables/Auth",
+  "Rial amounts must be whole numbers": "Rial Amounts Must Be Whole Numbers",
+  "Payment method is not active": "Payment Method Is Not Active",
+  "Payment method contract is not active": "Payment Method Contract Is Not Active",
+  "Payment method contract signature is invalid": "Payment Method Contract Signature Is Invalid",
+  "Failed to get banks list": "Failed To Get Banks List",
+  "Failed to create contract with ZarinPal": "Failed To Create Contract With ZarinPal",
+  "Contract signing was not successful": "Contract Signing Was Not Successful",
+  "Failed to verify contract signature": "Failed To Verify Contract Signature",
+  "Not a direct debit contract": "Not A Direct Debit Contract",
+  "Cannot delete payment method: active subscriptions exist": "Cannot Delete Payment Method: Active Subscriptions Exist",
+  ";": ";",
+  "=": "=",
+  "direct-debit-contract": "Direct-Debit-Contract",
+  "immediate": "Immediate",
+  "@/api/services/zarinpal-direct-debit": "@/Api/Services/Zarinpal-Direct-Debit",
+  "@/api/utils/crypto": "@/Api/Utils/Crypto",
+  "@/api/routes/webhooks/handler": "@/Api/Routes/Webhooks/Handler",
+  "Invalid payment method": {
+    " Only direct-debit-contract is supported": {
+      "": ""
+    }
+  },
+  "Cannot switch to the same product": "Cannot Switch To The Same Product",
+  "Payment method has no valid contract signature": "Payment Method Has No Valid Contract Signature",
+  "cookie": "Cookie",
+  "next": "Next",
+  "previous": "Previous",
+  "productId": "ProductId",
+  "productName": "ProductName",
+  "productPrice": "ProductPrice",
+  "yesterday": "Yesterday"
 }

@@ -186,7 +186,7 @@ export function PricingPlans({
         dataType="plan"
         variant="card"
         size="md"
-        columns={2}
+        columns="auto"
         gap="lg"
         mapItem={(product: Product) => {
           const isRecommended = product.id === recommendedPlanId;
@@ -244,7 +244,7 @@ export function PricingPlans({
             contractMessage,
           );
 
-          // Override the primary action
+          // Override the primary action - will be moved to content area on mobile for pricing cards
           content.primaryAction = primaryAction;
 
           // Handle content extra based on priority

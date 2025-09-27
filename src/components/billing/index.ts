@@ -16,8 +16,10 @@
 // SUBSCRIPTION COMPONENTS
 // =============================================================================
 
-// Bank authorization
 export { BankAuthorizationStepperOrchestrator } from './bank-authorization-stepper-orchestrator';
+// Bank contract - Minimal and clean component
+export type { BankContractCardProps } from './bank-contract-card';
+export { BankContractCard } from './bank-contract-card';
 
 // Overview components
 export { CustomerBillingOverview } from './customer-billing-overview';
@@ -25,14 +27,6 @@ export { CustomerBillingOverview } from './customer-billing-overview';
 // Payment components
 export { PaymentHistoryCards } from './payment-history-cards';
 
-// =============================================================================
-// UNIFIED BILLING SYSTEM
-// =============================================================================
-
-export { PaymentMethodCard } from './payment-method-card';
-
-// Component prop types from existing components
-export type { PaymentMethodCardProps } from './payment-method-card';
 // Plan components
 export { PricingPlans } from './pricing-plans';
 

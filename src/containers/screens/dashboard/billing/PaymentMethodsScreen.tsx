@@ -1,15 +1,15 @@
 'use client';
 
-import { CreditCard, Plus } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { useTranslations } from 'next-intl';
+import { useLocale, useTranslations } from 'next-intl';
 import React from 'react';
 
 import type { ApiResponse } from '@/api/core/schemas';
 import type { PaymentMethod } from '@/api/routes/payment-methods/schema';
-import { SimplifiedPaymentMethodCard } from '@/components/billing/simplified-payment-method-card';
+import { BillingDisplayContainer, mapPaymentMethodToContent } from '@/components/billing/unified';
 import { DashboardPageHeader } from '@/components/dashboard/dashboard-header';
-import { DashboardPage, DashboardSection, EmptyState, ErrorState, LoadingState } from '@/components/dashboard/dashboard-states';
+import { DashboardPage, DashboardSection } from '@/components/dashboard/dashboard-states';
 import { Button } from '@/components/ui/button';
 import { useCancelDirectDebitContractMutation, useSetDefaultPaymentMethodMutation } from '@/hooks/mutations/payment-methods';
 import { usePaymentMethodsQuery } from '@/hooks/queries/payment-methods';
@@ -17,6 +17,7 @@ import { toastManager } from '@/lib/toast/toast-manager';
 
 export default function PaymentMethodsScreen() {
   const t = useTranslations();
+  const locale = useLocale();
   const router = useRouter();
   const paymentMethodsQuery = usePaymentMethodsQuery();
   const cancelContractMutation = useCancelDirectDebitContractMutation();
@@ -67,48 +68,6 @@ export default function PaymentMethodsScreen() {
     router.push('/dashboard/billing/methods/setup');
   };
 
-  if (paymentMethodsQuery.isLoading) {
-    return (
-      <DashboardPage>
-        <DashboardPageHeader
-          title={t('paymentMethods.title')}
-          description={t('paymentMethods.subtitle')}
-        />
-        <DashboardSection delay={0.1}>
-          <LoadingState
-            variant="card"
-            style="dashed"
-            size="lg"
-            title={t('states.loading.paymentMethods')}
-            message={t('states.loading.please_wait')}
-          />
-        </DashboardSection>
-      </DashboardPage>
-    );
-  }
-
-  if (paymentMethodsQuery.isError && !paymentMethodsQuery.isLoading) {
-    return (
-      <DashboardPage>
-        <DashboardPageHeader
-          title={t('paymentMethods.title')}
-          description={t('paymentMethods.subtitle')}
-        />
-        <DashboardSection delay={0.1}>
-          <ErrorState
-            variant="card"
-            title={t('states.error.loadPaymentMethods')}
-            description={t('states.error.loadPaymentMethodsDescription')}
-            onRetry={() => {
-              paymentMethodsQuery.refetch();
-            }}
-            retryLabel={t('actions.tryAgain')}
-          />
-        </DashboardSection>
-      </DashboardPage>
-    );
-  }
-
   return (
     <DashboardPage>
       <DashboardPageHeader
@@ -125,40 +84,38 @@ export default function PaymentMethodsScreen() {
       />
 
       <DashboardSection delay={0.1}>
-        {paymentMethodList.length > 0
-          ? (
-              <div className="grid gap-4">
-                {paymentMethodList.map(method => (
-                  <SimplifiedPaymentMethodCard
-                    key={method.id}
-                    paymentMethod={method}
-                    onSetPrimary={handleSetPrimary}
-                    onDelete={handleDelete}
-                    className="hover:shadow-lg transition-shadow duration-200"
-                  />
-                ))}
-              </div>
-            )
-          : (
-              <EmptyState
-                variant="methods"
-                style="dashed"
-                size="lg"
-                title={t('paymentMethods.empty')}
-                description={t('paymentMethods.emptyDescription')}
-                icon={<CreditCard className="h-12 w-12 text-primary/60" />}
-                action={(
-                  <Button
-                    size="lg"
-                    onClick={handleAddPaymentMethod}
-                    className="gap-2"
-                  >
-                    <Plus className="h-4 w-4" />
-                    {t('paymentMethods.createFirstContract')}
-                  </Button>
-                )}
-              />
+        <BillingDisplayContainer
+          data={paymentMethodList}
+          isLoading={paymentMethodsQuery.isLoading}
+          isError={paymentMethodsQuery.isError}
+          error={paymentMethodsQuery.error}
+          onRetry={() => paymentMethodsQuery.refetch()}
+          dataType="paymentMethod"
+          variant="card"
+          size="md"
+          columns="auto"
+          gap="lg"
+          emptyTitle={t('paymentMethods.empty')}
+          emptyDescription={t('paymentMethods.emptyDescription')}
+          emptyAction={(
+            <Button
+              size="lg"
+              onClick={handleAddPaymentMethod}
+              className="gap-2"
+            >
+              <Plus className="h-4 w-4" />
+              {t('paymentMethods.createFirstContract')}
+            </Button>
+          )}
+          mapItem={(paymentMethod: PaymentMethod) =>
+            mapPaymentMethodToContent(
+              paymentMethod,
+              t,
+              locale,
+              handleSetPrimary,
+              handleDelete,
             )}
+        />
       </DashboardSection>
     </DashboardPage>
   );

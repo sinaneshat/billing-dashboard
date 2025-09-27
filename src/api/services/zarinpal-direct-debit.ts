@@ -300,21 +300,112 @@ export class ZarinPalDirectDebitService {
   }
 
   /**
-   * Make HTTP GET request
+   * Make HTTP POST request to Payman API (always uses production URL)
+   * Payman endpoints don't require Authorization header, only merchant_id in payload
    */
-  private async get<TResponse>(
+  private async postPayman<TPayload, TResponse>(
     endpoint: string,
-    headers: Record<string, string>,
+    payload: TPayload,
     operationName?: string,
   ): Promise<TResponse> {
-    return this.makeRequest<TResponse>(
-      endpoint,
-      {
+    // Payman API is only available on production ZarinPal API, not sandbox
+    const url = `https://api.zarinpal.com${endpoint}`;
+
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), this.config.timeout);
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: JSON.stringify(payload),
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeoutId);
+
+      // Handle HTTP 422 specifically to extract ZarinPal error details
+      if (response.status === 422) {
+        const responseText = await response.text();
+        let errorDetails = responseText;
+
+        try {
+          const parsedResponse = JSON.parse(responseText);
+          // Extract ZarinPal error message if available
+          if (parsedResponse.errors && Array.isArray(parsedResponse.errors) && parsedResponse.errors.length > 0) {
+            errorDetails = parsedResponse.errors[0].message || parsedResponse.errors[0].code || responseText;
+          } else if (parsedResponse.data && parsedResponse.data.message) {
+            errorDetails = parsedResponse.data.message;
+          }
+        } catch {
+          // Keep original responseText if JSON parsing fails
+        }
+
+        throw new HTTPException(422, {
+          message: `HTTP 422: Unprocessable Content. ${errorDetails}`,
+        });
+      }
+
+      if (!response.ok) {
+        const responseText = await response.text();
+        throw new HTTPException(response.status as 500, {
+          message: `HTTP ${response.status}: ${response.statusText}. Response: ${responseText}`,
+        });
+      }
+
+      const data = await response.json();
+      return data as TResponse;
+    } catch (error) {
+      throw this.handleError(error, operationName || 'make request', {
+        errorType: 'network' as const,
+        provider: 'zarinpal' as const,
+      });
+    }
+  }
+
+  /**
+   * Make HTTP GET request to Payman API (always uses production URL)
+   * Payman endpoints don't require Authorization header
+   */
+  private async getPayman<TResponse>(
+    endpoint: string,
+    operationName?: string,
+  ): Promise<TResponse> {
+    // Payman API is only available on production ZarinPal API, not sandbox
+    const url = `https://api.zarinpal.com${endpoint}`;
+
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), this.config.timeout);
+
+      const response = await fetch(url, {
         method: 'GET',
-        headers,
-      },
-      operationName,
-    );
+        headers: {
+          Accept: 'application/json',
+        },
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        const responseText = await response.text();
+        throw new HTTPException(response.status as 500, {
+          message: `HTTP ${response.status}: ${response.statusText}. Response: ${responseText}`,
+        });
+      }
+
+      const data = await response.json();
+      return data as TResponse;
+    } catch (error) {
+      throw this.handleError(error, operationName || 'make request', {
+        errorType: 'network' as const,
+        provider: 'zarinpal' as const,
+      });
+    }
   }
 
   /**
@@ -590,10 +681,9 @@ export class ZarinPalDirectDebitService {
     };
 
     try {
-      const rawResult = await this.post<typeof payload, DirectDebitContractResponse>(
+      const rawResult = await this.postPayman<typeof payload, DirectDebitContractResponse>(
         '/pg/v4/payman/request.json',
         payload,
-        { Authorization: this.getAuthorizationHeader() },
         'contract request',
       );
 
@@ -659,9 +749,8 @@ export class ZarinPalDirectDebitService {
    */
   async getBankList(): Promise<BankListResponse> {
     try {
-      const rawResult = await this.get<BankListResponse>(
+      const rawResult = await this.getPayman<BankListResponse>(
         '/pg/v4/payman/banksList.json',
-        { Authorization: this.getAuthorizationHeader() },
         'get bank list',
       );
 
@@ -722,10 +811,9 @@ export class ZarinPalDirectDebitService {
     };
 
     try {
-      const result = await this.post<typeof payload, SignatureResponse>(
+      const result = await this.postPayman<typeof payload, SignatureResponse>(
         '/pg/v4/payman/verify.json',
         payload,
-        { Authorization: this.getAuthorizationHeader() },
         'contract verification',
       );
 
@@ -763,17 +851,10 @@ export class ZarinPalDirectDebitService {
     };
 
     try {
-      // Use makeRequest for limited retries on financial transactions
-      const result = await this.makeRequest<DirectTransactionResponse>(
+      // Use postPayman for Payman-specific endpoint (always uses production API)
+      const result = await this.postPayman<typeof payload, DirectTransactionResponse>(
         '/pg/v4/payman/checkout.json',
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': this.getAuthorizationHeader(),
-          },
-          body: JSON.stringify(payload),
-        },
+        payload,
         'direct transaction',
       );
 
@@ -815,10 +896,9 @@ export class ZarinPalDirectDebitService {
     };
 
     try {
-      const result = await this.post<typeof payload, CancelContractResponse>(
+      const result = await this.postPayman<typeof payload, CancelContractResponse>(
         '/pg/v4/payman/cancelContract.json',
         payload,
-        { Authorization: this.getAuthorizationHeader() },
         'cancel contract',
       );
 
