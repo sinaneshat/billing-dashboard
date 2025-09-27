@@ -38,6 +38,8 @@ export type BankContractCardProps = {
   paymentMethod: PaymentMethod;
   onSetPrimary?: (id: string) => void;
   onDelete?: (id: string) => void;
+  onClick?: () => void; // Add onClick for navigation
+  isViewOnly?: boolean; // Add flag for view-only mode
   className?: string;
 };
 
@@ -53,6 +55,8 @@ export const BankContractCard = memo<BankContractCardProps>(({
   paymentMethod,
   onSetPrimary,
   onDelete,
+  onClick,
+  isViewOnly = false,
   className,
 }) => {
   const t = useTranslations();
@@ -70,12 +74,15 @@ export const BankContractCard = memo<BankContractCardProps>(({
   const canSetPrimary = isActive && !paymentMethod.isPrimary && onSetPrimary;
 
   return (
-    <Card className={cn(
-      'group relative transition-all duration-200',
-      'hover:shadow-md',
-      paymentMethod.isPrimary && 'ring-1 ring-primary/20',
-      className,
-    )}
+    <Card
+      className={cn(
+        'group relative transition-all duration-200',
+        'hover:shadow-md',
+        onClick && 'cursor-pointer',
+        paymentMethod.isPrimary && 'ring-1 ring-primary/20',
+        className,
+      )}
+      onClick={onClick}
     >
       <CardHeader className="pb-3">
         <div className="flex items-start justify-between">
@@ -114,10 +121,15 @@ export const BankContractCard = memo<BankContractCardProps>(({
               {statusConfig.label}
             </Badge>
 
-            {(onSetPrimary || onDelete) && (
+            {!isViewOnly && (onSetPrimary || onDelete) && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon" className="h-8 w-8">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8"
+                    onClick={e => e.stopPropagation()} // Prevent card click when clicking menu
+                  >
                     <MoreVertical className="h-4 w-4" />
                     <span className="sr-only">{t('actions.more')}</span>
                   </Button>

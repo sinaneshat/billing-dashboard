@@ -59,12 +59,13 @@ function WelcomeHero({ hasData, t, router }: {
 }
 
 // Current status cards for active users using unified system
-function StatusCards({ subscription, paymentMethods, products, t, locale }: {
+function StatusCards({ subscription, paymentMethods, products, t, locale, router }: {
   subscription: Subscription | null;
   paymentMethods: PaymentMethod[];
   products: Product[];
   t: (key: string) => string;
   locale: string;
+  router: AppRouterInstance;
 }) {
   if (!subscription && paymentMethods.length === 0)
     return null;
@@ -139,16 +140,12 @@ function StatusCards({ subscription, paymentMethods, products, t, locale }: {
         />
       )}
 
-      {/* Payment Method Card - Use new BankContractCard */}
+      {/* Payment Method Card - Use new BankContractCard in view-only mode */}
       {primaryMethod && (
         <BankContractCard
           paymentMethod={primaryMethod}
-          onSetPrimary={(_id) => {
-            // Handle set primary action
-          }}
-          onDelete={(_id) => {
-            // Handle remove payment method action
-          }}
+          isViewOnly={true}
+          onClick={() => router.push('/dashboard/billing/methods')}
         />
       )}
     </div>
@@ -336,6 +333,7 @@ export const CustomerBillingOverview = memo(({
         products={products}
         t={t}
         locale={currentLocale}
+        router={router}
       />
 
       {/* Quick actions */}
