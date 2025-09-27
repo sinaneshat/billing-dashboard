@@ -11,13 +11,13 @@ import type { Payment } from '@/api/routes/payments/schema';
 import type { Product } from '@/api/routes/products/schema';
 // Import raw Zod-inferred types from backend API schemas
 import type { Subscription } from '@/api/routes/subscriptions/schema';
-// Import CurrencyConversionResult for proper typing
+// Import minimal bank contract card
+import { BankContractCard } from '@/components/billing/bank-contract-card';
 // Import unified billing system
 import { BillingDisplayContainer, BillingDisplayItem } from '@/components/billing/unified/billing-display';
-import type { PaymentMethodData, SubscriptionData } from '@/components/billing/unified/mappers';
+import type { SubscriptionData } from '@/components/billing/unified/mappers';
 import {
   createWelcomeContent,
-  mapPaymentMethodToContent,
   mapSubscriptionToContent,
 } from '@/components/billing/unified/mappers';
 import { Button } from '@/components/ui/button';
@@ -71,30 +71,32 @@ function StatusCards({ subscription, paymentMethods, products, t, locale }: {
 
   const items = [];
 
+  // Enhanced subscription data with proper paymentMethod integration - SOLID-compliant
+  const subscriptionPaymentMethod = subscription && subscription.paymentMethodId
+    ? paymentMethods.find(pm => pm.id === subscription.paymentMethodId)
+    : paymentMethods[0]; // Fallback to first payment method
+
+  const subscriptionWithPaymentMethod: SubscriptionData | null = subscription
+    ? {
+        ...subscription,
+        productId: subscription.productId,
+        // Map payment method data to the format expected by SubscriptionData
+        paymentMethod: subscriptionPaymentMethod
+          ? {
+              id: subscriptionPaymentMethod.id,
+              contractDisplayName: subscriptionPaymentMethod.contractDisplayName,
+              contractMobile: subscriptionPaymentMethod.contractMobile,
+              contractStatus: subscriptionPaymentMethod.contractStatus,
+              bankCode: subscriptionPaymentMethod.bankCode,
+              isPrimary: subscriptionPaymentMethod.isPrimary,
+              isActive: subscriptionPaymentMethod.isActive,
+            }
+          : null,
+      }
+    : null;
+
   // Add subscription if exists
-  if (subscription) {
-    // Enhanced subscription data with proper paymentMethod integration - SOLID-compliant
-    const subscriptionPaymentMethod = subscription.paymentMethodId
-      ? paymentMethods.find(pm => pm.id === subscription.paymentMethodId)
-      : paymentMethods[0]; // Fallback to first payment method
-
-    const subscriptionWithPaymentMethod: SubscriptionData = {
-      ...subscription,
-      productId: subscription.productId,
-      // Map payment method data to the format expected by SubscriptionData
-      paymentMethod: subscriptionPaymentMethod
-        ? {
-            id: subscriptionPaymentMethod.id,
-            contractDisplayName: subscriptionPaymentMethod.contractDisplayName,
-            contractMobile: subscriptionPaymentMethod.contractMobile,
-            contractStatus: subscriptionPaymentMethod.contractStatus,
-            bankCode: subscriptionPaymentMethod.bankCode,
-            isPrimary: subscriptionPaymentMethod.isPrimary,
-            isActive: subscriptionPaymentMethod.isActive,
-          }
-        : null,
-    };
-
+  if (subscription && subscriptionWithPaymentMethod) {
     items.push({
       type: 'subscription' as const,
       data: subscriptionWithPaymentMethod,
@@ -103,54 +105,53 @@ function StatusCards({ subscription, paymentMethods, products, t, locale }: {
 
   // Only add separate payment method card if no subscription exists
   // When subscription exists, payment method info is shown within the subscription card
-  if (!subscription && paymentMethods.length > 0) {
-    const primaryMethod = paymentMethods.find(m => m.isPrimary) || paymentMethods[0];
-    items.push({
-      type: 'paymentMethod' as const,
-      data: primaryMethod,
-    });
-  }
+  const primaryMethod = !subscription && paymentMethods.length > 0
+    ? (paymentMethods.find(m => m.isPrimary) || paymentMethods[0])
+    : null;
 
   return (
-    <BillingDisplayContainer
-      data={items}
-      variant="card"
-      size="md"
-      columns={items.length === 1 ? 1 : 2}
-      gap="md"
-      mapItem={(item) => {
-        if (item.type === 'subscription') {
-          const subscriptionData = item.data as SubscriptionData;
-          const product = products.find(p => p.id === subscriptionData.productId) || null;
-          return mapSubscriptionToContent(
-            subscriptionData,
-            product,
-            t,
-            locale,
-            (_id) => {
-              // Handle manage subscription action
-              // This would typically navigate to subscription management page
-            },
-            (_id) => {
-              // Handle cancel subscription action
-              // This would typically show cancellation dialog
-            },
-          );
-        } else {
-          return mapPaymentMethodToContent(
-            item.data as PaymentMethodData,
-            t,
-            locale,
-            (_id) => {
-              // Handle set primary action
-            },
-            (_id) => {
-              // Handle remove payment method action
-            },
-          );
-        }
-      }}
-    />
+    <div className="grid gap-4 md:grid-cols-2">
+      {/* Subscription Card */}
+      {subscription && (
+        <BillingDisplayContainer
+          data={[{ type: 'subscription' as const, data: subscriptionWithPaymentMethod }]}
+          variant="card"
+          size="md"
+          gap="md"
+          mapItem={(item) => {
+            const subscriptionData = item.data as SubscriptionData;
+            const product = products.find(p => p.id === subscriptionData.productId) || null;
+            return mapSubscriptionToContent(
+              subscriptionData,
+              product,
+              t,
+              locale,
+              (_id) => {
+                // Handle manage subscription action
+                // This would typically navigate to subscription management page
+              },
+              (_id) => {
+                // Handle cancel subscription action
+                // This would typically show cancellation dialog
+              },
+            );
+          }}
+        />
+      )}
+
+      {/* Payment Method Card - Use new BankContractCard */}
+      {primaryMethod && (
+        <BankContractCard
+          paymentMethod={primaryMethod}
+          onSetPrimary={(_id) => {
+            // Handle set primary action
+          }}
+          onDelete={(_id) => {
+            // Handle remove payment method action
+          }}
+        />
+      )}
+    </div>
   );
 }
 

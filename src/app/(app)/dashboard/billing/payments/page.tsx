@@ -1,20 +1,22 @@
 import { dehydrate, HydrationBoundary } from '@tanstack/react-query';
 
-import { CustomerBillingOverviewScreen } from '@/containers/screens/dashboard/billing';
+import { PaymentHistoryScreen } from '@/containers/screens/dashboard/billing';
 import { getQueryClient } from '@/lib/data/query-client';
 import { queryKeys } from '@/lib/data/query-keys';
 import {
   getPaymentMethodsService,
   getPaymentsService,
+  getProductsService,
   getSubscriptionsService,
 } from '@/services/api';
 
 /**
  * Payment History Page - Server Component
- * Following TanStack Query official SSR patterns from Context7 docs
- * Prefetches payment history and related billing data for instant loading
+ * Following TanStack Query official SSR patterns
+ * Prefetches actual payment transaction history for instant loading
+ * Shows payment transactions, NOT payment method contracts
  */
-export default async function SubscriptionBillingPage() {
+export default async function PaymentHistoryPage() {
   const queryClient = getQueryClient();
 
   // Prefetch payment history with related billing data in parallel
@@ -34,11 +36,16 @@ export default async function SubscriptionBillingPage() {
       queryFn: getPaymentMethodsService,
       staleTime: 5 * 60 * 1000, // 5 minutes for payment methods
     }),
+    queryClient.prefetchQuery({
+      queryKey: queryKeys.products.list,
+      queryFn: getProductsService,
+      staleTime: 10 * 60 * 1000, // 10 minutes for products - rarely changes
+    }),
   ]);
 
   return (
     <HydrationBoundary state={dehydrate(queryClient)}>
-      <CustomerBillingOverviewScreen />
+      <PaymentHistoryScreen />
     </HydrationBoundary>
   );
 }

@@ -278,6 +278,9 @@
       }
     },
     "status": {
+      "active": "Active",
+      "current": "Current",
+      "currentPlan": "Current Plan",
       "noContract": "No direct debit contract set up"
     },
     "subtitle": "Set up secure bank authorization for automated payments",

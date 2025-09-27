@@ -186,7 +186,7 @@ export function PricingPlans({
         dataType="plan"
         variant="card"
         size="md"
-        columns={3}
+        columns="auto"
         gap="lg"
         mapItem={(product: Product) => {
           const isRecommended = product.id === recommendedPlanId;

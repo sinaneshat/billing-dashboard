@@ -250,7 +250,7 @@ export const BillingDisplayItem = React.memo<BillingDisplayItemProps>(({
     return (
       <Card
         className={cn(
-          'group relative h-full transition-all duration-300 overflow-hidden',
+          'group relative h-full flex flex-col transition-all duration-300 overflow-hidden font-sans antialiased',
           style.hoverEffect !== false && 'hover:shadow-lg',
           selectable && 'cursor-pointer',
           selected && 'ring-2 ring-primary',
@@ -283,7 +283,7 @@ export const BillingDisplayItem = React.memo<BillingDisplayItemProps>(({
         )}
         {/* Header */}
         <CardHeader className={cn(config.header, style.headerClassName, 'relative z-10')}>
-          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+          <div className="flex flex-col gap-4">
             <div className="flex items-start gap-3 flex-1 min-w-0">
               {/* Icon */}
               {content.icon && (
@@ -303,44 +303,34 @@ export const BillingDisplayItem = React.memo<BillingDisplayItemProps>(({
               )}
 
               {/* Title and subtitle */}
-              <div className="flex-1 min-w-0 space-y-1">
-                <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+              <div className="flex-1 min-w-0 space-y-2">
+                <div className="flex flex-wrap items-start gap-2">
                   <CardTitle className={cn(
                     config.title,
-                    'font-semibold tracking-tight',
-                    isPricingCard && 'text-base sm:text-lg font-bold text-foreground/90',
-                    !isPricingCard && 'truncate',
+                    'font-semibold tracking-tight leading-tight',
+                    isPricingCard && 'text-lg sm:text-xl font-bold text-foreground',
+                    !isPricingCard && 'line-clamp-2',
                   )}
                   >
                     {content.title}
                   </CardTitle>
-                  <div className="flex items-center gap-2">
-                    {content.status && (
-                      <Badge
-                        variant={content.status.variant}
-                        className="shrink-0 shadow-sm font-medium text-xs"
-                      >
-                        {content.status.label}
-                      </Badge>
-                    )}
-                    {content.badge && content.badge !== content.status && (
-                      <Badge
-                        variant={content.badge.variant}
-                        className={cn(
-                          'shrink-0 shadow-sm font-medium transition-all duration-200 text-xs',
-                          isPremium && 'bg-primary text-primary-foreground shadow-lg ring-1 ring-primary/20 px-2 sm:px-3 py-0.5 sm:py-1 font-bold uppercase tracking-wider',
-                        )}
-                      >
-                        {content.badge.label}
-                      </Badge>
-                    )}
-                  </div>
+                  {content.badge && content.badge !== content.status && (
+                    <Badge
+                      variant={content.badge.variant}
+                      className={cn(
+                        'shrink-0 shadow-sm font-medium transition-all duration-200 text-xs ml-auto',
+                        isPremium && 'bg-primary text-primary-foreground shadow-lg ring-1 ring-primary/20 px-2 sm:px-3 py-0.5 sm:py-1 font-bold uppercase tracking-wider',
+                      )}
+                    >
+                      {content.badge.label}
+                    </Badge>
+                  )}
                 </div>
                 {content.subtitle && (
                   <CardDescription className={cn(
                     config.subtitle,
-                    'truncate',
-                    isPricingCard && 'text-muted-foreground/80 font-medium',
+                    'line-clamp-2 leading-relaxed',
+                    isPricingCard && 'text-muted-foreground font-medium min-h-[2.5rem]',
                   )}
                   >
                     {content.subtitle}
@@ -348,7 +338,7 @@ export const BillingDisplayItem = React.memo<BillingDisplayItemProps>(({
                 )}
                 {content.description && (variant === 'detailed' || isPricingCard) && (
                   <CardDescription className={cn(
-                    'text-xs text-muted-foreground leading-relaxed',
+                    'text-xs text-muted-foreground leading-relaxed line-clamp-3',
                     isPricingCard && 'text-sm mt-2 text-muted-foreground/90 leading-relaxed',
                   )}
                   >
@@ -391,28 +381,28 @@ export const BillingDisplayItem = React.memo<BillingDisplayItemProps>(({
         <CardContent className={cn(
           config.content,
           style.contentClassName,
-          'relative z-10',
-          isPricingCard && 'space-y-4',
+          'relative z-10 flex flex-col flex-1',
+          isPricingCard && 'space-y-6',
         )}
         >
           {/* Primary value */}
           {content.primaryValue && (
             <div className={cn(
-              'flex flex-col sm:flex-row sm:items-center sm:justify-between py-3 px-4 rounded-lg border transition-all duration-200 gap-2',
+              'flex flex-col items-center justify-center py-6 px-4 rounded-lg border transition-all duration-200 gap-2',
               isPricingCard && 'bg-gradient-to-r from-muted/40 to-muted/20 border-muted/30 shadow-sm hover:shadow-md hover:from-muted/50 hover:to-muted/30',
               !isPricingCard && 'bg-muted/20 border-muted/40',
             )}
             >
               <span className={cn(
-                'text-xs sm:text-sm text-muted-foreground',
-                isPricingCard && 'font-medium text-muted-foreground/90 uppercase tracking-wide',
+                'text-xs text-muted-foreground',
+                isPricingCard && 'font-medium text-muted-foreground/70 uppercase tracking-wider',
               )}
               >
                 {content.primaryLabel || t('billing.amount')}
               </span>
               <span className={cn(
-                'text-xl sm:text-2xl font-bold',
-                isPricingCard && 'font-extrabold bg-gradient-to-r from-foreground to-foreground/80 bg-clip-text text-transparent drop-shadow-sm',
+                'text-2xl sm:text-3xl font-semibold text-center break-words max-w-full',
+                isPricingCard && 'font-medium tracking-tight text-foreground/90',
               )}
               >
                 {content.primaryValue}
@@ -434,7 +424,11 @@ export const BillingDisplayItem = React.memo<BillingDisplayItemProps>(({
 
           {/* Metadata */}
           {content.metadata && content.metadata.length > 0 && (
-            <div className="space-y-2">
+            <div className={cn(
+              'space-y-3',
+              isPricingCard && 'flex-1 flex flex-col justify-start',
+            )}
+            >
               {content.metadata.map((meta, metaIndex) => {
               // Check if this is a feature item (empty label with React element value)
                 const isFeatureItem = !meta.label && React.isValidElement(meta.value);
@@ -465,38 +459,39 @@ export const BillingDisplayItem = React.memo<BillingDisplayItemProps>(({
           {/* Secondary actions */}
           {content.secondaryActions && content.secondaryActions.length > 0 && (
             <div className={cn(
-              'flex flex-col sm:flex-row sm:items-center gap-2 pt-2',
-              isPricingCard && 'pt-4',
+              'flex flex-col gap-3',
+              isPricingCard ? 'pt-4' : 'sm:flex-row sm:items-center gap-2 pt-2',
             )}
             >
               {content.secondaryActions.map(action => (
                 <Button
                   key={action.label || action.icon?.toString() || 'secondary-action'}
                   variant={action.variant || 'outline'}
-                  size={action.size || 'sm'}
+                  size={isPricingCard ? 'default' : action.size || 'sm'}
                   onClick={(e) => {
                     e.stopPropagation();
                     action.onClick?.();
                   }}
                   disabled={action.disabled || action.loading}
                   className={cn(
-                    'w-full sm:flex-1 transition-all duration-200',
+                    'w-full transition-all duration-200',
+                    !isPricingCard && 'sm:flex-1',
                     config.action,
-                    isPricingCard && 'shadow-sm hover:shadow-md font-medium border-2 hover:border-primary/50 hover:bg-primary/5',
+                    isPricingCard && 'h-11 font-medium',
                   )}
                 >
-                  {action.icon && <action.icon className={cn(config.icon, 'mr-1')} />}
+                  {action.icon && <action.icon className="h-4 w-4 mr-2" />}
                   {action.label}
                 </Button>
               ))}
             </div>
           )}
 
-          {/* Primary action for pricing cards - moved to content area on mobile */}
+          {/* Primary action for pricing cards - moved to content area */}
           {content.primaryAction && isPricingCard && (
-            <div className="mt-4">
+            <div className="mt-auto pt-6">
               <Button
-                variant={content.primaryAction.variant || 'outline'}
+                variant={content.primaryAction.variant || 'default'}
                 size="lg"
                 onClick={(e) => {
                   e.stopPropagation();
@@ -504,9 +499,10 @@ export const BillingDisplayItem = React.memo<BillingDisplayItemProps>(({
                 }}
                 disabled={content.primaryAction.disabled || content.primaryAction.loading}
                 className={cn(
-                  'w-full transition-all duration-200 shadow-sm hover:shadow-md font-medium h-11',
+                  'w-full transition-all duration-200 shadow-sm hover:shadow-md font-semibold h-12 text-base',
                   isPremium && 'bg-primary text-primary-foreground hover:bg-primary/90 shadow-lg ring-1 ring-primary/20',
                   !isPremium && 'border-2 hover:border-primary/50 hover:bg-primary/5',
+                  content.primaryAction.disabled && 'opacity-60 cursor-not-allowed',
                 )}
               >
                 {content.primaryAction.icon && (
@@ -817,7 +813,7 @@ export function BillingDisplayContainer<T,>({
   itemClassName,
   onItemClick,
 }: BillingDisplayContainerProps<T>) {
-  // Grid configuration
+  // Grid configuration with improved responsive behavior
   const getGridCols = () => {
     if (columns === 'auto') {
       switch (variant) {
@@ -831,7 +827,8 @@ export function BillingDisplayContainer<T,>({
         case 'detailed':
           return 'grid-cols-1 lg:grid-cols-2';
         default:
-          return 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3';
+          // Better responsive grid for card layouts (especially pricing)
+          return 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4';
       }
     }
     // Handle specific column counts with responsive behavior
@@ -839,20 +836,20 @@ export function BillingDisplayContainer<T,>({
       case 1:
         return 'grid-cols-1';
       case 2:
-        return 'grid-cols-1 sm:grid-cols-1 md:grid-cols-2';
+        return 'grid-cols-1 md:grid-cols-2';
       case 3:
-        return 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3';
+        return 'grid-cols-1 md:grid-cols-2 xl:grid-cols-3';
       case 4:
-        return 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4';
+        return 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4';
       default:
         return `grid-cols-${columns}`;
     }
   };
 
   const gapConfig = {
-    sm: 'gap-2',
-    md: 'gap-4',
-    lg: 'gap-6',
+    sm: 'gap-4',
+    md: 'gap-6',
+    lg: 'gap-8',
   };
 
   return (
