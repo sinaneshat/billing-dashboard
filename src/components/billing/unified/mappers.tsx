@@ -418,9 +418,9 @@ export function mapPaymentMethodToContent(
 
   // Calculate expiry information
   const daysRemaining = getDaysRemaining(paymentMethod.contractExpiresAt);
-  const expiryStatus = getExpiryStatus(daysRemaining);
+  const expiryStatus = getExpiryStatus(daysRemaining, t);
   const contractAge = getContractAge(paymentMethod.createdAt);
-  const usageStats = getUsageStats(paymentMethod.lastUsedAt);
+  const usageStats = getUsageStats(paymentMethod.lastUsedAt, t);
 
   // Enhanced actions with proper conditions
   const actions: ActionConfig[] = [];

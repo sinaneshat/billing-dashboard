@@ -264,7 +264,7 @@ export function getDaysRemaining(expiryDate: Date | string | null | undefined): 
 /**
  * Get expiry status with appropriate urgency level
  */
-export function getExpiryStatus(daysRemaining: number | null): {
+export function getExpiryStatus(daysRemaining: number | null, t?: (key: string, values?: Record<string, string | number>) => string): {
   urgency: 'critical' | 'warning' | 'normal' | 'expired';
   color: string;
   message?: string;
@@ -277,28 +277,28 @@ export function getExpiryStatus(daysRemaining: number | null): {
     return {
       urgency: 'expired',
       color: 'text-red-600 dark:text-red-400',
-      message: 'Contract expired',
+      message: t ? t('paymentMethods.contractExpired') : 'Contract expired',
     };
   }
   if (daysRemaining <= 7) {
     return {
       urgency: 'critical',
       color: 'text-red-600 dark:text-red-400',
-      message: `Expires in ${daysRemaining} days`,
+      message: t ? t('paymentMethods.expiresInDays', { days: daysRemaining }) : `Expires in ${daysRemaining} days`,
     };
   }
   if (daysRemaining <= 30) {
     return {
       urgency: 'warning',
       color: 'text-yellow-600 dark:text-yellow-400',
-      message: `Expires in ${daysRemaining} days`,
+      message: t ? t('paymentMethods.expiresInDays', { days: daysRemaining }) : `Expires in ${daysRemaining} days`,
     };
   }
 
   return {
     urgency: 'normal',
     color: 'text-green-600 dark:text-green-400',
-    message: `${daysRemaining} days remaining`,
+    message: t ? t('paymentMethods.daysRemaining', { days: daysRemaining }) : `${daysRemaining} days remaining`,
   };
 }
 
@@ -350,9 +350,9 @@ export function formatContractDuration(durationDays?: number | null): string {
 /**
  * Get usage statistics message
  */
-export function getUsageStats(lastUsedAt: Date | string | null | undefined): string {
+export function getUsageStats(lastUsedAt: Date | string | null | undefined, t?: (key: string, values?: Record<string, string | number>) => string): string {
   if (!lastUsedAt) {
-    return 'Never used';
+    return t ? t('paymentMethods.neverUsed') : 'Never used';
   }
 
   const lastUsed = lastUsedAt instanceof Date ? lastUsedAt : new Date(lastUsedAt);
@@ -362,21 +362,21 @@ export function getUsageStats(lastUsedAt: Date | string | null | undefined): str
   const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
 
   if (diffDays === 0)
-    return 'Used today';
+    return t ? t('paymentMethods.usedToday') : 'Used today';
   if (diffDays === 1)
-    return 'Used yesterday';
+    return t ? t('paymentMethods.usedYesterday') : 'Used yesterday';
   if (diffDays < 7)
-    return `Used ${diffDays} days ago`;
+    return t ? t('paymentMethods.usedDaysAgo', { days: diffDays }) : `Used ${diffDays} days ago`;
   if (diffDays < 30) {
     const weeks = Math.floor(diffDays / 7);
-    return `Used ${weeks} week${weeks > 1 ? 's' : ''} ago`;
+    return t ? t('paymentMethods.usedWeeksAgo', { weeks }) : `Used ${weeks} week${weeks > 1 ? 's' : ''} ago`;
   }
   if (diffDays < 365) {
     const months = Math.floor(diffDays / 30);
-    return `Used ${months} month${months > 1 ? 's' : ''} ago`;
+    return t ? t('paymentMethods.usedMonthsAgo', { months }) : `Used ${months} month${months > 1 ? 's' : ''} ago`;
   }
 
-  return 'Used over a year ago';
+  return t ? t('paymentMethods.usedOverYearAgo') : 'Used over a year ago';
 }
 
 // =============================================================================

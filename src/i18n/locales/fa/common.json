@@ -1,4 +1,9 @@
 {
+  "1": {
+    "0": {
+      "0": "[ترجمه: 0]"
+    }
+  },
   "accessibility": {
     "breadcrumb": "مسیر پیمایش",
     "continueToBankSigning": "ادامه برای امضای قرارداد با بانک",
@@ -12,7 +17,18 @@
     "selectRow": "انتخاب ردیف",
     "settingUpContract": "در حال راه‌اندازی قرارداد...",
     "setupDirectDebitContract": "راه‌اندازی قرارداد برداشت مستقیم",
-    "toggleSidebar": "تغییر نوار کناری"
+    "toggleSidebar": "تغییر نوار کناری",
+    "disableHighContrast": "[ترجمه: DisableHighContrast]",
+    "enableHighContrast": "[ترجمه: EnableHighContrast]",
+    "highContrast": "[ترجمه: HighContrast]",
+    "enableMotion": "[ترجمه: EnableMotion]",
+    "disableMotion": "[ترجمه: DisableMotion]",
+    "reducedMotion": "[ترجمه: ReducedMotion]",
+    "normalText": "[ترجمه: NormalText]",
+    "largeText": "[ترجمه: LargeText]",
+    "openToolbar": "باز کردنtoolbar",
+    "accessibility": "[ترجمه: Accessibility]",
+    "settings": "[ترجمه: Settings]"
   },
   "actions": {
     "add": "افزودن",
@@ -54,7 +70,8 @@
     "upgrade": "ارتقاء",
     "upload": "آپلود",
     "view": "مشاهده",
-    "viewAll": "مشاهده همه"
+    "viewAll": "مشاهده همه",
+    "cancelling": "لغوling"
   },
   "auth": {
     "email": "ایمیل",
@@ -350,7 +367,14 @@
     "welcome": {
       "description": "با انتخاب یک طرح اشتراک و تنظیم روش پرداخت خود برای صورتحساب خودکار یکپارچه شروع کنید.",
       "title": "به داشبورد صورتحساب خود خوش آمدید"
-    }
+    },
+    "date": "تاریخ",
+    "${itemType}Downloaded": "${itemtype}دانلودed",
+    "${itemType}DownloadFailed": "${itemtype}دانلودfailed",
+    "${itemType}Deleted": "${itemtype}حذفd",
+    "${itemType}DeleteFailed": "${itemtype}حذفfailed",
+    "retryInitiated": "تلاش مجددinitiated",
+    "retryFailed": "تلاش مجددfailed"
   },
   "billingActions": {
     "invoiceDownloadFailed": "دانلود فاکتور ناموفق بود",
@@ -368,7 +392,8 @@
   "common": {
     "optional": "(اختیاری)",
     "or": "یا",
-    "upTo": "تا"
+    "upTo": "تا",
+    "errorOccurred": "خطاoccurred"
   },
   "confirmDialog": {
     "cancelAction": "لغو",
@@ -390,42 +415,7 @@
   },
   "currency": {
     "toman": "تومان",
-    "rial": "ریال",
-    "usd": "دلار",
-    "free": "رایگان",
-    "loading": "در حال بارگذاری قیمت...",
-    "error": "قیمت در دسترس نیست",
-    "conversionError": "تبدیل ارز ناموفق بود",
-    "conversionInfo": "اطلاعات نرخ تبدیل",
-    "exchangeRate": "نرخ تبدیل",
-    "lastUpdated": "آخرین بروزرسانی",
-    "approximate": "تقریباً",
-    "equivalent": "معادل",
-    "originalPrice": "قیمت اصلی",
-    "convertedPrice": "قیمت تبدیل شده",
-    "period": {
-      "monthly": "ماهانه",
-      "yearly": "سالانه",
-      "weekly": "هفتگی",
-      "daily": "روزانه",
-      "month": "ماه",
-      "year": "سال",
-      "week": "هفته",
-      "day": "روز"
-    },
-    "formatting": {
-      "compact": {
-        "thousand": "هزار",
-        "million": "میلیون",
-        "billion": "میلیارد"
-      }
-    },
-    "comparison": {
-      "save": "صرفه‌جویی",
-      "discount": "درصد تخفیف",
-      "wasPrice": "قبلاً",
-      "nowPrice": "اکنون"
-    }
+    "rial": "ریال"
   },
   "dashboard": {
     "description": "مدیریت صورتحساب و اشتراک‌های خود از داشبورد جامع",
@@ -745,7 +735,11 @@
     "timezone": "منطقه زمانی",
     "title": "عنوان",
     "type": "نوع",
-    "uploadFile": "آپلود فایل"
+    "uploadFile": "آپلود فایل",
+    "pickDate": "pickتاریخ",
+    "noResultsFound": "[ترجمه: NoResultsFound]",
+    "noOptionsAvailable": "[ترجمه: NoOptionsAvailable]",
+    "loading": "در حال بارگذاری"
   },
   "language": {
     "current": "زبان فعلی",
@@ -1048,169 +1042,92 @@
       "returnToDashboard": "بازگشت به داشبورد",
       "setupNotCompleted": "متأسفانه راه‌اندازی تکمیل نشد.",
       "viewBillingDashboard": "مشاهده داشبورد صورتحساب"
-    }
+    },
+    "zarinpal": "[ترجمه: Zarinpal]"
   },
   "paymentMethods": {
-    "accountHolderName": "نام صاحب حساب",
-    "accountNumber": "شماره حساب",
-    "activeContract": "قرارداد فعال",
-    "activeContracts": "قرارداد فعال",
-    "addContract": "افزودن قرارداد",
-    "addPaymentMethod": "افزودن روش پرداخت",
-    "addedOn": "اضافه شده در {date}",
-    "address": "آدرس",
-    "bankName": "نام بانک",
-    "billingAddress": "آدرس صورتحساب",
-    "cardNumber": "شماره کارت",
-    "city": "شهر",
-    "contract": "قرارداد",
-    "contracts": "قراردادها",
-    "country": "کشور",
-    "createFirstContract": "ایجاد اولین قرارداد",
-    "cvv": "CVV",
-    "defaultMethod": "پیش‌فرض",
-    "deleteConfirmDescription": "آیا مطمئن هستید که می‌خواهید این روش پرداخت را حذف کنید؟ این عمل قابل بازگشت نیست.",
-    "deleteConfirmTitle": "حذف روش پرداخت",
-    "directDebit": {
-      "title": "قرارداد برداشت مستقیم",
-      "subtitle": "صورتحساب خودکار امن با زرین‌پال",
-      "processingContract": "پردازش قرارداد برداشت مستقیم شما",
-      "verifyingContract": "تأیید قرارداد",
-      "pleaseWait": "لطفاً منتظر بمانید تا قرارداد شما را با بانک تأیید کنیم",
-      "contractActivated": "قرارداد با موفقیت فعال شد",
-      "contractActivatedDescription": "قرارداد برداشت مستقیم شما اکنون فعال است و آماده صورتحساب خودکار می‌باشد",
-      "contractDetails": "جزئیات قرارداد",
-      "bankVerified": "مجوز بانک تأیید شد",
-      "signatureStored": "امضای قرارداد به صورت امن ذخیره شد",
-      "readyForPayments": "آماده برای پرداخت‌های خودکار",
-      "referenceCode": "کد مرجع",
-      "contractFailed": "راه‌اندازی قرارداد ناموفق بود",
-      "contractFailedDescription": "نتوانستیم راه‌اندازی قرارداد را کامل کنیم",
-      "contractFailedHelp": "این ممکن است به دلیل لغو یا مشکل تأیید باشد. لطفاً دوباره تلاش کنید یا در صورت تداوم مشکل با پشتیبانی تماس بگیرید."
-    },
-    "directDebitLegacy": "برداشت مستقیم",
-    "directDebitContract": "قرارداد برداشت مستقیم",
-    "empty": "روش پرداختی وجود ندارد",
-    "emptyDescription": "برای فعال‌سازی صورتحساب خودکار اشتراک‌هایتان، روش پرداخت اضافه کنید.",
-    "errorMessages": {
-      "failedToRemove": "حذف روش پرداخت ناموفق بود",
-      "failedToUpdateDefault": "به‌روزرسانی روش پرداخت پیش‌فرض ناموفق بود",
-      "failedToSetDefault": "تنظیم روش پرداخت پیش‌فرض ناموفق بود",
-      "failedToCancelContract": "لغو قرارداد برداشت مستقیم ناموفق بود"
-    },
-    "errors": {
-      "invalidCallbackParameters": "پارامترهای callback نامعتبر",
-      "contractSigningCancelled": "امضای قرارداد لغو یا ناموفق بود",
-      "contractVerificationFailed": "تأیید قرارداد با زرین‌پال ناموفق بود",
-      "unexpectedError": "خطای غیرمنتظره‌ای رخ داد",
-      "invalidRequest": "درخواست نامعتبر"
-    },
-    "status": {
-      "active": "فعال",
-      "activeDescription": "قرارداد فعال است و آماده پرداخت‌های خودکار",
-      "pending": "در انتظار",
-      "pendingSignature": "در انتظار امضا",
-      "pendingDescription": "در انتظار امضای قرارداد بانکی",
-      "cancelled": "لغو شده",
-      "cancelledDescription": "قرارداد توسط کاربر لغو شده است",
-      "expired": "منقضی شده",
-      "expiredDescription": "قرارداد منقضی شده و نیاز به تمدید دارد",
-      "verificationFailed": "تأیید ناموفق",
-      "verificationFailedDescription": "تأیید قرارداد با بانک ناموفق بود"
-    },
-    "expired": "منقضی شده",
-    "expires": "منقضی می‌شود {date}",
-    "expiryDate": "تاریخ انقضا",
-    "iban": "شماره شبا",
-    "lastUsed": "آخرین استفاده {date}",
-    "loadingMessages": {
-      "removingPaymentMethod": "حذف روش پرداخت...",
-      "setting": "تنظیم...",
-      "updatingDefault": "به‌روزرسانی پیش‌فرض..."
-    },
-    "nameOnCard": "نام روی کارت",
-    "pending": "در انتظار تأیید",
-    "phoneNumber": "شماره تلفن",
-    "postalCode": "کد پستی",
-    "primary": "اصلی",
-    "reference": "مرجع",
-    "removePaymentMethod": "حذف روش پرداخت",
-    "setAsDefault": "تنظیم به عنوان پیش‌فرض",
-    "setDefaultConfirmDescription": "این روش پرداخت برای همه پرداخت‌های آینده استفاده می‌شود.",
-    "setDefaultConfirmTitle": "تنظیم به عنوان پیش‌فرض",
-    "setPrimary": "تنظیم اصلی",
-    "state": "استان",
-    "subtitle": "روش‌های پرداخت و اطلاعات صورتحساب خود را مدیریت کنید",
-    "manageDirectDebitContracts": "قراردادهای برداشت مستقیم خود را مدیریت کنید و روش پرداخت پیش‌فرض تنظیم کنید",
-    "successMessages": {
-      "contractCancelled": "قرارداد برداشت مستقیم با موفقیت لغو شد",
-      "defaultPaymentMethodUpdated": "روش پرداخت پیش‌فرض به‌روزرسانی شد",
-      "defaultMethodSet": "روش پرداخت پیش‌فرض با موفقیت تنظیم شد",
-      "directDebitContractCreated": "قرارداد برداشت مستقیم با موفقیت ایجاد شد!",
-      "paymentMethodRemoved": "روش پرداخت با موفقیت حذف شد",
-      "contractRecovered": "روش پرداخت با موفقیت بازیابی شد"
-    },
-    "success": {
-      "contractRecovered": "روش پرداخت شما با موفقیت بازیابی و فعال شد"
-    },
-    "actions": {
-      "viewPaymentMethods": "مشاهده روش‌های پرداخت",
-      "setupNewContract": "راه‌اندازی قرارداد جدید",
-      "tryAgain": "تلاش مجدد",
-      "returnToDashboard": "بازگشت به داشبورد"
-    },
-    "table": {
-      "actions": {
-        "managePermissions": "مدیریت مجوزها",
-        "openActions": "باز کردن عملیات روش پرداخت",
-        "removeMethod": "حذف روش",
-        "setAsDefault": "تنظیم به عنوان پیش‌فرض",
-        "viewContract": "مشاهده قرارداد"
-      },
-      "addMethod": "افزودن روش",
-      "directDebitContract": "قرارداد برداشت مستقیم",
-      "emptyStateDescription": "هنوز هیچ روش پرداختی اضافه نکرده‌اید. برای شروع یکی اضافه کنید.",
-      "emptyStateTitle": "روش پرداختی وجود ندارد",
-      "filters": {
-        "allStatus": "همه وضعیت‌ها",
-        "allTypes": "همه انواع",
-        "secondary": "ثانویه",
-        "selectStatus": "انتخاب وضعیت",
-        "signed": "امضا شده"
-      },
-      "lastUsed": "آخرین استفاده",
-      "mobile": "موبایل",
-      "never": "هرگز",
-      "paymentMethod": "روش پرداخت",
-      "searchPlaceholder": "جستجوی روش‌های پرداخت...",
-      "tableAriaLabel": "جدول روش‌های پرداخت",
-      "tabs": {
-        "active": "فعال",
-        "allMethods": "همه روش‌ها",
-        "inactive": "غیرفعال"
-      }
-    },
     "title": "روش‌های پرداخت",
-    "unverified": "تأیید نشده",
-    "updatePaymentMethod": "به‌روزرسانی روش پرداخت",
-    "verified": "تأیید شده",
-    "zarinpal": "زرین‌پال",
+    "subtitle": "مدیریت مجوزهای بانکی و قراردادهای برداشت مستقیم",
+    "empty": "روش پرداختی وجود ندارد",
+    "emptyDescription": "یک روش پرداخت اضافه کنید تا صورتحساب خودکار فعال شود",
+    "addPaymentMethod": "افزودن روش پرداخت",
+    "createFirstContract": "راه‌اندازی اولین مجوز بانکی",
+    "setAsDefault": "تنظیم به عنوان پیش‌فرض",
+    "primary": "اصلی",
+    "primaryDescription": "روش پرداخت پیش‌فرض شما برای صورتحساب خودکار",
+    "defaultMethod": "روش پرداخت پیش‌فرض",
+    "directDebit": {
+      "contractDetails": "جزئیات قرارداد",
+      "bankVerified": "تایید شده توسط بانک",
+      "signatureStored": "امضا ذخیره شده",
+      "readyForPayments": "آماده برای پرداخت‌های خودکار",
+      "referenceCode": "کد مرجع"
+    },
     "zarinpalDirectDebit": "برداشت مستقیم زرین‌پال",
-    "limits": "محدودیت‌های تراکنش",
-    "transactionLimits": "محدودیت‌های تراکنش",
-    "maxTransaction": "حداکثر هر تراکنش",
-    "maxDaily": "حداکثر مبلغ روزانه",
-    "maxDailyTransactions": "حداکثر تراکنش روزانه",
-    "maxMonthlyTransactions": "حداکثر تراکنش ماهانه",
-    "transactions": "تراکنش",
-    "contractExpirationInfo": "قرارداد پس از این تاریخ نیاز به تمدید خواهد داشت",
-    "pendingSignature": "در انتظار امضا",
-    "cancelled": "لغو شده",
+    "bank": "بانک",
+    "mobile": "موبایل",
+    "phoneNumber": "شماره تلفن",
+    "contractId": "شناسه قرارداد",
+    "reference": "مرجع",
+    "duration": "مدت زمان",
+    "validity": "اعتبار",
+    "expiryDate": "تاریخ انقضا",
+    "usage": "وضعیت استفاده",
+    "established": "ایجاد شده",
+    "verified": "تایید شده توسط بانک",
+    "contractDuration": "مدت قرارداد",
+    "days": "روز",
+    "expiringIn": "منقضی می‌شود در",
+    "validFor": "معتبر برای",
+    "expired": "منقضی شده",
+    "contractExpired": "قرارداد منقضی شده است",
+    "expiresInDays": "در {days} روز منقضی می‌شود",
+    "daysRemaining": "{days} روز باقیمانده",
+    "neverUsed": "هرگز استفاده نشده",
+    "usedToday": "امروز استفاده شد",
+    "usedYesterday": "دیروز استفاده شد",
+    "usedDaysAgo": "{days} روز قبل استفاده شد",
+    "usedWeeksAgo": "{weeks} هفته قبل استفاده شد",
+    "usedMonthsAgo": "{months} ماه قبل استفاده شد",
+    "usedOverYearAgo": "بیش از یک سال قبل استفاده شد",
+    "perTransactionLimit": "محدودیت هر تراکنش",
+    "dailyLimit": "محدودیت روزانه",
+    "dailyTransactions": "تراکنش‌های روزانه",
+    "monthlyTransactions": "تراکنش‌های ماهانه",
     "maxTransactionAmount": "حداکثر مبلغ تراکنش",
     "maxDailyAmount": "حداکثر مبلغ روزانه",
-    "maxDailyCount": "حداکثر تراکنش روزانه",
-    "maxMonthlyCount": "حداکثر تراکنش ماهانه",
-    "contractDuration": "مدت قرارداد"
+    "maxDailyCount": "حداکثر تعداد روزانه",
+    "maxMonthlyCount": "حداکثر تعداد ماهانه",
+    "limits": "محدودیت‌های تراکنش",
+    "transactionLimits": "محدودیت‌های تراکنش",
+    "status": {
+      "active": "فعال",
+      "activeDescription": "آماده برای پرداخت‌های خودکار",
+      "pendingSignature": "در انتظار امضا",
+      "pendingDescription": "در انتظار مجوز بانک",
+      "cancelled": "لغو شده",
+      "cancelledDescription": "قرارداد توسط کاربر لغو شده",
+      "verificationFailed": "تایید ناموفق",
+      "verificationFailedDescription": "تایید بانک ناموفق بود",
+      "expired": "منقضی شده",
+      "expiredDescription": "قرارداد منقضی شده و نیاز به تمدید دارد"
+    },
+    "successMessages": {
+      "contractCancelled": "روش پرداخت با موفقیت حذف شد",
+      "defaultMethodSet": "روش پرداخت پیش‌فرض به‌روزرسانی شد",
+      "contractSetup": "مجوز بانکی با موفقیت راه‌اندازی شد"
+    },
+    "errorMessages": {
+      "failedToCancelContract": "حذف روش پرداخت ناموفق بود",
+      "failedToSetDefault": "تنظیم روش پرداخت پیش‌فرض ناموفق بود",
+      "failedToSetupContract": "راه‌اندازی مجوز بانکی ناموفق بود"
+    },
+    "contractExpirationInfo": "قبل از این تاریخ باید تمدید کنید",
+    "expires": "منقضی می‌شود {date}",
+    "addedOn": "اضافه شده در {date}",
+    "table": {
+      "lastUsed": "آخرین استفاده"
+    }
   },
   "paymentWizard": {
     "allReady": "همه چیز آماده است!",
@@ -1251,55 +1168,7 @@
     },
     "zarinpalDirectPayment": "زرین‌پال (پرداخت مستقیم)"
   },
-  "payments": {
-    "allTime": "همه زمان‌ها",
-    "amount": "مبلغ",
-    "cancelled": "لغو شده",
-    "date": "تاریخ",
-    "description": "توضیحات",
-    "dispute": "اعتراض به پرداخت",
-    "disputed": "مورد اختلاف",
-    "downloadInvoice": "دانلود فاکتور",
-    "downloadReceipt": "دانلود رسید",
-    "empty": "تاریخچه پرداختی وجود ندارد",
-    "emptyDescription": "تراکنش‌های پرداخت شما پس از اولین خرید اینجا نمایش داده می‌شود.",
-    "failed": "ناموفق",
-    "failureReason": "دلیل ناموفق بودن",
-    "filter": "فیلتر",
-    "filterByDate": "فیلتر بر اساس تاریخ",
-    "filterByMethod": "فیلتر بر اساس روش پرداخت",
-    "filterByStatus": "فیلتر بر اساس وضعیت",
-    "invoice": "فاکتور",
-    "invoiceDownloadFailed": "دانلود فاکتور ناموفق بود",
-    "invoiceDownloaded": "فاکتور با موفقیت دانلود شد",
-    "invoiceNumber": "شماره فاکتور",
-    "lastMonth": "ماه گذشته",
-    "method": "روش پرداخت",
-    "payment": "پرداخت",
-    "payments": "پرداخت‌ها",
-    "pending": "در انتظار",
-    "processing": "در حال پردازش",
-    "receipt": "رسید",
-    "receiptDownloadFailed": "دانلود رسید ناموفق بود",
-    "receiptDownloaded": "رسید با موفقیت دانلود شد",
-    "reference": "مرجع",
-    "refundRequest": "درخواست بازپرداخت",
-    "refunded": "بازپرداخت شده",
-    "retryFailed": "تلاش مجدد پرداخت ناموفق بود",
-    "retryInitiated": "تلاش مجدد پرداخت با موفقیت آغاز شد",
-    "searchTransactions": "جستجوی تراکنش‌ها...",
-    "status": "وضعیت",
-    "subtitle": "تراکنش‌های پرداخت و فاکتورهای خود را مشاهده کنید",
-    "successful": "موفق",
-    "thisMonth": "این ماه",
-    "thisYear": "امسال",
-    "title": "تاریخچه پرداخت‌ها",
-    "totalPaid": "کل پرداخت شده",
-    "totalRefunded": "کل بازپرداخت شده",
-    "transaction": "تراکنش",
-    "transactionId": "شناسه تراکنش",
-    "viewDetails": "مشاهده جزئیات"
-  },
+  "payments": "[ترجمه: Payments]",
   "placeholders": {
     "chooseFile": "فایل انتخاب کنید",
     "enterAmount": "مبلغ را وارد کنید",
@@ -1423,7 +1292,8 @@
           "premiumModels": "مدل‌های هوش مصنوعی پریمیوم"
         },
         "name": "شروع"
-      }
+      },
+      "${isFree ? ": "[ترجمه: ${IsFree ? ]"
     },
     "pricingDescription": "همه قیمت‌ها با نرخ ارز زنده محاسبه می‌شوند. رایگان شروع کنید و با رشد ارتقاء دهید.",
     "pricingLabel": "قیمت‌گذاری",
@@ -1469,9 +1339,7 @@
   "product": {
     "unknown": "محصول نامشخص"
   },
-  "products": {
-    "unknownProduct": "محصول نامشخص"
-  },
+  "products": "[ترجمه: Products]",
   "screenReader": {
     "alert": "هشدار",
     "currentPage": "صفحه فعلی {page} از {total}",
@@ -1565,7 +1433,9 @@
       "tryAgain": "دوباره تلاش کنید",
       "unauthorized": "دسترسی غیرمجاز",
       "unauthorizedDescription": "شما اجازه دسترسی به این منبع را ندارید.",
-      "unexpectedError": "خطای غیرمنتظره‌ای رخ داد. لطفاً دوباره تلاش کنید."
+      "unexpectedError": "خطای غیرمنتظره‌ای رخ داد. لطفاً دوباره تلاش کنید.",
+      "loadPaymentMethods": "[ترجمه: LoadPaymentMethods]",
+      "loadPaymentMethodsDescription": "[ترجمه: LoadPaymentMethodsDescription]"
     },
     "loading": {
       "default": "در حال بارگذاری...",
@@ -1575,7 +1445,8 @@
       "please_wait": "لطفاً منتظر بمانید تا داده‌های شما بارگذاری شود...",
       "products": "در حال بارگذاری طرح‌ها...",
       "subscriptions": "در حال بارگذاری اشتراک‌ها...",
-      "upcoming_bills": "در حال بارگذاری صورتحساب‌های آینده..."
+      "upcoming_bills": "در حال بارگذاری صورتحساب‌های آینده...",
+      "paymentMethods": "[ترجمه: PaymentMethods]"
     },
     "success": {
       "created": "با موفقیت ایجاد شد",
@@ -1590,154 +1461,8 @@
       "uploaded": "با موفقیت آپلود شد"
     }
   },
-  "status": {
-    "active": "فعال",
-    "approved": "تایید شده",
-    "basic": "پایه",
-    "cancelled": "لغو شده",
-    "completed": "تکمیل شده",
-    "current": "فعلی",
-    "currentPlan": "طرح فعلی",
-    "contract": {
-      "draft": "پیش‌نویس قرارداد",
-      "expired": "قرارداد منقضی شده",
-      "pending": "قرارداد در انتظار",
-      "rejected": "قرارداد رد شده",
-      "signed": "قرارداد امضا شده"
-    },
-    "default": {
-      "active": "فعال",
-      "inactive": "غیرفعال",
-      "primary": "اولیه"
-    },
-    "due": "سررسید",
-    "error": "خطا",
-    "expired": "منقضی شده",
-    "failed": "ناموفق",
-    "inactive": "غیرفعال",
-    "info": "اطلاعات",
-    "overdue": "سررسید گذشته",
-    "paid": "پرداخت شده",
-    "payment": {
-      "canceled": "پرداخت لغو شده",
-      "completed": "پرداخت تکمیل شده",
-      "failed": "پرداخت ناموفق",
-      "pending": "پرداخت در انتظار",
-      "processing": "پرداخت در حال پردازش"
-    },
-    "pending": "در انتظار",
-    "premium": "پریمیوم",
-    "pro": "حرفه‌ای",
-    "processing": "در حال پردازش",
-    "rejected": "رد شده",
-    "subscription": {
-      "active": "اشتراک فعال",
-      "canceled": "اشتراک لغو شده",
-      "expired": "اشتراک منقضی شده",
-      "inactive": "اشتراک غیرفعال",
-      "pending": "اشتراک در انتظار"
-    },
-    "success": "موفق",
-    "trial": "آزمایشی",
-    "unpaid": "پرداخت نشده",
-    "upcoming": "آینده",
-    "verified": "تأیید شده",
-    "warning": "هشدار"
-  },
-  "subscription": {
-    "activateSubscription": "فعال‌سازی اشتراک",
-    "activationError": "فعال‌سازی اشتراک ناموفق بود",
-    "activationFailed": "فعال‌سازی اشتراک ناموفق بود",
-    "activationSuccess": "اشتراک شما با موفقیت فعال شد!",
-    "active": "اشتراک فعال",
-    "annual": "سالانه",
-    "annualComingSoon": "طرح‌های سالانه به زودی",
-    "annualDescription": "طرح‌های اشتراک سالانه با تخفیف‌های ویژه به زودی در دسترس خواهند بود.",
-    "autoRenewalEnabled": "تمدید خودکار فعال",
-    "billingInDays": "صورتحساب در {days} روز",
-    "cancel": "لغو اشتراک",
-    "cancelFailed": "لغو اشتراک ناموفق بود",
-    "cancelSuccess": "اشتراک با موفقیت لغو شد",
-    "cancellationReason": "درخواست لغو اشتراک توسط کاربر",
-    "cancelledByUser": "لغو شده توسط کاربر",
-    "cancelling": "در حال لغو...",
-    "cancelled": "لغو شده",
-    "cancelledOn": "لغو شده در {date}",
-    "change": "تغییر طرح",
-    "continueWithSetup": "ادامه راه‌اندازی",
-    "createFailed": "ایجاد اشتراک ناموفق بود",
-    "createSuccess": "اشتراک شما با موفقیت ایجاد شد!",
-    "createSuccessWithPayment": "اشتراک فعال شد و پرداخت با موفقیت انجام شد! مبلغ: {amount} ریال (کد پیگیری: {refId})",
-    "paymentFailed": "پرداخت ناموفق بود. لطفاً دوباره تلاش کنید.",
-    "paymentFailedInsufficientFunds": "پرداخت به دلیل عدم کفایت موجودی ناموفق بود. لطفاً موجودی حساب خود را بررسی کنید.",
-    "paymentMethodError": "خطا در روش پرداخت. لطفاً قرارداد برداشت مستقیم خود را بررسی کنید.",
-    "planChangeFailed": "تغییر طرح اشتراک ناموفق بود",
-    "planChangeSuccess": "طرح اشتراک با موفقیت تغییر کرد",
-    "default": "اشتراک",
-    "description": "طرح‌های اشتراک مناسب برای نیازهای خود انتخاب کنید و با روش‌های پرداخت امن زرین‌پال پرداخت کنید",
-    "downgrade": "تنزل طرح",
-    "downloadInvoice": "دانلود فاکتور",
-    "empty": "اشتراک فعالی وجود ندارد",
-    "emptyDescription": "هنوز اشتراک فعالی ندارید. طرح‌های ما را مرور کنید تا شروع کنید.",
-    "endDate": "تاریخ پایان",
-    "expired": "منقضی شده",
-    "expiredOn": "منقضی شده در {date}",
-    "features": "ویژگی‌ها",
-    "inactive": "غیرفعال",
-    "invoiceDownloadFailed": "دانلود فاکتور ناموفق بود",
-    "invoiceDownloaded": "فاکتور با موفقیت دانلود شد",
-    "limits": "محدودیت‌ها",
-    "loadingSubscription": "بارگذاری اشتراک...",
-    "manage": "مدیریت اشتراک",
-    "managementFailed": "باز کردن مدیریت اشتراک ناموفق بود",
-    "monthly": "ماهانه",
-    "nextBilling": "صورتحساب بعدی",
-    "noActive": "اشتراک فعالی وجود ندارد",
-    "paymentMethod": "روش پرداخت",
-    "noPlans": "طرحی در دسترس نیست",
-    "noPlansDescription": "در حال حاضر طرح اشتراکی موجود نیست. لطفاً بعداً بررسی کنید.",
-    "openSubscriptionActions": "باز کردن عملیات اشتراک",
-    "pause": "توقف اشتراک",
-    "paymentMethodRequired": "راه‌اندازی روش پرداخت لازم است",
-    "paymentMethodRequiredDescription": "برای ایجاد اشتراک، ابتدا باید روش پرداخت خود را راه‌اندازی کنید.",
-    "paymentSetupComplete": "راه‌اندازی پرداخت تکمیل شد",
-    "paymentSetupSuccess": "روش پرداخت با موفقیت راه‌اندازی شد",
-    "perMonth": "در ماه",
-    "plan": "طرح",
-    "premiumPlan": "طرح ویژه با امکانات پیشرفته",
-    "price": "قیمت",
-    "productNotFound": "محصول یافت نشد",
-    "renew": "تمدید اشتراک",
-    "renewsOn": "تمدید در {date}",
-    "resume": "ادامه اشتراک",
-    "selectedPlan": "طرح انتخابی",
-    "setupPayment": "راه‌اندازی روش پرداخت",
-    "setupPaymentFirst": "ابتدا روش پرداخت راه‌اندازی کنید",
-    "setupPaymentMethod": "راه‌اندازی روش پرداخت",
-    "startDate": "تاریخ شروع",
-    "subscription": "اشتراک",
-    "subscriptionCount_one": "اشتراک",
-    "subscriptionCount_other": "اشتراک",
-    "subscriptionService": "سرویس اشتراک",
-    "subscriptions": "اشتراک‌ها",
-    "success": {
-      "description": "اشتراک شما با موفقیت فعال شده و روش پرداخت تنظیم شده است. اکنون می‌توانید از تمام امکانات استفاده کنید.",
-      "goToDashboard": "رفتن به داشبورد",
-      "title": "اشتراک با موفقیت فعال شد!"
-    },
-    "title": "اشتراک‌ها",
-    "toBeDecided": "تعیین نشده",
-    "trial": "دوره آزمایشی",
-    "trialEnds": "آزمایشی در {date} پایان می‌یابد",
-    "unknownPlan": "طرح نامشخص",
-    "unknownProduct": "محصول نامشخص",
-    "upgrade": "ارتقاء طرح",
-    "usage": "استفاده",
-    "usageViewFailed": "مشاهده استفاده از اشتراک ناموفق بود",
-    "userCancellationReason": "درخواست لغو توسط کاربر",
-    "viewUsage": "مشاهده استفاده",
-    "yourSubscriptions": "اشتراک‌های شما"
-  },
+  "status": "وضعیت",
+  "subscription": "[ترجمه: Subscription]",
   "table": {
     "columns": "ستون‌ها",
     "dataTable": "جدول داده‌ها",
@@ -1928,94 +1653,229 @@
     "urlFormat": "لطفاً آدرس اینترنتی معتبر وارد کنید",
     "weakPassword": "رمز عبور بیش از حد ضعیف است"
   },
-  "zarinpal": {
-    "contract": {
-      "amount": "۵۰۰,۰۰۰ تومان",
-      "dailyLimit": "حداکثر روزانه:",
-      "dailyTransaction": "تراکنش روزانه:",
-      "duration": "مدت قرارداد:",
-      "monthlyTransaction": "تراکنش ماهانه:",
-      "ready": "قرارداد آماده شد!",
-      "readyDescription": "حالا بانک مورد نظر خود را انتخاب کنید تا به سایت بانک منتقل شوید.",
-      "securityDescription": "پس از انتخاب بانک، به سایت رسمی بانک منتقل می‌شوید و قرارداد را در محیط امن بانک امضا خواهید کرد.",
-      "securityGuaranteed": "امنیت تضمین شده",
-      "selectBank": "انتخاب بانک",
-      "selectBankPlaceholder": "بانک خود را انتخاب کنید...",
-      "transferToBank": "انتقال به بانک"
+  "zarinpal": "[ترجمه: Zarinpal]",
+  "@/api/common/storage-keys": "[ترجمه: @/Api/Common/Storage-Keys]",
+  "NEXT_LOCALE": "بعدی locale",
+  "": {
+    "/locales/${locale}/common": {
+      "json": "[ترجمه: Json]"
     },
-    "errors": {
-      "-10": {
-        "action": "با پشتیبانی فنی تماس بگیرید تا تنظیمات پذیرنده را بررسی کنند",
-        "message": "خطا در تنظیمات سیستم پرداخت. لطفاً با پشتیبانی تماس بگیرید.",
-        "title": "IP نامعتبر یا تنظیمات پذیرنده"
-      },
-      "-11": {
-        "action": "با پشتیبانی تماس بگیرید تا حساب پذیرنده را فعال کنند",
-        "message": "حساب پذیرنده فعال نیست. لطفاً با پشتیبانی تماس بگیرید.",
-        "title": "پذیرنده فعال نیست"
-      },
-      "-9": {
-        "action": "تلاش مجدد با همین یا روش پرداخت دیگر",
-        "message": "تراکنش پرداخت با شکست مواجه شد. لطفاً مجدداً تلاش کنید.",
-        "title": "خطا در تراکنش"
-      }
+    "/locales/${requestLocale}/common": {
+      "json": "[ترجمه: Json]"
     },
+    "/scheduled/monthly-billing": "/scheduled/ماهly-billing",
+    "/unified": "[ترجمه: /Unified]",
+    "/local": {
+      "db": "[ترجمه: Db]"
+    },
+    "/src/db/migrations": "[ترجمه: /Src/Db/Migrations]",
+    "": "[ترجمه: ]"
+  },
+  "metadata": "[ترجمه: Metadata]",
+  "en-US": "[ترجمه: En-US]",
+  "/dashboard": "[ترجمه: /Dashboard]",
+  "/auth/sign-in": "[ترجمه: /Auth/Sign-In]",
+  "Payload Too Large": "[ترجمه: Payload Too Large]",
+  "/openapi": {
+    "json": "[ترجمه: Json]"
+  },
+  "/api/v1/doc": "[ترجمه: /Api/V1/Doc]",
+  "/scalar": "[ترجمه: /Scalar]",
+  "/llms": {
+    "txt": "[ترجمه: Txt]"
+  },
+  "LLMs document unavailable": "[ترجمه: LLMs Document Unavailable]",
+  "@": "[ترجمه: @]",
+  "+": "[ترجمه: +]",
+  "@/emails/templates": "@/ایمیلs/templates",
+  "organizations": "[ترجمه: Organizations]",
+  "users": "[ترجمه: Users]",
+  "subscriptions": "[ترجمه: Subscriptions]",
+  "id": "[ترجمه: Id]",
+  "name": "نام",
+  "url": "[ترجمه: Url]",
+  "secret_key": "[ترجمه: Secret Key]",
+  "enabled_events": "[ترجمه: Enabled Events]",
+  "[": "[ترجمه: []",
+  "webhook_event_id": "[ترجمه: Webhook Event Id]",
+  "endpoint_id": "[ترجمه: Endpoint Id]",
+  "response_body": "[ترجمه: Response Body]",
+  "response_headers": "[ترجمه: Response Headers]",
+  "error_message": "خطا message",
+  "error_type": "خطا type",
+  "billing_period": "[ترجمه: Billing Period]",
+  "one_time": "one زمان",
+  "roundtable_id": "[ترجمه: Roundtable Id]",
+  "features": "[ترجمه: Features]",
+  "stripe_product_id": "[ترجمه: Stripe Product Id]",
+  "stripe_price_id": "stripe قیمت id",
+  "usage_type": "استفاده type",
+  "system_prompt_id": "[ترجمه: System Prompt Id]",
+  "user_id": "[ترجمه: User Id]",
+  "contract_type": "قرارداد type",
+  "pending_contract": "pending قرارداد",
+  "contract_signature_encrypted": "قرارداد signature encrypted",
+  "contract_signature_hash": "قرارداد signature hash",
+  "contract_status": "قرارداد status",
+  "pending_signature": "[ترجمه: Pending Signature]",
+  "payman_authority": "[ترجمه: Payman Authority]",
+  "contract_display_name": "قرارداد display name",
+  "Direct Debit Contract": "direct debit قرارداد",
+  "contract_mobile": "contract موبایل",
+  "contract_ssn": "قرارداد ssn",
+  "bank_code": "بانک code",
+  "product_id": "[ترجمه: Product Id]",
+  "pending": "[ترجمه: Pending]",
+  "payment_method_id": "[ترجمه: Payment Method Id]",
+  "cancellation_reason": "لغوlation reason",
+  "subscription_id": "[ترجمه: Subscription Id]",
+  "IRR": "[ترجمه: IRR]",
+  "payment_method": "[ترجمه: Payment Method]",
+  "zarinpal_authority": "[ترجمه: Zarinpal Authority]",
+  "zarinpal_ref_id": "[ترجمه: Zarinpal Ref Id]",
+  "zarinpal_card_hash": "[ترجمه: Zarinpal Card Hash]",
+  "failure_reason": "[ترجمه: Failure Reason]",
+  "payment_id": "[ترجمه: Payment Id]",
+  "event_type": "[ترجمه: Event Type]",
+  "event_data": "[ترجمه: Event Data]",
+  "severity": "[ترجمه: Severity]",
+  "info": "اطلاعات",
+  "source": "[ترجمه: Source]",
+  "raw_payload": "[ترجمه: Raw Payload]",
+  "external_webhook_url": "[ترجمه: External Webhook Url]",
+  "processing_error": "processing خطا",
+  "forwarding_error": "forwarding خطا",
+  "email": "ایمیل",
+  "image": "[ترجمه: Image]",
+  "role": "[ترجمه: Role]",
+  "ban_reason": "[ترجمه: Ban Reason]",
+  "token": "[ترجمه: Token]",
+  "ip_address": "ip افزودنress",
+  "user_agent": "[ترجمه: User Agent]",
+  "impersonated_by": "[ترجمه: Impersonated By]",
+  "account_id": "[ترجمه: Account Id]",
+  "provider_id": "[ترجمه: Provider Id]",
+  "access_token": "[ترجمه: Access Token]",
+  "refresh_token": "بازخوانی token",
+  "id_token": "[ترجمه: Id Token]",
+  "scope": "[ترجمه: Scope]",
+  "password": "رمز عبور",
+  "identifier": "[ترجمه: Identifier]",
+  "value": "[ترجمه: Value]",
+  "terms": {
+    "title": "[ترجمه: Title]",
+    "description": "[ترجمه: Description]"
+  },
+  "privacy": {
+    "title": "[ترجمه: Title]",
+    "description": "[ترجمه: Description]"
+  },
+  "toggle": "[ترجمه: Toggle]",
+  "light": "[ترجمه: Light]",
+  "dark": "[ترجمه: Dark]",
+  "system": "[ترجمه: System]",
+  "priority": {
+    "${priority}": "[ترجمه: ${Priority}]"
+  },
+  "roles": {
+    "${role}": "[ترجمه: ${Role}]"
+  },
+  "sectionTitle": "[ترجمه: SectionTitle]",
+  "sectionMessage": "[ترجمه: SectionMessage]",
+  "sectionUnavailable": "[ترجمه: SectionUnavailable]",
+  "sectionDescription": "[ترجمه: SectionDescription]",
+  "componentError": "componentخطا",
+  "componentUnavailable": "[ترجمه: ComponentUnavailable]",
+  "pageTitle": "[ترجمه: PageTitle]",
+  "pageDescription": "[ترجمه: PageDescription]",
+  "copyErrorDetails": "copyخطاdetails",
+  "errorDetailsCopied": "خطاdetailscopied",
+  "errorDetailsCopyFailed": "خطاdetailscopyfailed",
+  "refreshPage": "بازخوانیpage",
+  "refreshing": "بازخوانیing",
+  "goHome": "[ترجمه: GoHome]",
+  "retrying": "تلاش مجددing",
+  "retry": "تلاش مجدد",
+  " ": "[ترجمه:  ]",
+  "empty": {
+    "plansDescription": "[ترجمه: PlansDescription]"
+  },
+  "SHA-256": "[ترجمه: SHA-256]",
+  "desc": "[ترجمه: Desc]",
+  "session": "[ترجمه: Session]",
+  "content-type": "[ترجمه: Content-Type]",
+  "content-length": "[ترجمه: Content-Length]",
+  "fileSize": "[ترجمه: FileSize]",
+  "@opennextjs/cloudflare": "@openبعدیjs/cloudflare",
+  "retry-after": "تلاش مجدد-after",
+  "@/db": "[ترجمه: @/Db]",
+  "requestId": "[ترجمه: RequestId]",
+  "Retry-After": "تلاش مجدد-after",
+  "X-Error-ID": "x-خطا-id",
+  "X-Error-Category": "x-خطا-category",
+  "Amount must be a whole number": "مبلغ must be a whole number",
+  "startTime": "startزمان",
+  "correlationId": "[ترجمه: CorrelationId]",
+  "@/lib/auth/server": "[ترجمه: @/Lib/Auth/Server]",
+  "development": "[ترجمه: Development]",
+  "Roundtable Billing Dashboard": "[ترجمه: Roundtable Billing Dashboard]",
+  "/api": "[ترجمه: /Api]",
+  "v1": "[ترجمه: V1]",
+  "roundtable-session": "[ترجمه: Roundtable-Session]",
+  "v4": "[ترجمه: V4]",
+  "resend": "[ترجمه: Resend]",
+  "image/*,application/pdf": "[ترجمه: Image/*,Application/Pdf]",
+  "json": "[ترجمه: Json]",
+  "x-correlation-id": "[ترجمه: X-Correlation-Id]",
+  "next/headers": "بعدی/headers",
+  "@/lib/email/ses-service": "@/lib/ایمیل/ses-service",
+  "error": "خطا",
+  "${baseKey}": {
     "features": {
-      "control": {
-        "description": "امکان لغو در هر زمان",
-        "title": "کنترل کامل"
-      },
-      "easy": {
-        "description": "بدون نیاز به ورود اطلاعات کارت",
-        "title": "پرداخت آسان"
-      },
-      "secure": {
-        "description": "تأیید شده توسط بانک مرکزی",
-        "title": "امن و قابل اعتماد"
-      }
-    },
-    "process": {
-      "returnConfirm": "بازگشت و تأیید نهایی",
-      "selectBank": "انتخاب بانک مورد نظر",
-      "signContract": "امضای قرارداد در سایت بانک",
-      "steps": "مراحل راه‌اندازی"
-    },
-    "setup": {
-      "easySecurePayment": "پرداخت آسان و امن بدون نیاز به وارد کردن اطلاعات کارت",
-      "setupDirectPayment": "راه‌اندازی پرداخت مستقیم زرین‌پال",
-      "startSetup": "شروع راه‌اندازی"
-    },
-    "statuses": {
-      "continue": "ادامه",
-      "creating": "در حال ایجاد..."
-    },
-    "steps": {
-      "about": "درباره پرداخت مستقیم",
-      "bankSelection": "انتخاب بانک",
-      "bankSelectionDescription": "بانک مورد نظر",
-      "contractSigning": "امضای قرارداد",
-      "contractSigningDescription": "تأیید در بانک"
-    },
-    "success": {
-      "benefits": [
-        "• قرارداد پرداخت مستقیم با بانک فعال شد",
-        "• اشتراک‌های شما خودکار تمدید می‌شوند",
-        "• می‌توانید در هر زمان قرارداد را لغو کنید"
-      ],
-      "description": "پرداخت مستقیم شما راه‌اندازی شد و آماده استفاده است.",
-      "title": "قرارداد با موفقیت فعال شد!"
-    },
-    "transfer": {
-      "description": "لطفاً صبر کنید، شما به سایت امن بانک منتقل می‌شوید...",
-      "instructions": [
-        "• قرارداد را در سایت بانک امضا کنید",
-        "• پس از امضا، به همین صفحه بازخواهید گشت"
-      ],
-      "title": "در حال انتقال به بانک"
-    },
-    "verification": {
-      "description": "قرارداد شما در حال بررسی و تأیید است...",
-      "title": "در حال تأیید قرارداد"
+      "messagesPerMonth": "messagesperماه",
+      "aiModels": "[ترجمه: AiModels]",
+      "conversationsPerMonth": "conversationsperماه",
+      "basicSupport": "[ترجمه: BasicSupport]",
+      "premiumModels": "[ترجمه: PremiumModels]"
     }
-  }
+  },
+  "today": "امروز",
+  "daysAgo": "روز قبل",
+  "transactions": "تراکنش",
+  "days": "روز",
+  "hex": "[ترجمه: Hex]",
+  "Webhook rate limit exceeded": "[ترجمه: Webhook Rate Limit Exceeded]",
+  "Invalid content type for webhook": "[ترجمه: Invalid Content Type For Webhook]",
+  "@/db/tables/auth": "[ترجمه: @/Db/Tables/Auth]",
+  "Rial amounts must be whole numbers": "ریال amounts must be whole numbers",
+  "Payment method is not active": "[ترجمه: Payment Method Is Not Active]",
+  "Payment method contract is not active": "payment method قرارداد is not active",
+  "Payment method contract signature is invalid": "payment method قرارداد signature is invalid",
+  "Failed to get banks list": "failed to get بانکs list",
+  "Failed to create contract with ZarinPal": "failed to create قرارداد with zarinpal",
+  "Contract signing was not successful": "قرارداد signing was not successful",
+  "Failed to verify contract signature": "failed to verify قرارداد signature",
+  "Not a direct debit contract": "not a direct debit قرارداد",
+  "Cannot delete payment method: active subscriptions exist": "cannot حذف payment method: active subscriptions exist",
+  ";": "[ترجمه: ;]",
+  "=": "[ترجمه: =]",
+  "direct-debit-contract": "direct-debit-قرارداد",
+  "immediate": "[ترجمه: Immediate]",
+  "@/api/services/zarinpal-direct-debit": "[ترجمه: @/Api/Services/Zarinpal-Direct-Debit]",
+  "@/api/utils/crypto": "[ترجمه: @/Api/Utils/Crypto]",
+  "@/api/routes/webhooks/handler": "[ترجمه: @/Api/Routes/Webhooks/Handler]",
+  "Invalid payment method": {
+    " Only direct-debit-contract is supported": {
+      "": "[ترجمه: ]"
+    }
+  },
+  "Cannot switch to the same product": "[ترجمه: Cannot Switch To The Same Product]",
+  "Payment method has no valid contract signature": "payment method has no valid قرارداد signature",
+  "cookie": "[ترجمه: Cookie]",
+  "next": "بعدی",
+  "previous": "قبلی",
+  "productId": "[ترجمه: ProductId]",
+  "productName": "productنام",
+  "productPrice": "productقیمت",
+  "yesterday": "دیروز"
 }
