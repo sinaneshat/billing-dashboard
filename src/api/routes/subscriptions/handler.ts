@@ -14,7 +14,7 @@ import { HTTPException } from 'hono/http-exception';
 
 import { createError } from '@/api/common/error-handling';
 import { createHandler, createHandlerWithBatch, Responses } from '@/api/core';
-import { convertUsdToRial } from '@/api/services/unified-currency-service';
+import { createCurrencyExchangeService } from '@/api/services/currency-exchange';
 import type { ApiEnv } from '@/api/types';
 import { getDbAsync } from '@/db';
 import { billingEvent, payment, paymentMethod as paymentMethodTable, product, subscription } from '@/db/tables/billing';
@@ -197,7 +197,8 @@ export const createSubscriptionHandler: RouteHandler<typeof createSubscriptionRo
 
         try {
           // Convert USD product price to IRR for ZarinPal
-          const conversionResult = await convertUsdToRial(productRecord.price);
+          const currencyService = createCurrencyExchangeService();
+          const conversionResult = await currencyService.convertUsdToToman(productRecord.price);
           const amountInRial = conversionResult.rialPrice;
 
           c.logger.info(`Currency conversion for billing: $${productRecord.price} USD -> ${amountInRial} IRR (rate: ${conversionResult.exchangeRate})`, {
@@ -207,7 +208,7 @@ export const createSubscriptionHandler: RouteHandler<typeof createSubscriptionRo
 
           // Import ZarinPal direct debit service
           const { ZarinPalDirectDebitService } = await import('@/api/services/zarinpal-direct-debit');
-          const zarinpalDirectDebitService = ZarinPalDirectDebitService.create(c.env);
+          const zarinpalDirectDebitService = ZarinPalDirectDebitService.create({ Bindings: c.env, Variables: c.var });
 
           // Decrypt the contract signature for charging
           const { decryptSignature } = await import('@/api/utils/crypto');
@@ -647,9 +648,10 @@ export const switchSubscriptionHandler: RouteHandler<typeof switchSubscriptionRo
     }
 
     // Convert to IRR for payment processing
-    const netAmountResult = await convertUsdToRial(netAmount);
-    const proratedCreditResult = await convertUsdToRial(proratedCredit);
-    const chargeAmountResult = await convertUsdToRial(newProduct.price);
+    const currencyService = createCurrencyExchangeService();
+    const netAmountResult = await currencyService.convertUsdToToman(netAmount);
+    const proratedCreditResult = await currencyService.convertUsdToToman(proratedCredit);
+    const chargeAmountResult = await currencyService.convertUsdToToman(newProduct.price);
 
     const netAmountIRR = Math.round(netAmountResult.rialPrice);
     const proratedCreditIRR = Math.round(proratedCreditResult.rialPrice);

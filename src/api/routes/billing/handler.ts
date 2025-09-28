@@ -13,7 +13,7 @@ import { and, eq, gte, isNotNull, lte } from 'drizzle-orm';
 import { createError } from '@/api/common/error-handling';
 import type { HandlerContext } from '@/api/core';
 import { createHandler, Responses } from '@/api/core';
-import { convertUsdToRial } from '@/api/services/unified-currency-service';
+import { createCurrencyExchangeService } from '@/api/services/currency-exchange';
 import { ZarinPalDirectDebitService } from '@/api/services/zarinpal-direct-debit';
 import type { ApiEnv } from '@/api/types';
 import { decryptSignature } from '@/api/utils/crypto';
@@ -493,8 +493,9 @@ export const processRecurringPaymentsHandler: RouteHandler<typeof processRecurri
           continue;
         }
 
-        // Calculate amount in IRR using unified currency service
-        const conversionResult = await convertUsdToRial(subscriptionRow.product.price);
+        // Calculate amount in IRR using currency exchange service
+        const currencyService = createCurrencyExchangeService();
+        const conversionResult = await currencyService.convertUsdToToman(subscriptionRow.product.price);
         const amountInRials = Math.round(conversionResult.rialPrice);
 
         // Create payment record (database generates ID)
@@ -532,7 +533,7 @@ export const processRecurringPaymentsHandler: RouteHandler<typeof processRecurri
 
         // Process payment with ZarinPal Direct Debit
         const decryptedSignature = await decryptSignature(subscriptionRow.payment_method.contractSignatureEncrypted, c.env);
-        const zarinPalDirectDebit = ZarinPalDirectDebitService.create(c.env);
+        const zarinPalDirectDebit = ZarinPalDirectDebitService.create({ Bindings: c.env, Variables: c.var });
 
         const directDebitResult = await zarinPalDirectDebit.chargeDirectDebit({
           amount: amountInRials,

@@ -32,6 +32,10 @@ import * as HttpStatusCodes from 'stoker/http-status-codes';
 
 import { createZarinPalHTTPException } from '@/api/common/zarinpal-error-utils';
 import { validateWithSchema } from '@/api/core/validation';
+import type { ApiEnv } from '@/api/types';
+
+import type { BaseZarinPalConfig } from './base-zarinpal-service';
+import { BaseZarinPalService } from './base-zarinpal-service';
 
 // =============================================================================
 // ZOD SCHEMAS (Context7 Best Practices)
@@ -253,50 +257,40 @@ export type BankInfo = z.infer<typeof BankInfoSchema>;
 
 /**
  * ZarinPal Direct Debit Service
- * Extends BaseService for consistent HTTP handling, error management, and circuit breaking
+ * Extends BaseZarinPalService for consistent HTTP handling, error management, and circuit breaking
  * Implements complete Payman (Direct Debit) workflow
  */
-export class ZarinPalDirectDebitService {
-  private config: ZarinPalDirectDebitConfig;
+export class ZarinPalDirectDebitService extends BaseZarinPalService {
+  private directDebitConfig: ZarinPalDirectDebitConfig;
 
-  constructor(config: ZarinPalDirectDebitConfig) {
-    this.config = config;
+  constructor(config: ZarinPalDirectDebitConfig, env?: ApiEnv) {
+    // Convert direct debit config to base config format
+    const baseConfig: BaseZarinPalConfig = {
+      merchantId: config.merchantId,
+      sandboxMode: config.isSandbox || false,
+      timeout: config.timeout,
+      sandbox: {
+        baseUrl: config.isSandbox ? config.baseUrl : 'https://sandbox.zarinpal.com',
+        merchantId: '00000000-0000-0000-0000-000000000000',
+      },
+      production: {
+        baseUrl: !config.isSandbox ? config.baseUrl : 'https://api.zarinpal.com',
+      },
+    };
+    super(baseConfig, env);
+    this.directDebitConfig = config;
   }
 
   /**
-   * Smart Authorization header formatting
-   * Handles tokens that already include "Bearer " prefix to avoid duplication
+   * Override getAuthorizationHeader to use access token
    */
-  private getAuthorizationHeader(): string {
-    const token = this.config.accessToken;
+  protected getAuthorizationHeader(): string {
+    const token = this.directDebitConfig.accessToken;
     // Check if token already starts with "Bearer " (case-insensitive)
     if (token.toLowerCase().startsWith('bearer ')) {
       return token;
     }
     return `Bearer ${token}`;
-  }
-
-  /**
-   * Make HTTP POST request with JSON payload
-   */
-  private async post<TPayload, TResponse>(
-    endpoint: string,
-    payload: TPayload,
-    headers: Record<string, string>,
-    operationName?: string,
-  ): Promise<TResponse> {
-    return this.makeRequest<TResponse>(
-      endpoint,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...headers,
-        },
-        body: JSON.stringify(payload),
-      },
-      operationName,
-    );
   }
 
   /**
@@ -359,10 +353,7 @@ export class ZarinPalDirectDebitService {
       const data = await response.json();
       return data as TResponse;
     } catch (error) {
-      throw this.handleError(error, operationName || 'make request', {
-        errorType: 'network' as const,
-        provider: 'zarinpal' as const,
-      });
+      throw this.handleError(error, operationName || 'make request');
     }
   }
 
@@ -401,81 +392,14 @@ export class ZarinPalDirectDebitService {
       const data = await response.json();
       return data as TResponse;
     } catch (error) {
-      throw this.handleError(error, operationName || 'make request', {
-        errorType: 'network' as const,
-        provider: 'zarinpal' as const,
-      });
-    }
-  }
-
-  /**
-   * Make HTTP request with error handling and retries
-   */
-  private async makeRequest<T>(
-    endpoint: string,
-    options: RequestInit,
-    operationName?: string,
-  ): Promise<T> {
-    const url = `${this.config.baseUrl}${endpoint}`;
-
-    try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), this.config.timeout);
-
-      const response = await fetch(url, {
-        ...options,
-        signal: controller.signal,
-      });
-
-      clearTimeout(timeoutId);
-
-      // Handle HTTP 422 specifically to extract ZarinPal error details
-      if (response.status === 422) {
-        const responseText = await response.text();
-        let errorDetails = responseText;
-
-        try {
-          const parsedResponse = JSON.parse(responseText);
-          // Extract ZarinPal error message if available
-          if (parsedResponse.errors && Array.isArray(parsedResponse.errors) && parsedResponse.errors.length > 0) {
-            errorDetails = parsedResponse.errors[0].message || parsedResponse.errors[0].code || responseText;
-          } else if (parsedResponse.data && parsedResponse.data.message) {
-            errorDetails = parsedResponse.data.message;
-          }
-        } catch {
-          // Keep original responseText if JSON parsing fails
-        }
-
-        throw new HTTPException(422, {
-          message: `HTTP 422: Unprocessable Content. ${errorDetails}`,
-        });
-      }
-
-      if (!response.ok) {
-        const responseText = await response.text();
-        throw new HTTPException(response.status as 500, {
-          message: `HTTP ${response.status}: ${response.statusText}. Response: ${responseText}`,
-        });
-      }
-
-      const data = await response.json();
-      return data as T;
-    } catch (error) {
-      throw this.handleError(error, operationName || 'make request', {
-        errorType: 'network' as const,
-        provider: 'zarinpal' as const,
-      });
+      throw this.handleError(error, operationName || 'make request');
     }
   }
 
   /**
    * Handle and transform errors into proper HTTP exceptions
    */
-  private handleError(
-    error: unknown,
-    operationName: string,
-    context: { errorType: 'payment' | 'network'; provider: 'zarinpal' },
-  ): HTTPException {
+  protected handleError(error: unknown, context?: string): never {
     if (error instanceof HTTPException) {
       // Enhanced handling for HTTP 422 errors
       if (error.status === 422) {
@@ -483,56 +407,49 @@ export class ZarinPalDirectDebitService {
 
         // Check for common ZarinPal validation errors
         if (message.includes('insufficient') || message.includes('balance') || message.includes('funds')) {
-          return new HTTPException(422, {
+          throw new HTTPException(422, {
             message: `Payment failed: HTTP 422: Unprocessable Content. Please ensure your bank account has sufficient funds and try again.`,
           });
         }
 
         if (message.includes('invalid') || message.includes('validation')) {
-          return new HTTPException(422, {
+          throw new HTTPException(422, {
             message: `Payment failed: HTTP 422: Invalid payment parameters. Please check your payment details and try again.`,
           });
         }
 
         // Generic 422 handling
-        return new HTTPException(422, {
+        throw new HTTPException(422, {
           message: `Payment failed: HTTP 422: Unprocessable Content. Please ensure your bank account has sufficient funds and try again.`,
         });
       }
 
-      return error;
+      throw error;
     }
 
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
 
     // Handle specific ZarinPal error patterns
     if (errorMessage.includes('422')) {
-      return new HTTPException(422, {
+      throw new HTTPException(422, {
         message: `Payment failed: HTTP 422: Unprocessable Content. Please ensure your bank account has sufficient funds and try again.`,
       });
     }
 
     if (errorMessage.includes('timeout') || errorMessage.includes('abort')) {
-      return new HTTPException(HttpStatusCodes.REQUEST_TIMEOUT, {
-        message: `ZarinPal Direct Debit ${operationName} timed out: ${errorMessage}`,
+      throw new HTTPException(HttpStatusCodes.REQUEST_TIMEOUT, {
+        message: `ZarinPal Direct Debit ${context || 'operation'} timed out: ${errorMessage}`,
       });
     }
 
     if (errorMessage.includes('network') || errorMessage.includes('fetch')) {
-      return new HTTPException(HttpStatusCodes.BAD_GATEWAY, {
-        message: `ZarinPal Direct Debit ${operationName} network error: ${errorMessage}`,
+      throw new HTTPException(HttpStatusCodes.BAD_GATEWAY, {
+        message: `ZarinPal Direct Debit ${context || 'operation'} network error: ${errorMessage}`,
       });
     }
 
-    // Enhanced error context for payment operations
-    if (context.errorType === 'payment') {
-      return new HTTPException(HttpStatusCodes.PAYMENT_REQUIRED, {
-        message: `ZarinPal Direct Debit ${operationName} failed: ${errorMessage}`,
-      });
-    }
-
-    return new HTTPException(HttpStatusCodes.INTERNAL_SERVER_ERROR, {
-      message: `ZarinPal Direct Debit ${operationName} failed: ${errorMessage}`,
+    throw new HTTPException(HttpStatusCodes.INTERNAL_SERVER_ERROR, {
+      message: `ZarinPal Direct Debit ${context || 'operation'} failed: ${errorMessage}`,
     });
   }
 
@@ -541,9 +458,9 @@ export class ZarinPalDirectDebitService {
    * Following API Development Guide - schema-first with discriminated unions
    * Accepts environment from Hono context for proper secret access
    */
-  static getConfig(env: CloudflareEnv): ZarinPalDirectDebitConfig {
+  static getConfig(env: ApiEnv): ZarinPalDirectDebitConfig {
     // Use backend environment variable (without NEXT_PUBLIC_ prefix)
-    if (!env.NEXT_PUBLIC_ZARINPAL_MERCHANT_ID) {
+    if (!env.Bindings.NEXT_PUBLIC_ZARINPAL_MERCHANT_ID) {
       throw new HTTPException(HttpStatusCodes.INTERNAL_SERVER_ERROR, {
         message: 'ZarinPal merchant ID not configured. Set NEXT_PUBLIC_ZARINPAL_MERCHANT_ID.',
       });
@@ -551,7 +468,7 @@ export class ZarinPalDirectDebitService {
 
     // Validate merchant ID format (UUID)
     const merchantIdRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    if (!merchantIdRegex.test(env.NEXT_PUBLIC_ZARINPAL_MERCHANT_ID)) {
+    if (!merchantIdRegex.test(env.Bindings.NEXT_PUBLIC_ZARINPAL_MERCHANT_ID)) {
       throw new HTTPException(HttpStatusCodes.INTERNAL_SERVER_ERROR, {
         message: 'Invalid ZarinPal merchant ID format. Must be a valid UUID.',
       });
@@ -567,17 +484,17 @@ export class ZarinPalDirectDebitService {
     ];
 
     const isPlaceholder = placeholderPatterns.some(pattern =>
-      env.NEXT_PUBLIC_ZARINPAL_MERCHANT_ID ? env.NEXT_PUBLIC_ZARINPAL_MERCHANT_ID.includes(pattern) : false,
+      env.Bindings.NEXT_PUBLIC_ZARINPAL_MERCHANT_ID ? env.Bindings.NEXT_PUBLIC_ZARINPAL_MERCHANT_ID.includes(pattern) : false,
     );
-    const isSandbox = env.NODE_ENV === 'development';
+    const isSandbox = env.Bindings.NEXT_PUBLIC_WEBAPP_ENV === 'development';
 
     // Check for sandbox values but allow them in development
     const ZARINPAL_SANDBOX_VALUES = [
       '36e0ea98-43fa-400d-a421-f7593b1c73bc', // Official sandbox merchant ID
       'zp-sandbox-access-token', // Official sandbox access token
     ];
-    const isSandboxValue = (env.NEXT_PUBLIC_ZARINPAL_MERCHANT_ID && ZARINPAL_SANDBOX_VALUES.includes(env.NEXT_PUBLIC_ZARINPAL_MERCHANT_ID))
-      || (env.ZARINPAL_ACCESS_TOKEN && ZARINPAL_SANDBOX_VALUES.includes(env.ZARINPAL_ACCESS_TOKEN));
+    const isSandboxValue = (env.Bindings.NEXT_PUBLIC_ZARINPAL_MERCHANT_ID && ZARINPAL_SANDBOX_VALUES.includes(env.Bindings.NEXT_PUBLIC_ZARINPAL_MERCHANT_ID))
+      || (env.Bindings.ZARINPAL_ACCESS_TOKEN && ZARINPAL_SANDBOX_VALUES.includes(env.Bindings.ZARINPAL_ACCESS_TOKEN));
 
     if (isPlaceholder) {
       // In development, allow placeholder but warn
@@ -593,7 +510,7 @@ export class ZarinPalDirectDebitService {
     }
 
     // Fix environment detection for Cloudflare Workers
-    const webappEnv = env.NEXT_PUBLIC_WEBAPP_ENV || 'production';
+    const webappEnv = env.Bindings.NEXT_PUBLIC_WEBAPP_ENV || 'production';
     const isSandboxEnvironment = webappEnv === 'local' || webappEnv === 'development';
 
     const config = {
@@ -606,8 +523,8 @@ export class ZarinPalDirectDebitService {
         failureThreshold: 3,
         resetTimeout: 60000,
       },
-      merchantId: env.NEXT_PUBLIC_ZARINPAL_MERCHANT_ID,
-      accessToken: env.ZARINPAL_ACCESS_TOKEN,
+      merchantId: env.Bindings.NEXT_PUBLIC_ZARINPAL_MERCHANT_ID,
+      accessToken: env.Bindings.ZARINPAL_ACCESS_TOKEN,
       isSandbox: isSandboxEnvironment,
       isPlaceholder: isPlaceholder && !(isSandboxValue && isSandboxEnvironment), // Don't treat sandbox values as placeholders in development
       isSandboxValue,
@@ -626,7 +543,7 @@ export class ZarinPalDirectDebitService {
    * Factory method to create service instance with validated configuration
    * @param env - Environment variables from Hono context (c.env)
    */
-  static create(env: CloudflareEnv): ZarinPalDirectDebitService {
+  static create(env: ApiEnv): ZarinPalDirectDebitService {
     const config = this.getConfig(env);
     return new ZarinPalDirectDebitService(config);
   }
@@ -657,7 +574,7 @@ export class ZarinPalDirectDebitService {
     const validatedRequest = requestResult.data;
 
     // Mock only in local development environment
-    if (process.env.NEXT_PUBLIC_WEBAPP_ENV === 'local') {
+    if (this.env && this.env.Bindings.NEXT_PUBLIC_WEBAPP_ENV === 'local') {
       // Mock successful response for local development based on ZarinPal docs
       return {
         data: {
@@ -736,10 +653,7 @@ export class ZarinPalDirectDebitService {
         }
       }
 
-      throw this.handleError(error, 'request contract', {
-        errorType: 'payment' as const,
-        provider: 'zarinpal' as const,
-      });
+      throw this.handleError(error, 'request contract');
     }
   }
 
@@ -763,10 +677,7 @@ export class ZarinPalDirectDebitService {
       const validatedResult = responseResult.data;
       return validatedResult;
     } catch (error) {
-      throw this.handleError(error, 'get bank list', {
-        errorType: 'network' as const,
-        provider: 'zarinpal' as const,
-      });
+      throw this.handleError(error, 'get bank list');
     }
   }
 
@@ -792,7 +703,7 @@ export class ZarinPalDirectDebitService {
     const validatedRequest = requestResult.data;
 
     // Test environment mock for development
-    const webappEnv = process.env.NEXT_PUBLIC_WEBAPP_ENV || 'local';
+    const webappEnv = this.env ? this.env.Bindings.NEXT_PUBLIC_WEBAPP_ENV : 'production';
     if (webappEnv === 'local') {
       // Mock successful response for test environment based on ZarinPal docs
       return {
@@ -823,10 +734,7 @@ export class ZarinPalDirectDebitService {
 
       return result;
     } catch (error) {
-      throw this.handleError(error, 'verify contract and get signature', {
-        errorType: 'payment' as const,
-        provider: 'zarinpal' as const,
-      });
+      throw this.handleError(error, 'verify contract and get signature');
     }
   }
 
@@ -864,10 +772,7 @@ export class ZarinPalDirectDebitService {
 
       return result;
     } catch (error) {
-      throw this.handleError(error, 'execute direct transaction', {
-        errorType: 'payment' as const,
-        provider: 'zarinpal' as const,
-      });
+      throw this.handleError(error, 'execute direct transaction');
     }
   }
 
@@ -908,10 +813,7 @@ export class ZarinPalDirectDebitService {
 
       return result;
     } catch (error) {
-      throw this.handleError(error, 'cancel contract', {
-        errorType: 'payment' as const,
-        provider: 'zarinpal' as const,
-      });
+      throw this.handleError(error, 'cancel contract');
     }
   }
 
@@ -965,8 +867,7 @@ export class ZarinPalDirectDebitService {
         authResult = await this.post<typeof authPayload, { data?: { authority: string; code: number; message?: string } }>(
           '/pg/v4/payment/request.json',
           authPayload,
-          { Authorization: this.getAuthorizationHeader() },
-          'create payment authority for direct debit',
+          true,
         );
       } catch (authError) {
         // Handle specific errors during payment authority creation

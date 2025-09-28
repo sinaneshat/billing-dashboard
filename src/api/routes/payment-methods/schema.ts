@@ -1,6 +1,6 @@
 import { z } from '@hono/zod-openapi';
 
-import { CoreSchemas, createApiResponseSchema } from '@/api/core/schemas';
+import { CoreSchemas, createApiResponseSchema, iranianMobileSchema, iranianNationalIdSchema, iranianRialAmountSchema } from '@/api/core/schemas';
 import { paymentMethodSelectSchema } from '@/db/validation/billing';
 
 // Single source of truth - use drizzle-zod schema with OpenAPI metadata
@@ -247,31 +247,18 @@ export const PaymentMethodErrorResponseSchema = z.object({
 
 // Iranian-specific validation schemas for payment methods
 export const IranianPaymentValidationSchemas = {
-  // Iranian mobile number validation
-  mobileNumber: z.string()
-    .regex(/^(?:\+98|0)?9\d{9}$/, 'Invalid Iranian mobile number format')
-    .openapi({
-      example: '09123456789',
-      description: 'Iranian mobile number',
-    }),
-
-  // Iranian national ID validation
-  nationalId: z.string()
-    .regex(/^\d{10}$/, 'Iranian national ID must be exactly 10 digits')
-    .openapi({
-      example: '0480123456',
-      description: 'Iranian national ID',
-    }),
-
-  // Iranian Rial amount validation
-  rialAmount: z.number()
-    .int('Rial amounts must be whole numbers')
-    .min(1000, 'Minimum amount is 1,000 IRR')
-    .max(1000000000, 'Maximum amount is 1,000,000,000 IRR')
-    .openapi({
-      example: 50000000,
-      description: 'Amount in Iranian Rials',
-    }),
+  mobileNumber: iranianMobileSchema().openapi({
+    example: '09123456789',
+    description: 'Iranian mobile number',
+  }),
+  nationalId: iranianNationalIdSchema().openapi({
+    example: '0480123456',
+    description: 'Iranian national ID',
+  }),
+  rialAmount: iranianRialAmountSchema().openapi({
+    example: 50000000,
+    description: 'Amount in Iranian Rials',
+  }),
 };
 
 // ============================================================================

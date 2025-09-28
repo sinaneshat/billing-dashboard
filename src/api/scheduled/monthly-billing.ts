@@ -8,7 +8,7 @@ import { and, eq, isNull, lte } from 'drizzle-orm';
 
 import { parseMetadata } from '@/api/common/metadata-utils';
 import { apiLogger } from '@/api/middleware/hono-logger';
-import { convertUsdToRial } from '@/api/services/unified-currency-service';
+import { createCurrencyExchangeService } from '@/api/services/currency-exchange';
 import { ZarinPalService } from '@/api/services/zarinpal';
 import { ZarinPalDirectDebitService } from '@/api/services/zarinpal-direct-debit';
 import type { ApiEnv } from '@/api/types';
@@ -383,8 +383,9 @@ async function processSingleSubscription(
     }
   }
 
-  // Convert USD to IRR using unified currency service
-  const exchangeResult = await convertUsdToRial(sub.currentPrice);
+  // Convert USD to IRR using currency exchange service
+  const currencyService = createCurrencyExchangeService();
+  const exchangeResult = await currencyService.convertUsdToToman(sub.currentPrice);
   const exchangeRate = exchangeResult.exchangeRate;
 
   // Use the IRR amount for ZarinPal API
@@ -446,7 +447,7 @@ async function processSingleSubscription(
 
   try {
     // Create ZarinPal payment request first
-    const zarinPal = ZarinPalService.create(env);
+    const zarinPal = ZarinPalService.create({ Bindings: env, Variables: {} });
     const paymentRequest = await zarinPal.requestPayment({
       amount: irrAmount, // Use converted IRR amount
       currency: 'IRR',
@@ -478,7 +479,7 @@ async function processSingleSubscription(
     ];
 
     // Execute direct debit transaction using ZarinPal Direct Debit Service
-    const directDebitService = ZarinPalDirectDebitService.create(env);
+    const directDebitService = ZarinPalDirectDebitService.create({ Bindings: env, Variables: {} });
     if (!contract.contractSignatureEncrypted) {
       throw new Error('Contract signature is required for direct debit transaction');
     }
