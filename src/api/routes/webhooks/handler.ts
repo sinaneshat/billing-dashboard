@@ -555,39 +555,6 @@ export class WebhookEventBuilders {
   }
 
   /**
-   * Create setup intent succeeded event - for payment method setup
-   */
-  static createSetupIntentSucceededEvent(
-    setupIntentId: string,
-    customerId: string,
-    paymentMethodId: string,
-    metadata?: Record<string, string>,
-  ): WebhookEvent {
-    const event = {
-      id: this.generateEventId(),
-      object: 'event' as const,
-      type: 'setup_intent.succeeded' as const,
-      created: this.toUnixTimestamp(new Date()),
-      data: {
-        object: {
-          id: setupIntentId,
-          object: 'setup_intent' as const,
-          customer: customerId,
-          payment_method: paymentMethodId,
-          status: 'succeeded' as const,
-          usage: 'off_session' as const,
-          created: this.toUnixTimestamp(new Date()),
-          metadata: metadata || {},
-        },
-      },
-      livemode: process.env.NODE_ENV === 'production',
-      api_version: '2024-01-01',
-    };
-
-    return event as WebhookEvent;
-  }
-
-  /**
    * Generate virtual Stripe customer ID for compatibility using email
    */
   static generateVirtualStripeCustomerId(userEmail: string): string {
@@ -918,7 +885,7 @@ export const zarinPalWebhookHandler: RouteHandler<typeof zarinPalWebhookRoute, A
 
         // Process payment based on webhook status
         if (webhookPayload.status === 'OK') {
-          const zarinPal = ZarinPalService.create(c.env);
+          const zarinPal = ZarinPalService.create({ Bindings: c.env, Variables: c.var });
 
           try {
             const verification = await zarinPal.verifyPayment({

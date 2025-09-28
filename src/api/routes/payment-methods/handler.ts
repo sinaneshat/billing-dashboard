@@ -219,7 +219,7 @@ export const createContractHandler: RouteHandler<typeof createContractRoute, Api
       throw createError.unauthenticated('User authentication required');
     }
 
-    const zarinpalService = ZarinPalDirectDebitService.create(c.env);
+    const zarinpalService = ZarinPalDirectDebitService.create({ Bindings: c.env, Variables: c.var });
 
     // Get available banks first to validate limits
     const banksResult = await zarinpalService.getBankList();
@@ -334,7 +334,7 @@ export const verifyContractHandler: RouteHandler<typeof verifyContractRoute, Api
       .from(paymentMethod)
       .where(eq(paymentMethod.userId, user.id));
 
-    const zarinpalService = ZarinPalDirectDebitService.create(c.env);
+    const zarinpalService = ZarinPalDirectDebitService.create({ Bindings: c.env, Variables: c.var });
 
     // Verify contract and get signature
     const verifyResult = await zarinpalService.verifyContractAndGetSignature({
@@ -458,7 +458,7 @@ export const cancelContractHandler: RouteHandler<typeof cancelContractRoute, Api
     }
 
     // Cancel contract with ZarinPal using official API (as required by ZarinPal terms)
-    const zarinpalService = ZarinPalDirectDebitService.create(c.env);
+    const zarinpalService = ZarinPalDirectDebitService.create({ Bindings: c.env, Variables: c.var });
 
     // Decrypt signature to call ZarinPal cancel contract API
     const decryptedSignature = await decryptSignature(existingMethod.contractSignatureEncrypted, c.env);
@@ -589,7 +589,7 @@ export const contractCallbackHandler: RouteHandler<typeof contractCallbackRoute,
     }
 
     try {
-      const zarinpalService = ZarinPalDirectDebitService.create(c.env);
+      const zarinpalService = ZarinPalDirectDebitService.create({ Bindings: c.env, Variables: c.var });
 
       // Verify contract and get signature from ZarinPal
       const verifyResult = await zarinpalService.verifyContractAndGetSignature({
@@ -803,7 +803,7 @@ export const recoverContractHandler: RouteHandler<typeof recoverContractRoute, A
       });
     }
 
-    const zarinpalService = ZarinPalDirectDebitService.create(c.env);
+    const zarinpalService = ZarinPalDirectDebitService.create({ Bindings: c.env, Variables: c.var });
 
     try {
       // Verify contract with ZarinPal to get signature

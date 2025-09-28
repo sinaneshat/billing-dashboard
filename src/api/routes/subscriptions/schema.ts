@@ -1,6 +1,6 @@
 import { z } from '@hono/zod-openapi';
 
-import { CoreSchemas } from '@/api/core/schemas';
+import { CoreSchemas, iranianMobileSchema, iranianRialAmountSchema } from '@/api/core/schemas';
 import { subscriptionSelectSchema } from '@/db/validation/billing';
 
 // Single source of truth - use drizzle-zod schemas with OpenAPI metadata
@@ -70,25 +70,15 @@ export const CancelSubscriptionRequestSchema = z.object({
 
 // Iranian-specific validation schemas
 export const IranianValidationSchemas = {
-  // Iranian mobile number validation
-  mobileNumber: z.string()
-    .regex(/^(?:\+98|0)?9\d{9}$/, 'Invalid Iranian mobile number format')
-    .openapi({
-      example: '09123456789',
-      description: 'Iranian mobile number',
-    }),
-
-  // Iranian Rial amount validation (no decimal places)
-  rialAmount: z.number()
-    .int('Rial amounts must be whole numbers')
-    .min(1000, 'Minimum amount is 1,000 IRR')
-    .max(1000000000, 'Maximum amount is 1,000,000,000 IRR')
-    .openapi({
-      example: 50000,
-      description: 'Amount in Iranian Rials',
-    }),
-
-  // Product ID validation
+  mobileNumber: iranianMobileSchema().openapi({
+    example: '09123456789',
+    description: 'Iranian mobile number',
+  }),
+  rialAmount: iranianRialAmountSchema().openapi({
+    example: 50000,
+    description: 'Amount in Iranian Rials',
+  }),
+  // Product ID validation (not Iranian-specific, keep local)
   productId: z.string()
     .min(1, 'Product ID is required')
     .regex(/^[\w-]+$/, 'Invalid product ID format')

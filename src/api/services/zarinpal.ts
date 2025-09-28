@@ -1,11 +1,16 @@
 /**
  * ZarinPal API Integration Service
- * Migrated to use BaseService pattern for consistent error handling and HTTP utilities
+ * Extends BaseZarinPalService for consistent error handling and HTTP utilities
  */
 
 import { z } from '@hono/zod-openapi';
 import { HTTPException } from 'hono/http-exception';
 import * as HttpStatusCodes from 'stoker/http-status-codes';
+
+import type { ApiEnv } from '@/api/types';
+
+import type { BaseZarinPalConfig } from './base-zarinpal-service';
+import { BaseZarinPalService } from './base-zarinpal-service';
 
 // =============================================================================
 // ZOD SCHEMAS (Context7 Best Practices)
@@ -156,21 +161,34 @@ export type VerifyResponse = z.infer<typeof VerifyResponseSchema>;
 
 /**
  * ZarinPal Service Class
- * Extends BaseService for consistent HTTP handling, error management, and circuit breaking
+ * Extends BaseZarinPalService for consistent HTTP handling, error management, and circuit breaking
  */
-export class ZarinPalService {
-  private config: ZarinPalConfig;
+export class ZarinPalService extends BaseZarinPalService {
+  private zarinpalConfig: ZarinPalConfig;
 
   constructor(config: ZarinPalConfig) {
-    this.config = config;
+    // Convert ZarinPal config to base config format
+    const baseConfig: BaseZarinPalConfig = {
+      merchantId: config.merchantId,
+      sandboxMode: config.isSandbox || false,
+      timeout: config.timeout,
+      sandbox: {
+        baseUrl: config.isSandbox ? config.baseUrl : 'https://sandbox.zarinpal.com',
+        merchantId: '00000000-0000-0000-0000-000000000000',
+      },
+      production: {
+        baseUrl: !config.isSandbox ? config.baseUrl : 'https://api.zarinpal.com',
+      },
+    };
+    super(baseConfig);
+    this.zarinpalConfig = config;
   }
 
   /**
-   * Smart Authorization header formatting
-   * Handles tokens that already include "Bearer " prefix to avoid duplication
+   * Override getAuthorizationHeader to use access token instead of merchant ID
    */
-  private getAuthorizationHeader(): string {
-    const token = this.config.accessToken;
+  protected getAuthorizationHeader(): string {
+    const token = this.zarinpalConfig.accessToken;
     // Check if token already starts with "Bearer " (case-insensitive)
     if (token.toLowerCase().startsWith('bearer ')) {
       return token;
@@ -179,113 +197,22 @@ export class ZarinPalService {
   }
 
   /**
-   * Make HTTP POST request with JSON payload
-   */
-  private async post<TPayload, TResponse>(
-    endpoint: string,
-    payload: TPayload,
-    headers: Record<string, string>,
-    operationName?: string,
-  ): Promise<TResponse> {
-    return this.makeRequest<TResponse>(
-      endpoint,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...headers,
-        },
-        body: JSON.stringify(payload),
-      },
-      operationName,
-    );
-  }
-
-  /**
-   * Make HTTP request with error handling and retries
-   */
-  private async makeRequest<T>(
-    endpoint: string,
-    options: RequestInit,
-    operationName?: string,
-  ): Promise<T> {
-    const url = `${this.config.baseUrl}${endpoint}`;
-
-    try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), this.config.timeout);
-
-      const response = await fetch(url, {
-        ...options,
-        signal: controller.signal,
-      });
-
-      clearTimeout(timeoutId);
-
-      if (!response.ok) {
-        throw new HTTPException(response.status as 500, {
-          message: `HTTP ${response.status}: ${response.statusText}`,
-        });
-      }
-
-      const data = await response.json();
-      return data as T;
-    } catch (error) {
-      throw this.handleError(error, operationName || 'make request', {
-        errorType: 'network' as const,
-        provider: 'zarinpal' as const,
-      });
-    }
-  }
-
-  /**
-   * Handle and transform errors into proper HTTP exceptions
-   */
-  private handleError(
-    error: unknown,
-    operationName: string,
-    _context: { errorType: 'payment' | 'network'; provider: 'zarinpal' },
-  ): HTTPException {
-    if (error instanceof HTTPException) {
-      return error;
-    }
-
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-
-    if (errorMessage.includes('timeout') || errorMessage.includes('abort')) {
-      return new HTTPException(HttpStatusCodes.REQUEST_TIMEOUT, {
-        message: `ZarinPal ${operationName} timed out: ${errorMessage}`,
-      });
-    }
-
-    if (errorMessage.includes('network') || errorMessage.includes('fetch')) {
-      return new HTTPException(HttpStatusCodes.BAD_GATEWAY, {
-        message: `ZarinPal ${operationName} network error: ${errorMessage}`,
-      });
-    }
-
-    return new HTTPException(HttpStatusCodes.INTERNAL_SERVER_ERROR, {
-      message: `ZarinPal ${operationName} failed: ${errorMessage}`,
-    });
-  }
-
-  /**
    * Get service configuration from environment with validation
    * Uses Zod schema validation for type safety
    * Accepts environment from Hono context for proper secret access
    */
-  static getConfig(env: CloudflareEnv): ZarinPalConfig {
+  static getConfig(env: ApiEnv): ZarinPalConfig {
     // Validate ZarinPal specific configuration
-    if (!env.NEXT_PUBLIC_ZARINPAL_MERCHANT_ID || !env.ZARINPAL_ACCESS_TOKEN) {
+    if (!env.Bindings.NEXT_PUBLIC_ZARINPAL_MERCHANT_ID || !env.Bindings.ZARINPAL_ACCESS_TOKEN) {
       throw new HTTPException(HttpStatusCodes.INTERNAL_SERVER_ERROR, {
         message: 'ZarinPal credentials not configured. Set NEXT_PUBLIC_ZARINPAL_MERCHANT_ID and ZARINPAL_ACCESS_TOKEN.',
       });
     }
 
-    const merchantId = env.NEXT_PUBLIC_ZARINPAL_MERCHANT_ID;
-    const accessToken = env.ZARINPAL_ACCESS_TOKEN;
+    const merchantId = env.Bindings.NEXT_PUBLIC_ZARINPAL_MERCHANT_ID;
+    const accessToken = env.Bindings.ZARINPAL_ACCESS_TOKEN;
     // Fix environment detection for Cloudflare Workers
-    const webappEnv = env.NEXT_PUBLIC_WEBAPP_ENV || 'production';
+    const webappEnv = env.Bindings.NEXT_PUBLIC_WEBAPP_ENV || 'production';
     const isSandbox = webappEnv === 'local' || webappEnv === 'development';
 
     const config = {
@@ -310,7 +237,7 @@ export class ZarinPalService {
    * Factory method to create service instance with validated configuration
    * @param env - Environment variables from Hono context (c.env)
    */
-  static create(env: CloudflareEnv): ZarinPalService {
+  static create(env: ApiEnv): ZarinPalService {
     const config = this.getConfig(env);
     return new ZarinPalService(config);
   }
@@ -335,10 +262,7 @@ export class ZarinPalService {
       const rawResult = await this.post<typeof payload, PaymentResponse>(
         '/pg/v4/payment/request.json',
         payload,
-        {
-          Authorization: this.getAuthorizationHeader(),
-        },
-        'request payment',
+        true,
       );
 
       // Validate response using Zod schema while maintaining backward compatibility
@@ -354,10 +278,7 @@ export class ZarinPalService {
 
       return validatedResult;
     } catch (error) {
-      throw this.handleError(error, 'request payment', {
-        errorType: 'payment' as const,
-        provider: 'zarinpal' as const,
-      });
+      throw this.handleError(error, 'request payment');
     }
   }
 
@@ -378,10 +299,7 @@ export class ZarinPalService {
       const rawResult = await this.post<typeof payload, VerifyResponse>(
         '/pg/v4/payment/verify.json',
         payload,
-        {
-          Authorization: this.getAuthorizationHeader(),
-        },
-        'verify payment',
+        true,
       );
 
       // Validate response using Zod schema while maintaining backward compatibility
@@ -401,10 +319,7 @@ export class ZarinPalService {
       // Note: Don't throw error for verification codes here as they need to be handled by calling code
       return validatedResult;
     } catch (error) {
-      throw this.handleError(error, 'verify payment', {
-        errorType: 'payment' as const,
-        provider: 'zarinpal' as const,
-      });
+      throw this.handleError(error, 'verify payment');
     }
   }
 
@@ -434,8 +349,11 @@ export class ZarinPalService {
 
     try {
       // Use makeRequest with custom config for limited retries on direct debit
+      const baseUrl = this.config.sandboxMode
+        ? this.config.sandbox.baseUrl
+        : this.config.production.baseUrl;
       const rawResult = await this.makeRequest<PaymentResponse>(
-        '/pg/v4/payment/request.json',
+        `${baseUrl}/pg/v4/payment/request.json`,
         {
           method: 'POST',
           headers: {
@@ -444,7 +362,6 @@ export class ZarinPalService {
           },
           body: JSON.stringify(payload),
         },
-        'direct debit payment',
       );
 
       // Validate response using Zod schema while maintaining backward compatibility
@@ -467,10 +384,7 @@ export class ZarinPalService {
 
       return validatedResult;
     } catch (error) {
-      throw this.handleError(error, 'direct debit payment', {
-        errorType: 'payment' as const,
-        provider: 'zarinpal' as const,
-      });
+      throw this.handleError(error, 'direct debit payment');
     }
   }
 
@@ -513,7 +427,10 @@ export class ZarinPalService {
    * Get payment gateway URL for redirect
    */
   getPaymentUrl(authority: string): string {
-    return `${this.config.baseUrl}/pg/StartPay/${authority}`;
+    const baseUrl = this.config.sandboxMode
+      ? this.config.sandbox.baseUrl
+      : this.config.production.baseUrl;
+    return `${baseUrl}/pg/StartPay/${authority}`;
   }
 }
 

@@ -27,8 +27,6 @@ import onError from 'stoker/middlewares/on-error';
 
 import { createOpenApiApp } from './factory';
 import { attachSession, requireSession } from './middleware';
-// Enhanced middleware for optimized performance
-import { enhancedErrorHandler } from './middleware/enhanced-error-handler';
 import { apiLogger, errorLoggerMiddleware, honoLoggerMiddleware } from './middleware/hono-logger';
 import { RateLimiterFactory } from './middleware/rate-limiter-factory';
 // Subscription security middleware for critical operations
@@ -198,9 +196,6 @@ function csrfMiddleware(c: Context<ApiEnv>, next: Next) {
 
 // ETag support
 app.use('*', etag());
-
-// Enhanced error handling and database optimization middleware
-app.use('*', enhancedErrorHandler());
 
 // Session attachment
 app.use('*', attachSession);
