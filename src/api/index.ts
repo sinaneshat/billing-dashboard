@@ -1,5 +1,5 @@
 /**
- * zarinpal API - Hono Zod OpenAPI Implementation
+ * Roundtable API - Hono Zod OpenAPI Implementation
  *
  * This file follows the EXACT pattern from the official Hono Zod OpenAPI documentation.
  * It provides full type safety and automatic RPC client type inference.
@@ -27,60 +27,11 @@ import onError from 'stoker/middlewares/on-error';
 
 import { createOpenApiApp } from './factory';
 import { attachSession, requireSession } from './middleware';
-import { apiLogger, errorLoggerMiddleware, honoLoggerMiddleware } from './middleware/hono-logger';
+import { errorLoggerMiddleware, honoLoggerMiddleware } from './middleware/hono-logger';
 import { RateLimiterFactory } from './middleware/rate-limiter-factory';
-// Subscription security middleware for critical operations
-import { strictSubscriptionSecurityMiddleware, subscriptionSecurityMiddleware } from './middleware/subscription-security';
 // Import routes and handlers directly for proper RPC type inference
 import { secureMeHandler } from './routes/auth/handler';
 import { secureMeRoute } from './routes/auth/route';
-// Billing routes - Enhanced with analytics and optimizations
-import {
-  getBillingMetricsHandler,
-  processRecurringPaymentsHandler,
-} from './routes/billing/handler';
-import {
-  getBillingMetricsRoute,
-  processRecurringPaymentsRoute,
-} from './routes/billing/route';
-// Payment methods routes - Consolidated 4-endpoint direct debit flow
-import {
-  cancelContractHandler,
-  contractCallbackHandler,
-  createContractHandler,
-  getPaymentMethodsHandler,
-  recoverContractHandler,
-  setDefaultPaymentMethodHandler,
-  verifyContractHandler,
-} from './routes/payment-methods/handler';
-import {
-  cancelContractRoute,
-  contractCallbackRoute,
-  createContractRoute,
-  getPaymentMethodsRoute,
-  recoverContractRoute,
-  setDefaultPaymentMethodRoute,
-  verifyContractRoute,
-} from './routes/payment-methods/route';
-// Payment routes including callback and history
-import { getPaymentsHandler } from './routes/payments/handler';
-import { getPaymentsRoute } from './routes/payments/route';
-import { getProductsHandler } from './routes/products/handler';
-import { getProductsRoute } from './routes/products/route';
-import {
-  cancelSubscriptionHandler,
-  createSubscriptionHandler,
-  getSubscriptionHandler,
-  getSubscriptionsHandler,
-  switchSubscriptionHandler,
-} from './routes/subscriptions/handler';
-import {
-  cancelSubscriptionRoute,
-  createSubscriptionRoute,
-  getSubscriptionRoute,
-  getSubscriptionsRoute,
-  switchSubscriptionRoute,
-} from './routes/subscriptions/route';
 // System/health routes
 import {
   detailedHealthHandler,
@@ -90,13 +41,6 @@ import {
   detailedHealthRoute,
   healthRoute,
 } from './routes/system/route';
-// Enhanced webhook handlers with intelligent retry and correlation
-import {
-  zarinPalWebhookHandler,
-} from './routes/webhooks/handler';
-import {
-  zarinPalWebhookRoute,
-} from './routes/webhooks/route';
 import type { ApiEnv } from './types';
 
 // ============================================================================
@@ -215,28 +159,9 @@ app.notFound(notFound);
 // CRITICAL: Routes must be registered with .openapi() for RPC to work
 // ============================================================================
 
-// Register the public callback route FIRST (before middleware)
-// This ensures it doesn't get CSRF or auth middleware
-app.openapi(contractCallbackRoute, contractCallbackHandler);
-
 // Apply CSRF protection and authentication to protected routes
 // Following Hono best practices: apply CSRF only to authenticated routes
 app.use('/auth/me', csrfMiddleware, requireSession);
-
-// Subscription routes with security middleware based on criticality
-// Critical operations (create, switch) require strict security
-app.use('/subscriptions', csrfMiddleware, requireSession, strictSubscriptionSecurityMiddleware);
-app.use('/subscriptions/switch', csrfMiddleware, requireSession, strictSubscriptionSecurityMiddleware);
-// Regular subscription operations require standard security
-app.use('/subscriptions/*', csrfMiddleware, requireSession, subscriptionSecurityMiddleware);
-
-// Payment methods require authentication and CSRF protection
-// The callback endpoint was already registered, so this won't affect it
-app.use('/payment-methods/*', csrfMiddleware, requireSession);
-// Payments require authentication and CSRF protection
-app.use('/payments/*', csrfMiddleware, requireSession);
-app.use('/webhooks/events', csrfMiddleware, requireSession);
-app.use('/webhooks/test', csrfMiddleware, requireSession);
 
 // Register all routes directly on the app
 const appRoutes = app
@@ -245,29 +170,6 @@ const appRoutes = app
   .openapi(detailedHealthRoute, detailedHealthHandler)
   // Auth routes
   .openapi(secureMeRoute, secureMeHandler)
-  // Products routes
-  .openapi(getProductsRoute, getProductsHandler)
-  // Subscriptions routes (with security middleware)
-  .openapi(getSubscriptionsRoute, getSubscriptionsHandler)
-  .openapi(getSubscriptionRoute, getSubscriptionHandler)
-  .openapi(createSubscriptionRoute, createSubscriptionHandler)
-  .openapi(switchSubscriptionRoute, switchSubscriptionHandler)
-  .openapi(cancelSubscriptionRoute, cancelSubscriptionHandler)
-  // Payment methods routes - Consolidated 3-endpoint direct debit flow
-  .openapi(getPaymentMethodsRoute, getPaymentMethodsHandler)
-  .openapi(setDefaultPaymentMethodRoute, setDefaultPaymentMethodHandler)
-  // Consolidated direct debit contract routes (3 endpoints - callback already registered)
-  .openapi(createContractRoute, createContractHandler)
-  .openapi(verifyContractRoute, verifyContractHandler)
-  .openapi(cancelContractRoute, cancelContractHandler)
-  .openapi(recoverContractRoute, recoverContractHandler)
-  // Payment routes
-  .openapi(getPaymentsRoute, getPaymentsHandler)
-  // Billing routes - Recurring payments and metrics
-  .openapi(processRecurringPaymentsRoute, processRecurringPaymentsHandler)
-  .openapi(getBillingMetricsRoute, getBillingMetricsHandler)
-  // Webhooks routes
-  .openapi(zarinPalWebhookRoute, zarinPalWebhookHandler)
 ;
 
 // ============================================================================
@@ -287,20 +189,14 @@ appRoutes.doc('/doc', c => ({
   openapi: '3.0.0',
   info: {
     version: '1.0.0',
-    title: 'Subscription Management API',
-    description: 'API for subscription billing and direct debit automation. Built with Hono, Zod, and OpenAPI.',
-    contact: { name: 'zarinpal', url: 'https://zarinpal.app' },
+    title: 'Application API',
+    description: 'API for application management. Built with Hono, Zod, and OpenAPI.',
+    contact: { name: 'Application', url: 'https://app.example.com' },
     license: { name: 'Proprietary' },
   },
   tags: [
     { name: 'system', description: 'System health and diagnostics' },
     { name: 'auth', description: 'Authentication and authorization' },
-    { name: 'products', description: 'Subscription plans and pricing' },
-    { name: 'subscriptions', description: 'Subscription lifecycle management and automated billing' },
-    { name: 'analytics', description: 'Subscription analytics, revenue tracking, and business insights' },
-    { name: 'payment-methods', description: 'Subscription payment methods and direct debit automation' },
-    { name: 'webhooks', description: 'Subscription webhooks and billing notifications' },
-    { name: 'images', description: 'Image upload and management' },
   ],
   servers: [
     {
@@ -343,7 +239,7 @@ appRoutes.get('/llms.txt', async (c) => {
     const document = appRoutes.getOpenAPI31Document({
       openapi: '3.1.0',
       info: {
-        title: 'Subscription Management API',
+        title: 'Application API',
         version: '1.0.0',
       },
     });
@@ -360,13 +256,4 @@ appRoutes.get('/llms.txt', async (c) => {
 
 export default {
   fetch: appRoutes.fetch,
-  // Export scheduled handler for cron jobs
-  scheduled: (event: ScheduledEvent, env: ApiEnv, ctx: ExecutionContext) => {
-    // Import scheduled handlers dynamically to avoid circular imports
-    import('./scheduled/monthly-billing').then(({ default: billingScheduler }) => {
-      return billingScheduler.scheduled(event, env, ctx);
-    }).catch((error) => {
-      apiLogger.error('Failed to load billing scheduler', { error });
-    });
-  },
 };

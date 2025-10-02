@@ -1,5 +1,5 @@
 /**
- * Cryptographic utilities for ZarinPal contract signature encryption
+ * Cryptographic utilities for secure data encryption
  * Uses Web Crypto API with BETTER_AUTH_SECRET as the encryption key
  */
 
@@ -10,7 +10,7 @@ import type { ApiEnv } from '@/api/types';
 
 /**
  * Derive encryption key from BETTER_AUTH_SECRET
- * Following the same pattern as ZarinPal services - receive env from handler context
+ * Following the same pattern as secure data services - receive env from handler context
  */
 async function getEncryptionKey(env: ApiEnv['Bindings']): Promise<CryptoKey> {
   const secret = env.BETTER_AUTH_SECRET || process.env.BETTER_AUTH_SECRET;
@@ -35,7 +35,7 @@ async function getEncryptionKey(env: ApiEnv['Bindings']): Promise<CryptoKey> {
   return crypto.subtle.deriveKey(
     {
       name: 'PBKDF2',
-      salt: encoder.encode('zarinpal-signature-salt'), // Fixed salt for deterministic key
+      salt: encoder.encode('data-signature-salt'), // Fixed salt for deterministic key
       iterations: 100000,
       hash: 'SHA-256',
     },
@@ -47,8 +47,8 @@ async function getEncryptionKey(env: ApiEnv['Bindings']): Promise<CryptoKey> {
 }
 
 /**
- * Encrypt ZarinPal contract signature (200 chars or JWT token)
- * Following the same pattern as ZarinPal services - receive env from handler context
+ * Encrypt secure data contract signature (200 chars or JWT token)
+ * Following the same pattern as secure data services - receive env from handler context
  */
 export async function encryptSignature(signature: string, env: ApiEnv['Bindings']): Promise<{
   encrypted: string;
@@ -56,7 +56,7 @@ export async function encryptSignature(signature: string, env: ApiEnv['Bindings'
 }> {
   // Allow JWT tokens (starts with eyJ) or traditional 200-char signatures
   if (signature.length !== 200 && !signature.startsWith('eyJ')) {
-    throw new Error('ZarinPal signature must be exactly 200 characters or a valid JWT token');
+    throw new Error('secure data signature must be exactly 200 characters or a valid JWT token');
   }
 
   try {
@@ -97,8 +97,8 @@ export async function encryptSignature(signature: string, env: ApiEnv['Bindings'
 }
 
 /**
- * Decrypt ZarinPal contract signature
- * Following the same pattern as ZarinPal services - receive env from handler context
+ * Decrypt secure data contract signature
+ * Following the same pattern as secure data services - receive env from handler context
  */
 export async function decryptSignature(encryptedSignature: string, env: ApiEnv['Bindings']): Promise<string> {
   try {

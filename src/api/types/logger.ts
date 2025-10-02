@@ -31,15 +31,6 @@ export const LogContextSchema = z.discriminatedUnion('logType', [
     connectionPool: z.string().optional(),
   }).passthrough(),
   z.object({
-    logType: z.literal('payment'),
-    paymentId: z.string().optional(),
-    amount: z.number().positive().optional(),
-    currency: z.enum(['IRR', 'USD', 'EUR']),
-    provider: z.enum(['zarinpal', 'stripe', 'paypal', 'other']),
-    status: z.enum(['pending', 'completed', 'failed', 'cancelled', 'refunded']).optional(),
-    gatewayTransactionId: z.string().optional(),
-  }).passthrough(),
-  z.object({
     logType: z.literal('auth'),
     userId: z.string(),
     action: z.enum(['login', 'logout', 'token_refresh', 'permission_check', 'registration']),
@@ -114,13 +105,6 @@ export const LogHelpers = {
     operation: 'select' | 'insert' | 'update' | 'delete' | 'batch';
   }): LogContext => ({
     logType: 'database' as const,
-    ...data,
-  }),
-  payment: (data: Record<string, unknown> & {
-    currency: 'IRR' | 'USD' | 'EUR';
-    provider: 'zarinpal' | 'stripe' | 'paypal' | 'other';
-  }): LogContext => ({
-    logType: 'payment' as const,
     ...data,
   }),
   auth: (data: Record<string, unknown> & {

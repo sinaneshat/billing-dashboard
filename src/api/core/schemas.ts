@@ -52,8 +52,8 @@ export const CoreSchemas = {
 
   // Numeric fields
   amount: () => z.number().nonnegative().openapi({
-    example: 99000,
-    description: 'Amount in smallest currency unit (e.g., Rials)',
+    example: 99.00,
+    description: 'Amount in USD',
   }),
 
   positiveInt: () => z.number().int().positive().openapi({
@@ -84,9 +84,9 @@ export const CoreSchemas = {
   }),
 
   // Common enums
-  currency: () => z.enum(['IRR', 'USD']).default('IRR').openapi({
-    example: 'IRR',
-    description: 'Currency code',
+  currency: () => z.enum(['USD']).default('USD').openapi({
+    example: 'USD',
+    description: 'Currency code (USD only)',
   }),
 
   sortOrder: () => z.enum(['asc', 'desc']).default('desc').openapi({
@@ -95,94 +95,11 @@ export const CoreSchemas = {
   }),
 
   // Status fields
-  paymentStatus: () => z.enum(['pending', 'completed', 'failed', 'cancelled']).openapi({
-    example: 'completed',
-    description: 'Payment status',
-  }),
-
-  subscriptionStatus: () => z.enum(['pending', 'active', 'cancelled', 'suspended', 'expired']).openapi({
+  entityStatus: () => z.enum(['active', 'inactive', 'suspended', 'deleted']).openapi({
     example: 'active',
-    description: 'Subscription status',
-  }),
-
-  billingPeriod: () => z.enum(['one_time', 'monthly', 'yearly']).openapi({
-    example: 'monthly',
-    description: 'Billing period',
+    description: 'Entity status',
   }),
 } as const;
-
-// ============================================================================
-// IRANIAN-SPECIFIC VALIDATIONS
-// ============================================================================
-
-/**
- * Iranian national ID with checksum validation
- */
-export function iranianNationalIdSchema(message?: string) {
-  return z.string()
-    .regex(/^\d{10}$/, 'National ID must be exactly 10 digits')
-    .refine((value) => {
-      // Iranian national ID checksum validation
-      if (value.length !== 10 || /^(\d)\1{9}$/.test(value))
-        return false;
-
-      const digits = value.split('').map(Number);
-      const checkDigit = digits.pop()!;
-
-      let sum = 0;
-      for (let i = 0; i < 9; i++) {
-        const digit = digits[i];
-        if (digit === undefined)
-          return false;
-        sum += digit * (10 - i);
-      }
-
-      const remainder = sum % 11;
-      const expectedCheck = remainder < 2 ? remainder : 11 - remainder;
-      return checkDigit === expectedCheck;
-    }, message ?? 'Invalid Iranian national ID')
-    .openapi({
-      example: '0123456789',
-      description: 'Valid Iranian national ID with checksum',
-    });
-}
-
-/**
- * Iranian mobile phone number with normalization
- */
-export function iranianMobileSchema() {
-  return z.string()
-    .regex(/^(\+98|0)?9\d{9}$/, 'Invalid Iranian mobile format')
-    .transform((phone) => {
-      // Normalize to +98 format
-      if (phone.startsWith('09'))
-        return `+98${phone.slice(1)}`;
-      if (phone.startsWith('9'))
-        return `+98${phone}`;
-      if (!phone.startsWith('+98'))
-        return `+98${phone}`;
-      return phone;
-    })
-    .openapi({
-      example: '+989123456789',
-      description: 'Iranian mobile number (normalized to +98 format)',
-    });
-}
-
-/**
- * Iranian Rial amount validation (positive integer in Rials)
- */
-export function iranianRialAmountSchema() {
-  return z.number()
-    .int('Amount must be a whole number')
-    .positive('Amount must be positive')
-    .min(1000, 'Minimum amount is 1,000 Rials')
-    .max(500_000_000, 'Maximum amount is 500,000,000 Rials')
-    .openapi({
-      example: 99000,
-      description: 'Amount in Iranian Rials (1,000 - 500M)',
-    });
-}
 
 // ============================================================================
 // DISCRIMINATED UNION METADATA SCHEMAS (Context7 Pattern)
@@ -371,15 +288,6 @@ export const ErrorContextSchema = z.discriminatedUnion('errorType', [
     userAgent: z.string().optional(),
   }),
   z.object({
-    errorType: z.literal('payment'),
-    paymentId: z.string().optional(),
-    amount: z.number().optional(),
-    currency: z.string().length(3).optional(),
-    provider: z.enum(['zarinpal', 'stripe', 'other']),
-    gatewayError: z.string().optional(),
-    gatewayCode: z.string().optional(),
-  }),
-  z.object({
     errorType: z.literal('database'),
     operation: z.enum(['select', 'insert', 'update', 'delete', 'batch']),
     table: z.string().optional(),
@@ -396,10 +304,11 @@ export const ErrorContextSchema = z.discriminatedUnion('errorType', [
   }),
 ]).optional().openapi({
   example: {
-    errorType: 'payment',
-    provider: 'zarinpal',
-    gatewayError: 'Insufficient funds',
-    gatewayCode: '101',
+    errorType: 'validation',
+    fieldErrors: [{
+      field: 'email',
+      message: 'Invalid email format',
+    }],
   },
   description: 'Type-safe error context information',
 });
@@ -409,82 +318,30 @@ export const ErrorContextSchema = z.discriminatedUnion('errorType', [
 // ============================================================================
 
 /**
- * Payment method metadata discriminated union
+ * Feature metadata discriminated union
  */
-export const PaymentMethodMetadataSchema = z.discriminatedUnion('methodType', [
+export const FeatureMetadataSchema = z.discriminatedUnion('featureType', [
   z.object({
-    methodType: z.literal('direct_debit_contract'),
-    contractId: z.string().uuid(),
-    bankAccount: z.string().min(10).max(30),
-    maxAmount: z.number().positive(),
-    expiresAt: z.string().datetime().optional(),
+    featureType: z.literal('user_setting'),
+    preferenceKey: z.string(),
+    preferenceValue: z.union([z.string(), z.number(), z.boolean()]),
+    updatedAt: z.string().datetime(),
   }),
   z.object({
-    methodType: z.literal('zarinpal_gateway'),
-    merchantId: z.string(),
-    description: z.string().max(255),
-    mobile: iranianMobileSchema(),
-    email: CoreSchemas.email(),
-  }),
-  z.object({
-    methodType: z.literal('card_token'),
-    tokenId: z.string(),
-    lastFourDigits: z.string().length(4),
-    expiryMonth: z.number().int().min(1).max(12),
-    expiryYear: z.number().int().min(new Date().getFullYear()),
-    cardType: z.enum(['visa', 'mastercard', 'other']),
+    featureType: z.literal('collaboration_session'),
+    sessionId: z.string().uuid(),
+    participants: z.array(z.string()),
+    startedAt: z.string().datetime(),
+    status: z.enum(['active', 'paused', 'completed']),
   }),
 ]).openapi({
   example: {
-    methodType: 'direct_debit_contract',
-    contractId: 'contract_abc123',
-    bankAccount: '1234567890123',
-    maxAmount: 1000000,
+    featureType: 'user_setting',
+    preferenceKey: 'notification',
+    preferenceValue: true,
+    updatedAt: new Date().toISOString(),
   },
-  description: 'Payment method specific metadata',
-});
-
-/**
- * Subscription metadata discriminated union
- */
-export const SubscriptionMetadataSchema = z.discriminatedUnion('subscriptionType', [
-  z.object({
-    subscriptionType: z.literal('trial'),
-    trialEnd: z.string().datetime(),
-    trialDays: z.number().int().positive(),
-    autoRenew: z.boolean(),
-    trialFeatures: z.array(z.string()).optional(),
-  }),
-  z.object({
-    subscriptionType: z.literal('active'),
-    nextBilling: z.string().datetime(),
-    autoRenew: z.boolean(),
-    paymentMethodId: z.string().uuid(),
-    gracePeriodDays: z.number().int().nonnegative().optional(),
-  }),
-  z.object({
-    subscriptionType: z.literal('cancelled'),
-    cancelledAt: z.string().datetime(),
-    cancelReason: z.enum(['user_request', 'payment_failure', 'policy_violation']),
-    refundIssued: z.boolean(),
-    endOfServiceDate: z.string().datetime().optional(),
-  }),
-  z.object({
-    subscriptionType: z.literal('plan_change_pending'),
-    newProductId: z.string(),
-    scheduledFor: z.string().datetime(),
-    requestedAt: z.string().datetime(),
-    changeType: z.enum(['upgrade', 'downgrade', 'lateral']).optional(),
-    prorationCredit: z.number().nonnegative().optional(),
-  }),
-]).openapi({
-  example: {
-    subscriptionType: 'active',
-    nextBilling: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-    autoRenew: true,
-    paymentMethodId: 'pm_abc123',
-  },
-  description: 'Subscription lifecycle metadata',
+  description: 'Feature-specific metadata',
 });
 
 // ============================================================================
@@ -640,8 +497,7 @@ export type RequestMetadata = z.infer<typeof RequestMetadataSchema>;
 export type LoggerData = z.infer<typeof LoggerDataSchema>;
 export type ResponseMetadata = z.infer<typeof ResponseMetadataSchema>;
 export type ErrorContext = z.infer<typeof ErrorContextSchema>;
-export type PaymentMethodMetadata = z.infer<typeof PaymentMethodMetadataSchema>;
-export type SubscriptionMetadata = z.infer<typeof SubscriptionMetadataSchema>;
+export type FeatureMetadata = z.infer<typeof FeatureMetadataSchema>;
 export type ApiErrorResponse = z.infer<typeof ApiErrorResponseSchema>;
 export type PaginationQuery = z.infer<typeof PaginationQuerySchema>;
 export type SortingQuery = z.infer<typeof SortingQuerySchema>;

@@ -8,8 +8,8 @@ import { z } from 'zod';
 
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { formatTomanCurrency } from '@/lib/format';
 
+// No longer need Toman formatting for USD-only app
 import FormProvider from './form-provider';
 import RHFRadioGroup from './rhf-radio-group';
 
@@ -61,7 +61,7 @@ export function BankSelectionForm({
 
   // Transform banks into options for the radio group following Shad-UI patterns
   const bankOptions = banks.map((bank) => {
-    const dailyLimitText = `${formatTomanCurrency(bank.maxDailyAmount)} ${t('bankSetup.bank.dailyLimit')}`;
+    const dailyLimitText = `$${bank.maxDailyAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${t('bankSetup.bank.dailyLimit')}`;
     const transactionCountText = bank.maxDailyCount
       ? `${bank.maxDailyCount} ${t('bankSetup.bank.transactionsPerDay')}`
       : t('bankSetup.bank.unlimitedTransactions');

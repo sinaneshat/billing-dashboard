@@ -1,8 +1,8 @@
 export const BRAND = {
   name: 'Roundtable',
-  fullName: 'Roundtable Billing Dashboard',
+  fullName: 'Roundtable Dashboard',
   tagline: 'Multiple AI Models Brainstorm Together',
-  description: 'Advanced billing solutions for AI collaboration platforms. Where multiple minds meet.',
+  description: 'AI collaboration platform where multiple minds meet.',
   venture: 'Roundtable',
 
   // URLs
@@ -68,8 +68,8 @@ export type Brand = typeof BRAND;
 // API-specific brand constants
 export const API_BRAND = {
   // API-specific branding
-  apiName: `${BRAND.name} Billing API`,
-  apiDescription: `${BRAND.description} - Billing & Payment API`,
+  apiName: `${BRAND.name} API`,
+  apiDescription: `${BRAND.description} - Application API`,
   apiVersion: '1.0.0',
 
   // Support information

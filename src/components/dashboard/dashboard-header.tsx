@@ -26,11 +26,6 @@ import { DashboardSection } from './dashboard-states';
 
 const breadcrumbMap: Record<string, { titleKey: string; parent?: string }> = {
   '/dashboard': { titleKey: 'navigation.overview' },
-  '/dashboard/billing': { titleKey: 'navigation.billing', parent: '/dashboard' },
-  '/dashboard/billing/subscriptions': { titleKey: 'navigation.subscriptions', parent: '/dashboard/billing' },
-  '/dashboard/billing/plans': { titleKey: 'navigation.plans', parent: '/dashboard/billing' },
-  '/dashboard/billing/payments': { titleKey: 'navigation.paymentHistory', parent: '/dashboard/billing' },
-  '/dashboard/billing/methods': { titleKey: 'navigation.paymentMethods', parent: '/dashboard/billing' },
 };
 
 // Navigation Header - replaces dashboard-header.tsx

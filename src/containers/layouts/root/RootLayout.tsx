@@ -3,7 +3,6 @@
 import { NextIntlClientProvider } from 'next-intl';
 import { NuqsAdapter } from 'nuqs/adapters/next/app';
 
-import { ThemeProvider } from '@/components/providers/theme-provider';
 import { Toaster } from '@/components/ui/toaster';
 import {
   QueryClientProvider,
@@ -27,40 +26,28 @@ export function RootLayout({
   translations,
   env,
 }: RootLayoutProps) {
-  const direction = locale === 'fa' ? 'rtl' : 'ltr';
-
   return (
-    <ThemeProvider
-      attribute="class"
-      defaultTheme="system"
-      enableSystem
-      disableTransitionOnChange
-    >
-      <div
-        className="min-h-screen bg-background font-sans antialiased"
-        dir={direction}
-      >
-        <QueryClientProvider>
-          <NuqsAdapter>
-            <NextIntlClientProvider
-              messages={translations}
-              locale={locale}
-              timeZone="UTC"
-            >
-              {env.NEXT_PUBLIC_MAINTENANCE !== 'true'
-                ? (
-                    <main>{children}</main>
-                  )
-                : (
-                    <div>Maintenance</div>
-                  )}
-              {modal}
-            </NextIntlClientProvider>
-          </NuqsAdapter>
-        </QueryClientProvider>
-        <Toaster />
-      </div>
-    </ThemeProvider>
+    <div className="min-h-screen bg-background font-sans antialiased">
+      <QueryClientProvider>
+        <NuqsAdapter>
+          <NextIntlClientProvider
+            messages={translations}
+            locale={locale}
+            timeZone="UTC"
+          >
+            {env.NEXT_PUBLIC_MAINTENANCE !== 'true'
+              ? (
+                  <main>{children}</main>
+                )
+              : (
+                  <div>Maintenance</div>
+                )}
+            {modal}
+          </NextIntlClientProvider>
+        </NuqsAdapter>
+      </QueryClientProvider>
+      <Toaster />
+    </div>
   );
 }
 

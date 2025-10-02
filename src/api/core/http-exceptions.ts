@@ -36,7 +36,6 @@ const STOKER_TO_HONO_STATUS_MAP = {
   // 4xx Client Error Status Codes
   [HttpStatusCodes.BAD_REQUEST]: 400 as const,
   [HttpStatusCodes.UNAUTHORIZED]: 401 as const,
-  [HttpStatusCodes.PAYMENT_REQUIRED]: 402 as const,
   [HttpStatusCodes.FORBIDDEN]: 403 as const,
   [HttpStatusCodes.NOT_FOUND]: 404 as const,
   [HttpStatusCodes.METHOD_NOT_ALLOWED]: 405 as const,
@@ -355,17 +354,6 @@ export class HTTPExceptionFactory {
   }
 
   /**
-   * Payment Required (402)
-   */
-  static paymentRequired(options: Omit<HTTPExceptionFactoryOptions, 'code' | 'severity'>): EnhancedHTTPException {
-    return HTTPExceptionFactory.fromStatusCode(HttpStatusCodes.PAYMENT_REQUIRED, {
-      ...options,
-      code: ERROR_CODES.PAYMENT_FAILED,
-      severity: ERROR_SEVERITY.MEDIUM,
-    });
-  }
-
-  /**
    * Gateway Timeout (504)
    */
   static gatewayTimeout(options: Omit<HTTPExceptionFactoryOptions, 'code' | 'severity'>): EnhancedHTTPException {
@@ -384,59 +372,6 @@ export class HTTPExceptionFactory {
       ...options,
       code: ERROR_CODES.TIMEOUT_ERROR,
       severity: ERROR_SEVERITY.MEDIUM,
-    });
-  }
-
-  // ============================================================================
-  // EXTERNAL SERVICE SPECIFIC FACTORIES
-  // ============================================================================
-
-  /**
-   * ZarinPal service error
-   */
-  static zarinPalError(
-    options: Omit<HTTPExceptionFactoryOptions, 'code' | 'severity'> & {
-      zarinpalCode?: string;
-      zarinpalMessage?: string;
-      operation: string;
-    },
-  ): EnhancedHTTPException {
-    return HTTPExceptionFactory.fromStatusCode(HttpStatusCodes.BAD_GATEWAY, {
-      ...options,
-      code: ERROR_CODES.ZARINPAL_ERROR,
-      severity: ERROR_SEVERITY.HIGH,
-      details: {
-        ...options.details,
-        provider: 'zarinpal',
-        operation: options.operation,
-        zarinpal_code: options.zarinpalCode,
-        zarinpal_message: options.zarinpalMessage,
-      },
-    });
-  }
-
-  /**
-   * Payment gateway error
-   */
-  static paymentGatewayError(
-    options: Omit<HTTPExceptionFactoryOptions, 'code' | 'severity'> & {
-      gatewayName: string;
-      operation: string;
-      gatewayCode?: string;
-      gatewayMessage?: string;
-    },
-  ): EnhancedHTTPException {
-    return HTTPExceptionFactory.fromStatusCode(HttpStatusCodes.BAD_GATEWAY, {
-      ...options,
-      code: ERROR_CODES.PAYMENT_GATEWAY_ERROR,
-      severity: ERROR_SEVERITY.HIGH,
-      details: {
-        ...options.details,
-        gateway: options.gatewayName,
-        operation: options.operation,
-        gateway_code: options.gatewayCode,
-        gateway_message: options.gatewayMessage,
-      },
     });
   }
 
@@ -477,7 +412,6 @@ export class HTTPExceptionFactory {
       [HttpStatusCodes.INTERNAL_SERVER_ERROR]: ERROR_CODES.INTERNAL_SERVER_ERROR,
       [HttpStatusCodes.BAD_GATEWAY]: ERROR_CODES.EXTERNAL_SERVICE_ERROR,
       [HttpStatusCodes.SERVICE_UNAVAILABLE]: ERROR_CODES.SERVICE_UNAVAILABLE,
-      [HttpStatusCodes.PAYMENT_REQUIRED]: ERROR_CODES.PAYMENT_FAILED,
     };
 
     const severityMap: Record<number, ErrorSeverity> = {
@@ -491,7 +425,6 @@ export class HTTPExceptionFactory {
       [HttpStatusCodes.INTERNAL_SERVER_ERROR]: ERROR_SEVERITY.CRITICAL,
       [HttpStatusCodes.BAD_GATEWAY]: ERROR_SEVERITY.HIGH,
       [HttpStatusCodes.SERVICE_UNAVAILABLE]: ERROR_SEVERITY.HIGH,
-      [HttpStatusCodes.PAYMENT_REQUIRED]: ERROR_SEVERITY.MEDIUM,
     };
 
     return HTTPExceptionFactory.fromStatusCode(stokerStatus, {
@@ -574,9 +507,6 @@ export const HttpExceptions = {
 
   serviceUnavailable: (message: string, context?: ErrorContext) =>
     HTTPExceptionFactory.serviceUnavailable({ message, context }),
-
-  paymentRequired: (message: string, context?: ErrorContext) =>
-    HTTPExceptionFactory.paymentRequired({ message, context }),
 
   gatewayTimeout: (message: string, context?: ErrorContext) =>
     HTTPExceptionFactory.gatewayTimeout({ message, context }),

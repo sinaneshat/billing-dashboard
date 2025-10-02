@@ -1,17 +1,7 @@
 /**
  * Date Formatting Utilities
- * Enhanced utilities for date and time formatting with Persian/Iranian calendar support
+ * English locale, US timezone
  */
-
-// Persian digit mapping for consistency
-const persianDigits = ['۰', '۱', '۲', '۳', '۴', '۵', '۶', '۷', '۸', '۹'];
-
-/**
- * Convert English digits to Persian digits
- */
-export function toPersianDigits(str: string): string {
-  return str.replace(/\d/g, d => persianDigits[Number.parseInt(d, 10)] || d);
-}
 
 /**
  * Check if a date is valid
@@ -42,80 +32,7 @@ function formatDate(
     day: 'numeric',
   };
 
-  const formatted = new Intl.DateTimeFormat(locale, { ...defaultOptions, ...options }).format(dateObj);
-
-  // Convert to Persian digits for Persian locale
-  return locale === 'fa' ? toPersianDigits(formatted) : formatted;
-}
-
-/**
- * Format billing dates specifically for subscription cards
- */
-export function formatBillingDate(
-  date: Date | string | number,
-  locale = 'en-US',
-  format: 'short' | 'medium' | 'long' = 'medium',
-): string {
-  if (!isValidDate(date)) {
-    return locale === 'fa' ? 'تاریخ نامعتبر' : 'Invalid Date';
-  }
-
-  const options: Record<'short' | 'medium' | 'long', Intl.DateTimeFormatOptions> = {
-    short: {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-    },
-    medium: {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-    },
-    long: {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-      weekday: 'long',
-    },
-  };
-
-  return formatDate(date, options[format], locale);
-}
-
-/**
- * Format next billing date with contextual information
- */
-export function formatNextBillingDate(
-  date: Date | string | number,
-  locale = 'en-US',
-): string {
-  if (!isValidDate(date)) {
-    return locale === 'fa' ? 'تاریخ نامعتبر' : 'Invalid Date';
-  }
-
-  const dateObj = new Date(date);
-  const now = new Date();
-  const diffDays = Math.ceil((dateObj.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-
-  // If it's today
-  if (diffDays === 0) {
-    return locale === 'fa' ? 'امروز' : 'Today';
-  }
-
-  // If it's tomorrow
-  if (diffDays === 1) {
-    return locale === 'fa' ? 'فردا' : 'Tomorrow';
-  }
-
-  // If it's within this week (next 7 days)
-  if (diffDays > 0 && diffDays <= 7) {
-    const weekdayFormat = new Intl.DateTimeFormat(locale, { weekday: 'long' });
-    const formatted = weekdayFormat.format(dateObj);
-    return locale === 'fa' ? toPersianDigits(formatted) : formatted;
-  }
-
-  // For dates further out, use standard formatting
-  return formatBillingDate(date, locale, 'medium');
+  return new Intl.DateTimeFormat(locale, { ...defaultOptions, ...options }).format(dateObj);
 }
 
 /**
@@ -140,40 +57,23 @@ export function formatRelativeTime(
   const rtf = new Intl.RelativeTimeFormat(locale, { numeric: 'auto' });
 
   if (diffMins < 1) {
-    const result = rtf.format(0, 'minute');
-    return locale === 'fa' ? toPersianDigits(result) : result;
+    return rtf.format(0, 'minute');
   }
 
   if (diffMins < 60) {
-    const result = rtf.format(-diffMins, 'minute');
-    return locale === 'fa' ? toPersianDigits(result) : result;
+    return rtf.format(-diffMins, 'minute');
   }
 
   if (diffHours < 24) {
-    const result = rtf.format(-diffHours, 'hour');
-    return locale === 'fa' ? toPersianDigits(result) : result;
+    return rtf.format(-diffHours, 'hour');
   }
 
   if (diffDays < 7) {
-    const result = rtf.format(-diffDays, 'day');
-    return locale === 'fa' ? toPersianDigits(result) : result;
+    return rtf.format(-diffDays, 'day');
   }
 
   // For older dates, show formatted date
   return formatDate(target, {}, locale);
-}
-
-/**
- * Check if a date is overdue
- */
-export function isOverdue(date: Date | string | number): boolean {
-  if (!isValidDate(date)) {
-    return false;
-  }
-
-  const dateObj = new Date(date);
-  const now = new Date();
-  return dateObj.getTime() < now.getTime();
 }
 
 /**
@@ -188,4 +88,71 @@ export function getDaysUntil(date: Date | string | number): number {
   const now = new Date();
   const diffTime = dateObj.getTime() - now.getTime();
   return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+}
+
+/**
+ * Check if a date is overdue (in the past)
+ */
+export function isOverdue(date: Date | string | number): boolean {
+  if (!isValidDate(date)) {
+    return false;
+  }
+
+  const dateObj = new Date(date);
+  const now = new Date();
+  return dateObj.getTime() < now.getTime();
+}
+
+/**
+ * Format date for billing context (English-only)
+ */
+export function formatBillingDate(
+  date: Date | string | number,
+  locale = 'en-US',
+  variant: 'short' | 'medium' | 'long' = 'medium',
+): string {
+  if (!isValidDate(date)) {
+    return 'Invalid Date';
+  }
+
+  const dateObj = new Date(date);
+  const optionsMap: Record<'short' | 'medium' | 'long', Intl.DateTimeFormatOptions> = {
+    short: { year: 'numeric', month: 'short', day: 'numeric' },
+    medium: { year: 'numeric', month: 'long', day: 'numeric' },
+    long: { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' },
+  };
+
+  return new Intl.DateTimeFormat(locale, optionsMap[variant]).format(dateObj);
+}
+
+/**
+ * Format next billing date with contextual information (English-only)
+ */
+export function formatNextBillingDate(
+  date: Date | string | number,
+  locale = 'en-US',
+): string {
+  if (!isValidDate(date)) {
+    return 'Invalid Date';
+  }
+
+  const daysUntil = getDaysUntil(date);
+
+  if (daysUntil < 0) {
+    return `Overdue by ${Math.abs(daysUntil)} day${Math.abs(daysUntil) !== 1 ? 's' : ''}`;
+  }
+
+  if (daysUntil === 0) {
+    return 'Today';
+  }
+
+  if (daysUntil === 1) {
+    return 'Tomorrow';
+  }
+
+  if (daysUntil <= 7) {
+    return `In ${daysUntil} days`;
+  }
+
+  return formatBillingDate(date, locale, 'medium');
 }

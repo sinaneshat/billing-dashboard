@@ -1,6 +1,6 @@
 # Translation Patterns and Guidelines
 
-> 🌍 **SINGLE SOURCE OF TRUTH** for all internationalization (i18n) and translation patterns in the Roundtable Billing Dashboard
+> 🌍 **SINGLE SOURCE OF TRUTH** for all internationalization (i18n) and translation patterns in the Roundtable Dashboard
 
 ## Table of Contents
 
@@ -17,7 +17,7 @@
 
 ## Overview
 
-The Roundtable Billing Dashboard supports multiple languages with a focus on English and Farsi (Persian). The translation system is built on `next-intl` and follows strict patterns to ensure consistency, maintainability, and complete coverage of all user-facing text.
+The Roundtable Dashboard supports multiple languages with a focus on English and Farsi (Persian). The translation system is built on `next-intl` and follows strict patterns to ensure consistency, maintainability, and complete coverage of all user-facing text.
 
 ### Key Technologies
 - **next-intl**: Core internationalization library

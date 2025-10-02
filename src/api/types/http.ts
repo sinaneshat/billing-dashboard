@@ -193,10 +193,6 @@ export const EnvironmentVariablesSchema = z.object({
   BETTER_AUTH_SECRET: z.string().min(32),
   BETTER_AUTH_URL: z.string().url(),
 
-  // Payment processing
-  NEXT_PUBLIC_ZARINPAL_MERCHANT_ID: z.string().length(36),
-  ZARINPAL_ACCESS_TOKEN: z.string().min(50),
-
   // Storage
   R2_PUBLIC_URL: z.string().url(),
   CLOUDFLARE_ACCOUNT_ID: z.string().length(32),
@@ -219,9 +215,7 @@ export const SafeEnvironmentSummarySchema = z.object({
   LOG_LEVEL: z.string(),
   ENVIRONMENT_VERIFIED: z.boolean(),
   DATABASE_CONNECTION_STATUS: z.enum(['connected', 'disconnected', 'pending']),
-  PAYMENT_GATEWAY_STATUS: z.enum(['configured', 'missing', 'invalid']),
   OAUTH_STATUS: z.enum(['configured', 'missing', 'invalid']),
-  WEBHOOK_STATUS: z.enum(['configured', 'missing', 'invalid']),
   TIMESTAMP: z.string().datetime(),
 });
 

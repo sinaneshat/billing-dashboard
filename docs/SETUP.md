@@ -1,6 +1,6 @@
-# 🚀 Deadpixel Billing Dashboard - Complete Setup Guide
+# 🚀 Deadpixel Dashboard - Complete Setup Guide
 
-Welcome to the Deadpixel Billing Dashboard! This comprehensive guide will walk you through setting up the project from scratch.
+Welcome to the Deadpixel Dashboard! This comprehensive guide will walk you through setting up the project from scratch.
 
 ## 📋 Table of Contents
 
@@ -45,8 +45,8 @@ Get up and running in 5 minutes with basic functionality:
 ### Step 1: Clone and Install
 ```bash
 # Clone the repository
-git clone https://github.com/your-org/billing-dashboard.git
-cd billing-dashboard
+git clone https://github.com/your-org/roundtable-dashboard.git
+cd roundtable-dashboard
 
 # Install dependencies
 pnpm install

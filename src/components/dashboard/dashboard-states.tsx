@@ -5,8 +5,6 @@ import {
   AlertTriangle,
   CheckCircle,
   Clock,
-  CreditCard,
-  FileText,
   Info,
   Package,
   RefreshCw,
@@ -350,7 +348,7 @@ type EmptyStateProps = {
   title?: string;
   description?: string;
   action?: ReactNode;
-  variant?: 'subscriptions' | 'payments' | 'plans' | 'methods' | 'general' | 'custom';
+  variant?: 'general' | 'custom';
   size?: 'sm' | 'md' | 'lg';
   style?: 'default' | 'dashed' | 'gradient';
   className?: string;
@@ -372,26 +370,6 @@ export function EmptyState({
   const t = useTranslations();
 
   const emptyStateConfig = {
-    subscriptions: {
-      icon: Package,
-      title: t('states.empty.subscriptions'),
-      description: t('states.empty.subscriptionsDescription'),
-    },
-    payments: {
-      icon: CreditCard,
-      title: t('states.empty.payments'),
-      description: t('states.empty.paymentsDescription'),
-    },
-    plans: {
-      icon: FileText,
-      title: t('states.empty.plans'),
-      description: t('states.empty.plansDescription'),
-    },
-    methods: {
-      icon: CreditCard,
-      title: t('states.empty.methods'),
-      description: t('states.empty.methodsDescription'),
-    },
     general: {
       icon: Package,
       title: t('states.empty.default'),

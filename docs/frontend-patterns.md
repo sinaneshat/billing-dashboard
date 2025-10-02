@@ -1,8 +1,8 @@
 # Frontend Patterns & Architecture Guide
 
-**Roundtable Billing Dashboard - Frontend Implementation Guide**
+**Roundtable Dashboard - Frontend Implementation Guide**
 
-This document outlines established frontend patterns, architectural decisions, and implementation guidelines for the Roundtable billing dashboard. These patterns ensure consistency, maintainability, and optimal developer experience across the entire frontend codebase.
+This document outlines established frontend patterns, architectural decisions, and implementation guidelines for the Roundtable dashboard. These patterns ensure consistency, maintainability, and optimal developer experience across the entire frontend codebase.
 
 ## Table of Contents
 
@@ -687,7 +687,7 @@ export const { Link, redirect, usePathname, useRouter } =
   "auth": {
     "login": {
       "title": "Sign In to Your Account",
-      "subtitle": "Enter your credentials to access your billing dashboard",
+      "subtitle": "Enter your credentials to access your dashboard",
       "form": {
         "email": "Email Address",
         "password": "Password",
@@ -704,7 +704,7 @@ export const { Link, redirect, usePathname, useRouter } =
   },
   "billing": {
     "dashboard": {
-      "title": "Billing Dashboard",
+      "title": "Dashboard",
       "overview": {
         "totalRevenue": "Total Revenue",
         "activeSubscriptions": "Active Subscriptions",
@@ -1996,7 +1996,7 @@ const DropdownMenuContent = React.forwardRef<
 
 ## Conclusion
 
-This frontend patterns guide establishes the architectural foundation for the Roundtable billing dashboard frontend. These patterns ensure:
+This frontend patterns guide establishes the architectural foundation for the Roundtable dashboard frontend. These patterns ensure:
 
 - **Consistency**: Unified component architecture and styling approach
 - **Performance**: Optimized loading, caching, and code splitting strategies

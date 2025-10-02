@@ -4,8 +4,6 @@ import React from 'react';
 import {
   AlertTriangle,
   CheckCircle,
-  CreditCard,
-  FileText,
   Package,
   RefreshCw,
   WifiOff
@@ -20,9 +18,8 @@ import { LoadingSpinner } from '@/components/ui/loading-spinner';
 import { cn } from '@/lib/ui/cn';
 
 // =============================================================================
-// ENHANCED UNIFIED CARD STATE SYSTEM
-// Extends existing dashboard-cards.tsx and dashboard-states.tsx patterns
-// Provides better TypeScript support and TanStack Query integration
+// UNIFIED CARD STATE SYSTEM
+// Provides loading, empty, error, and success states for cards
 // =============================================================================
 
 // Enhanced loading state with better TanStack Query integration
@@ -128,7 +125,6 @@ export type CardEmptyStateProps = {
   description?: string;
   icon?: React.ReactNode;
   action?: React.ReactNode;
-  variant?: 'subscriptions' | 'payments' | 'plans' | 'methods' | 'general';
   size?: 'sm' | 'md' | 'lg';
   style?: 'default' | 'dashed' | 'minimal';
   className?: string;
@@ -139,43 +135,15 @@ export function CardEmptyState({
   description,
   icon,
   action,
-  variant = 'general',
   size = 'md',
   style = 'dashed',
   className,
 }: CardEmptyStateProps) {
   const t = useTranslations();
 
-  const variantConfig = {
-    subscriptions: {
-      icon: Package,
-      title: t('states.empty.subscriptions'),
-      description: t('states.empty.subscriptionsDescription'),
-    },
-    payments: {
-      icon: CreditCard,
-      title: t('states.empty.payments'),
-      description: t('states.empty.paymentsDescription'),
-    },
-    plans: {
-      icon: FileText,
-      title: t('states.empty.plans'),
-      description: t('states.empty.plansDescription'),
-    },
-    methods: {
-      icon: CreditCard,
-      title: t('states.empty.methods'),
-      description: t('states.empty.methodsDescription'),
-    },
-    general: {
-      icon: Package,
-      title: t('states.empty.default'),
-      description: t('states.empty.description'),
-    },
-  };
-
-  const config = variantConfig[variant];
-  const IconComponent = icon || config.icon;
+  const defaultTitle = title || t('states.empty.default');
+  const defaultDescription = description || t('states.empty.description');
+  const IconComponent = icon || Package;
 
   const sizeConfig = {
     sm: {
@@ -230,13 +198,13 @@ export function CardEmptyState({
           </div>
           <div className="space-y-2">
             <h3 className={sizeSettings.title}>
-              {title || config.title}
+              {defaultTitle}
             </h3>
             <p className={cn(
               sizeSettings.description,
               'text-muted-foreground max-w-md mx-auto',
             )}>
-              {description || config.description}
+              {defaultDescription}
             </p>
           </div>
           {action && (
@@ -484,57 +452,4 @@ export function CardWithStates<T>({
 
   // Render children with data
   return <>{children(data)}</>;
-}
-
-// Billing-specific card variants for common use cases
-export type BillingCardContainerProps<T> = {
-  data?: T[];
-  isLoading?: boolean;
-  isError?: boolean;
-  error?: Error | null;
-  onRetry?: () => void;
-  variant?: 'subscriptions' | 'payments' | 'methods' | 'general';
-  emptyAction?: React.ReactNode;
-  className?: string;
-  children: (items: T[]) => React.ReactNode;
-};
-
-export function BillingCardContainer<T>({
-  data,
-  isLoading,
-  isError,
-  error,
-  onRetry,
-  variant = 'general',
-  emptyAction,
-  className,
-  children,
-}: BillingCardContainerProps<T>) {
-  return (
-    <CardWithStates
-      data={data}
-      isLoading={isLoading}
-      isError={isError}
-      error={error}
-      onRetry={onRetry}
-      className={className}
-      loadingProps={{
-        variant: 'skeleton',
-        size: 'md',
-        rows: 3,
-      }}
-      emptyProps={{
-        variant,
-        action: emptyAction,
-        size: 'md',
-        style: 'dashed',
-      }}
-      errorProps={{
-        variant: 'card',
-        severity: 'error',
-      }}
-    >
-      {children}
-    </CardWithStates>
-  );
 }

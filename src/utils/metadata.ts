@@ -58,13 +58,9 @@ export function createJsonLd(props: {
     return {
       ...baseStructuredData,
       applicationCategory: 'BusinessApplication',
-      applicationSubCategory: 'Billing and Subscription Management',
+      applicationSubCategory: 'AI Collaboration Platform',
       operatingSystem: 'Any',
-      permissions: 'https://billing.roundtable.now/terms',
-      offers: {
-        '@type': 'Offer',
-        'category': 'subscription',
-      },
+      permissions: `${url}/terms`,
     };
   }
 
@@ -96,7 +92,7 @@ export function createMetadata({
   siteName = BRAND.fullName,
   robots = 'index, follow',
   canonicalUrl,
-  keywords = ['billing', 'dashboard', 'AI collaboration', 'subscription management', 'roundtable'],
+  keywords = ['AI collaboration', 'dashboard', 'brainstorming', 'multiple models', 'roundtable'],
   author = BRAND.name,
   publishedTime,
   modifiedTime,

@@ -76,36 +76,3 @@ export function logUserError(
     'warning',
   );
 }
-
-/**
- * Log ZarinPal-specific errors with payment context
- */
-export function logZarinPalError(
-  operation: string,
-  error: unknown,
-  context?: {
-    userId?: string;
-    mobile?: string;
-    amount?: number;
-    merchantId?: string;
-    requestId?: string;
-  },
-): void {
-  // Don't log sensitive information like full mobile numbers or merchant IDs
-  const sanitizedContext = {
-    ...context,
-    mobile: context?.mobile ? `***${context.mobile.slice(-4)}` : undefined,
-    merchantId: context?.merchantId ? `${context.merchantId.slice(0, 8)}...` : undefined,
-  };
-
-  logStructuredError(
-    'ZARINPAL_ERROR',
-    error,
-    {
-      component: 'zarinpal-service',
-      action: operation,
-      metadata: sanitizedContext,
-    },
-    'error',
-  );
-}

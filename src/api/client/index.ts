@@ -1,5 +1,5 @@
 /**
- * Hono RPC Client for zarinpal API
+ * Hono RPC Client for API
  *
  * This client provides type-safe access to the backend API using Hono's RPC functionality.
  * It serves as the single source of truth for API communication and enables end-to-end
@@ -28,7 +28,7 @@ function getBaseUrl() {
     if (process.env.NEXT_PUBLIC_APP_URL) {
       return `${process.env.NEXT_PUBLIC_APP_URL}/api/v1`;
     }
-    return process.env.NODE_ENV === 'development' ? 'http://localhost:3000/api/v1' : 'https://billing.roundtable.now/api/v1';
+    return process.env.NODE_ENV === 'development' ? 'http://localhost:3000/api/v1' : 'https://app.roundtable.now/api/v1';
   }
 
   // Client-side: use same origin

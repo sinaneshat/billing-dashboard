@@ -420,7 +420,7 @@ export async function fetchJSON<T = unknown>(
     method: 'GET',
     headers: {
       'Accept': 'application/json',
-      'User-Agent': 'DeadPixel-BillingDashboard/1.0',
+      'User-Agent': 'Roundtable-Dashboard/1.0',
     },
   }, config, schema);
 }
@@ -440,7 +440,7 @@ export async function postJSON<T = unknown>(
     headers: {
       'Content-Type': 'application/json',
       'Accept': 'application/json',
-      'User-Agent': 'DeadPixel-BillingDashboard/1.0',
+      'User-Agent': 'Roundtable-Dashboard/1.0',
       ...headers, // Custom headers override defaults
     },
     body: JSON.stringify(body),

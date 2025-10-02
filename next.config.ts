@@ -139,7 +139,7 @@ const nextConfig: NextConfig = {
               'script-src \'self\' \'unsafe-inline\' \'unsafe-eval\'',
               'style-src \'self\' \'unsafe-inline\'',
               'img-src \'self\' data: https://lh3.googleusercontent.com https://lh4.googleusercontent.com https://lh5.googleusercontent.com https://lh6.googleusercontent.com https://googleusercontent.com',
-              `connect-src 'self' https://api.zarinpal.com ${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}`,
+              `connect-src 'self' ${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}`,
               'frame-ancestors \'none\'',
               'base-uri \'self\'',
               'form-action \'self\'',

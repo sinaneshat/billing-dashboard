@@ -71,7 +71,6 @@ const SENSITIVE_PATTERNS = [
   /signature/i,
 
   // External Services
-  /webhook[_-]?secret/i,
   /callback[_-]?url/i,
   /endpoint/i,
 ] as const;
@@ -107,8 +106,6 @@ const REDACTED_FIELDS = new Set([
   'accountNumber',
   'account_number',
   'signature',
-  'webhookSecret',
-  'webhook_secret',
 ]);
 
 // ============================================================================
@@ -467,36 +464,6 @@ export function logApiActivity(
 }
 
 /**
- * Log payment activity with extra security
- */
-export function logPaymentActivity(
-  message: string,
-  details: {
-    amount?: number;
-    currency?: string;
-    paymentId?: string;
-    userId?: string;
-    status?: string;
-    correlationId?: string;
-  },
-): void {
-  // Extra sanitization for payment logs
-  const sanitizedDetails = {
-    ...details,
-    // Never log full payment IDs, only first/last few chars
-    ...(details.paymentId && {
-      paymentId: `${details.paymentId.slice(0, 4)}****${details.paymentId.slice(-4)}`,
-    }),
-  };
-
-  logInfo(message, undefined, {
-    component: 'payment',
-    operation: 'transaction',
-    ...sanitizedDetails,
-  });
-}
-
-/**
  * Log authentication events
  */
 export function logAuthActivity(
@@ -626,7 +593,6 @@ export default {
 
   // Specialized logging
   apiActivity: logApiActivity,
-  paymentActivity: logPaymentActivity,
   authActivity: logAuthActivity,
   databaseActivity: logDatabaseActivity,
   externalService: logExternalService,

@@ -3,7 +3,6 @@
 import {
   BarChart3,
   ChevronRight,
-  CreditCard,
   LogOut,
 } from 'lucide-react';
 import Image from 'next/image';
@@ -22,7 +21,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { SettingsPanel } from '@/components/ui/settings-panel';
 import {
   Sidebar,
   SidebarContent,
@@ -41,42 +39,29 @@ import {
   useSidebar,
 } from '@/components/ui/sidebar';
 import { BRAND } from '@/constants/brand';
-import { useCurrentSubscriptionQuery } from '@/hooks/queries/subscriptions';
 import { signOut, useSession } from '@/lib/auth/client';
 
+// Navigation item type with optional sub-items
+type NavItem = {
+  titleKey: string;
+  title: string;
+  url: string;
+  icon: React.ComponentType<React.SVGProps<SVGSVGElement>>;
+  items?: Array<{
+    title: string;
+    url: string;
+  }>;
+  forceExpanded?: boolean;
+};
+
 // Navigation structure function to enable translations
-function getNavigation(t: ReturnType<typeof useTranslations>) {
+function getNavigation(t: ReturnType<typeof useTranslations>): NavItem[] {
   return [
     {
       titleKey: 'navigation.overview',
       title: t('navigation.overview'),
       url: '/dashboard',
       icon: BarChart3,
-    },
-    {
-      titleKey: 'navigation.billing',
-      title: t('navigation.billing'),
-      url: '/dashboard/billing',
-      icon: CreditCard,
-      badge: 'subscription',
-      forceExpanded: true, // Keep billing section expanded by default
-      items: [
-        {
-          titleKey: 'navigation.plans',
-          title: t('navigation.plans'),
-          url: '/dashboard/billing/plans',
-        },
-        {
-          titleKey: 'navigation.billingHistory',
-          title: t('navigation.billingHistory'),
-          url: '/dashboard/billing/payments',
-        },
-        {
-          titleKey: 'navigation.paymentMethods',
-          title: t('navigation.paymentMethods'),
-          url: '/dashboard/billing/methods',
-        },
-      ],
     },
   ];
 }
@@ -85,7 +70,6 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const pathname = usePathname();
   const router = useRouter();
   const { data: session } = useSession();
-  const { data: currentSubscription } = useCurrentSubscriptionQuery();
   const { isMobile } = useSidebar();
   const t = useTranslations();
 
@@ -95,8 +79,6 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const userInitials = user?.name
     ? user.name.split(' ').map((n: string) => n[0]).join('').toUpperCase()
     : user?.email?.[0]?.toUpperCase() || 'U';
-
-  const hasActiveSubscription = currentSubscription?.status === 'active';
 
   const handleSignOut = async () => {
     await signOut({
@@ -148,7 +130,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                 const isExactMatch = pathname === item.url;
                 const hasActiveSubItem = item.items?.some(subItem => pathname === subItem.url);
                 const shouldExpand = item.forceExpanded || hasActiveSubItem || (pathname.startsWith(`${item.url}/`) && pathname !== item.url);
-                const showBadge = item.badge === 'subscription' && hasActiveSubscription;
+                const showBadge = false;
 
                 if (item.items) {
                   return (
@@ -168,7 +150,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                                 {t('status.active')}
                               </Badge>
                             )}
-                            <ChevronRight className="ms-auto transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90 rtl:scale-x-[-1]" />
+                            <ChevronRight className="ms-auto transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
                           </SidebarMenuButton>
                         </CollapsibleTrigger>
                         <CollapsibleContent>
@@ -222,11 +204,6 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
       <SidebarFooter>
         <SidebarMenu>
-          {/* Unified Settings Panel */}
-          <SidebarMenuItem>
-            <SettingsPanel variant="sidebar" />
-          </SidebarMenuItem>
-
           {/* User Profile Dropdown */}
           <SidebarMenuItem>
             <DropdownMenu>
@@ -243,9 +220,6 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                     <span className="truncate font-semibold">{user?.name || t('user.defaultName')}</span>
                     <span className="truncate text-xs text-sidebar-foreground/70">{user?.email}</span>
                   </div>
-                  {hasActiveSubscription && (
-                    <div className="ms-auto size-2 rounded-full bg-green-500" />
-                  )}
                 </SidebarMenuButton>
               </DropdownMenuTrigger>
               <DropdownMenuContent

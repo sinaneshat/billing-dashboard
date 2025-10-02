@@ -28,9 +28,6 @@ import { created, internalServerError, notFound, ok, paginated, validationError 
 import {
   CoreSchemas,
   IdParamSchema,
-  iranianMobileSchema,
-  iranianNationalIdSchema,
-  iranianRialAmountSchema,
   ListQuerySchema,
   PaginationQuerySchema,
   SearchQuerySchema,
@@ -83,7 +80,6 @@ export {
   // Success responses
   ok,
   paginated,
-  paymentError,
   rateLimitExceeded,
   redirect,
   // Type exports
@@ -115,18 +111,12 @@ export {
   ErrorContextSchema,
   type IdParam,
   IdParamSchema,
-  iranianMobileSchema,
-  // Iranian-specific validators
-  iranianNationalIdSchema,
-  iranianRialAmountSchema,
   type ListQuery,
   ListQuerySchema,
   type PaginatedResponse,
   type PaginationQuery,
   // Common request schemas
   PaginationQuerySchema,
-  type PaymentMethodMetadata,
-  PaymentMethodMetadataSchema,
   // Type exports
   type RequestMetadata,
   // Discriminated union schemas (replaces Record<string, unknown>)
@@ -135,8 +125,6 @@ export {
   SearchQuerySchema,
   type SortingQuery,
   SortingQuerySchema,
-  type SubscriptionMetadata,
-  SubscriptionMetadataSchema,
 } from './schemas';
 
 // ============================================================================
@@ -171,11 +159,6 @@ export const CommonSchemas = {
  * Bundle of most commonly used validators for quick import
  */
 export const CommonValidators = {
-  // Iranian specific
-  nationalId: iranianNationalIdSchema,
-  mobile: iranianMobileSchema,
-  rialAmount: iranianRialAmountSchema,
-
   // Files
   document: documentUploadValidator,
 } as const;

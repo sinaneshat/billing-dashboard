@@ -192,7 +192,7 @@ export function MetricCard({
   );
 }
 
-// Status Card - for displaying items with status indicators (payments, subscriptions)
+// Status Card - for displaying items with status indicators
 type StatusCardProps = {
   title: string;
   subtitle?: string | ReactNode;

@@ -1700,7 +1700,6 @@
   "secret_key": "Secret Key",
   "enabled_events": "Enabled Events",
   "[": "[",
-  "webhook_event_id": "Webhook Event Id",
   "endpoint_id": "Endpoint Id",
   "response_body": "Response Body",
   "response_headers": "Response Headers",
@@ -1745,7 +1744,6 @@
   "info": "Info",
   "source": "Source",
   "raw_payload": "Raw Payload",
-  "external_webhook_url": "External Webhook Url",
   "processing_error": "Processing Error",
   "forwarding_error": "Forwarding Error",
   "email": "Email",
@@ -1848,7 +1846,6 @@
   "days": "days",
   "hex": "Hex",
   "Webhook rate limit exceeded": "Webhook Rate Limit Exceeded",
-  "Invalid content type for webhook": "Invalid Content Type For Webhook",
   "@/db/tables/auth": "@/Db/Tables/Auth",
   "Rial amounts must be whole numbers": "Rial Amounts Must Be Whole Numbers",
   "Payment method is not active": "Payment Method Is Not Active",
@@ -1866,7 +1863,6 @@
   "immediate": "Immediate",
   "@/api/services/zarinpal-direct-debit": "@/Api/Services/Zarinpal-Direct-Debit",
   "@/api/utils/crypto": "@/Api/Utils/Crypto",
-  "@/api/routes/webhooks/handler": "@/Api/Routes/Webhooks/Handler",
   "Invalid payment method": {
     " Only direct-debit-contract is supported": {
       "": ""

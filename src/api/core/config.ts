@@ -28,7 +28,6 @@ const ValidationUtils = {
   number: {
     percentage: () => z.number().min(0).max(100),
   },
-  iranianRialAmount: () => z.number().positive().int(),
 };
 
 // ============================================================================
@@ -48,7 +47,7 @@ const coreEnvironmentSchema = z.object({
   NEXT_PUBLIC_API_URL: ValidationUtils.string.url().optional(),
 
   // Application metadata
-  NEXT_PUBLIC_APP_NAME: ValidationUtils.string.nonEmpty().default('Roundtable Billing Dashboard'),
+  NEXT_PUBLIC_APP_NAME: ValidationUtils.string.nonEmpty().default('Roundtable Dashboard'),
   NEXT_PUBLIC_APP_VERSION: ValidationUtils.string.nonEmpty().default('1.0.0'),
 
   // API Configuration
@@ -91,26 +90,6 @@ const authEnvironmentSchema = z.object({
   CSRF_SECRET: ValidationUtils.string.nonEmpty().optional(),
   RATE_LIMIT_MAX: z.coerce.number().int().positive().default(100),
   RATE_LIMIT_WINDOW: z.coerce.number().int().positive().default(15 * 60 * 1000), // 15 minutes
-});
-
-/**
- * Payment gateway configuration schema
- */
-const paymentEnvironmentSchema = z.object({
-  // ZarinPal configuration
-  NEXT_PUBLIC_ZARINPAL_MERCHANT_ID: ValidationUtils.string.nonEmpty(),
-  ZARINPAL_SANDBOX: z.boolean().default(false),
-  ZARINPAL_API_VERSION: ValidationUtils.string.nonEmpty().default('v4'),
-  ZARINPAL_CALLBACK_URL: ValidationUtils.string.url().optional(),
-
-  // Direct debit configuration
-  ZARINPAL_DIRECT_DEBIT_ENABLED: z.boolean().default(true),
-  ZARINPAL_DIRECT_DEBIT_CONTRACT_DURATION: z.coerce.number().int().positive().default(365), // days
-
-  // Payment limits (in Iranian Rials)
-  PAYMENT_MIN_AMOUNT: ValidationUtils.iranianRialAmount().default(1000),
-  PAYMENT_MAX_AMOUNT: ValidationUtils.iranianRialAmount().default(500_000_000),
-  PAYMENT_DEFAULT_CURRENCY: z.literal('IRR').default('IRR'),
 });
 
 /**
@@ -211,7 +190,6 @@ const developmentEnvironmentSchema = z.object({
 const completeConfigurationSchema = coreEnvironmentSchema
   .merge(databaseEnvironmentSchema)
   .merge(authEnvironmentSchema)
-  .merge(paymentEnvironmentSchema)
   .merge(emailEnvironmentSchema)
   .merge(storageEnvironmentSchema)
   .merge(monitoringEnvironmentSchema)
@@ -252,17 +230,6 @@ function parseEnvironment() {
     CSRF_SECRET: process.env.CSRF_SECRET,
     RATE_LIMIT_MAX: process.env.RATE_LIMIT_MAX,
     RATE_LIMIT_WINDOW: process.env.RATE_LIMIT_WINDOW,
-
-    // Payment
-    NEXT_PUBLIC_ZARINPAL_MERCHANT_ID: process.env.NEXT_PUBLIC_ZARINPAL_MERCHANT_ID,
-    ZARINPAL_SANDBOX: process.env.ZARINPAL_SANDBOX === 'true',
-    ZARINPAL_API_VERSION: process.env.ZARINPAL_API_VERSION,
-    ZARINPAL_CALLBACK_URL: process.env.ZARINPAL_CALLBACK_URL,
-    ZARINPAL_DIRECT_DEBIT_ENABLED: process.env.ZARINPAL_DIRECT_DEBIT_ENABLED !== 'false',
-    ZARINPAL_DIRECT_DEBIT_CONTRACT_DURATION: process.env.ZARINPAL_DIRECT_DEBIT_CONTRACT_DURATION,
-    PAYMENT_MIN_AMOUNT: process.env.PAYMENT_MIN_AMOUNT,
-    PAYMENT_MAX_AMOUNT: process.env.PAYMENT_MAX_AMOUNT,
-    PAYMENT_DEFAULT_CURRENCY: process.env.PAYMENT_DEFAULT_CURRENCY,
 
     // Email
     EMAIL_PROVIDER: process.env.EMAIL_PROVIDER,
@@ -333,9 +300,9 @@ function parseEnvironment() {
  */
 export const APP_CONFIG = {
   // Application metadata
-  NAME: 'Deadpixel Billing Dashboard',
+  NAME: 'Roundtable Dashboard',
   VERSION: '1.0.0',
-  DESCRIPTION: 'Iranian billing dashboard with ZarinPal integration',
+  DESCRIPTION: 'AI collaboration platform where multiple minds meet',
 
   // API configuration
   API_BASE_PATH: '/api',
@@ -357,43 +324,20 @@ export const APP_CONFIG = {
   DEFAULT_RATE_LIMIT: 100,
   RATE_LIMIT_WINDOW: 15 * 60 * 1000, // 15 minutes
 
-  // Payment configuration
-  PAYMENT_CURRENCY: 'IRR' as const,
-  PAYMENT_MIN_AMOUNT: 1000, // 1,000 Rials
-  PAYMENT_MAX_AMOUNT: 500_000_000, // 500M Rials
-
-  // Subscription configuration
-  DEFAULT_BILLING_PERIOD: 'monthly' as const,
-  CONTRACT_DURATION_DAYS: 365,
-
-  // Iranian localization
-  LOCALE: 'fa-IR' as const,
-  TIMEZONE: 'Asia/Tehran' as const,
-  CURRENCY_CODE: 'IRR' as const,
-  COUNTRY_CODE: 'IR' as const,
+  // Localization
+  LOCALE: 'en-US' as const,
+  TIMEZONE: 'UTC' as const,
 } as const;
 
 /**
  * Feature flags configuration
  */
 export const FEATURE_FLAGS = {
-  // Payment features
-  ENABLE_DIRECT_DEBIT: true,
-  ENABLE_ONE_TIME_PAYMENTS: true,
-  ENABLE_PAYMENT_RETRIES: true,
-  ENABLE_PAYMENT_WEBHOOKS: true,
-
   // User features
   ENABLE_USER_REGISTRATION: true,
   ENABLE_EMAIL_VERIFICATION: true,
   ENABLE_PASSWORD_RESET: true,
   ENABLE_PROFILE_PICTURES: true,
-
-  // Subscription features
-  ENABLE_SUBSCRIPTION_CANCELLATION: true,
-  ENABLE_SUBSCRIPTION_UPGRADES: true,
-  ENABLE_SUBSCRIPTION_DOWNGRADES: true,
-  ENABLE_PRORATION: true,
 
   // Admin features
   ENABLE_ADMIN_DASHBOARD: true,
@@ -512,28 +456,6 @@ export function getAuthConfig() {
 }
 
 /**
- * Get payment configuration
- */
-export function getPaymentConfig() {
-  const cfg = getConfig();
-  return {
-    zarinpal: {
-      merchantId: cfg.NEXT_PUBLIC_ZARINPAL_MERCHANT_ID,
-      sandbox: cfg.ZARINPAL_SANDBOX,
-      apiVersion: cfg.ZARINPAL_API_VERSION,
-      callbackUrl: cfg.ZARINPAL_CALLBACK_URL,
-      directDebitEnabled: cfg.ZARINPAL_DIRECT_DEBIT_ENABLED,
-      contractDuration: cfg.ZARINPAL_DIRECT_DEBIT_CONTRACT_DURATION,
-    },
-    limits: {
-      minAmount: cfg.PAYMENT_MIN_AMOUNT,
-      maxAmount: cfg.PAYMENT_MAX_AMOUNT,
-      currency: cfg.PAYMENT_DEFAULT_CURRENCY,
-    },
-  };
-}
-
-/**
  * Get email configuration
  */
 export function getEmailConfig() {
@@ -605,7 +527,6 @@ export default {
   validateConfiguration,
   getDatabaseConfig,
   getAuthConfig,
-  getPaymentConfig,
   getEmailConfig,
   getStorageConfig,
 };

@@ -14,7 +14,6 @@ import {
 } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { LocaleSwitcher } from '@/components/ui/locale-switcher';
 import { authClient } from '@/lib/auth/client';
 
 import { GoogleButton } from './google-button';
@@ -49,9 +48,6 @@ export function AuthForm() {
   if (magicLinkSent) {
     return (
       <div className="relative">
-        <div className="absolute top-4 end-4 z-10">
-          <LocaleSwitcher variant="outline" showLabel={false} />
-        </div>
         <Card className="w-full max-w-md mx-auto">
           <CardHeader className="text-center">
             <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-green-100 mb-4">
@@ -78,9 +74,6 @@ export function AuthForm() {
 
   return (
     <div className="relative">
-      <div className="absolute top-4 end-4 z-10">
-        <LocaleSwitcher variant="outline" showLabel={false} />
-      </div>
       <Card className="w-full max-w-md mx-auto">
         <CardHeader className="text-center">
           <CardTitle>{t('auth.signIn.title')}</CardTitle>
