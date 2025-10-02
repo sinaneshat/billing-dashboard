@@ -1,6 +1,6 @@
 # Backend Patterns - Implementation Guide
 
-> **Context Prime Document**: Essential reference for all backend development in the Roundtable Dashboard. This document serves as the single source of truth for backend implementation standards.
+> **Context Prime Document**: Essential reference for all backend development in the Roundtable Platform. This document serves as the single source of truth for backend implementation standards.
 
 ## Table of Contents
 
@@ -17,7 +17,7 @@
 
 ## Architecture Overview
 
-The Roundtable Dashboard implements a modern, type-safe API architecture built on:
+The Roundtable Platform implements a modern, type-safe API architecture built on:
 - **Hono.js** - Fast, lightweight web framework
 - **Cloudflare Workers** - Edge runtime for global performance
 - **Drizzle ORM** - Type-safe database operations
@@ -40,7 +40,7 @@ src/api/
 │   ├── route.ts              # OpenAPI route definitions
 │   ├── handler.ts            # Business logic implementation
 │   └── schema.ts             # Zod validation schemas
-├── services/                 # Business logic services
+├── services/                 # Business logic services (currently empty - to be implemented)
 ├── middleware/               # Cross-cutting concerns
 ├── core/                     # Framework foundations
 ├── common/                   # Shared utilities
@@ -80,19 +80,65 @@ export const auth = betterAuth({
 
 ### Session Middleware
 
+**Reference**: `src/api/middleware/auth.ts`
+
+The project uses two middleware patterns for session management:
+
+**1. requireSession - For Protected Routes**
 ```typescript
-export const requireSession = createMiddleware(async (c, next) => {
-  const sessionUser = await getSessionUser(c);
-  
-  if (!sessionUser?.user || !sessionUser?.session) {
-    throw createError.unauthenticated('Authentication required');
+export const requireSession = createMiddleware<ApiEnv>(async (c, next) => {
+  const { session, user } = await authenticateSession(c);
+
+  if (!user || !session) {
+    throw new HTTPException(HttpStatusCodes.UNAUTHORIZED, {
+      res: new Response(JSON.stringify({
+        code: HttpStatusCodes.UNAUTHORIZED,
+        message: 'Authentication required',
+        details: 'Valid session required to access this resource',
+      }), {
+        status: HttpStatusCodes.UNAUTHORIZED,
+        headers: {
+          'Content-Type': 'application/json',
+          'WWW-Authenticate': 'Session realm="api"',
+        },
+      }),
+    });
   }
 
-  c.set('user', sessionUser.user);
-  c.set('session', sessionUser.session);
-  
-  await next();
+  return next();
 });
+```
+
+**2. attachSession - For Optional Authentication**
+```typescript
+export const attachSession = createMiddleware<ApiEnv>(async (c, next) => {
+  try {
+    await authenticateSession(c);
+  } catch (error) {
+    // Log error but don't throw - allow unauthenticated requests to proceed
+    apiLogger.apiError(c, 'Error retrieving Better Auth session', error);
+    c.set('session', null);
+    c.set('user', null);
+  }
+  return next();
+});
+```
+
+**3. Handler Factory Authentication (Preferred)**
+```typescript
+// Modern approach - authentication integrated into handler
+export const handler = createHandler(
+  {
+    auth: 'session', // or 'session-optional', 'public', 'api-key'
+    operationName: 'getUser',
+  },
+  async (c) => {
+    // Session and user automatically available in context
+    const user = c.get('user');
+    const session = c.get('session');
+    // ... implementation
+  }
+);
 ```
 
 ---
@@ -105,11 +151,11 @@ Every API domain follows this structure:
 
 **1. route.ts** - OpenAPI Route Definitions
 ```typescript
-export const getUserRoute = createRoute({
+export const secureMeRoute = createRoute({
   method: 'get',
-  path: '/users/{id}',
+  path: '/auth/me',
   tags: ['users'],
-  summary: 'Get user by ID',
+  summary: 'Get current authenticated user',
   request: {
     params: z.object({
       id: CoreSchemas.id(),
@@ -120,7 +166,7 @@ export const getUserRoute = createRoute({
       description: 'User retrieved successfully',
       content: {
         'application/json': {
-          schema: createApiResponseSchema(UserSchema),
+          schema: createApiResponseSchema(SecureMePayloadSchema),
         },
       },
     },
@@ -130,7 +176,7 @@ export const getUserRoute = createRoute({
 
 **2. handler.ts** - Business Logic
 ```typescript
-export const getUserHandler = createHandler(
+export const secureMeHandler = createHandler(
   {
     auth: 'session',
     operationName: 'getUser',
@@ -161,7 +207,7 @@ export const getUserHandler = createHandler(
 
 **3. schema.ts** - Validation Schemas
 ```typescript
-export const UserSchema = z.object({
+export const SecureMePayloadSchema = z.object({
   id: CoreSchemas.id().openapi({
     example: 'cm4abc123',
     description: 'User identifier',
@@ -174,7 +220,7 @@ export const UserSchema = z.object({
   }),
 }).openapi('User');
 
-export type User = z.infer<typeof UserSchema>;
+export type User = z.infer<typeof SecureMePayloadSchema>;
 ```
 
 ---
@@ -183,85 +229,253 @@ export type User = z.infer<typeof UserSchema>;
 
 ### Service Organization
 
-Services handle business logic and external integrations:
+The `/src/api/services/` directory is currently empty. Services will be implemented as needed to handle business logic and external integrations following these patterns:
+
+**When implementing services, follow this structure:**
 
 ```typescript
-class EmailService {
-  constructor(private config: EmailConfig) {}
+class ExampleService {
+  constructor(private config: ServiceConfig) {}
 
-  async sendVerificationEmail(email: string, token: string): Promise<void> {
-    const url = `${this.config.appUrl}/verify?token=${token}`;
-    
-    await this.send({
-      to: email,
-      subject: 'Verify your email',
-      template: 'verification',
-      data: { url },
-    });
+  async performOperation(params: OperationParams): Promise<OperationResult> {
+    // Implementation with proper error handling and logging
   }
 
-  private async send(params: EmailParams): Promise<void> {
+  private async internalHelper(data: HelperData): Promise<HelperResult> {
     // Implementation
   }
 }
 
-export const emailService = new EmailService(getEmailConfig());
+export const exampleService = new ExampleService(getServiceConfig());
 ```
 
-### Service Best Practices
+### Service Best Practices (for future implementations)
 
 1. **Dependency Injection**: Pass configuration through constructor
 2. **Error Handling**: Wrap external calls in try-catch with proper error types
 3. **Logging**: Use structured logging for all operations
 4. **Type Safety**: Return typed results, never `any`
 
+**Note**: Currently, business logic is implemented directly in route handlers. The service layer will be introduced when needed for:
+- Complex business logic that spans multiple routes
+- External API integrations
+- Reusable operations across different domains
+
 ---
 
 ## Middleware Patterns
 
+### Available Middleware Files
+
+Located in `/src/api/middleware/`:
+
+- **auth.ts** - Session authentication (`attachSession`, `requireSession`)
+- **rate-limiter-factory.ts** - Rate limiting with preset configurations
+- **size-limits.ts** - Request/response size validation
+- **hono-logger.ts** - Structured logging for API requests
+- **environment-validation.ts** - Environment variable validation
+- **index.ts** - Middleware exports
+
+**Note**: CORS and CSRF middleware are configured inline in `/src/api/index.ts` (lines 79-139), not as separate middleware files.
+
 ### Authentication Middleware
 
+**Reference**: `src/api/middleware/auth.ts`
+
+The project provides a shared authentication helper and two middleware patterns:
+
+**Internal Helper Function**:
 ```typescript
-export const attachSession = createMiddleware(async (c, next) => {
-  const sessionUser = await getSessionUser(c);
-  
-  if (sessionUser?.user && sessionUser?.session) {
-    c.set('user', sessionUser.user);
-    c.set('session', sessionUser.session);
+// authenticateSession - Shared authentication helper
+// Extracts session from request headers and sets context variables
+// Used internally by attachSession and requireSession middleware
+async function authenticateSession(c: Context<ApiEnv>): Promise<{
+  session: SelectSession | null;
+  user: SelectUser | null;
+}> {
+  const sessionData = await auth.api.getSession({
+    headers: c.req.raw.headers,
+  });
+
+  // Normalize undefined fields to null for proper type safety
+  const session = sessionData?.session ? {
+    ...sessionData.session,
+    ipAddress: sessionData.session.ipAddress ?? null,
+    userAgent: sessionData.session.userAgent ?? null,
+    impersonatedBy: sessionData.session.impersonatedBy ?? null,
+  } as SelectSession : null;
+
+  const user = sessionData?.user ? {
+    ...sessionData.user,
+    image: sessionData.user.image ?? null,
+    role: sessionData.user.role ?? null,
+    banned: sessionData.user.banned ?? null,
+    banReason: sessionData.user.banReason ?? null,
+    banExpires: sessionData.user.banExpires ?? null,
+  } as SelectUser : null;
+
+  c.set('session', session);
+  c.set('user', user);
+  c.set('requestId', c.req.header('x-request-id') || crypto.randomUUID());
+
+  return { session, user };
+}
+```
+
+**Public Middleware - attachSession**:
+```typescript
+// Attach session if present; does not enforce authentication
+// Allows unauthenticated requests to proceed
+export const attachSession = createMiddleware<ApiEnv>(async (c, next) => {
+  try {
+    await authenticateSession(c);
+  } catch (error) {
+    // Log error but don't throw
+    apiLogger.apiError(c, 'Error retrieving Better Auth session', error);
+    c.set('session', null);
+    c.set('user', null);
   }
-  
-  await next();
+  return next();
 });
+```
+
+**Public Middleware - requireSession**:
+```typescript
+// Require an authenticated session using Better Auth
+// Throws 401 Unauthorized if session is missing or invalid
+export const requireSession = createMiddleware<ApiEnv>(async (c, next) => {
+  const { session, user } = await authenticateSession(c);
+
+  if (!user || !session) {
+    throw new HTTPException(HttpStatusCodes.UNAUTHORIZED, {
+      res: new Response(JSON.stringify({
+        code: HttpStatusCodes.UNAUTHORIZED,
+        message: 'Authentication required',
+        details: 'Valid session required to access this resource',
+      }), {
+        status: HttpStatusCodes.UNAUTHORIZED,
+        headers: {
+          'Content-Type': 'application/json',
+          'WWW-Authenticate': 'Session realm="api"',
+        },
+      }),
+    });
+  }
+
+  return next();
+});
+```
+
+### Rate Limiting Middleware
+
+**Reference**: `src/api/middleware/rate-limiter-factory.ts`
+
+```typescript
+import { RateLimiterFactory } from '@/api/middleware/rate-limiter-factory';
+
+// Use preset configurations
+app.use('*', RateLimiterFactory.create('api')); // General API rate limiting
+app.use('/auth/*', RateLimiterFactory.create('auth')); // Auth-specific limits
+app.use('/upload/*', RateLimiterFactory.create('upload')); // Upload limits
+
+// Custom rate limiter
+const customLimiter = RateLimiterFactory.createCustom({
+  windowMs: 60 * 1000, // 1 minute
+  maxRequests: 100,
+  message: 'Too many requests',
+});
+```
+
+### Size Limits Middleware
+
+**Reference**: `src/api/middleware/size-limits.ts`
+
+```typescript
+import {
+  createRequestSizeLimitMiddleware,
+  createFileUploadSizeLimitMiddleware,
+  DEFAULT_SIZE_LIMITS,
+} from '@/api/middleware/size-limits';
+
+// Request size validation
+app.use('*', createRequestSizeLimitMiddleware({
+  requestBody: 10 * 1024 * 1024, // 10MB
+}));
+
+// File upload size validation
+app.use('/upload/*', createFileUploadSizeLimitMiddleware({
+  fileUpload: 50 * 1024 * 1024, // 50MB
+}));
 ```
 
 ### Logging Middleware
 
+**Reference**: `src/api/middleware/hono-logger.ts`
+
 ```typescript
-export const honoLoggerMiddleware = logger((message, ...args) => {
-  apiLogger.info(message, {
-    component: 'hono-logger',
-    logType: 'system',
-    data: args,
-  });
-});
+import { honoLoggerMiddleware, errorLoggerMiddleware } from '@/api/middleware/hono-logger';
+
+// Request/response logging
+app.use('*', honoLoggerMiddleware);
+
+// Error logging
+app.use('*', errorLoggerMiddleware);
 ```
 
-### Error Handling Middleware
+### Environment Validation Middleware
+
+**Reference**: `src/api/middleware/environment-validation.ts`
 
 ```typescript
-export const errorLoggerMiddleware = createMiddleware(async (c, next) => {
-  try {
-    await next();
-  } catch (error) {
-    apiLogger.error('Request error', {
-      error: error instanceof Error ? error.message : 'Unknown error',
-      path: c.req.path,
-      method: c.req.method,
-      component: 'error-middleware',
-    });
-    throw error;
+import { createEnvironmentValidationMiddleware } from '@/api/middleware/environment-validation';
+
+// Validate required environment variables on startup
+app.use('*', createEnvironmentValidationMiddleware());
+```
+
+### CORS and CSRF Configuration
+
+**Reference**: `src/api/index.ts` (lines 79-139)
+
+CORS and CSRF are configured inline in the main API file, not as separate middleware:
+
+```typescript
+// CORS configuration (inline in index.ts)
+app.use('*', (c, next) => {
+  const appUrl = c.env.NEXT_PUBLIC_APP_URL;
+  const webappEnv = c.env.NEXT_PUBLIC_WEBAPP_ENV || 'local';
+  const isDevelopment = webappEnv === 'local' || c.env.NODE_ENV === 'development';
+
+  const allowedOrigins: string[] = [];
+  if (isDevelopment) {
+    allowedOrigins.push('http://localhost:3000', 'http://127.0.0.1:3000');
   }
+  if (appUrl && !appUrl.includes('localhost')) {
+    allowedOrigins.push(appUrl);
+  }
+
+  const middleware = cors({
+    origin: (origin) => {
+      if (!origin) return origin;
+      return allowedOrigins.includes(origin) ? origin : null;
+    },
+    credentials: true,
+    allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+    allowHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
+  });
+  return middleware(c, next);
 });
+
+// CSRF protection (inline in index.ts)
+function csrfMiddleware(c: Context<ApiEnv>, next: Next) {
+  const appUrl = c.env.NEXT_PUBLIC_APP_URL;
+  // ... similar origin configuration
+  const middleware = csrf({ origin: allowedOrigins });
+  return middleware(c, next);
+}
+
+// Applied selectively to protected routes
+app.use('/auth/me', csrfMiddleware, requireSession);
 ```
 
 ---
@@ -391,4 +605,4 @@ return Responses.notFound(c, 'Resource not found');
 
 ## Conclusion
 
-These patterns ensure consistency, type safety, and maintainability across the Roundtable Dashboard backend. Always reference existing implementations when adding new features, and maintain these established patterns for optimal developer experience.
+These patterns ensure consistency, type safety, and maintainability across the Roundtable Platform backend. Always reference existing implementations when adding new features, and maintain these established patterns for optimal developer experience.

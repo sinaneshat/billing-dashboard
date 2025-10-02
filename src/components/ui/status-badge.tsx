@@ -25,12 +25,12 @@ const statusVariants = cva(
     variants: {
       status: {
         // Success states
-        active: "bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-50 dark:bg-emerald-950/20 dark:text-emerald-400 dark:border-emerald-800",
-        completed: "bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-50 dark:bg-emerald-950/20 dark:text-emerald-400 dark:border-emerald-800",
-        success: "bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-50 dark:bg-emerald-950/20 dark:text-emerald-400 dark:border-emerald-800",
+        active: "bg-chart-3/10 text-chart-3 border-chart-3/20 hover:bg-chart-3/10",
+        completed: "bg-chart-3/10 text-chart-3 border-chart-3/20 hover:bg-chart-3/10",
+        success: "bg-chart-3/10 text-chart-3 border-chart-3/20 hover:bg-chart-3/10",
 
         // Warning states
-        pending: "bg-amber-50 text-amber-800 border-amber-200 hover:bg-amber-50 dark:bg-amber-950/20 dark:text-amber-400 dark:border-amber-800 animate-pulse",
+        pending: "bg-chart-2/10 text-chart-2 border-chart-2/20 hover:bg-chart-2/10 animate-pulse",
         processing: "bg-primary/10 text-primary border-primary/20 hover:bg-primary/10 dark:text-primary dark:border-primary/20",
 
         // Error states

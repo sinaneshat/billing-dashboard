@@ -12,7 +12,7 @@ export function isValidDate(date: Date | string | number): boolean {
 }
 
 /**
- * Format date with enhanced locale support and Persian digits
+ * Format date with locale support
  * Internal utility function used by other date formatting functions
  */
 function formatDate(
@@ -23,7 +23,7 @@ function formatDate(
   const dateObj = new Date(date);
 
   if (!isValidDate(dateObj)) {
-    return locale === 'fa' ? 'تاریخ نامعتبر' : 'Invalid Date';
+    return 'Invalid Date';
   }
 
   const defaultOptions: Intl.DateTimeFormatOptions = {
@@ -36,14 +36,14 @@ function formatDate(
 }
 
 /**
- * Get relative time with Persian support
+ * Get relative time
  */
 export function formatRelativeTime(
   date: Date | string | number,
   locale = 'en-US',
 ): string {
   if (!isValidDate(date)) {
-    return locale === 'fa' ? 'تاریخ نامعتبر' : 'Invalid Date';
+    return 'Invalid Date';
   }
 
   const now = new Date();

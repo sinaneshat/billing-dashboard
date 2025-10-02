@@ -361,11 +361,11 @@ export function CardSuccessState({
 }: CardSuccessStateProps) {
   if (variant === 'alert') {
     return (
-      <Alert className={cn('border-emerald-200 bg-emerald-50/50 dark:border-emerald-800 dark:bg-emerald-900/10', className)}>
-        <CheckCircle className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-        <AlertTitle className="text-emerald-800 dark:text-emerald-400">{title}</AlertTitle>
+      <Alert className={cn('border-chart-3/20 bg-chart-3/10', className)}>
+        <CheckCircle className="h-4 w-4 text-chart-3" />
+        <AlertTitle className="text-chart-3">{title}</AlertTitle>
         {description && (
-          <AlertDescription className="text-emerald-700 dark:text-emerald-300">
+          <AlertDescription className="text-chart-3/80">
             {description}
           </AlertDescription>
         )}
@@ -375,15 +375,15 @@ export function CardSuccessState({
   }
 
   return (
-    <Card className={cn('border-emerald-200 bg-emerald-50/50 dark:border-emerald-800 dark:bg-emerald-900/10', className)}>
+    <Card className={cn('border-chart-3/20 bg-chart-3/10', className)}>
       <CardContent className="text-center py-8 space-y-4">
-        <div className="w-16 h-16 bg-emerald-50 dark:bg-emerald-950/20 rounded-full flex items-center justify-center mx-auto">
-          <CheckCircle className="h-8 w-8 text-emerald-600 dark:text-emerald-400" />
+        <div className="w-16 h-16 bg-chart-3/20 rounded-full flex items-center justify-center mx-auto">
+          <CheckCircle className="h-8 w-8 text-chart-3" />
         </div>
         <div className="space-y-2">
-          <h3 className="text-base font-semibold text-emerald-800 dark:text-emerald-400">{title}</h3>
+          <h3 className="text-base font-semibold text-chart-3">{title}</h3>
           {description && (
-            <p className="text-sm text-emerald-700 dark:text-emerald-300">{description}</p>
+            <p className="text-sm text-chart-3/80">{description}</p>
           )}
         </div>
         {action && <div className="pt-2">{action}</div>}

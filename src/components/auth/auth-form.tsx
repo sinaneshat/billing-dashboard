@@ -50,8 +50,8 @@ export function AuthForm() {
       <div className="relative">
         <Card className="w-full max-w-md mx-auto">
           <CardHeader className="text-center">
-            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-green-100 mb-4">
-              <Mail className="h-6 w-6 text-green-600" />
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-chart-3/20 mb-4">
+              <Mail className="h-6 w-6 text-chart-3" />
             </div>
             <CardTitle>{t('auth.magicLink.title')}</CardTitle>
             <CardDescription>

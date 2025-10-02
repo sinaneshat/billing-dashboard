@@ -34,12 +34,12 @@ This document outlines established frontend patterns, architectural decisions, a
   "styling": "Tailwind CSS v4 + CVA",
   "state": "TanStack Query v5 + Zustand",
   "api": "Hono RPC Client (Type-safe)",
-  "i18n": "next-intl (RTL Support)",
+  "i18n": "next-intl (English-only)",
   "email": "React Email v4",
   "auth": "Better Auth Integration",
   "icons": "Lucide React + Custom SVGs",
   "forms": "React Hook Form + Zod",
-  "typography": "Inter + Vazirmatn (Persian)"
+  "typography": "Inter (US English)"
 }
 ```
 
@@ -51,16 +51,16 @@ src/
 │   ├── (app)/             # Route groups for layout isolation
 │   │   └── dashboard/     # Protected dashboard routes
 │   ├── auth/              # Authentication flow pages
-│   ├── payment/           # Payment processing pages
 │   ├── @modal/            # Parallel route for modals
 │   └── globals.css        # Global styles and CSS variables
 ├── components/            # Reusable UI components
 │   ├── ui/                # shadcn/ui base components
-│   ├── billing/           # Domain-specific billing components
+│   ├── dashboard/         # Domain-specific dashboard components
 │   ├── auth/              # Authentication components
 │   └── providers/         # Context providers and wrappers
 ├── containers/            # Page-level containers and screens
-├── hooks/                 # TanStack Query hooks and custom hooks
+├── hooks/                 # Custom React hooks
+│   └── utils/             # Utility hooks (useBoolean)
 ├── services/              # API client services and utilities
 ├── lib/                   # Utility functions and configurations
 ├── i18n/                  # Internationalization setup and locales
@@ -250,48 +250,48 @@ export { Button, buttonVariants }
 
 **Domain-Specific Component Extension:**
 ```typescript
-// File: src/components/billing/payment-method-card.tsx
+// File: src/components/dashboard/user-card.tsx
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { useTranslations } from 'next-intl'
-import { PaymentMethod } from '@/lib/types'
+import { User } from '@/lib/types'
 
-interface PaymentMethodCardProps {
-  paymentMethod: PaymentMethod
+interface UserCardProps {
+  user: User
   onEdit: (id: string) => void
   onDelete: (id: string) => void
 }
 
-export function PaymentMethodCard({
-  paymentMethod,
+export function UserCard({
+  user,
   onEdit,
   onDelete
-}: PaymentMethodCardProps) {
-  const t = useTranslations('billing.paymentMethods')
+}: UserCardProps) {
+  const t = useTranslations('dashboard.users')
 
   return (
     <Card className="relative">
       <CardHeader className="pb-3">
         <CardTitle className="flex items-center justify-between">
           <span className="text-lg font-semibold">
-            {paymentMethod.contractSignature.slice(-4)}
+            {user.name}
           </span>
-          <Badge variant={paymentMethod.status === 'active' ? 'default' : 'secondary'}>
-            {t(`status.${paymentMethod.status}`)}
+          <Badge variant={user.status === 'active' ? 'default' : 'secondary'}>
+            {t(`status.${user.status}`)}
           </Badge>
         </CardTitle>
       </CardHeader>
       <CardContent>
         <div className="space-y-2">
           <p className="text-sm text-muted-foreground">
-            {t('created')}: {new Date(paymentMethod.createdAt).toLocaleDateString()}
+            {t('created')}: {new Date(user.createdAt).toLocaleDateString()}
           </p>
           <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={() => onEdit(paymentMethod.id)}>
+            <Button variant="outline" size="sm" onClick={() => onEdit(user.id)}>
               {t('edit')}
             </Button>
-            <Button variant="destructive" size="sm" onClick={() => onDelete(paymentMethod.id)}>
+            <Button variant="destructive" size="sm" onClick={() => onDelete(user.id)}>
               {t('delete')}
             </Button>
           </div>
@@ -350,110 +350,121 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
 
 ### TanStack Query Patterns
 
-**Query Key Factory System:**
-```typescript
-// File: src/hooks/query-keys.ts
-export const queryKeys = {
-  all: ['app'] as const,
-  subscriptions: () => [...queryKeys.all, 'subscriptions'] as const,
-  subscription: (id: string) => [...queryKeys.subscriptions(), id] as const,
-  paymentMethods: () => [...queryKeys.all, 'paymentMethods'] as const,
-  paymentMethod: (id: string) => [...queryKeys.paymentMethods(), id] as const,
-  payments: () => [...queryKeys.all, 'payments'] as const,
-  payment: (id: string) => [...queryKeys.payments(), id] as const,
-  user: () => [...queryKeys.all, 'user'] as const,
-  userProfile: () => [...queryKeys.user(), 'profile'] as const,
-} as const
+**Current Implementation Status:**
 
-// Pattern: Hierarchical query keys for cache invalidation
-// Const assertions for TypeScript inference
-// Centralized key management prevents cache invalidation bugs
+The application uses TanStack Query v5 for API data fetching, with centralized configuration in `/src/lib/data/`. The hooks directory (`/src/hooks/utils/`) contains only utility hooks (currently just `useBoolean`). There are NO domain-specific data fetching hooks or abstraction layers - components use TanStack Query directly.
+
+**QueryClient Configuration:**
+```typescript
+// File: src/lib/data/query-client.ts
+import { QueryClient } from '@tanstack/react-query'
+
+// Shared QueryClient for both server and client
+export function getQueryClient() {
+  if (typeof window === 'undefined') {
+    // Server: create fresh QueryClient for each request
+    return new QueryClient({
+      defaultOptions: {
+        queries: {
+          retry: false,
+          refetchOnMount: false,
+          refetchOnReconnect: false,
+          refetchOnWindowFocus: false,
+        },
+      },
+    })
+  } else {
+    // Client: use singleton instance
+    if (!clientQueryClient) {
+      clientQueryClient = new QueryClient({
+        defaultOptions: {
+          queries: {
+            refetchOnMount: false,
+            refetchOnReconnect: 'always',
+            refetchOnWindowFocus: false,
+          },
+        },
+      })
+    }
+    return clientQueryClient
+  }
+}
+
+// Pattern: Server creates new instance per request
+// Client uses singleton for cache persistence
+// Minimal defaults to prevent hydration conflicts
 ```
 
-**Query Hook Patterns:**
+**Data Fetching Architecture:**
+
+The application follows a separation between authentication and business data:
+
 ```typescript
-// File: src/hooks/use-subscriptions.ts
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { api } from '@/services/api'
-import { queryKeys } from './query-keys'
-import { useToast } from '@/hooks/use-toast'
-import { useTranslations } from 'next-intl'
+// For Authentication: Use Better Auth directly (NOT TanStack Query)
+import { authClient } from '@/lib/auth/client'
 
-export function useSubscriptions() {
-  return useQuery({
-    queryKey: queryKeys.subscriptions(),
-    queryFn: () => api.subscriptions.$get(),
-    select: (data) => data.subscriptions,
-  })
+export function UserProfile() {
+  const { data: session } = authClient.useSession()
+  const { data: org } = authClient.useActiveOrganization()
+
+  return <div>User: {session?.user.name}</div>
 }
 
-export function useSubscription(id: string) {
-  return useQuery({
-    queryKey: queryKeys.subscription(id),
-    queryFn: () => api.subscriptions[':id'].$get({ param: { id } }),
-    enabled: !!id,
-  })
-}
+// For API Data: Use TanStack Query
+import { useQuery } from '@tanstack/react-query'
 
-export function useCreateSubscription() {
-  const queryClient = useQueryClient()
-  const { toast } = useToast()
-  const t = useTranslations('subscriptions.notifications')
-
-  return useMutation({
-    mutationFn: (data: CreateSubscriptionData) =>
-      api.subscriptions.$post({ json: data }),
-    onSuccess: (newSubscription) => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.subscriptions() })
-      toast({
-        title: t('created.title'),
-        description: t('created.description'),
-      })
-    },
-    onError: (error) => {
-      toast({
-        title: t('error.title'),
-        description: error.message,
-        variant: 'destructive',
-      })
+export function ApiHealthCheck() {
+  const { data, isLoading } = useQuery({
+    queryKey: ['health', 'check'],
+    queryFn: async () => {
+      const response = await fetch('/api/v1/health')
+      return response.json()
     },
   })
+
+  if (isLoading) return <div>Loading...</div>
+  return <div>Status: {data?.status}</div>
 }
 
-// Pattern: Separate hooks for queries and mutations
-// Optimistic updates and cache invalidation
-// Integrated error handling and user notifications
-// Type-safe API calls with Hono RPC client
+// Pattern: Better Auth for user/org data, TanStack Query for API data
+// Direct query usage in components (no abstraction layer yet)
+// Type-safe API calls with proper error handling
 ```
 
-**Advanced Query Patterns:**
+**Utility Hooks:**
 ```typescript
-// File: src/hooks/use-infinite-payments.ts
-import { useInfiniteQuery } from '@tanstack/react-query'
-import { api } from '@/services/api'
-import { queryKeys } from './query-keys'
+// File: src/hooks/utils/useBoolean.ts (ONLY utility hook that exists)
+'use client';
 
-export function useInfinitePayments(filters?: PaymentFilters) {
-  return useInfiniteQuery({
-    queryKey: [...queryKeys.payments(), 'infinite', filters],
-    queryFn: ({ pageParam = 0 }) =>
-      api.payments.$get({
-        query: {
-          ...filters,
-          offset: pageParam * 20,
-          limit: 20
-        }
-      }),
-    getNextPageParam: (lastPage, allPages) => {
-      return lastPage.hasMore ? allPages.length : undefined
-    },
-    initialPageParam: 0,
-  })
+import { useCallback, useState } from 'react';
+
+export function useBoolean(defaultValue?: boolean) {
+  const [value, setValue] = useState(!!defaultValue);
+
+  const onTrue = useCallback(() => {
+    setValue(true);
+  }, []);
+
+  const onFalse = useCallback(() => {
+    setValue(false);
+  }, []);
+
+  const onToggle = useCallback(() => {
+    setValue(prev => !prev);
+  }, []);
+
+  return {
+    value,
+    onTrue,
+    onFalse,
+    onToggle,
+    setValue,
+  };
 }
 
-// Pattern: Infinite queries for paginated data
-// Parameterized queries with filters
-// Type-safe pagination logic
+// Pattern: Utility hooks for common UI state patterns
+// No data fetching abstraction layer exists
+// Components use TanStack Query directly
 ```
 
 ### Client-Side State Management
@@ -533,54 +544,54 @@ export const api = hc<AppType>(env.NEXT_PUBLIC_API_URL, {
 
 **Service Layer Abstraction:**
 ```typescript
-// File: src/services/subscription-service.ts
+// File: src/services/user-service.ts
 import { api } from './api'
 import {
-  CreateSubscriptionData,
-  UpdateSubscriptionData,
-  SubscriptionFilters
+  CreateUserData,
+  UpdateUserData,
+  UserFilters
 } from '@/lib/types'
 
-export class SubscriptionService {
-  static async getAll(filters?: SubscriptionFilters) {
-    const response = await api.subscriptions.$get({ query: filters })
+export class UserService {
+  static async getAll(filters?: UserFilters) {
+    const response = await api.users.$get({ query: filters })
     if (!response.ok) {
-      throw new Error('Failed to fetch subscriptions')
+      throw new Error('Failed to fetch users')
     }
     return response.json()
   }
 
   static async getById(id: string) {
-    const response = await api.subscriptions[':id'].$get({ param: { id } })
+    const response = await api.users[':id'].$get({ param: { id } })
     if (!response.ok) {
-      throw new Error('Failed to fetch subscription')
+      throw new Error('Failed to fetch user')
     }
     return response.json()
   }
 
-  static async create(data: CreateSubscriptionData) {
-    const response = await api.subscriptions.$post({ json: data })
+  static async create(data: CreateUserData) {
+    const response = await api.users.$post({ json: data })
     if (!response.ok) {
-      throw new Error('Failed to create subscription')
+      throw new Error('Failed to create user')
     }
     return response.json()
   }
 
-  static async update(id: string, data: UpdateSubscriptionData) {
-    const response = await api.subscriptions[':id'].$patch({
+  static async update(id: string, data: UpdateUserData) {
+    const response = await api.users[':id'].$patch({
       param: { id },
       json: data
     })
     if (!response.ok) {
-      throw new Error('Failed to update subscription')
+      throw new Error('Failed to update user')
     }
     return response.json()
   }
 
   static async delete(id: string) {
-    const response = await api.subscriptions[':id'].$delete({ param: { id } })
+    const response = await api.users[':id'].$delete({ param: { id } })
     if (!response.ok) {
-      throw new Error('Failed to delete subscription')
+      throw new Error('Failed to delete user')
     }
     return response.json()
   }
@@ -658,16 +669,14 @@ import { defineRouting } from 'next-intl/routing'
 import { createSharedPathnamesNavigation } from 'next-intl/navigation'
 
 export const routing = defineRouting({
-  locales: ['en', 'fa'],
+  locales: ['en'],
   defaultLocale: 'en',
   pathnames: {
     '/dashboard': {
-      en: '/dashboard',
-      fa: '/داشبورد'
+      en: '/dashboard'
     },
     '/settings': {
-      en: '/settings',
-      fa: '/تنظیمات'
+      en: '/settings'
     }
   }
 })
@@ -702,37 +711,35 @@ export const { Link, redirect, usePathname, useRouter } =
       }
     }
   },
-  "billing": {
-    "dashboard": {
+  "dashboard": {
+    "home": {
       "title": "Dashboard",
       "overview": {
-        "totalRevenue": "Total Revenue",
-        "activeSubscriptions": "Active Subscriptions",
-        "pendingPayments": "Pending Payments"
+        "totalUsers": "Total Users",
+        "activeTeams": "Active Teams",
+        "recentActivity": "Recent Activity"
       }
     },
-    "subscriptions": {
-      "title": "Subscriptions",
+    "users": {
+      "title": "Users",
       "status": {
         "active": "Active",
-        "paused": "Paused",
-        "cancelled": "Cancelled",
-        "expired": "Expired"
+        "inactive": "Inactive",
+        "pending": "Pending"
       },
       "actions": {
-        "pause": "Pause",
-        "resume": "Resume",
-        "cancel": "Cancel",
-        "upgrade": "Upgrade"
+        "edit": "Edit",
+        "delete": "Delete",
+        "activate": "Activate",
+        "deactivate": "Deactivate"
       }
     },
-    "paymentMethods": {
-      "title": "Payment Methods",
-      "add": "Add Payment Method",
+    "teams": {
+      "title": "Teams",
+      "add": "Add Team",
       "status": {
         "active": "Active",
-        "pending": "Pending Signature",
-        "expired": "Expired"
+        "archived": "Archived"
       }
     }
   },
@@ -760,83 +767,79 @@ export const { Link, redirect, usePathname, useRouter } =
 // Consistent key naming conventions
 ```
 
-**Persian/Farsi RTL Support:**
+**English-Only Application:**
 ```json
-// File: src/i18n/locales/fa.json
+// File: src/i18n/locales/en/common.json
+// Translation keys maintained for consistency, but only English supported
 {
   "auth": {
     "login": {
-      "title": "ورود به حساب کاربری",
-      "subtitle": "اطلاعات خود را وارد کنید تا به داشبورد صورتحساب دسترسی پیدا کنید",
+      "title": "Sign In",
+      "subtitle": "Enter your credentials to access the dashboard",
       "form": {
-        "email": "آدرس ایمیل",
-        "password": "رمز عبور",
-        "submit": "ورود",
-        "forgotPassword": "رمز عبور خود را فراموش کرده‌اید؟"
+        "email": "Email Address",
+        "password": "Password",
+        "submit": "Sign In",
+        "forgotPassword": "Forgot your password?"
       }
     }
   },
-  "billing": {
-    "dashboard": {
-      "title": "داشبورد صورتحساب",
+  "dashboard": {
+    "home": {
+      "title": "Dashboard",
       "overview": {
-        "totalRevenue": "کل درآمد",
-        "activeSubscriptions": "اشتراک‌های فعال",
-        "pendingPayments": "پرداخت‌های در انتظار"
+        "totalUsers": "Total Users",
+        "activeTeams": "Active Teams",
+        "recentActivity": "Recent Activity"
       }
     }
   }
 }
 
-// Pattern: Complete Persian translations
-// Cultural adaptation for Iranian users
-// Proper RTL text direction support
+// Pattern: English-only translations
+// Single locale: en-US
+// LTR text direction only
 ```
 
 **Component Translation Patterns:**
 ```typescript
-// File: src/components/billing/subscription-card.tsx
+// File: src/components/billing/payment-method-card.tsx
 import { useTranslations } from 'next-intl'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Subscription } from '@/lib/types'
+import { PaymentMethod } from '@/lib/types'
 
-interface SubscriptionCardProps {
-  subscription: Subscription
+interface PaymentMethodCardProps {
+  paymentMethod: PaymentMethod
 }
 
-export function SubscriptionCard({ subscription }: SubscriptionCardProps) {
-  const t = useTranslations('billing.subscriptions')
-  const common = useTranslations('common')
+export function PaymentMethodCard({ paymentMethod }: PaymentMethodCardProps) {
+  const t = useTranslations('paymentMethods')
+  const actions = useTranslations('actions')
 
   return (
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center justify-between">
-          <span>{subscription.productName}</span>
-          <Badge variant={subscription.status === 'active' ? 'default' : 'secondary'}>
-            {t(`status.${subscription.status}`)}
+          <span>{paymentMethod.contractDisplayName}</span>
+          <Badge variant={paymentMethod.contractStatus === 'active' ? 'default' : 'secondary'}>
+            {t(`status.${paymentMethod.contractStatus}`)}
           </Badge>
         </CardTitle>
       </CardHeader>
       <CardContent>
         <div className="space-y-2">
           <p className="text-sm text-muted-foreground">
-            {t('nextBilling')}: {subscription.nextBillingDate}
+            {t('addedOn', { date: new Date(paymentMethod.createdAt).toLocaleDateString() })}
           </p>
           <div className="flex gap-2">
-            {subscription.status === 'active' && (
+            {paymentMethod.contractStatus === 'active' && (
               <Button variant="outline" size="sm">
-                {t('actions.pause')}
-              </Button>
-            )}
-            {subscription.status === 'paused' && (
-              <Button variant="default" size="sm">
-                {t('actions.resume')}
+                {t('setAsDefault')}
               </Button>
             )}
             <Button variant="destructive" size="sm">
-              {t('actions.cancel')}
+              {actions('delete')}
             </Button>
           </div>
         </div>
@@ -850,47 +853,13 @@ export function SubscriptionCard({ subscription }: SubscriptionCardProps) {
 // No hardcoded strings - all text through translations
 ```
 
-### RTL Layout Support
+### Layout Direction (English-Only)
 
-**Tailwind RTL Configuration:**
-```css
-/* File: src/styles/globals.css */
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
-
-/* RTL support for Persian */
-[dir="rtl"] {
-  @apply text-right;
-}
-
-[dir="rtl"] .flex {
-  @apply flex-row-reverse;
-}
-
-[dir="rtl"] .space-x-2 > :not([hidden]) ~ :not([hidden]) {
-  --tw-space-x-reverse: 1;
-}
-
-/* Custom RTL utilities */
-@layer utilities {
-  .rtl\:rotate-180 {
-    transform: rotate(180deg);
-  }
-
-  .ltr\:ml-2 {
-    margin-left: 0.5rem;
-  }
-
-  .rtl\:mr-2 {
-    margin-right: 0.5rem;
-  }
-}
-
-// Pattern: CSS-based RTL support
-// Custom utilities for directional layouts
-// Automatic text alignment and spacing
-```
+**Application uses LTR (Left-to-Right) layout only:**
+- No RTL support needed (English-only)
+- Standard left-aligned text
+- Standard flex direction (left-to-right)
+- No directional utilities required
 
 ---
 
@@ -904,8 +873,7 @@ export function SubscriptionCard({ subscription }: SubscriptionCardProps) {
 'use client'
 
 import { useTranslations } from 'next-intl'
-import { useSubscriptions } from '@/hooks/use-subscriptions'
-import { usePayments } from '@/hooks/use-payments'
+import { useQuery } from '@tanstack/react-query'
 import { DashboardHeader } from '@/components/dashboard/dashboard-header'
 import { OverviewCards } from '@/components/dashboard/overview-cards'
 import { RecentActivity } from '@/components/dashboard/recent-activity'
@@ -913,24 +881,27 @@ import { LoadingSkeleton } from '@/components/ui/loading-skeleton'
 import { ErrorState } from '@/components/ui/error-state'
 
 export function DashboardContainer() {
-  const t = useTranslations('billing.dashboard')
+  const t = useTranslations('dashboard.home')
 
+  // Direct TanStack Query usage (NO abstraction layer exists)
   const {
-    data: subscriptions,
-    isLoading: subscriptionsLoading,
-    error: subscriptionsError
-  } = useSubscriptions()
+    data: dashboardData,
+    isLoading,
+    error
+  } = useQuery({
+    queryKey: ['dashboard', 'overview'],
+    queryFn: async () => {
+      const response = await fetch('/api/v1/dashboard')
+      if (!response.ok) throw new Error('Failed to fetch dashboard data')
+      return response.json()
+    },
+  })
 
-  const {
-    data: recentPayments,
-    isLoading: paymentsLoading
-  } = usePayments({ limit: 5 })
-
-  if (subscriptionsError) {
-    return <ErrorState error={subscriptionsError} />
+  if (error) {
+    return <ErrorState error={error} />
   }
 
-  if (subscriptionsLoading) {
+  if (isLoading) {
     return <LoadingSkeleton />
   }
 
@@ -939,14 +910,14 @@ export function DashboardContainer() {
       <DashboardHeader title={t('title')} />
 
       <OverviewCards
-        subscriptions={subscriptions}
-        isLoading={paymentsLoading}
+        data={dashboardData}
+        isLoading={isLoading}
       />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         <RecentActivity
-          payments={recentPayments}
-          isLoading={paymentsLoading}
+          activities={dashboardData?.recentActivities}
+          isLoading={isLoading}
         />
         <QuickActions />
       </div>
@@ -955,6 +926,7 @@ export function DashboardContainer() {
 }
 
 // Pattern: Containers orchestrate data fetching and state management
+// Direct TanStack Query usage in components (NO abstraction layer)
 // Pure presentation components receive props
 // Centralized loading and error state handling
 // Responsive grid layouts for different screen sizes
@@ -1070,17 +1042,16 @@ export function AppLayout({ children }: AppLayoutProps) {
   }
 }
 
-/* Persian Font Support */
+/* English-only Font Support */
 @layer base {
-  [lang="fa"] {
-    font-family: 'Vazirmatn', 'Inter', sans-serif;
-    direction: rtl;
+  html {
+    font-family: 'Inter', sans-serif;
   }
 }
 
 // Pattern: CSS custom properties for theming
 // Semantic color naming convention
-// RTL and Persian font support
+// English-only with Inter font
 // Consistent spacing scale
 ```
 
@@ -1137,21 +1108,21 @@ const Card = React.forwardRef<HTMLDivElement, CardProps>(
 
 **Mobile-First Responsive Components:**
 ```typescript
-// File: src/components/billing/payment-grid.tsx
-import { PaymentCard } from './payment-card'
-import { Payment } from '@/lib/types'
+// File: src/components/dashboard/user-grid.tsx
+import { UserCard } from './user-card'
+import { User } from '@/lib/types'
 
-interface PaymentGridProps {
-  payments: Payment[]
+interface UserGridProps {
+  users: User[]
   isLoading?: boolean
 }
 
-export function PaymentGrid({ payments, isLoading }: PaymentGridProps) {
+export function UserGrid({ users, isLoading }: UserGridProps) {
   if (isLoading) {
     return (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
         {Array.from({ length: 6 }).map((_, i) => (
-          <PaymentCardSkeleton key={i} />
+          <UserCardSkeleton key={i} />
         ))}
       </div>
     )
@@ -1159,8 +1130,8 @@ export function PaymentGrid({ payments, isLoading }: PaymentGridProps) {
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
-      {payments.map((payment) => (
-        <PaymentCard key={payment.id} payment={payment} />
+      {users.map((user) => (
+        <UserCard key={user.id} user={user} />
       ))}
     </div>
   )
@@ -1179,7 +1150,7 @@ export function PaymentGrid({ payments, isLoading }: PaymentGridProps) {
 
 **Email Template Structure:**
 ```typescript
-// File: src/emails/payment-success.tsx
+// File: src/emails/welcome.tsx
 import {
   Body,
   Container,
@@ -1192,19 +1163,17 @@ import {
   Button,
   Img,
 } from '@react-email/components'
-import { PaymentSuccessEmailProps } from './types'
+import { WelcomeEmailProps } from './types'
 
-export function PaymentSuccessEmail({
-  customerName,
-  amount,
-  paymentDate,
-  subscriptionName,
-  invoiceNumber,
-}: PaymentSuccessEmailProps) {
+export function WelcomeEmail({
+  userName,
+  dashboardUrl,
+  joinDate,
+}: WelcomeEmailProps) {
   return (
     <Html>
       <Head />
-      <Preview>Payment confirmation for {subscriptionName}</Preview>
+      <Preview>Welcome to Roundtable Platform</Preview>
       <Body style={main}>
         <Container style={container}>
           <Img
@@ -1215,33 +1184,27 @@ export function PaymentSuccessEmail({
             style={logo}
           />
 
-          <Heading style={h1}>Payment Confirmed</Heading>
+          <Heading style={h1}>Welcome to Roundtable!</Heading>
 
           <Text style={text}>
-            Hi {customerName},
+            Hi {userName},
           </Text>
 
           <Text style={text}>
-            We've successfully processed your payment for {subscriptionName}.
+            We're excited to have you on board! Your account has been successfully created.
           </Text>
 
           <Section style={detailsSection}>
-            <Text style={detailLabel}>Amount Paid:</Text>
-            <Text style={detailValue}>{amount} IRR</Text>
-
-            <Text style={detailLabel}>Payment Date:</Text>
-            <Text style={detailValue}>{paymentDate}</Text>
-
-            <Text style={detailLabel}>Invoice Number:</Text>
-            <Text style={detailValue}>{invoiceNumber}</Text>
+            <Text style={detailLabel}>Account Created:</Text>
+            <Text style={detailValue}>{joinDate}</Text>
           </Section>
 
-          <Button style={button} href="https://your-domain.com/dashboard">
+          <Button style={button} href={dashboardUrl}>
             View Dashboard
           </Button>
 
           <Text style={footer}>
-            Thank you for using our service!
+            Thank you for joining Roundtable Platform!
           </Text>
         </Container>
       </Body>
@@ -1280,33 +1243,29 @@ const h1 = {
 **Email Template Types:**
 ```typescript
 // File: src/emails/types.ts
-export interface PaymentSuccessEmailProps {
-  customerName: string
-  amount: string
-  paymentDate: string
-  subscriptionName: string
-  invoiceNumber: string
-}
-
-export interface PaymentFailedEmailProps {
-  customerName: string
-  amount: string
-  failureReason: string
-  subscriptionName: string
-  retryDate?: string
-}
-
-export interface SubscriptionExpiringEmailProps {
-  customerName: string
-  subscriptionName: string
-  expirationDate: string
-  renewalUrl: string
-}
-
 export interface WelcomeEmailProps {
-  customerName: string
-  subscriptionName: string
+  userName: string
   dashboardUrl: string
+  joinDate: string
+}
+
+export interface PasswordResetEmailProps {
+  userName: string
+  resetUrl: string
+  expiresAt: string
+}
+
+export interface TeamInviteEmailProps {
+  userName: string
+  teamName: string
+  inviterName: string
+  acceptUrl: string
+}
+
+export interface AccountVerificationEmailProps {
+  userName: string
+  verificationUrl: string
+  expiresAt: string
 }
 
 // Pattern: Strongly typed email template props
@@ -1318,14 +1277,14 @@ export interface WelcomeEmailProps {
 ```typescript
 // File: src/services/email-service.ts
 import { render } from '@react-email/render'
-import { PaymentSuccessEmail } from '@/emails/payment-success'
-import { PaymentFailedEmail } from '@/emails/payment-failed'
+import { WelcomeEmail } from '@/emails/welcome'
+import { PasswordResetEmail } from '@/emails/password-reset'
 import { env } from '@/lib/env'
 
 export class EmailService {
-  static async sendPaymentSuccess(props: PaymentSuccessEmailProps) {
-    const html = render(PaymentSuccessEmail(props))
-    const text = render(PaymentSuccessEmail(props), { plainText: true })
+  static async sendWelcome(props: WelcomeEmailProps) {
+    const html = render(WelcomeEmail(props))
+    const text = render(WelcomeEmail(props), { plainText: true })
 
     return fetch(`${env.EMAIL_API_URL}/send`, {
       method: 'POST',
@@ -1334,17 +1293,17 @@ export class EmailService {
         'Authorization': `Bearer ${env.EMAIL_API_TOKEN}`,
       },
       body: JSON.stringify({
-        to: props.customerEmail,
-        subject: `Payment Confirmation - ${props.subscriptionName}`,
+        to: props.userEmail,
+        subject: 'Welcome to Roundtable Platform',
         html,
         text,
       }),
     })
   }
 
-  static async sendPaymentFailed(props: PaymentFailedEmailProps) {
-    const html = render(PaymentFailedEmail(props))
-    const text = render(PaymentFailedEmail(props), { plainText: true })
+  static async sendPasswordReset(props: PasswordResetEmailProps) {
+    const html = render(PasswordResetEmail(props))
+    const text = render(PasswordResetEmail(props), { plainText: true })
 
     return fetch(`${env.EMAIL_API_URL}/send`, {
       method: 'POST',
@@ -1353,8 +1312,8 @@ export class EmailService {
         'Authorization': `Bearer ${env.EMAIL_API_TOKEN}`,
       },
       body: JSON.stringify({
-        to: props.customerEmail,
-        subject: `Payment Failed - ${props.subscriptionName}`,
+        to: props.userEmail,
+        subject: 'Password Reset Request',
         html,
         text,
       }),
@@ -1414,14 +1373,14 @@ export function IconButton({
 
 **Custom Icon Integration:**
 ```typescript
-// File: src/icons/zarinpal-icon.tsx
+// File: src/icons/dashboard-icon.tsx
 import * as React from 'react'
 
-interface ZarinpalIconProps extends React.SVGProps<SVGSVGElement> {
+interface DashboardIconProps extends React.SVGProps<SVGSVGElement> {
   className?: string
 }
 
-export function ZarinpalIcon({ className, ...props }: ZarinpalIconProps) {
+export function DashboardIcon({ className, ...props }: DashboardIconProps) {
   return (
     <svg
       className={className}
@@ -1431,25 +1390,8 @@ export function ZarinpalIcon({ className, ...props }: ZarinpalIconProps) {
       {...props}
     >
       <path
-        d="M12 2L2 7L12 12L22 7L12 2Z"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      <path
-        d="M2 17L12 22L22 17"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      <path
-        d="M2 12L12 17L22 12"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
+        d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"
+        fill="currentColor"
       />
     </svg>
   )
@@ -1529,13 +1471,14 @@ export function cn(...inputs: ClassValue[]) {
 
 export function formatCurrency(
   amount: number,
-  currency: 'IRR' | 'USD' = 'IRR',
-  locale: 'en' | 'fa' = 'en'
+  currency: 'USD' = 'USD',
+  locale: 'en' = 'en'
 ) {
-  const formatter = new Intl.NumberFormat(locale === 'fa' ? 'fa-IR' : 'en-US', {
+  const formatter = new Intl.NumberFormat('en-US', {
     style: 'currency',
-    currency: currency,
-    minimumFractionDigits: currency === 'IRR' ? 0 : 2,
+    currency: 'USD',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
   })
 
   return formatter.format(amount)
@@ -1597,25 +1540,27 @@ export const passwordSchema = z
   .regex(/[a-z]/, 'Password must contain at least one lowercase letter')
   .regex(/[0-9]/, 'Password must contain at least one number')
 
-export const iranianPhoneSchema = z
+export const phoneSchema = z
   .string()
-  .regex(/^(\+98|0)?9\d{9}$/, 'Invalid Iranian phone number')
+  .min(10, 'Phone number must be at least 10 digits')
+  .regex(/^[\d\s\-\+\(\)]+$/, 'Invalid phone number format')
 
-export const subscriptionSchema = z.object({
-  productId: z.string().min(1, 'Product is required'),
-  billingPeriod: z.enum(['monthly', 'yearly']),
-  startDate: z.date().optional(),
-  autoRenew: z.boolean().default(true),
+export const userSchema = z.object({
+  name: z.string().min(1, 'Name is required'),
+  email: emailSchema,
+  role: z.enum(['admin', 'user', 'manager']),
+  status: z.enum(['active', 'inactive', 'pending']).default('pending'),
 })
 
-export const paymentMethodSchema = z.object({
-  contractSignature: z.string().min(1, 'Contract signature is required'),
-  bankAccount: z.string().regex(/^\d{10,16}$/, 'Invalid bank account number'),
+export const teamSchema = z.object({
+  name: z.string().min(1, 'Team name is required'),
+  description: z.string().optional(),
+  members: z.array(z.string()).min(1, 'At least one member required'),
 })
 
 // Pattern: Zod schemas for type-safe validation
 // Domain-specific validation rules
-// Iranian market-specific validations
+// User and team validations
 ```
 
 ### Authentication Helpers
@@ -1677,33 +1622,33 @@ export async function requireAuth() {
 
 **Component Lazy Loading:**
 ```typescript
-// File: src/components/billing/subscription-management.tsx
+// File: src/components/dashboard/analytics-overview.tsx
 import { lazy, Suspense } from 'react'
 import { LoadingSkeleton } from '@/components/ui/loading-skeleton'
 
 // Lazy load heavy components
-const SubscriptionChart = lazy(() =>
-  import('./subscription-chart').then(module => ({
-    default: module.SubscriptionChart
+const ActivityChart = lazy(() =>
+  import('./activity-chart').then(module => ({
+    default: module.ActivityChart
   }))
 )
 
-const PaymentHistory = lazy(() =>
-  import('./payment-history').then(module => ({
-    default: module.PaymentHistory
+const UserStats = lazy(() =>
+  import('./user-stats').then(module => ({
+    default: module.UserStats
   }))
 )
 
-export function SubscriptionManagement() {
+export function AnalyticsOverview() {
   return (
     <div className="space-y-8">
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         <Suspense fallback={<LoadingSkeleton className="h-[400px]" />}>
-          <SubscriptionChart />
+          <ActivityChart />
         </Suspense>
 
         <Suspense fallback={<LoadingSkeleton className="h-[400px]" />}>
-          <PaymentHistory />
+          <UserStats />
         </Suspense>
       </div>
     </div>
@@ -1810,8 +1755,8 @@ export interface User {
 }
 
 // Use type for unions and primitives
-export type UserRole = 'admin' | 'user' | 'billing_manager'
-export type PaymentStatus = 'pending' | 'completed' | 'failed' | 'cancelled'
+export type UserRole = 'admin' | 'user' | 'manager'
+export type UserStatus = 'active' | 'inactive' | 'pending'
 
 // Generic utility types for API responses
 export interface ApiResponse<T> {
@@ -1831,7 +1776,7 @@ export interface PaginatedResponse<T> extends ApiResponse<T[]> {
 
 // Branded types for better type safety
 export type UserId = string & { readonly brand: unique symbol }
-export type SubscriptionId = string & { readonly brand: unique symbol }
+export type TeamId = string & { readonly brand: unique symbol }
 
 // Pattern: Consistent type definitions
 // Generic types for reusability
@@ -1840,38 +1785,38 @@ export type SubscriptionId = string & { readonly brand: unique symbol }
 
 **Component Testing Patterns:**
 ```typescript
-// File: src/components/__tests__/subscription-card.test.tsx
+// File: src/components/__tests__/user-card.test.tsx
 import { render, screen } from '@testing-library/react'
-import { SubscriptionCard } from '../billing/subscription-card'
-import { mockSubscription } from '@/lib/test-utils'
+import { UserCard } from '../dashboard/user-card'
+import { mockUser } from '@/lib/test-utils'
 
-describe('SubscriptionCard', () => {
-  it('renders subscription information correctly', () => {
-    const subscription = mockSubscription({
-      productName: 'Premium Plan',
+describe('UserCard', () => {
+  it('renders user information correctly', () => {
+    const user = mockUser({
+      name: 'John Doe',
       status: 'active',
     })
 
-    render(<SubscriptionCard subscription={subscription} />)
+    render(<UserCard user={user} />)
 
-    expect(screen.getByText('Premium Plan')).toBeInTheDocument()
+    expect(screen.getByText('John Doe')).toBeInTheDocument()
     expect(screen.getByText('Active')).toBeInTheDocument()
   })
 
-  it('shows pause button for active subscriptions', () => {
-    const subscription = mockSubscription({ status: 'active' })
+  it('shows edit button for active users', () => {
+    const user = mockUser({ status: 'active' })
 
-    render(<SubscriptionCard subscription={subscription} />)
+    render(<UserCard user={user} />)
 
-    expect(screen.getByText('Pause')).toBeInTheDocument()
+    expect(screen.getByText('Edit')).toBeInTheDocument()
   })
 
-  it('shows resume button for paused subscriptions', () => {
-    const subscription = mockSubscription({ status: 'paused' })
+  it('shows activate button for inactive users', () => {
+    const user = mockUser({ status: 'inactive' })
 
-    render(<SubscriptionCard subscription={subscription} />)
+    render(<UserCard user={user} />)
 
-    expect(screen.getByText('Resume')).toBeInTheDocument()
+    expect(screen.getByText('Activate')).toBeInTheDocument()
   })
 })
 
@@ -2001,7 +1946,7 @@ This frontend patterns guide establishes the architectural foundation for the Ro
 - **Consistency**: Unified component architecture and styling approach
 - **Performance**: Optimized loading, caching, and code splitting strategies
 - **Accessibility**: WCAG-compliant components with full keyboard navigation
-- **Internationalization**: Complete RTL support for Persian/Farsi localization
+- **Localization**: English-only with translation key management for consistency
 - **Type Safety**: End-to-end TypeScript inference from API to UI
 - **Developer Experience**: Clear patterns for data fetching, state management, and error handling
 
@@ -2012,7 +1957,7 @@ This frontend patterns guide establishes the architectural foundation for the Ro
 3. **Progressive Enhancement**: Start with semantic HTML, enhance with JavaScript
 4. **Performance Budget**: Lazy load non-critical components and routes
 5. **Error Recovery**: Graceful degradation with meaningful error states
-6. **Cultural Adaptation**: Design for both LTR and RTL reading patterns
+6. **LTR Layout**: Design for left-to-right reading pattern (English)
 
 ### Reference Documentation
 
@@ -2022,6 +1967,6 @@ For project setup and deployment, see `CLAUDE.md`
 
 ---
 
-**Last Updated**: January 2024
+**Last Updated**: January 2025
 **Frontend Stack Version**: Next.js 15 + shadcn/ui + TanStack Query v5
-**Target Market**: Iranian billing and subscription management platform
+**Platform Type**: User management and collaboration platform

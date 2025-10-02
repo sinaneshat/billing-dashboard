@@ -243,7 +243,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
                   onClick={handleSignOut}
-                  className="text-red-600 focus:text-red-600"
+                  className="text-destructive focus:text-destructive"
                 >
                   <LogOut className="me-2 h-4 w-4" />
                   {t('navigation.signOut')}

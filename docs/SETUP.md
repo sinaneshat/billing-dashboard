@@ -34,7 +34,6 @@ Before you begin, ensure you have the following installed:
 - **VS Code**: Recommended editor with extensions
 - **Cloudflare Account**: For production deployment
 - **AWS Account**: For email services (SES)
-- **ZarinPal Account**: For Iranian payment processing
 
 ---
 
@@ -59,8 +58,11 @@ cp .env.example .env
 
 # Edit .env file - only change these for basic setup:
 NODE_ENV=development
-# Database: Uses ./local.db for local development, D1 bindings for production
+NEXT_PUBLIC_WEBAPP_ENV=local
+NEXT_PUBLIC_APP_URL=http://localhost:3000
 BETTER_AUTH_SECRET=your-random-32-character-secret-key-here
+BETTER_AUTH_URL=http://localhost:3000
+# Database: Uses ./local.db for local development, D1 bindings for production
 ```
 
 ### Step 3: Initialize Database
@@ -86,7 +88,7 @@ pnpm dev
 
 ## 🛠️ Full Development Setup
 
-For complete functionality including authentication, payments, and email:
+For complete functionality including authentication and email:
 
 ### Step 1: Complete Environment Configuration
 
@@ -97,6 +99,7 @@ Open `.env` and configure the following sections:
 # Generate a secure secret:
 # openssl rand -base64 32
 BETTER_AUTH_SECRET=your-secure-32-character-secret
+BETTER_AUTH_URL=http://localhost:3000
 
 # Google OAuth (recommended)
 AUTH_GOOGLE_ID=your-google-client-id.apps.googleusercontent.com
@@ -110,24 +113,14 @@ AUTH_GOOGLE_SECRET=your-google-client-secret
 4. Create OAuth 2.0 Client ID
 5. Add authorized redirect URI: `http://localhost:3000/auth/google/callback`
 
-#### 💳 ZarinPal Payment Gateway (For Iranian payments)
-```env
-NEXT_PUBLIC_ZARINPAL_MERCHANT_ID=your-merchant-id-uuid
-ZARINPAL_ACCESS_TOKEN=your-access-token
-```
-
-**Setting up ZarinPal:**
-1. Visit [ZarinPal Panel](https://next.zarinpal.com/panel/)
-2. Register and complete merchant verification
-3. Navigate to API section
-4. Copy Merchant ID and Access Token
-
 #### 📧 Email Services (AWS SES)
 ```env
 AWS_SES_ACCESS_KEY_ID=your-access-key
 AWS_SES_SECRET_ACCESS_KEY=your-secret-key
-AWS_SES_REGION=us-east-1
-FROM_EMAIL=noreply@yourdomain.com
+NEXT_PUBLIC_AWS_SES_REGION=us-east-1
+NEXT_PUBLIC_FROM_EMAIL=noreply@yourdomain.com
+NEXT_PUBLIC_SES_REPLY_TO_EMAIL=support@yourdomain.com
+NEXT_PUBLIC_SES_VERIFIED_EMAIL=noreply@yourdomain.com
 ```
 
 **Setting up AWS SES:**
@@ -136,17 +129,6 @@ FROM_EMAIL=noreply@yourdomain.com
 3. Create IAM user with SES permissions
 4. Generate access keys
 
-#### 🛡️ Security (Cloudflare Turnstile)
-```env
-NEXT_PUBLIC_TURNSTILE_SITE_KEY=your-site-key
-TURNSTILE_SECRET_KEY=your-secret-key
-```
-
-**Setting up Turnstile:**
-1. Visit [Cloudflare Dashboard](https://dash.cloudflare.com/)
-2. Go to Turnstile section
-3. Create a new site
-4. Add your domain (use `localhost:3000` for development)
 
 ### Step 2: Advanced Database Setup
 
@@ -205,29 +187,31 @@ pnpm test
 
 ### Required Variables
 ```env
+# Application Environment
 NODE_ENV=development
+NEXT_PUBLIC_WEBAPP_ENV=local
+NEXT_PUBLIC_APP_URL=http://localhost:3000
+
+# Authentication
+BETTER_AUTH_SECRET=your-better-auth-secret-32-chars-minimum
+BETTER_AUTH_URL=http://localhost:3000
+
 # Database: Uses ./local.db for local development, D1 bindings for production
-BETTER_AUTH_SECRET=your-secret-key
 ```
 
 ### Optional Variables
 ```env
 # Google OAuth
-AUTH_GOOGLE_ID=your-google-client-id
+AUTH_GOOGLE_ID=your-google-client-id.apps.googleusercontent.com
 AUTH_GOOGLE_SECRET=your-google-client-secret
-
-# ZarinPal
-NEXT_PUBLIC_ZARINPAL_MERCHANT_ID=00000000-0000-0000-0000-000000000000
-ZARINPAL_ACCESS_TOKEN=your-access-token
 
 # AWS SES Email
 AWS_SES_ACCESS_KEY_ID=your-access-key
 AWS_SES_SECRET_ACCESS_KEY=your-secret-key
-FROM_EMAIL=noreply@yourdomain.com
-
-# Cloudflare Turnstile
-NEXT_PUBLIC_TURNSTILE_SITE_KEY=your-site-key
-TURNSTILE_SECRET_KEY=your-secret-key
+NEXT_PUBLIC_AWS_SES_REGION=us-east-1
+NEXT_PUBLIC_FROM_EMAIL=noreply@yourdomain.com
+NEXT_PUBLIC_SES_REPLY_TO_EMAIL=support@yourdomain.com
+NEXT_PUBLIC_SES_VERIFIED_EMAIL=noreply@yourdomain.com
 ```
 
 ### Environment Files Structure
@@ -502,13 +486,6 @@ pnpm dev:email
 # Templates are in src/emails/
 ```
 
-### RTL Support
-
-The project includes RTL (Right-to-Left) support:
-- RTL styles in `src/components/rtl/`
-- Arabic/Persian language support
-- Direction-aware components
-
 ---
 
 ## 🎯 Next Steps
@@ -517,9 +494,8 @@ After setup, explore:
 
 1. **Dashboard**: Navigate to `/dashboard`
 2. **Authentication**: Set up Google OAuth for user login
-3. **Payments**: Configure ZarinPal for Iranian market
-4. **Email**: Set up transactional emails with AWS SES
-5. **Deployment**: Deploy to Cloudflare Pages
+3. **Email**: Set up transactional emails with AWS SES
+4. **Deployment**: Deploy to Cloudflare Pages
 
 ### Useful Resources
 
@@ -527,7 +503,6 @@ After setup, explore:
 - [Drizzle ORM Guide](https://orm.drizzle.team/)
 - [Cloudflare Pages](https://pages.cloudflare.com/)
 - [Better Auth](https://www.better-auth.com/)
-- [ZarinPal Documentation](https://next.zarinpal.com/panel/document/)
 
 ---
 

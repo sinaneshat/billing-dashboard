@@ -1,4 +1,4 @@
-# 🤖 Roundtable Billing Dashboard
+# 🤖 Roundtable Platform
 
 <div align="center">
 
@@ -6,9 +6,8 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.8.3-blue)](https://typescriptlang.org)
 [![Cloudflare Workers](https://img.shields.io/badge/Cloudflare-Workers-orange)](https://workers.cloudflare.com)
 [![React](https://img.shields.io/badge/React-19.1.0-61dafb)](https://reactjs.org)
-[![ZarinPal](https://img.shields.io/badge/ZarinPal-Integrated-success)](https://zarinpal.com)
 
-*Advanced billing solutions for AI collaboration platforms. Multiple AI Models Brainstorm Together.*
+*Enterprise SaaS platform for AI collaboration. Multiple AI Models Brainstorm Together.*
 
 [Features](#-features) • [Quick Start](#-quick-start) • [Architecture](#-architecture) • [Documentation](#-documentation) • [Deployment](#-deployment)
 
@@ -18,29 +17,27 @@
 
 ## 📖 Overview
 
-Roundtable Billing Dashboard is an enterprise-grade billing management platform designed for AI collaboration platforms where multiple AI models brainstorm together. Built with cutting-edge web technologies and deployed on Cloudflare's global edge network, it provides lightning-fast performance, robust security, and comprehensive payment functionality with native ZarinPal integration for the Iranian market.
+Roundtable Platform is an enterprise-grade SaaS application designed for AI collaboration where multiple AI models brainstorm together. Built with cutting-edge web technologies and deployed on Cloudflare's global edge network, it provides lightning-fast performance, robust security, and comprehensive user management functionality.
 
 ### 🎯 Key Highlights
 
-- **🤖 AI Platform Focused**: Designed for multi-model AI collaboration billing
-- **💳 ZarinPal Native**: Full ZarinPal integration with direct debit (Payman) support
+- **🤖 AI Platform Focused**: Designed for multi-model AI collaboration
 - **🚀 Edge-First Architecture**: Deployed on Cloudflare Workers for global performance
 - **🔐 Enterprise Security**: Advanced authentication with Better Auth
-- **📊 Comprehensive Billing**: Full subscription lifecycle management
-- **🌍 Iranian Market**: Native Persian/RTL support and Iranian Rial handling
+- **📊 User Management**: Complete user lifecycle and access control
+- **🌐 English-Only**: Streamlined English interface with dynamic translation keys
 - **🎨 Modern UI/UX**: Beautiful, responsive interface with shadcn/ui
 
 ---
 
 ## ✨ Features
 
-### 💳 Payment & Billing
-- **ZarinPal Integration**: Complete payment gateway integration for Iranian market
-- **Direct Debit (Payman)**: Automated recurring payments with ZarinPal Payman API
-- **Subscription Management**: Full lifecycle management (create, update, cancel, renewals)
-- **Payment Methods**: Secure card storage with tokenization
-- **Billing History**: Comprehensive transaction logs and invoicing
-- **Multi-Model Billing**: Specialized billing for AI collaboration sessions
+### 👥 User Management
+- **User Profiles**: Complete user profile management and customization
+- **Access Control**: Granular role-based permission system
+- **User Activity Tracking**: Detailed audit trails and event logging
+- **Multi-Model Collaboration**: Specialized features for AI collaboration sessions
+- **Team Management**: Organize users into teams and workspaces
 
 ### 🔐 Authentication & Security
 - **Better Auth**: Modern authentication with multiple providers
@@ -50,8 +47,8 @@ Roundtable Billing Dashboard is an enterprise-grade billing management platform 
 - **Security Monitoring**: Failed login tracking and account lockouts
 
 ### 📊 Dashboard & Analytics
-- **Real-time Overview**: Live billing metrics and subscription status
-- **Revenue Analytics**: Comprehensive financial reporting
+- **Real-time Overview**: Live platform metrics and user activity
+- **Usage Analytics**: Comprehensive reporting and insights
 - **User Activity**: Detailed audit trails and event logging
 - **AI Usage Metrics**: Track multi-model collaboration usage
 
@@ -62,11 +59,11 @@ Roundtable Billing Dashboard is an enterprise-grade billing management platform 
 - **KV Storage**: Low-latency key-value store for caching
 - **Email Services**: AWS SES integration for transactional emails
 
-### 🌐 International Features
-- **Multi-language**: Built-in internationalization (i18n)
-- **Persian Support**: Native RTL and Persian typography
-- **Currency Support**: Iranian Rial (IRR) with proper formatting
+### 🌐 Localization Features
+- **English-Only**: Streamlined English interface with dynamic translation keys
+- **i18n Infrastructure**: Translation key system for maintainable text management
 - **Timezone Handling**: Proper date/time localization
+- **Internationalization Ready**: Extensible i18n framework for future locales
 
 ---
 
@@ -89,10 +86,10 @@ Roundtable Billing Dashboard is an enterprise-grade billing management platform 
 - **[Radix UI](https://radix-ui.com)** - Accessible component primitives
 - **[Lucide Icons 0.511.0](https://lucide.dev)** - Beautiful icon library
 
-### Payment Processing
-- **[ZarinPal](https://zarinpal.com)** - Iranian payment gateway
-- **Direct Debit (Payman)** - Automated recurring payments
-- **Card Tokenization** - Secure payment method storage
+### Data Management
+- **TanStack Query 5.77.0** - Data fetching and caching
+- **Zod** - Runtime type validation
+- **React Hook Form** - Form state management
 
 ### Development & Deployment
 - **[Cloudflare Workers](https://workers.cloudflare.com)** - Edge computing platform
@@ -103,7 +100,7 @@ Roundtable Billing Dashboard is an enterprise-grade billing management platform 
 - **[React Email 4.0.15](https://react.email)** - Email template system
 - **[AWS SES](https://aws.amazon.com/ses/)** - Email delivery service
 - **[R2 Storage](https://developers.cloudflare.com/r2/)** - Object storage
-- **[TanStack Query 5.77.0](https://tanstack.com/query)** - Data fetching and caching
+- **[KV Storage](https://developers.cloudflare.com/kv/)** - Key-value caching
 
 ---
 
@@ -127,8 +124,8 @@ pnpm --version  # Should be 10.11.0+
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/roundtable/billing-dashboard.git
-   cd billing-dashboard
+   git clone https://github.com/roundtable/platform.git
+   cd platform
    ```
 
 2. **Install dependencies**
@@ -194,25 +191,7 @@ NEXT_PUBLIC_AWS_SES_REGION=your-aws-region
 NEXT_PUBLIC_FROM_EMAIL=noreply@your-domain.com
 NEXT_PUBLIC_SES_REPLY_TO_EMAIL=support@your-domain.com
 NEXT_PUBLIC_SES_VERIFIED_EMAIL=noreply@your-domain.com
-
-# ZarinPal Payment Gateway - Get from ZarinPal Dashboard
-NEXT_PUBLIC_ZARINPAL_MERCHANT_ID=your-zarinpal-merchant-id
-ZARINPAL_ACCESS_TOKEN=your-zarinpal-access-token
-
-# Webhooks - Configure your webhook endpoints
-NEXT_PUBLIC_ROUNDTABLE_WEBHOOK_URL=https://your-webhook-endpoint.com
-WEBHOOK_SECRET=your-webhook-secret
 ```
-
-### ZarinPal Setup
-
-For payment functionality, you'll need ZarinPal credentials:
-
-1. **Development**: Use ZarinPal sandbox credentials
-2. **Production**:
-   - Register at [ZarinPal](https://zarinpal.com)
-   - Obtain your merchant ID and access token
-   - Update environment variables
 
 ---
 
@@ -220,11 +199,13 @@ For payment functionality, you'll need ZarinPal credentials:
 
 ### Schema Overview
 
-The database includes comprehensive tables for:
+The database includes core authentication tables:
 
 - **Authentication**: Users, sessions, accounts, verification
-- **Billing**: Products, subscriptions, payments, payment methods
-- **Audit**: Billing events, webhook events, audit trails
+  - `user`: Core user information with email verification and ban management
+  - `session`: Secure session tracking with IP address and user agent
+  - `account`: OAuth provider integrations (Google, etc.)
+  - `verification`: Email verification tokens and password reset flows
 
 ### Database Commands
 
@@ -246,57 +227,52 @@ pnpm db:studio:prod      # Studio for production
 
 ### Data Models
 
-#### User & Authentication
+#### User & Authentication (Currently Implemented)
 - **Users**: Core user information with security tracking
+  - Email verification status
+  - Ban management (banned, banReason, banExpires)
+  - Role-based access control
+  - Timestamps (createdAt, updatedAt)
 - **Sessions**: Secure session management with device tracking
+  - Session tokens with expiration
+  - IP address and user agent tracking
+  - Impersonation support
 - **Accounts**: OAuth and social login integrations
-
-#### Billing & Payments
-- **Products**: Subscription plans and AI collaboration packages
-- **Subscriptions**: User subscriptions with lifecycle management
-- **Payments**: Transaction records with ZarinPal integration
-- **Payment Methods**: Tokenized card storage
-- **Billing Events**: Comprehensive audit trail
+  - Multiple OAuth providers (Google, etc.)
+  - Access and refresh token management
+  - Provider-specific account IDs
+- **Verification**: Email verification and password reset flows
+  - Time-limited verification tokens
+  - Identifier-based verification (email, phone)
 
 ---
 
 ## 🏗️ API Structure
 
-### Authentication Endpoints
-```
-POST   /api/v1/auth/sign-up          # User registration
-POST   /api/v1/auth/sign-in          # User login
-POST   /api/v1/auth/verify-email     # Email verification
-DELETE /api/v1/auth/sign-out         # User logout
-```
+### Current API Routes
 
-### Subscription Management
-```
-GET    /api/v1/subscriptions         # List user subscriptions
-POST   /api/v1/subscriptions         # Create subscription
-PATCH  /api/v1/subscriptions/:id     # Update subscription
-DELETE /api/v1/subscriptions/:id     # Cancel subscription
-```
+The API is organized by domain under `/src/api/routes/`:
 
-### Payment Processing
-```
-GET    /api/v1/payments              # Payment history
-POST   /api/v1/payments              # Create payment
-POST   /api/v1/payments/verify       # Verify ZarinPal payment
-```
+#### Authentication (`/api/v1/auth/*`)
+- Better Auth integration for complete authentication flows
+- Sign up, sign in, sign out, email verification
+- OAuth providers (Google)
+- Magic link authentication
+- Session management
 
-### Payment Methods
-```
-GET    /api/v1/payment-methods       # List saved cards
-POST   /api/v1/payment-methods       # Add payment method
-DELETE /api/v1/payment-methods/:id   # Remove payment method
-```
+#### System (`/api/v1/system/*`)
+- Health check endpoint
+- System status monitoring
+- API version information
 
-### System & Health
-```
-GET    /api/v1/system/health         # Health check
-GET    /api/v1/system/status         # System status
-```
+#### Currency (`/api/v1/currency/*`)
+- Currency conversion and formatting
+- Locale-specific currency display
+
+#### Email (`/api/v1/emails/*`)
+- Email sending operations
+- Template rendering
+- Email verification and notifications
 
 ---
 
@@ -327,25 +303,27 @@ pnpm preview
 
 1. **Create D1 Databases**
    ```bash
-   wrangler d1 create billing-dashboard-d1-preview
-   wrangler d1 create billing-dashboard-d1-prod
+   wrangler d1 create platform-d1-preview
+   wrangler d1 create platform-d1-prod
    ```
 
 2. **Create R2 Buckets**
    ```bash
-   wrangler r2 bucket create billing-dashboard-uploads-preview
-   wrangler r2 bucket create billing-dashboard-uploads-prod
+   wrangler r2 bucket create platform-uploads-preview
+   wrangler r2 bucket create platform-uploads-prod
    ```
 
 3. **Set Environment Secrets**
    ```bash
    # Preview environment
    wrangler secret put BETTER_AUTH_SECRET --env preview
-   wrangler secret put ZARINPAL_ACCESS_TOKEN --env preview
+   wrangler secret put AWS_SES_ACCESS_KEY_ID --env preview
+   wrangler secret put AWS_SES_SECRET_ACCESS_KEY --env preview
 
    # Production environment
    wrangler secret put BETTER_AUTH_SECRET --env production
-   wrangler secret put ZARINPAL_ACCESS_TOKEN --env production
+   wrangler secret put AWS_SES_ACCESS_KEY_ID --env production
+   wrangler secret put AWS_SES_SECRET_ACCESS_KEY --env production
    ```
 
 4. **Deploy Database Schema**
@@ -363,8 +341,8 @@ pnpm preview
 - [ ] Database migrations applied
 - [ ] DNS records configured
 - [ ] SSL certificates active
-- [ ] ZarinPal production credentials set
 - [ ] AWS SES configured for emails
+- [ ] Google OAuth credentials configured
 - [ ] Monitoring and alerts set up
 
 ---
@@ -404,21 +382,65 @@ pnpm email:preview
 ```
 src/
 ├── app/                    # Next.js App Router
-│   ├── (app)/             # Protected app routes
+│   ├── (app)/dashboard/   # Protected dashboard routes
 │   ├── auth/              # Authentication pages
-│   └── api/               # API routes
+│   ├── api/               # Next.js API routes (proxy)
+│   ├── privacy/           # Privacy policy page
+│   └── terms/             # Terms of service page
+├── api/                   # Hono API implementation
+│   ├── routes/            # Domain-specific routes
+│   │   ├── auth/          # Better Auth integration
+│   │   ├── currency/      # Currency management
+│   │   ├── emails/        # Email operations
+│   │   └── system/        # System health and status
+│   ├── services/          # Business logic (currently empty - to be implemented)
+│   ├── middleware/        # Auth, CORS, rate limiting
+│   ├── core/              # Framework foundations
+│   ├── common/            # Shared utilities
+│   ├── patterns/          # Architectural patterns
+│   ├── types/             # Type definitions
+│   ├── utils/             # Helper utilities
+│   └── client/            # API client configuration
 ├── components/            # React components
-│   ├── ui/                # shadcn/ui components
-│   ├── auth/              # Authentication components
-│   ├── billing/           # Billing components
-│   └── dashboard/         # Dashboard components
+│   ├── ui/                # shadcn/ui base components
+│   ├── auth/              # Authentication UI
+│   ├── dashboard/         # Dashboard-specific components
+│   ├── forms/             # Form components
+│   ├── logo/              # Logo components
+│   ├── providers/         # Context providers
+│   └── seo/               # SEO components
+├── containers/            # Page-level containers
+│   ├── layouts/           # Layout components (auth, home, root)
+│   ├── screens/           # Screen components (auth, dashboard, errors, general, legal)
+│   └── providers/         # Container-level providers
+├── db/                    # Database layer
+│   ├── tables/            # Drizzle schema definitions
+│   │   └── auth.ts        # Users, sessions, accounts, verification
+│   ├── validation/        # Schema validation
+│   └── migrations/        # SQL migration files
+├── emails/                # Email template system
+│   ├── components/        # Email components (content, display, footer, header, layout)
+│   └── templates/         # Email templates (auth)
+├── hooks/                 # React Query and custom hooks
+│   └── utils/             # Hook utilities
 ├── lib/                   # Utility libraries
-├── hooks/                 # Custom React hooks
+│   ├── auth/              # Auth utilities (client, server)
+│   ├── data/              # Data utilities
+│   ├── email/             # Email utilities
+│   ├── format/            # Formatting utilities
+│   ├── i18n/              # i18n utilities
+│   ├── toast/             # Toast notifications
+│   ├── ui/                # UI utilities
+│   └── utils/             # General utilities
+├── i18n/                  # Internationalization (English-only, dynamic keys)
+│   └── locales/en/        # English translations
+├── icons/                 # Icon system
+│   ├── component/         # Icon components
+│   └── svg/               # SVG icons
+├── constants/             # Application constants
+├── styles/                # Global styles
 ├── types/                 # TypeScript type definitions
-├── db/                    # Database schema and migrations
-├── emails/                # Email templates
-├── i18n/                  # Internationalization
-└── api/                   # Backend API implementation
+└── utils/                 # Utility functions
 ```
 
 ---
@@ -433,17 +455,17 @@ src/
 
 ### Features Documentation
 
-#### Billing System
-- Comprehensive subscription lifecycle management
-- Automated recurring billing with ZarinPal Direct Debit
-- Proration handling for plan changes
-- Failed payment retry logic with exponential backoff
+#### User Management System
+- Complete user lifecycle management
+- Team and organization structures
+- Role-based access control
+- User activity tracking and audit logs
 
 #### Security Features
 - JWT-based authentication with Better Auth
 - CSRF protection and secure headers
 - Rate limiting on all API endpoints
-- Secure card tokenization
+- Secure data encryption and storage
 
 #### Performance Optimizations
 - Edge-first architecture with Cloudflare Workers
@@ -495,8 +517,7 @@ pnpm i18n:check-unused     # Find unused translation keys
 
 ## 🙏 Acknowledgments
 
-- **[Roundtable](https://roundtable.now)** - For creating this advanced AI collaboration billing platform
-- **[ZarinPal](https://zarinpal.com)** - For providing robust Iranian payment processing solutions
+- **[Roundtable](https://roundtable.now)** - For creating this advanced AI collaboration platform
 - **[Next.js](https://nextjs.org)** - For the amazing React framework
 - **[Cloudflare](https://cloudflare.com)** - For the edge computing platform
 - **[shadcn](https://twitter.com/shadcn)** - For the beautiful UI component library
@@ -507,16 +528,16 @@ pnpm i18n:check-unused     # Find unused translation keys
 ## 🆘 Support
 
 - **Documentation**: Check our [docs](./docs/) directory
-- **Issues**: [GitHub Issues](https://github.com/roundtable/billing-dashboard/issues)
-- **Repository**: [GitHub Repository](https://github.com/roundtable/billing-dashboard)
+- **Issues**: [GitHub Issues](https://github.com/roundtable/platform/issues)
+- **Repository**: [GitHub Repository](https://github.com/roundtable/platform)
 
 ---
 
 <div align="center">
 
-**Roundtable Billing Dashboard**
+**Roundtable Platform**
 
-*Advanced billing solutions for AI collaboration platforms. Multiple AI Models Brainstorm Together.*
+*Enterprise SaaS platform for AI collaboration. Multiple AI Models Brainstorm Together.*
 
 *Built by [Roundtable](https://roundtable.now/) for the AI collaboration community*
 

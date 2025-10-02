@@ -83,8 +83,7 @@ export interface DateDisplayProps {
  * DateDisplay Component
  *
  * A comprehensive date display component that handles:
- * - Persian/English locale formatting
- * - Persian digit conversion
+ * - English locale formatting
  * - Contextual billing date formatting
  * - Overdue status indication
  * - Consistent styling across the app
@@ -299,7 +298,7 @@ function getEmphasisClasses(emphasis: DateDisplayProps['emphasis']): string {
     case 'primary':
       return 'text-primary';
     case 'warning':
-      return 'text-yellow-600 dark:text-yellow-400';
+      return 'text-chart-2';
     case 'error':
       return 'text-destructive';
     default:
