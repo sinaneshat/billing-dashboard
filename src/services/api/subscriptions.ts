@@ -1,8 +1,8 @@
 /**
- * Subscriptions Service - 100% RPC Type Inference
+ * Subscriptions Service - Stripe Subscriptions API
  *
- * This service uses Hono's InferRequestType and InferResponseType
- * for complete type safety without any hardcoded types.
+ * 100% type-safe RPC service for Stripe subscription operations
+ * All types automatically inferred from backend Hono routes
  */
 
 import type { InferRequestType, InferResponseType } from 'hono/client';
@@ -12,84 +12,54 @@ import type { ApiClientType } from '@/api/client';
 import { createApiClient } from '@/api/client';
 
 // ============================================================================
-//  Inferred Types for Components
+// Type Inference - Automatically derived from backend routes
 // ============================================================================
 
-// These types are 100% inferred from the RPC client
-// Using centralized ApiClientType from @/api/client
+export type GetSubscriptionsRequest = InferRequestType<
+  ApiClientType['billing']['subscriptions']['$get']
+>;
 
-// Get Subscriptions
-export type GetSubscriptionsRequest = InferRequestType<ApiClientType['subscriptions']['$get']>;
-export type GetSubscriptionsResponse = InferResponseType<ApiClientType['subscriptions']['$get']>;
+export type GetSubscriptionsResponse = InferResponseType<
+  ApiClientType['billing']['subscriptions']['$get']
+>;
 
-// Get Single Subscription
-export type GetSubscriptionRequest = InferRequestType<ApiClientType['subscriptions'][':id']['$get']>;
-export type GetSubscriptionResponse = InferResponseType<ApiClientType['subscriptions'][':id']['$get']>;
+export type GetSubscriptionRequest = InferRequestType<
+  ApiClientType['billing']['subscriptions'][':id']['$get']
+>;
 
-// Create Subscription
-export type CreateSubscriptionRequest = InferRequestType<ApiClientType['subscriptions']['$post']>;
-export type CreateSubscriptionResponse = InferResponseType<ApiClientType['subscriptions']['$post']>;
-
-// Cancel Subscription
-export type CancelSubscriptionRequest = InferRequestType<ApiClientType['subscriptions'][':id']['cancel']['$patch']>;
-export type CancelSubscriptionResponse = InferResponseType<ApiClientType['subscriptions'][':id']['cancel']['$patch']>;
-
-// Switch Subscription
-export type SwitchSubscriptionRequest = InferRequestType<ApiClientType['subscriptions']['switch']['$patch']>;
-export type SwitchSubscriptionResponse = InferResponseType<ApiClientType['subscriptions']['switch']['$patch']>;
+export type GetSubscriptionResponse = InferResponseType<
+  ApiClientType['billing']['subscriptions'][':id']['$get']
+>;
 
 // ============================================================================
-//  Service Functions
+// Service Functions
 // ============================================================================
 
 /**
- * Get all user subscriptions - Context7 consistent pattern
- * All types are inferred from the RPC client
- * CRITICAL FIX: Consistent argument handling for SSR/hydration
+ * Get all subscriptions for authenticated user
+ * Protected endpoint - requires authentication
+ *
+ * CRITICAL: Consistent argument handling for SSR/hydration
+ * Only pass args if defined to ensure server/client consistency
  */
 export async function getSubscriptionsService(args?: GetSubscriptionsRequest) {
   const client = await createApiClient();
-  // Fix: Only pass args if defined to ensure consistent behavior between server/client
   return args
-    ? parseResponse(client.subscriptions.$get(args))
-    : parseResponse(client.subscriptions.$get());
+    ? parseResponse(client.billing.subscriptions.$get(args))
+    : parseResponse(client.billing.subscriptions.$get());
 }
 
 /**
- * Get a single subscription by ID
- * All types are inferred from the RPC client
+ * Get a specific subscription by ID
+ * Protected endpoint - requires authentication and ownership
+ *
+ * @param subscriptionId - Stripe subscription ID
  */
 export async function getSubscriptionService(subscriptionId: string) {
   const client = await createApiClient();
-  return parseResponse(client.subscriptions[':id'].$get({
-    param: { id: subscriptionId },
-  }));
-}
-
-/**
- * Create a new subscription
- * All types are inferred from the RPC client
- */
-export async function createSubscriptionService(args: CreateSubscriptionRequest) {
-  const client = await createApiClient();
-  return parseResponse(client.subscriptions.$post(args));
-}
-
-/**
- * Cancel an active subscription
- * All types are inferred from the RPC client
- */
-export async function cancelSubscriptionService(args: CancelSubscriptionRequest) {
-  const client = await createApiClient();
-  return parseResponse(client.subscriptions[':id'].cancel.$patch(args));
-}
-
-/**
- * Switch to a different subscription plan
- * Handles the single active subscription constraint by switching to a new plan
- * with prorated billing. All types are inferred from the RPC client.
- */
-export async function switchSubscriptionService(args: SwitchSubscriptionRequest) {
-  const client = await createApiClient();
-  return parseResponse(client.subscriptions.switch.$patch(args));
+  return parseResponse(
+    client.billing.subscriptions[':id'].$get({
+      param: { id: subscriptionId },
+    }),
+  );
 }

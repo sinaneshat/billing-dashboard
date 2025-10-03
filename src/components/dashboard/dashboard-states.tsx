@@ -5,8 +5,6 @@ import {
   AlertTriangle,
   CheckCircle,
   Clock,
-  CreditCard,
-  FileText,
   Info,
   Package,
   RefreshCw,
@@ -219,7 +217,7 @@ export function ErrorState({
       title: t('status.warning'),
       description: t('states.error.description'),
       alertVariant: 'default' as const,
-      iconColor: 'text-yellow-600 dark:text-yellow-400',
+      iconColor: 'text-chart-2',
     },
     info: {
       icon: Info,
@@ -350,7 +348,7 @@ type EmptyStateProps = {
   title?: string;
   description?: string;
   action?: ReactNode;
-  variant?: 'subscriptions' | 'payments' | 'plans' | 'methods' | 'general' | 'custom';
+  variant?: 'general' | 'custom';
   size?: 'sm' | 'md' | 'lg';
   style?: 'default' | 'dashed' | 'gradient';
   className?: string;
@@ -372,26 +370,6 @@ export function EmptyState({
   const t = useTranslations();
 
   const emptyStateConfig = {
-    subscriptions: {
-      icon: Package,
-      title: t('states.empty.subscriptions'),
-      description: t('states.empty.subscriptionsDescription'),
-    },
-    payments: {
-      icon: CreditCard,
-      title: t('states.empty.payments'),
-      description: t('states.empty.paymentsDescription'),
-    },
-    plans: {
-      icon: FileText,
-      title: t('states.empty.plans'),
-      description: t('states.empty.plansDescription'),
-    },
-    methods: {
-      icon: CreditCard,
-      title: t('states.empty.methods'),
-      description: t('states.empty.methodsDescription'),
-    },
     general: {
       icon: Package,
       title: t('states.empty.default'),
@@ -503,15 +481,15 @@ export function SuccessState({
 }: SuccessStateProps) {
   if (variant === 'card') {
     return (
-      <Card className={cn('border-emerald-200 bg-emerald-50/50 dark:border-emerald-800 dark:bg-emerald-900/10', className)}>
+      <Card className={cn('border-chart-3/20 bg-chart-3/10', className)}>
         <CardContent className="text-center py-8 space-y-4">
-          <div className="w-16 h-16 bg-emerald-50 dark:bg-emerald-950/20 rounded-full flex items-center justify-center mx-auto">
-            <CheckCircle className="h-8 w-8 text-emerald-600 dark:text-emerald-400" />
+          <div className="w-16 h-16 bg-chart-3/20 rounded-full flex items-center justify-center mx-auto">
+            <CheckCircle className="h-8 w-8 text-chart-3" />
           </div>
           <div className="space-y-2">
-            <h3 className="text-lg font-semibold text-emerald-800 dark:text-emerald-400">{title}</h3>
+            <h3 className="text-lg font-semibold text-chart-3">{title}</h3>
             {description && (
-              <p className="text-emerald-700 dark:text-emerald-300">{description}</p>
+              <p className="text-chart-3/80">{description}</p>
             )}
           </div>
           {action && <div className="pt-2">{action}</div>}
@@ -521,11 +499,11 @@ export function SuccessState({
   }
 
   return (
-    <Alert className={cn('border-emerald-200 bg-emerald-50/50 dark:border-emerald-800 dark:bg-emerald-900/10', className)}>
-      <CheckCircle className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-      <AlertTitle className="text-emerald-800 dark:text-emerald-400">{title}</AlertTitle>
+    <Alert className={cn('border-chart-3/20 bg-chart-3/10', className)}>
+      <CheckCircle className="h-4 w-4 text-chart-3" />
+      <AlertTitle className="text-chart-3">{title}</AlertTitle>
       {description && (
-        <AlertDescription className="text-emerald-700 dark:text-emerald-300">
+        <AlertDescription className="text-chart-3/80">
           {description}
         </AlertDescription>
       )}

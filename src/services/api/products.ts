@@ -1,8 +1,8 @@
 /**
- * Products Service - 100% RPC Type Inference
+ * Products Service - Stripe Products API
  *
- * This service uses Hono's InferRequestType and InferResponseType
- * for complete type safety without any hardcoded types.
+ * 100% type-safe RPC service for Stripe product operations
+ * All types automatically inferred from backend Hono routes
  */
 
 import type { InferRequestType, InferResponseType } from 'hono/client';
@@ -12,24 +12,54 @@ import type { ApiClientType } from '@/api/client';
 import { createApiClient } from '@/api/client';
 
 // ============================================================================
-//  Inferred Types for Components
+// Type Inference - Automatically derived from backend routes
 // ============================================================================
 
-// These types are 100% inferred from the RPC client
-// Using centralized ApiClientType from @/api/client
+export type GetProductsRequest = InferRequestType<
+  ApiClientType['billing']['products']['$get']
+>;
 
-export type GetProductsRequest = InferRequestType<ApiClientType['products']['$get']>;
-export type GetProductsResponse = InferResponseType<ApiClientType['products']['$get']>;
+export type GetProductsResponse = InferResponseType<
+  ApiClientType['billing']['products']['$get']
+>;
+
+export type GetProductRequest = InferRequestType<
+  ApiClientType['billing']['products'][':id']['$get']
+>;
+
+export type GetProductResponse = InferResponseType<
+  ApiClientType['billing']['products'][':id']['$get']
+>;
+
+// ============================================================================
+// Service Functions
+// ============================================================================
 
 /**
- * Get all active products - Context7 consistent pattern
- * All types are inferred from the RPC client
- * CRITICAL FIX: Consistent argument handling for SSR/hydration
+ * Get all active products with pricing plans
+ * Public endpoint - no authentication required
+ *
+ * CRITICAL: Consistent argument handling for SSR/hydration
+ * Only pass args if defined to ensure server/client consistency
  */
 export async function getProductsService(args?: GetProductsRequest) {
   const client = await createApiClient();
-  // Fix: Only pass args if defined to ensure consistent behavior between server/client
   return args
-    ? parseResponse(client.products.$get(args))
-    : parseResponse(client.products.$get());
+    ? parseResponse(client.billing.products.$get(args))
+    : parseResponse(client.billing.products.$get());
+}
+
+/**
+ * Get a specific product by ID with all pricing plans
+ * Public endpoint - no authentication required
+ *
+ * @param productId - Stripe product ID
+ */
+export async function getProductService(productId: string) {
+  const client = await createApiClient();
+  return parseResponse(
+    client.billing.products[':id'].$get({
+      param: { id: productId },
+    }),
+  );
 }

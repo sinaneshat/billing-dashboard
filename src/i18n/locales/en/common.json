@@ -130,17 +130,17 @@
       "error": "Error",
       "fullName": "Full Name",
       "fullNamePlaceholder": "Jane Smith",
-      "getStarted": "Get started with Billing Dashboard",
+      "getStarted": "Get started with Roundtable",
       "signIn": "Sign In",
       "signInLink": "Sign in",
       "signUpLink": "Sign up",
       "signingIn": "Signing In...",
       "somethingWentWrong": "Something went wrong. Please try again.",
       "useDifferentEmail": "Use a different email",
-      "welcomeBack": "Welcome back to Billing Dashboard"
+      "welcomeBack": "Welcome back to Roundtable"
     },
     "layout": {
-      "subtitle": "Your billing dashboard",
+      "subtitle": "Your AI collaboration platform",
       "welcomeTo": "Welcome to {brand}"
     },
     "magicLink": {
@@ -168,7 +168,7 @@
       "signInButton": "Sign In",
       "signInWithGoogle": "Sign In with Google",
       "signUpLink": "Sign up here",
-      "subtitle": "Welcome back to Billing Dashboard",
+      "subtitle": "Welcome back to Roundtable",
       "title": "Sign In"
     },
     "signInWithGoogle": "Sign in with Google",
@@ -184,7 +184,7 @@
       "signInLink": "Sign in here",
       "signUpButton": "Sign Up",
       "signUpWithGoogle": "Sign Up with Google",
-      "subtitle": "Create your Billing Dashboard account",
+      "subtitle": "Create your Roundtable account",
       "termsOfService": "Terms of Service",
       "title": "Sign Up"
     },
@@ -294,6 +294,8 @@
     "billingCycle": "Billing Cycle",
     "billingHistory": "Billing History",
     "billingSettingsDescription": "Configure your billing preferences",
+    "browseProducts": "Browse Products",
+    "canceledAtPeriodEnd": "This subscription will be canceled at the end of the billing period",
     "changePlanDescription": "Upgrade or downgrade your subscription",
     "choosePlan": "Choose Plan",
     "chooseplanDescription": "Select the perfect plan for your needs",
@@ -301,6 +303,25 @@
     "configured": "Configured",
     "currency": "Currency",
     "currentPlan": "Current Plan",
+    "modal": {
+      "title": "Billing & Subscriptions",
+      "description": "Manage your subscription and view available plans",
+      "viewProfile": "View Profile"
+    },
+    "currentSubscription": {
+      "description": "Manage your active subscription",
+      "title": "Current Subscription"
+    },
+    "success": {
+      "activatingSubscription": "Activating your subscription...",
+      "confirmingPayment": "Please wait while we confirm your payment"
+    },
+    "interval": {
+      "monthly": "Monthly",
+      "annual": "Annual",
+      "month": "month",
+      "year": "year"
+    },
     "currentUsage": "Current Usage",
     "default": "Default",
     "description": "Description",
@@ -310,27 +331,41 @@
     "dueDate": "Due Date",
     "empty": "No billing information yet",
     "emptyDescription": "Set up your subscription to get started",
+    "expiresOn": "Expires On",
     "failedPaymentMessage": "There was an issue with your recent payment. Please check your payment method or contact support.",
     "invoiceDate": "Invoice Date",
+    "manageBilling": "Manage Billing",
     "manageBillingInfo": "Manage your billing information",
     "manageSubscription": "Manage Subscription",
     "manageSubscriptionDescription": "Modify or cancel your current plan",
+    "syncSubscription": "Sync Subscription",
+    "syncing": "Syncing...",
     "monthlyCost": "Monthly Cost",
     "monthlyPrice": "Monthly Price",
     "nextBilling": "Next Billing Date",
     "noActiveSubscription": "You don't have an active subscription. Browse our plans to get started.",
+    "noDescription": "No description available",
+    "noPlansForInterval": "No plans available for this billing period",
+    "noPricing": "No pricing information available",
+    "noProducts": "No products available",
+    "noSubscription": "No active subscription",
+    "priceId": "Price ID",
     "noValidContract": "No valid payment contract found. Please set up your payment method first.",
     "alreadyOnThisPlan": "You are already on this plan",
     "alreadyHasActiveSubscription": "You already have an active subscription. Use the switch plan option to change your subscription.",
     "switchSuccess": "Successfully switched to {planName}",
-    "switchSuccessUpgrade": "Successfully upgraded to {planName}! Charged: {amount} IRR",
-    "switchSuccessDowngrade": "Successfully downgraded to {planName}! Credit: {creditAmount} IRR",
+    "switchSuccessUpgrade": "Successfully upgraded to {planName}! Charged: ${amount}",
+    "switchSuccessDowngrade": "Successfully downgraded to {planName}! Credit: ${creditAmount}",
     "switchSuccessEven": "Successfully switched to {planName}! No additional charge.",
     "switchFailed": "Failed to switch subscription plan",
     "switchFailedInsufficientFunds": "Plan switch failed due to insufficient funds. Please ensure your account has enough balance and try again.",
     "noPaymentMethods": "No payment methods added",
     "noPlan": "No Plan",
     "notScheduled": "Not scheduled",
+    "overview": {
+      "description": "View your billing summary and subscription status",
+      "title": "Billing Overview"
+    },
     "paymentHistory": "Payment History",
     "paymentHistoryEmpty": "No payment history",
     "paymentHistoryEmptyDescription": "Your payment transactions will appear here once you make your first purchase",
@@ -342,8 +377,21 @@
     "plansDescription": "Choose the perfect plan for your needs and upgrade or downgrade anytime.",
     "plansTitle": "Subscription Plans",
     "primaryDirectDebit": "Primary • Direct Debit",
+    "products": {
+      "description": "Browse and subscribe to available products",
+      "title": "Available Products"
+    },
     "quickActions": "Quick Actions",
     "recentTransactions": "Your recent billing transactions",
+    "renewsOn": "Renews On",
+    "status": "Status",
+    "subscribe": "Subscribe",
+    "subscription": "Subscription",
+    "subscriptionPlan": "Subscription Plan",
+    "subscriptions": {
+      "description": "Manage your active subscriptions",
+      "title": "My Subscriptions"
+    },
     "upcomingBilling": "Upcoming Billing",
     "setupDirectDebit": "Setup Direct Debit",
     "setupPayment": "Setup Payment",
@@ -365,11 +413,12 @@
     "updatePaymentDescription": "Manage your payment methods",
     "usageLimit": "Usage Limit",
     "viewInvoices": "View Invoices",
+    "viewOtherPlans": "View Other Plans",
     "viewPaymentHistory": "View Payment History",
     "viewPlans": "View Plans",
     "welcome": {
       "description": "Get started by choosing a subscription plan and setting up your payment method for seamless automated billing.",
-      "title": "Welcome to Your Billing Dashboard"
+      "title": "Welcome to Roundtable"
     },
     "date": "Date",
     "${itemType}Downloaded": "${ItemType}Downloaded",
@@ -393,6 +442,8 @@
     "logoAlt": "Company Logo"
   },
   "common": {
+    "error": "An error occurred",
+    "loading": "Loading...",
     "optional": "(optional)",
     "or": "Or",
     "upTo": "Up to",
@@ -417,11 +468,21 @@
     "undoAction": "Undo"
   },
   "currency": {
-    "toman": "Toman",
-    "rial": "Rial"
+    "usd": "USD",
+    "dollar": "Dollar"
   },
   "dashboard": {
     "description": "Manage your billing and subscriptions from your comprehensive dashboard overview",
+    "hero": {
+      "staticText": "Collaborate with",
+      "rotatingWords": {
+        "multipleAI": "Multiple AI Models",
+        "expertSystems": "Expert Systems",
+        "smartAssistants": "Smart Assistants",
+        "aiThinkTanks": "AI Think Tanks"
+      },
+      "subtitle": "Where multiple AI models brainstorm together to solve complex problems"
+    },
     "overview": {
       "activeSubscriptions": "Active Subscriptions",
       "monthlySpend": "Monthly Spend",
@@ -506,7 +567,7 @@
       "dailyTransactionLimit": "Daily Transaction Limit",
       "dailyTransactionLimitValue": "10 transactions",
       "maxAmountPerTransaction": "Maximum Amount per Transaction",
-      "maxAmountPerTransactionValue": "500,000 Toman",
+      "maxAmountPerTransactionValue": "$500",
       "monthlyTransactionLimit": "Monthly Transaction Limit",
       "monthlyTransactionLimitValue": "100 transactions"
     },
@@ -624,12 +685,12 @@
     "redirectingTitle": "Redirecting to Bank",
     "redirectingToBank": "Redirecting to Bank",
     "resume": "Resume Payments",
-    "secureDescription": "This process creates a secure contract with ZarinPal that allows automatic billing for your subscriptions. Your banking information is handled directly by your bank and ZarinPal.",
+    "secureDescription": "This process creates a secure contract that allows automatic billing for your subscriptions. Your banking information is handled directly by your bank and payment provider.",
     "secureTitle": "Secure Direct Debit",
     "selectBank": "Select Your Bank",
     "settingUp": "Setting up...",
     "setupContract": "Setup Contract",
-    "setupDescription": "Set up automatic billing with ZarinPal's secure direct debit system",
+    "setupDescription": "Set up automatic billing with secure direct debit system",
     "setupDirectDebit": "Setup Direct Debit",
     "setupSteps": {
       "step1": {
@@ -645,7 +706,7 @@
         "title": "3. Auto-billing Active"
       }
     },
-    "subtitle": "Set up automatic payments with ZarinPal",
+    "subtitle": "Set up automatic payments",
     "success": "Direct debit contract created successfully",
     "successMessages": {
       "contractInitiated": "Contract setup initiated! Please select your bank.",
@@ -874,12 +935,12 @@
   "meta": {
     "legal": {
       "privacy": {
-        "description": "Privacy Policy for Roundtable Billing Dashboard",
-        "title": "Privacy Policy - Billing Dashboard"
+        "description": "Privacy Policy for Roundtable",
+        "title": "Privacy Policy - Roundtable"
       },
       "terms": {
-        "description": "Terms of Service for Roundtable Billing Dashboard",
-        "title": "Terms of Service - Billing Dashboard"
+        "description": "Terms of Service for Roundtable",
+        "title": "Terms of Service - Roundtable"
       }
     },
     "signIn": {
@@ -904,19 +965,51 @@
     "about": "About",
     "account": "Account",
     "billing": "Billing",
+    "billingPortal": "Billing Portal",
     "billingHistory": "Billing History",
     "contact": "Contact",
     "dashboard": "Dashboard",
     "navigation": "Navigation",
-    "overview": "Overview",
+    "chats": "Chats",
+    "newChat": "New Chat",
+    "notifications": "Notifications",
     "paymentHistory": "Payment History",
     "paymentMethods": "Payment Methods",
     "plans": "Plans",
+    "pricing": "Pricing",
+    "profile": "Profile",
+    "security": "Security",
     "settings": "Settings",
     "signIn": "Sign In",
     "signOut": "Sign Out",
     "signUp": "Sign Up",
     "subscriptions": "Subscriptions"
+  },
+  "chat": {
+    "title": "Chats",
+    "newChat": "New Chat",
+    "newChatDescription": "Start a new conversation",
+    "noChatSelected": "No chat selected",
+    "selectOrCreate": "Select a chat or create a new one",
+    "today": "Today",
+    "yesterday": "Yesterday",
+    "previous7Days": "Previous 7 Days",
+    "previous30Days": "Previous 30 Days",
+    "older": "Older",
+    "deleteChat": "Delete Chat",
+    "deleteChatConfirm": "Are you sure you want to delete this chat?",
+    "renameChat": "Rename Chat",
+    "searchChats": "Search chats...",
+    "noChats": "No chats yet",
+    "noChatsDescription": "Start a new chat to get started",
+    "chatHistory": "Chat History",
+    "favorites": "Favorites",
+    "addToFavorites": "Add to favorites",
+    "removeFromFavorites": "Remove from favorites",
+    "noFavorites": "No favorite chats yet",
+    "noResults": "No chats found",
+    "noResultsDescription": "Try a different search term",
+    "noMessages": "No messages"
   },
   "networkStatus": {
     "connectionError": "Connection Error",
@@ -1044,9 +1137,9 @@
       "referenceId": "Reference ID:",
       "returnToDashboard": "Return to Dashboard",
       "setupNotCompleted": "Unfortunately the setup was not completed.",
-      "viewBillingDashboard": "View Billing Dashboard"
+      "viewBillingDashboard": "View Dashboard"
     },
-    "zarinpal": "Zarinpal"
+    "paymentGateway": "Payment Gateway"
   },
   "paymentMethods": {
     "title": "Payment Methods",
@@ -1066,7 +1159,7 @@
       "readyForPayments": "Ready for automatic payments",
       "referenceCode": "Reference Code"
     },
-    "zarinpalDirectDebit": "ZarinPal Direct Debit",
+    "directDebitContract": "Direct Debit Contract",
     "bank": "Bank",
     "mobile": "Mobile",
     "phoneNumber": "Phone Number",
@@ -1135,23 +1228,23 @@
   "paymentWizard": {
     "allReady": "Everything is ready!",
     "allReadyDescription": "Your direct payment has been successfully set up. You can now activate your subscription.",
-    "currency": "Toman",
+    "currency": "USD",
     "features": {
       "cancelAnytime": "Cancel anytime",
       "moneyBackGuarantee": "14-day money back guarantee",
-      "securePayment": "Secure payment with ZarinPal",
+      "securePayment": "Secure payment processing",
       "support247": "24/7 support"
     },
     "monthlyPrice": "Monthly price:",
     "paymentMethod": "Payment method:",
-    "paymentSetupDescription": "Setup direct payment with ZarinPal for easier service usage",
+    "paymentSetupDescription": "Setup direct payment for easier service usage",
     "paymentSetupSuccess": "Direct payment setup successfully",
     "paymentSetupSuccessDescription": "You can now proceed to the next step and activate your subscription.",
     "paymentSetupTitle": "Setup Direct Payment",
     "perMonth": "/month",
     "security": {
-      "description": "All payments are processed using high security protocols through ZarinPal.",
-      "title": "High Security with ZarinPal"
+      "description": "All payments are processed using high security protocols.",
+      "title": "High Security Payment Processing"
     },
     "selectedPlan": "Selected plan:",
     "stepIndicator": "Step {current} of {total}",
@@ -1161,7 +1254,7 @@
         "title": "Complete Process"
       },
       "paymentSetup": {
-        "description": "Connect to ZarinPal and setup direct payment",
+        "description": "Connect to payment gateway and setup direct payment",
         "title": "Payment Setup"
       },
       "planConfirmation": {
@@ -1169,7 +1262,7 @@
         "title": "Confirm Selected Plan"
       }
     },
-    "zarinpalDirectPayment": "ZarinPal (Direct Payment)"
+    "directPayment": "Direct Payment"
   },
   "payments": "Payments",
   "placeholders": {
@@ -1247,7 +1340,7 @@
     "perfectSolution": "Perfect {name} solution for your needs",
     "plans": "Plans",
     "popular": "Popular",
-    "pricesInToman": "Prices shown in Toman. ZarinPal payments processed in Iranian Rials.",
+    "pricesInUSD": "Prices shown in USD. Secure payment processing.",
     "pricing": {
       "free": {
         "buttonText": "Get started",
@@ -1320,7 +1413,11 @@
     "whatsIncluded": "What's included:"
   },
   "pricing": {
-    "currency": "Toman",
+    "currency": "USD",
+    "modal": {
+      "title": "Pricing & Plans",
+      "description": "Choose the perfect plan for your needs"
+    },
     "guarantees": {
       "cancelAnytime": "Easy cancellation anytime",
       "freeUpdates": "Free updates",
@@ -1329,7 +1426,7 @@
     "perMonth": "/month",
     "trust": {
       "liveRates": "Prices with live exchange rates",
-      "securePayment": "Secure payment with ZarinPal",
+      "securePayment": "Secure payment processing",
       "support247": "24/7 support"
     },
     "usage": {
@@ -1337,6 +1434,15 @@
       "conversations": "Conversations:",
       "messages": "Messages:",
       "models": "models"
+    },
+    "card": {
+      "mostPopular": "Most Popular",
+      "currentPlan": "Current Plan",
+      "daysFreeTrial": "days free trial",
+      "saveAnnually": "Save {percent}% annually",
+      "manageBilling": "Manage Billing",
+      "subscribe": "Subscribe",
+      "processing": "Processing..."
     }
   },
   "product": {
@@ -1362,6 +1468,15 @@
     "status": "Status",
     "submenu": "Submenu",
     "tab": "Tab {current} of {total}"
+  },
+  "profile": {
+    "title": "Profile",
+    "description": "View your account information",
+    "userId": "User ID",
+    "memberSince": "Member Since",
+    "fullName": "Full Name",
+    "email": "Email Address",
+    "image": "Profile Picture"
   },
   "settings": {
     "accessibility": {
@@ -1390,7 +1505,93 @@
       "mode": "Theme mode",
       "title": "Theme"
     },
-    "title": "Settings"
+    "title": "Settings",
+    "password": {
+      "title": "Change Password",
+      "description": "Update your password to keep your account secure",
+      "currentPassword": "Current Password",
+      "newPassword": "New Password",
+      "confirmPassword": "Confirm New Password",
+      "updateButton": "Update Password",
+      "cancelButton": "Cancel",
+      "success": "Password updated successfully",
+      "error": "Failed to update password"
+    },
+    "twoFactor": {
+      "title": "Two-Factor Authentication",
+      "description": "Add an extra layer of security to your account",
+      "enabled": "Two-factor authentication is enabled",
+      "disabled": "Two-factor authentication is disabled",
+      "enableButton": "Enable 2FA",
+      "disableButton": "Disable 2FA",
+      "qrCode": "Scan this QR code with your authenticator app",
+      "backupCodes": "Backup Codes",
+      "saveBackupCodes": "Save these backup codes in a safe place"
+    },
+    "sessions": {
+      "title": "Active Sessions",
+      "description": "Manage your active sessions across devices",
+      "currentSession": "Current Session",
+      "device": "Device",
+      "location": "Location",
+      "lastActive": "Last Active",
+      "revokeButton": "Revoke",
+      "revokeAllButton": "Revoke All Other Sessions",
+      "revokeSuccess": "Session revoked successfully",
+      "revokeError": "Failed to revoke session"
+    },
+    "email": {
+      "title": "Email Notifications",
+      "description": "Manage your email notification preferences",
+      "marketing": {
+        "label": "Marketing emails",
+        "description": "Receive emails about new features, products, and offers"
+      },
+      "updates": {
+        "label": "Product updates",
+        "description": "Receive emails about product updates and new features"
+      },
+      "billing": {
+        "label": "Billing notifications",
+        "description": "Receive emails about billing, invoices, and payments"
+      },
+      "security": {
+        "label": "Security alerts",
+        "description": "Receive emails about security events and account activity"
+      }
+    },
+    "push": {
+      "title": "Push Notifications",
+      "description": "Manage your push notification preferences",
+      "enabled": "Push notifications enabled",
+      "disabled": "Push notifications disabled",
+      "enableButton": "Enable Push Notifications",
+      "disableButton": "Disable Push Notifications",
+      "mentions": {
+        "label": "Mentions",
+        "description": "Get notified when someone mentions you"
+      },
+      "messages": {
+        "label": "New messages",
+        "description": "Get notified about new messages"
+      },
+      "updates": {
+        "label": "System updates",
+        "description": "Get notified about important system updates"
+      }
+    },
+    "overview": {
+      "title": "Billing Overview",
+      "description": "View your billing summary and subscription status"
+    },
+    "subscription": {
+      "title": "Subscription Management",
+      "description": "Manage your active subscription"
+    },
+    "products": {
+      "title": "Products",
+      "description": "Browse available products and plans"
+    }
   },
   "states": {
     "empty": {
@@ -1656,7 +1857,7 @@
     "urlFormat": "Please enter a valid URL",
     "weakPassword": "Password is too weak"
   },
-  "zarinpal": "Zarinpal",
+  "paymentGateway": "Payment Gateway",
   "@/api/common/storage-keys": "@/Api/Common/Storage-Keys",
   "NEXT_LOCALE": "NEXT LOCALE",
   "": {
@@ -1700,7 +1901,6 @@
   "secret_key": "Secret Key",
   "enabled_events": "Enabled Events",
   "[": "[",
-  "webhook_event_id": "Webhook Event Id",
   "endpoint_id": "Endpoint Id",
   "response_body": "Response Body",
   "response_headers": "Response Headers",
@@ -1721,7 +1921,7 @@
   "contract_signature_hash": "Contract Signature Hash",
   "contract_status": "Contract Status",
   "pending_signature": "Pending Signature",
-  "payman_authority": "Payman Authority",
+  "payment_authority": "Payment Authority",
   "contract_display_name": "Contract Display Name",
   "Direct Debit Contract": "Direct Debit Contract",
   "contract_mobile": "Contract Mobile",
@@ -1732,11 +1932,11 @@
   "payment_method_id": "Payment Method Id",
   "cancellation_reason": "Cancellation Reason",
   "subscription_id": "Subscription Id",
-  "IRR": "IRR",
+  "USD": "USD",
   "payment_method": "Payment Method",
-  "zarinpal_authority": "Zarinpal Authority",
-  "zarinpal_ref_id": "Zarinpal Ref Id",
-  "zarinpal_card_hash": "Zarinpal Card Hash",
+  "payment_gateway_authority": "Payment Gateway Authority",
+  "payment_gateway_ref_id": "Payment Gateway Ref Id",
+  "payment_gateway_card_hash": "Payment Gateway Card Hash",
   "failure_reason": "Failure Reason",
   "payment_id": "Payment Id",
   "event_type": "Event Type",
@@ -1745,7 +1945,6 @@
   "info": "Info",
   "source": "Source",
   "raw_payload": "Raw Payload",
-  "external_webhook_url": "External Webhook Url",
   "processing_error": "Processing Error",
   "forwarding_error": "Forwarding Error",
   "email": "Email",
@@ -1821,7 +2020,7 @@
   "correlationId": "CorrelationId",
   "@/lib/auth/server": "@/Lib/Auth/Server",
   "development": "Development",
-  "Roundtable Billing Dashboard": "Roundtable Billing Dashboard",
+  "Roundtable": "Roundtable",
   "/api": "/Api",
   "v1": "V1",
   "roundtable-session": "Roundtable-Session",
@@ -1848,14 +2047,13 @@
   "days": "days",
   "hex": "Hex",
   "Webhook rate limit exceeded": "Webhook Rate Limit Exceeded",
-  "Invalid content type for webhook": "Invalid Content Type For Webhook",
   "@/db/tables/auth": "@/Db/Tables/Auth",
-  "Rial amounts must be whole numbers": "Rial Amounts Must Be Whole Numbers",
+  "Dollar amounts must be valid": "Dollar Amounts Must Be Valid",
   "Payment method is not active": "Payment Method Is Not Active",
   "Payment method contract is not active": "Payment Method Contract Is Not Active",
   "Payment method contract signature is invalid": "Payment Method Contract Signature Is Invalid",
   "Failed to get banks list": "Failed To Get Banks List",
-  "Failed to create contract with ZarinPal": "Failed To Create Contract With ZarinPal",
+  "Failed to create payment contract": "Failed To Create Payment Contract",
   "Contract signing was not successful": "Contract Signing Was Not Successful",
   "Failed to verify contract signature": "Failed To Verify Contract Signature",
   "Not a direct debit contract": "Not A Direct Debit Contract",
@@ -1864,9 +2062,8 @@
   "=": "=",
   "direct-debit-contract": "Direct-Debit-Contract",
   "immediate": "Immediate",
-  "@/api/services/zarinpal-direct-debit": "@/Api/Services/Zarinpal-Direct-Debit",
+  "@/api/services/payment-direct-debit": "@/Api/Services/Payment-Direct-Debit",
   "@/api/utils/crypto": "@/Api/Utils/Crypto",
-  "@/api/routes/webhooks/handler": "@/Api/Routes/Webhooks/Handler",
   "Invalid payment method": {
     " Only direct-debit-contract is supported": {
       "": ""

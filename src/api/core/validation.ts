@@ -169,84 +169,6 @@ export function createSearchSchema<T extends z.ZodRawShape>(
 // ============================================================================
 
 /**
- * Iranian business validations
- */
-export const IranianValidators = {
-  /**
-   * Validate Iranian postal code
-   */
-  postalCode: (message?: string) =>
-    z.string()
-      .regex(/^\d{5}-?\d{5}$/, message ?? 'Invalid Iranian postal code format')
-      .transform(code => code.replace('-', '')),
-
-  /**
-   * Validate Iranian landline phone
-   */
-  landlinePhone: (message?: string) =>
-    z.string()
-      .regex(/^(\+98|0)\d{8,11}$/, message ?? 'Invalid Iranian landline format'),
-
-  /**
-   * Validate Iranian bank account (IBAN or local format)
-   */
-  bankAccount: (message?: string) =>
-    z.string()
-      .min(13)
-      .max(26)
-      .regex(/^[A-Z]{2}\d{2}[A-Z0-9]{4,20}|\d{13,19}$/, message ?? 'Invalid Iranian bank account format'),
-} as const;
-
-/**
- * Payment validation utilities
- */
-export const PaymentValidators = {
-  /**
-   * ZarinPal authority code validation
-   */
-  zarinpalAuthority: (message?: string) =>
-    z.string()
-      .length(36, message ?? 'ZarinPal authority must be exactly 36 characters')
-      .regex(/^[\dA-Z]+$/i, 'Invalid authority format'),
-
-  /**
-   * ZarinPal reference ID validation
-   */
-  zarinpalRefId: (message?: string) =>
-    z.string()
-      .regex(/^\d+$/, message ?? 'Reference ID must contain only digits')
-      .min(1, 'Reference ID cannot be empty'),
-
-  /**
-   * Credit card validation (basic Luhn algorithm)
-   */
-  creditCardNumber: () =>
-    z.string()
-      .regex(/^\d{13,19}$/, 'Credit card must be 13-19 digits')
-      .refine((cardNumber) => {
-        // Luhn algorithm validation
-        let sum = 0;
-        let isEven = false;
-
-        for (let i = cardNumber.length - 1; i >= 0; i--) {
-          let digit = Number.parseInt(cardNumber.charAt(i));
-
-          if (isEven) {
-            digit *= 2;
-            if (digit > 9) {
-              digit -= 9;
-            }
-          }
-
-          sum += digit;
-          isEven = !isEven;
-        }
-
-        return sum % 10 === 0;
-      }, 'Invalid credit card number'),
-} as const;
-
-/**
  * Security validation utilities
  */
 export const SecurityValidators = {
@@ -433,8 +355,6 @@ export function validateErrorContext(context: unknown): ValidationResult<ErrorCo
 
 // Export all validators as a single object for easy importing
 export const Validators = {
-  ...IranianValidators,
-  ...PaymentValidators,
   ...SecurityValidators,
   documentUpload: documentUploadValidator,
 } as const;

@@ -426,10 +426,6 @@ export function createHandler<
       if (error instanceof AppError) {
         // Convert AppError instances to appropriate HTTP responses
         switch (error.code) {
-          case 'PAYMENT_METHOD_INVALID':
-          case 'CONTRACT_NOT_ACTIVE':
-          case 'PAYMENT_FAILED':
-            return Responses.paymentError(c, error.message, 'other');
           case 'RESOURCE_NOT_FOUND':
             return Responses.notFound(c, 'Resource');
           case 'RESOURCE_CONFLICT':
@@ -447,8 +443,6 @@ export function createHandler<
             return Responses.badRequest(c, error.message, error.details);
           case 'DATABASE_ERROR':
             return Responses.databaseError(c, 'batch', error.message);
-          case 'ZARINPAL_ERROR':
-            return Responses.externalServiceError(c, 'ZarinPal', error.message);
           case 'EXTERNAL_SERVICE_ERROR':
             return Responses.externalServiceError(c, 'External Service', error.message);
           default:

@@ -44,3 +44,16 @@ export async function getSessionOrRedirect() {
 export async function requireAuth() {
   return getSessionOrRedirect();
 }
+
+/**
+ * Redirect authenticated users away from auth pages (sign-in, sign-up)
+ * This prevents logged-in users from accessing authentication pages
+ */
+export async function redirectIfAuthenticated() {
+  const headersList = await headers();
+  const session = await auth.api.getSession({ headers: headersList });
+
+  if (session?.user) {
+    redirect('/dashboard');
+  }
+}

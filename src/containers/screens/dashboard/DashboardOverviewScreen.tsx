@@ -1,68 +1,59 @@
 'use client';
 
 import { useTranslations } from 'next-intl';
-import { useMemo } from 'react';
 
-import { CustomerBillingOverview } from '@/components/billing/customer-billing-overview';
-import { DashboardPageHeader } from '@/components/dashboard/dashboard-header';
-import { DashboardContainer } from '@/components/dashboard/dashboard-layout';
-import { DashboardPage, DashboardSection } from '@/components/dashboard/dashboard-states';
-import { usePaymentMethodsQuery } from '@/hooks/queries/payment-methods';
-import { usePaymentsQuery } from '@/hooks/queries/payments';
-import { useCurrentSubscriptionQuery } from '@/hooks/queries/subscriptions';
-import { useSession } from '@/lib/auth/client';
+import { Logo } from '@/components/logo';
+import { LayoutTextFlip } from '@/components/ui/layout-text-flip';
+import { ScaleIn, StaggerContainer, StaggerItem } from '@/components/ui/motion';
 
 export default function DashboardOverviewScreen() {
   const t = useTranslations();
-  // Get session from Better Auth client (uses cached server data)
-  const { data: session } = useSession();
 
-  // Fetch user's current subscription
-  const subscriptionQuery = useCurrentSubscriptionQuery();
-
-  // Fetch user's payment methods
-  const paymentMethodsQuery = usePaymentMethodsQuery();
-
-  // Fetch user's payment history
-  const paymentsQuery = usePaymentsQuery();
-
-  // Extract subscription data
-  const subscription = subscriptionQuery.data || null;
-
-  // Extract payment methods data
-  const paymentMethods = paymentMethodsQuery.data?.success && Array.isArray(paymentMethodsQuery.data.data)
-    ? paymentMethodsQuery.data.data
-    : [];
-
-  // Use raw payment data from API - no transformation needed
-  const recentPayments = useMemo(() => {
-    const paymentsData = paymentsQuery.data?.success && Array.isArray(paymentsQuery.data.data)
-      ? paymentsQuery.data.data
-      : [];
-    return paymentsData.slice(0, 5); // Show recent 5 payments
-  }, [paymentsQuery.data]);
-
-  const isLoading = subscriptionQuery.isLoading || paymentMethodsQuery.isLoading || paymentsQuery.isLoading;
-  const user = session?.user;
+  // Prepare rotating words from translations
+  const rotatingWords = [
+    t('dashboard.hero.rotatingWords.multipleAI'),
+    t('dashboard.hero.rotatingWords.expertSystems'),
+    t('dashboard.hero.rotatingWords.smartAssistants'),
+    t('dashboard.hero.rotatingWords.aiThinkTanks'),
+  ];
 
   return (
-    <DashboardPage>
-      <DashboardPageHeader
-        title={`${t('dashboard.welcome')}, ${user?.name || user?.email?.split('@')[0] || t('user.defaultName')}!`}
-        description={t('dashboard.description')}
-      />
+    <div className="flex min-h-screen w-full flex-col items-center justify-start px-4 pt-16 md:pt-20">
+      {/* Main content block with stagger animation */}
+      <StaggerContainer
+        className="flex flex-col items-center gap-6 text-center"
+        staggerDelay={0.15}
+        delayChildren={0.1}
+      >
+        {/* Logo - much larger with scale animation */}
+        <StaggerItem>
+          <ScaleIn duration={0.5} delay={0}>
+            <div className="flex items-center justify-center">
+              <Logo size="lg" variant="full" className="w-64 h-64 md:w-80 md:h-80" />
+            </div>
+          </ScaleIn>
+        </StaggerItem>
 
-      {/* Official shadcn/ui dashboard-01 block layout pattern */}
-      <DashboardContainer>
-        <DashboardSection delay={0.1}>
-          <CustomerBillingOverview
-            subscription={subscription}
-            recentPayments={recentPayments}
-            paymentMethods={paymentMethods}
-            isLoading={isLoading}
+        {/* Hero Section with Animated Text */}
+        <StaggerItem className="flex flex-col items-center gap-5">
+          <LayoutTextFlip
+            text={t('dashboard.hero.staticText')}
+            words={rotatingWords}
+            duration={3000}
           />
-        </DashboardSection>
-      </DashboardContainer>
-    </DashboardPage>
+
+          <p className="text-base md:text-lg text-muted-foreground max-w-xl md:max-w-2xl px-4 leading-relaxed">
+            {t('dashboard.hero.subtitle')}
+          </p>
+        </StaggerItem>
+
+        {/* Getting Started Hint with fade */}
+        <StaggerItem className="mt-2">
+          <p className="text-xs md:text-sm text-muted-foreground/60">
+            {t('chat.selectOrCreate')}
+          </p>
+        </StaggerItem>
+      </StaggerContainer>
+    </div>
   );
 }

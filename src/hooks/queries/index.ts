@@ -1,34 +1,18 @@
-// Auth queries have been replaced with Better Auth client hooks
-// Use useSession() from '@/lib/auth/client' instead
-// Image queries removed - user image comes from session data
-// Use session.user.image directly instead of making API calls
+/**
+ * Query Hooks - Centralized Exports
+ *
+ * Single import point for all TanStack Query hooks
+ * Following patterns from commit a24d1f67d90381a2e181818f93b6a7ad63c062cc
+ */
 
 // ============================================================================
 // QUERY HOOKS BY DOMAIN
 // ============================================================================
 
-// Direct debit contract analysis
-export {
-  useCanCreateSubscriptions,
-  useDirectDebitContract,
-} from './direct-debit';
+// Product queries (public)
+export { useProductQuery, useProductsQuery } from './products';
 
-// Payment methods management
-export {
-  usePaymentMethodsQuery,
-} from './payment-methods';
-
-// Payment history and billing records
-export {
-  usePaymentsQuery,
-} from './payments';
-
-// Product catalog
-export {
-  useProductsQuery,
-} from './products';
-
-// Subscription management
+// Subscription queries (protected)
 export {
   useCurrentSubscriptionQuery,
   useSubscriptionQuery,

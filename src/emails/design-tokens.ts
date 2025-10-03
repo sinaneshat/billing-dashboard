@@ -9,55 +9,55 @@
 export const baseUrl = process.env.NEXT_PUBLIC_APP_URL
   || (process.env.VERCEL_URL
     ? `https://${process.env.VERCEL_URL}`
-    : process.env.NODE_ENV === 'development' ? 'http://localhost:3000' : 'https://billing-dashboard-production.firstexhotic.workers.dev');
+    : process.env.NODE_ENV === 'development' ? 'http://localhost:3000' : 'https://app.roundtable.now');
 
-// Brand Colors - Aligned with global.css design system light mode
+// Brand Colors - Aligned with global.css design system light mode (OKLCH converted to hex)
 export const colors = {
-  // Primary Brand Color - matching global.css primary
-  primary: '#606060', // hsl(0 0% 37.6471%) converted to hex
-  primaryForeground: '#FFFFFF', // hsl(0 0% 100%)
-  primaryHover: '#525252', // Slightly darker for hover states
+  // Primary Brand Color - matching global.css primary oklch(0.5283 0.2168 262.1556)
+  primary: '#6952F0', // Vibrant purple from new OKLCH theme
+  primaryForeground: '#FFFFFF', // oklch(1.0000 0 0)
+  primaryHover: '#5745D9', // Slightly darker for hover states
 
-  // Core Colors from global.css light mode (exact matches)
-  background: '#F0F0F0', // hsl(0 0% 94.1176%)
-  foreground: '#333333', // hsl(0 0% 20%)
-  card: '#F5F5F5', // hsl(0 0% 96.0784%)
-  cardForeground: '#333333', // hsl(0 0% 20%)
+  // Core Colors from global.css light mode (OKLCH to hex)
+  background: '#FFFFFF', // oklch(1.0000 0 0)
+  foreground: '#3B3A43', // oklch(0.2622 0.0133 264.3133)
+  card: '#FFFFFF', // oklch(1.0000 0 0)
+  cardForeground: '#3B3A43', // oklch(0.2622 0.0133 264.3133)
 
-  // Secondary & Muted - exact global.css matches
-  secondary: '#E0E0E0', // hsl(0 0% 87.8431%)
-  secondaryForeground: '#333333', // hsl(0 0% 20%)
-  muted: '#D9D9D9', // hsl(0 0% 85.098%)
-  mutedForeground: '#666666', // hsl(0 0% 40%)
+  // Secondary & Muted - OKLCH to hex
+  secondary: '#F5F5F7', // oklch(0.9686 0.0035 247.8590)
+  secondaryForeground: '#3B3A43', // oklch(0.2622 0.0133 264.3133)
+  muted: '#F5F5F7', // oklch(0.9686 0.0035 247.8590)
+  mutedForeground: '#615F6B', // oklch(0.4240 0.0150 248.1807)
 
   // Accent matching global.css
-  accent: '#C0C0C0', // hsl(0 0% 75.2941%)
-  accentForeground: '#333333', // hsl(0 0% 20%)
+  accent: '#F5F5F7', // oklch(0.9686 0.0035 247.8590)
+  accentForeground: '#3B3A43', // oklch(0.2622 0.0133 264.3133)
 
   // Border matching global.css
-  border: '#D0D0D0', // hsl(0 0% 81.5686%)
-  input: '#E0E0E0', // hsl(0 0% 87.8431%)
-  ring: '#606060', // hsl(0 0% 37.6471%) - same as primary
+  border: '#E8E7EC', // oklch(0.9258 0.0132 255.0276)
+  input: '#E8E7EC', // oklch(0.9258 0.0132 255.0276)
+  ring: '#6952F0', // oklch(0.5283 0.2168 262.1556)
 
   // Semantic Colors (minimal, email-safe)
-  destructive: '#CC0000', // hsl(0 60% 50%) - from global.css
+  destructive: '#E04848', // oklch(0.6356 0.2082 25.3782)
   destructiveForeground: '#FFFFFF',
 
   // Text hierarchy aligned with global system
-  textPrimary: '#333333', // Main text - foreground color
-  textSecondary: '#666666', // Secondary text - muted foreground
+  textPrimary: '#3B3A43', // Main text - foreground color
+  textSecondary: '#615F6B', // Secondary text - muted foreground
   textMuted: '#999999', // Even more muted
   textInverse: '#FFFFFF', // White text
 
   // Simplified backgrounds
   white: '#FFFFFF',
-  backgroundPrimary: '#F5F5F5', // Card color
-  backgroundSecondary: '#F0F0F0', // Background color
+  backgroundPrimary: '#FFFFFF', // Card color
+  backgroundSecondary: '#FFFFFF', // Background color
 };
 
 // Typography - Matching global.css font system with email-safe fallbacks
 export const typography = {
-  fontFamily: '"IBM Plex Sans Arabic", "Space Grotesk", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
+  fontFamily: '"Inter", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
 
   fontSize: {
     'xs': '12px',
@@ -117,14 +117,14 @@ export const containers = {
   mobile: '320px', // Mobile fallback
 };
 
-// Border radius - Matching global.css system (--radius: 0.35rem = 5.6px)
+// Border radius - Matching global.css system (--radius: 0.5rem = 8px)
 export const borderRadius = {
   none: '0px',
-  sm: '2px', // --radius - 4px
-  base: '4px', // --radius - 2px
-  md: '6px', // --radius (0.35rem = 5.6px, rounded to 6px for email)
-  lg: '10px', // --radius + 4px
-  xl: '14px', // larger variant
+  sm: '4px', // --radius - 4px
+  base: '6px', // --radius - 2px
+  md: '8px', // --radius (0.5rem = 8px)
+  lg: '12px', // --radius + 4px
+  xl: '16px', // larger variant
   full: '9999px',
 };
 

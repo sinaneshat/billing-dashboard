@@ -347,7 +347,7 @@ export function ReducedMotionToggle() {
     >
       <div className={cn(
         'w-4 h-4 rounded-full mr-2 transition-transform',
-        reducedMotion ? 'bg-red-500' : 'bg-green-500',
+        reducedMotion ? 'bg-destructive' : 'bg-chart-3',
         !reducedMotion && 'animate-pulse'
       )} />
       {t('accessibility.reducedMotion')}

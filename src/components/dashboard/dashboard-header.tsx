@@ -1,5 +1,6 @@
 'use client';
 
+import { motion } from 'motion/react';
 import { usePathname } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import type { ReactNode } from 'react';
@@ -25,12 +26,8 @@ import { DashboardSection } from './dashboard-states';
 // =============================================================================
 
 const breadcrumbMap: Record<string, { titleKey: string; parent?: string }> = {
-  '/dashboard': { titleKey: 'navigation.overview' },
-  '/dashboard/billing': { titleKey: 'navigation.billing', parent: '/dashboard' },
-  '/dashboard/billing/subscriptions': { titleKey: 'navigation.subscriptions', parent: '/dashboard/billing' },
-  '/dashboard/billing/plans': { titleKey: 'navigation.plans', parent: '/dashboard/billing' },
-  '/dashboard/billing/payments': { titleKey: 'navigation.paymentHistory', parent: '/dashboard/billing' },
-  '/dashboard/billing/methods': { titleKey: 'navigation.paymentMethods', parent: '/dashboard/billing' },
+  '/dashboard': { titleKey: 'navigation.dashboard' },
+  '/dashboard/pricing': { titleKey: 'navigation.pricing', parent: '/dashboard' },
 };
 
 // Navigation Header - replaces dashboard-header.tsx
@@ -45,10 +42,14 @@ export function NavigationHeader({ className }: NavigationHeaderProps = {}) {
   const parentPage = currentPage?.parent ? breadcrumbMap[currentPage.parent] : null;
 
   return (
-    <header className={cn(
-      'flex h-16 shrink-0 items-center gap-2 transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12',
-      className,
-    )}
+    <motion.header
+      initial={{ opacity: 0, y: -10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3, delay: 0.1 }}
+      className={cn(
+        'flex h-16 shrink-0 items-center gap-2 transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12',
+        className,
+      )}
     >
       <div className="flex items-center gap-2 px-4">
         <SidebarTrigger className="-ms-1" />
@@ -73,7 +74,7 @@ export function NavigationHeader({ className }: NavigationHeaderProps = {}) {
           </Breadcrumb>
         )}
       </div>
-    </header>
+    </motion.header>
   );
 }
 

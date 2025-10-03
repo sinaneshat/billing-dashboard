@@ -30,12 +30,6 @@ export const formats = {
       style: 'currency',
       currency: 'USD',
     },
-    toman: {
-      style: 'decimal',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-      useGrouping: true,
-    },
     percent: {
       style: 'percent',
     },

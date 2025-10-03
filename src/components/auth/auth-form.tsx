@@ -1,9 +1,13 @@
 'use client';
 
+import { zodResolver } from '@hookform/resolvers/zod';
 import { Mail } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useState } from 'react';
+import { useForm } from 'react-hook-form';
+import { z } from 'zod';
 
+import RHFTextField from '@/components/forms/rhf-text-field';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -12,35 +16,49 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { LocaleSwitcher } from '@/components/ui/locale-switcher';
+import { Form } from '@/components/ui/form';
 import { authClient } from '@/lib/auth/client';
 
 import { GoogleButton } from './google-button';
 
+// Zod schema for email validation
+const magicLinkSchema = z.object({
+  email: z.string().email('Invalid email address'),
+});
+
+type MagicLinkFormData = z.infer<typeof magicLinkSchema>;
+
 export function AuthForm() {
   const t = useTranslations();
-  const [email, setEmail] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [magicLinkSent, setMagicLinkSent] = useState(false);
+  const [sentEmail, setSentEmail] = useState('');
 
-  const handleMagicLink = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!email)
-      return;
+  // Initialize RHF with Zod validation
+  const form = useForm<MagicLinkFormData>({
+    resolver: zodResolver(magicLinkSchema),
+    defaultValues: {
+      email: '',
+    },
+  });
 
+  const handleMagicLink = async (data: MagicLinkFormData) => {
     setIsLoading(true);
     try {
       await authClient.signIn.magicLink({
-        email,
+        email: data.email,
         callbackURL: '/dashboard',
         newUserCallbackURL: '/dashboard',
         errorCallbackURL: '/auth/error',
       });
+      setSentEmail(data.email);
       setMagicLinkSent(true);
     } catch (error) {
       console.error('Magic link failed:', error);
+      form.setError('email', {
+        type: 'manual',
+        message: t('auth.magicLink.error'),
+      });
     } finally {
       setIsLoading(false);
     }
@@ -49,24 +67,24 @@ export function AuthForm() {
   if (magicLinkSent) {
     return (
       <div className="relative">
-        <div className="absolute top-4 end-4 z-10">
-          <LocaleSwitcher variant="outline" showLabel={false} />
-        </div>
         <Card className="w-full max-w-md mx-auto">
           <CardHeader className="text-center">
-            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-green-100 mb-4">
-              <Mail className="h-6 w-6 text-green-600" />
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-chart-3/20 mb-4">
+              <Mail className="h-6 w-6 text-chart-3" />
             </div>
             <CardTitle>{t('auth.magicLink.title')}</CardTitle>
             <CardDescription>
-              {t('auth.magicLink.emailSentMessage', { email })}
+              {t('auth.magicLink.emailSentMessage', { email: sentEmail })}
             </CardDescription>
           </CardHeader>
           <CardContent>
             <Button
               variant="outline"
               className="w-full"
-              onClick={() => setMagicLinkSent(false)}
+              onClick={() => {
+                setMagicLinkSent(false);
+                form.reset();
+              }}
             >
               {t('auth.magicLink.useDifferentEmail')}
             </Button>
@@ -78,9 +96,6 @@ export function AuthForm() {
 
   return (
     <div className="relative">
-      <div className="absolute top-4 end-4 z-10">
-        <LocaleSwitcher variant="outline" showLabel={false} />
-      </div>
       <Card className="w-full max-w-md mx-auto">
         <CardHeader className="text-center">
           <CardTitle>{t('auth.signIn.title')}</CardTitle>
@@ -89,22 +104,21 @@ export function AuthForm() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <form onSubmit={handleMagicLink} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="email">{t('auth.email')}</Label>
-              <Input
-                id="email"
-                type="email"
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(handleMagicLink)} className="space-y-4">
+              <RHFTextField
+                name="email"
+                title={t('auth.email')}
                 placeholder={t('auth.emailPlaceholder')}
-                value={email}
-                onChange={e => setEmail(e.target.value)}
+                fieldType="email"
                 required
+                disabled={isLoading}
               />
-            </div>
-            <Button type="submit" className="w-full" disabled={isLoading}>
-              {isLoading ? t('actions.loading') : t('auth.magicLink.sendButton')}
-            </Button>
-          </form>
+              <Button type="submit" className="w-full" disabled={isLoading}>
+                {isLoading ? t('actions.loading') : t('auth.magicLink.sendButton')}
+              </Button>
+            </form>
+          </Form>
 
           <div className="relative">
             <div className="absolute inset-0 flex items-center">

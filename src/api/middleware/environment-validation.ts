@@ -34,15 +34,6 @@ export const CRITICAL_ENV_VARS = [
 ] as const;
 
 /**
- * Payment-related environment variables
- * Required for ZarinPal payment processing functionality
- */
-export const PAYMENT_ENV_VARS = [
-  'NEXT_PUBLIC_ZARINPAL_MERCHANT_ID',
-  'ZARINPAL_ACCESS_TOKEN',
-] as const;
-
-/**
  * Email/Communication environment variables
  * Required for AWS SES email functionality
  */
@@ -62,15 +53,6 @@ export const EMAIL_ENV_VARS = [
 export const OAUTH_ENV_VARS = [
   'AUTH_GOOGLE_ID',
   'AUTH_GOOGLE_SECRET',
-] as const;
-
-/**
- * Webhook environment variables
- * Required for payment webhooks and external integrations
- */
-export const WEBHOOK_ENV_VARS = [
-  'NEXT_PUBLIC_ROUNDTABLE_WEBHOOK_URL',
-  'WEBHOOK_SECRET',
 ] as const;
 
 /**
@@ -104,15 +86,6 @@ function isValidUrl(value: string): boolean {
 function isValidEmail(value: string): boolean {
   const emailRegex = /^[^\s@]+@[^\s@][^\s.@]*\.[^\s@]+$/;
   return emailRegex.test(value);
-}
-
-/**
- * Validates ZarinPal merchant ID format
- */
-function isValidZarinpalMerchantId(value: string): boolean {
-  // ZarinPal merchant ID should be 36 characters UUID-like format
-  const merchantIdRegex = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
-  return merchantIdRegex.test(value);
 }
 
 /**
@@ -155,47 +128,11 @@ export function validateEnvironmentConfiguration(env: CloudflareEnv): {
     errors.push('R2_PUBLIC_URL must be a valid URL');
   }
 
-  // Validate payment-related variables
-  for (const varName of PAYMENT_ENV_VARS) {
-    if (!env[varName]) {
-      missingOptional.push(varName);
-      warnings.push(`Missing payment configuration: ${varName}`);
-    }
-  }
-
-  if (env.NEXT_PUBLIC_ZARINPAL_MERCHANT_ID) {
-    if (!isValidZarinpalMerchantId(env.NEXT_PUBLIC_ZARINPAL_MERCHANT_ID)) {
-      errors.push('NEXT_PUBLIC_ZARINPAL_MERCHANT_ID must be a valid UUID format');
-    }
-
-    // Check for placeholder values
-    const placeholderPatterns = ['your-merchant-id', 'merchant_id', 'xxx', '000'];
-    const isPlaceholder = placeholderPatterns.some(pattern =>
-      env.NEXT_PUBLIC_ZARINPAL_MERCHANT_ID!.toLowerCase().includes(pattern),
-    );
-
-    if (isPlaceholder) {
-      if (env.NODE_ENV === 'production') {
-        errors.push('NEXT_PUBLIC_ZARINPAL_MERCHANT_ID appears to be a placeholder value in production');
-      } else {
-        warnings.push('NEXT_PUBLIC_ZARINPAL_MERCHANT_ID appears to be a placeholder value');
-      }
-    }
-  }
-
   // Validate Google OAuth configuration
   for (const varName of OAUTH_ENV_VARS) {
     if (!env[varName]) {
       missingOptional.push(varName);
       warnings.push(`Missing OAuth configuration: ${varName}`);
-    }
-  }
-
-  // Validate webhook configuration
-  for (const varName of WEBHOOK_ENV_VARS) {
-    if (!env[varName]) {
-      missingOptional.push(varName);
-      warnings.push(`Missing webhook configuration: ${varName}`);
     }
   }
 
@@ -231,21 +168,6 @@ export function validateEnvironmentConfiguration(env: CloudflareEnv): {
   if (hasSomeEmailConfig && !hasAllEmailConfig) {
     const missingEmailVars = EMAIL_ENV_VARS.filter(varName => !env[varName]);
     warnings.push(`Incomplete email configuration - missing: ${missingEmailVars.join(', ')}`);
-  }
-
-  // Validate numeric environment variables
-  const numericVars = [
-    'ZARINPAL_DEFAULT_CONTRACT_DURATION_DAYS',
-    'ZARINPAL_DEFAULT_MAX_DAILY_COUNT',
-    'ZARINPAL_DEFAULT_MAX_MONTHLY_COUNT',
-    'ZARINPAL_DEFAULT_MAX_AMOUNT',
-    'CARD_VERIFICATION_AMOUNT',
-  ];
-
-  for (const varName of numericVars) {
-    if (env[varName as keyof CloudflareEnv] && Number.isNaN(Number(env[varName as keyof CloudflareEnv]))) {
-      errors.push(`${varName} must be a valid number`);
-    }
   }
 
   // Validate boolean environment variables
@@ -433,14 +355,6 @@ export function createEnvironmentSummary(env: CloudflareEnv): SafeEnvironmentSum
     databaseStatus = 'disconnected';
   }
 
-  // Determine payment gateway status
-  let paymentStatus: 'configured' | 'missing' | 'invalid' = 'missing';
-  if (env.NEXT_PUBLIC_ZARINPAL_MERCHANT_ID && env.ZARINPAL_ACCESS_TOKEN) {
-    // Basic validation - in reality you'd validate the format/connectivity
-    const isValidMerchantId = isValidZarinpalMerchantId(env.NEXT_PUBLIC_ZARINPAL_MERCHANT_ID);
-    paymentStatus = isValidMerchantId ? 'configured' : 'invalid';
-  }
-
   // Determine OAuth status
   let oauthStatus: 'configured' | 'missing' | 'invalid' = 'missing';
   if (env.AUTH_GOOGLE_ID && env.AUTH_GOOGLE_SECRET) {
@@ -450,21 +364,12 @@ export function createEnvironmentSummary(env: CloudflareEnv): SafeEnvironmentSum
     oauthStatus = hasValidFormat ? 'configured' : 'invalid';
   }
 
-  // Determine webhook status
-  let webhookStatus: 'configured' | 'missing' | 'invalid' = 'missing';
-  if (env.NEXT_PUBLIC_ROUNDTABLE_WEBHOOK_URL && env.WEBHOOK_SECRET) {
-    const isValidWebhookUrl = isValidUrl(env.NEXT_PUBLIC_ROUNDTABLE_WEBHOOK_URL);
-    webhookStatus = isValidWebhookUrl ? 'configured' : 'invalid';
-  }
-
   return {
     NODE_ENV: env.NODE_ENV || 'development',
     LOG_LEVEL: 'info',
     ENVIRONMENT_VERIFIED: !!(env.DB && env.BETTER_AUTH_SECRET && env.BETTER_AUTH_URL),
     DATABASE_CONNECTION_STATUS: databaseStatus,
-    PAYMENT_GATEWAY_STATUS: paymentStatus,
     OAUTH_STATUS: oauthStatus,
-    WEBHOOK_STATUS: webhookStatus,
     TIMESTAMP: new Date().toISOString(),
   };
 }

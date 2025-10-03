@@ -51,17 +51,9 @@ const ERROR_CODES = {
 
   // Business Logic
   BUSINESS_RULE_VIOLATION: 'BUSINESS_RULE_VIOLATION',
-  SUBSCRIPTION_INACTIVE: 'SUBSCRIPTION_INACTIVE',
-  PAYMENT_FAILED: 'PAYMENT_FAILED',
-  PAYMENT_ALREADY_PROCESSED: 'PAYMENT_ALREADY_PROCESSED',
-  INSUFFICIENT_FUNDS: 'INSUFFICIENT_FUNDS',
-  PAYMENT_METHOD_INVALID: 'PAYMENT_METHOD_INVALID',
-  CONTRACT_NOT_ACTIVE: 'CONTRACT_NOT_ACTIVE',
 
   // External Services
   EXTERNAL_SERVICE_ERROR: 'EXTERNAL_SERVICE_ERROR',
-  PAYMENT_GATEWAY_ERROR: 'PAYMENT_GATEWAY_ERROR',
-  ZARINPAL_ERROR: 'ZARINPAL_ERROR',
   EMAIL_SERVICE_ERROR: 'EMAIL_SERVICE_ERROR',
   STORAGE_SERVICE_ERROR: 'STORAGE_SERVICE_ERROR',
 
@@ -173,11 +165,6 @@ class AppError extends Error {
         return {
           ...this.context,
           attemptedEmail: this.context.attemptedEmail ? '[REDACTED]' : undefined,
-        };
-      case 'payment':
-        return {
-          ...this.context,
-          // Keep payment info but redact sensitive details if needed
         };
       default:
         return this.context;
@@ -300,39 +287,6 @@ export const createError = {
     }),
 
   /**
-   * Payment errors
-   */
-  paymentFailed: (message = 'Payment processing failed', context?: ErrorContext, correlationId?: string) =>
-    new AppError({
-      message,
-      code: ERROR_CODES.PAYMENT_FAILED,
-      statusCode: HttpStatusCodes.CONFLICT,
-      severity: ERROR_SEVERITY.HIGH,
-      context,
-      correlationId,
-    }),
-
-  insufficientFunds: (message = 'Insufficient funds for transaction', context?: ErrorContext, correlationId?: string) =>
-    new AppError({
-      message,
-      code: ERROR_CODES.INSUFFICIENT_FUNDS,
-      statusCode: HttpStatusCodes.CONFLICT,
-      severity: ERROR_SEVERITY.MEDIUM,
-      context,
-      correlationId,
-    }),
-
-  paymentMethodInvalid: (message = 'Payment method is invalid or inactive', context?: ErrorContext, correlationId?: string) =>
-    new AppError({
-      message,
-      code: ERROR_CODES.PAYMENT_METHOD_INVALID,
-      statusCode: HttpStatusCodes.CONFLICT,
-      severity: ERROR_SEVERITY.MEDIUM,
-      context,
-      correlationId,
-    }),
-
-  /**
    * Validation errors
    */
   badRequest: (message = 'Invalid request', context?: ErrorContext, correlationId?: string) =>
@@ -391,16 +345,6 @@ export const createError = {
   /**
    * External service errors
    */
-  zarinpal: (message = 'ZarinPal service error', originalError?: Error, context?: ErrorContext, correlationId?: string) =>
-    new ExternalServiceError({
-      message,
-      serviceName: 'ZarinPal',
-      code: ERROR_CODES.ZARINPAL_ERROR,
-      originalError,
-      context,
-      correlationId,
-    }),
-
   emailService: (message = 'Email service error', originalError?: Error, context?: ErrorContext, correlationId?: string) =>
     new ExternalServiceError({
       message,
@@ -412,6 +356,36 @@ export const createError = {
     }),
 
 };
+
+// ============================================================================
+// ERROR UTILITY FUNCTIONS
+// ============================================================================
+
+/**
+ * Normalize an unknown error value to an Error instance
+ *
+ * This helper ensures consistent error handling by converting any thrown value
+ * into a proper Error instance. Useful in catch blocks where the error type is unknown.
+ *
+ * @param error - The error value to normalize (can be anything)
+ * @returns A proper Error instance
+ *
+ * @example
+ * ```typescript
+ * try {
+ *   await somethingDangerous();
+ * } catch (error) {
+ *   c.logger.error('Operation failed', normalizeError(error));
+ *   throw createError.internal('Operation failed', context);
+ * }
+ * ```
+ */
+export function normalizeError(error: unknown): Error {
+  if (error instanceof Error) {
+    return error;
+  }
+  return new Error(String(error));
+}
 
 // ============================================================================
 // EXPORTS

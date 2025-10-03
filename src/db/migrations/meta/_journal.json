@@ -5,22 +5,15 @@
     {
       "idx": 0,
       "version": "6",
-      "when": 1758380415238,
-      "tag": "0000_happy_leech",
+      "when": 1759440225868,
+      "tag": "0000_regular_the_santerians",
       "breakpoints": true
     },
     {
       "idx": 1,
       "version": "6",
-      "when": 1758454124085,
-      "tag": "0001_dusty_magik",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "6",
-      "when": 1726940400000,
-      "tag": "0002_encrypted_signatures",
+      "when": 1759498252874,
+      "tag": "0001_curly_ego",
       "breakpoints": true
     }
   ]

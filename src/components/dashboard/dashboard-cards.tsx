@@ -161,15 +161,15 @@ export function MetricCard({
               {trend && (
                 <div className="flex items-center gap-1">
                   {isPositiveTrend && (
-                    <TrendingUp className="h-3 w-3 text-emerald-500" />
+                    <TrendingUp className="h-3 w-3 text-chart-3" />
                   )}
                   {isNegativeTrend && (
-                    <TrendingDown className="h-3 w-3 text-red-500" />
+                    <TrendingDown className="h-3 w-3 text-destructive" />
                   )}
                   <span className={cn(
                     'font-medium',
-                    isPositiveTrend && 'text-emerald-600',
-                    isNegativeTrend && 'text-red-600',
+                    isPositiveTrend && 'text-chart-3',
+                    isNegativeTrend && 'text-destructive',
                   )}
                   >
                     {trendValue > 0 ? '+' : ''}
@@ -192,7 +192,7 @@ export function MetricCard({
   );
 }
 
-// Status Card - for displaying items with status indicators (payments, subscriptions)
+// Status Card - for displaying items with status indicators
 type StatusCardProps = {
   title: string;
   subtitle?: string | ReactNode;
@@ -221,13 +221,13 @@ export function StatusCard({
   const getStatusColor = () => {
     switch (statusColor) {
       case 'success':
-        return 'bg-green-50 dark:bg-green-900/30 text-green-600 dark:text-green-400';
+        return 'bg-chart-3/10 text-chart-3';
       case 'warning':
-        return 'bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400';
+        return 'bg-chart-2/10 text-chart-2';
       case 'error':
-        return 'bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400';
+        return 'bg-destructive/10 text-destructive';
       default:
-        return 'bg-gray-50 dark:bg-gray-900/30 text-gray-600 dark:text-gray-400';
+        return 'bg-muted text-muted-foreground';
     }
   };
 

@@ -6,7 +6,7 @@ import { createJsonLd } from '@/utils/metadata';
  */
 type StructuredDataProps = {
   /** Schema.org type for the structured data */
-  type?: 'WebApplication' | 'Organization' | 'Product';
+  type?: 'WebApplication' | 'Organization' | 'Product' | 'Article';
   /** Name of the entity */
   name?: string;
   /** Description of the entity */
@@ -15,8 +15,20 @@ type StructuredDataProps = {
   url?: string;
   /** Logo URL for the entity */
   logo?: string;
+  /** Image URL for the entity */
+  image?: string;
   /** Array of social media URLs */
   sameAs?: string[];
+  /** Author name (for Article type) */
+  author?: string;
+  /** Publication date (for Article type) */
+  datePublished?: string;
+  /** Last modified date (for Article type) */
+  dateModified?: string;
+  /** Price (for Product type) */
+  price?: number;
+  /** Currency code (for Product type) */
+  currency?: string;
 };
 
 /**
@@ -26,6 +38,12 @@ type StructuredDataProps = {
  * - Uses dangerouslySetInnerHTML with proper XSS protection
  * - Sanitizes content by replacing '<' characters with Unicode equivalents
  * - Generates structured data based on Schema.org specifications
+ *
+ * Enhanced to support:
+ * - WebApplication: For the main application
+ * - Organization: For company/brand information
+ * - Product: For pricing plans and products (with price support)
+ * - Article: For blog posts and content (with author and date support)
  *
  * @param props - Configuration for the structured data
  * @returns JSX script element with JSON-LD content

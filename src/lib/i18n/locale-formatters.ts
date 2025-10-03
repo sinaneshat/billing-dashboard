@@ -1,151 +1,90 @@
 /**
- * Next.js Intl Locale-Aware Formatters
- * Uses next-intl for proper locale-aware formatting of currency, numbers, and dates
+ * Locale formatters for currency, numbers, and dates
+ * English-only application (locale defaults to 'en-US')
  */
 
-import { getLocale } from 'next-intl/server';
-
-// Persian digit mapping
-const persianDigits = ['۰', '۱', '۲', '۳', '۴', '۵', '۶', '۷', '۸', '۹'];
+const DEFAULT_LOCALE = 'en-US';
+const DEFAULT_CURRENCY = 'USD';
 
 /**
- * Convert English digits to Persian digits
+ * Currency formatter
+ * @param amount - Amount to format
+ * @param options - Formatting options
+ * @param options.showFree - Show "Free" for zero amounts (default: true)
+ * @param options.compact - Use compact notation (not implemented yet)
+ * @param locale - Locale to use (defaults to 'en-US')
  */
-function toPersianDigits(str: string): string {
-  return str.replace(/\d/g, d => persianDigits[Number.parseInt(d)] || d);
-}
-
-/**
- * Get current locale (fallback for client components)
- */
-async function getCurrentLocale(): Promise<string> {
-  try {
-    return await getLocale();
-  } catch {
-    // Fallback for client components - detect from document or default to en
-    if (typeof window !== 'undefined') {
-      return document.documentElement.lang || 'en';
-    }
-    return 'en';
-  }
-}
-
-/**
- * Locale-aware currency formatter
- */
-export async function formatCurrencyLocale(
+export function formatCurrencyLocale(
   amount: number,
-  currency: 'USD' | 'IRR' | 'TOMAN' = 'USD',
   options: {
     showFree?: boolean;
     compact?: boolean;
-    locale?: string;
   } = {},
-): Promise<string> {
-  const { showFree = true, locale } = options;
-  const currentLocale = locale || await getCurrentLocale();
-  const isPersian = currentLocale === 'fa';
+  locale: string = DEFAULT_LOCALE,
+): string {
+  const { showFree = true } = options;
 
   // Handle free/zero amounts
   if (amount === 0 && showFree) {
-    return isPersian ? 'رایگان' : 'Free';
+    return 'Free';
   }
 
   if (amount === 0) {
-    return '0';
-  }
-
-  // Handle Toman currency
-  if (currency === 'TOMAN') {
-    const formatted = new Intl.NumberFormat(currentLocale, {
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(Math.round(amount));
-
-    const unit = isPersian ? 'تومان' : 'Toman';
-    const result = `${formatted} ${unit}`;
-
-    return isPersian ? toPersianDigits(result) : result;
+    return '$0.00';
   }
 
   // Standard currency formatting
-  const formatted = new Intl.NumberFormat(currentLocale, {
+  return new Intl.NumberFormat(locale, {
     style: 'currency',
-    currency: currency === 'IRR' ? 'IRR' : 'USD',
-    minimumFractionDigits: currency === 'IRR' ? 0 : 2,
-    maximumFractionDigits: currency === 'IRR' ? 0 : 2,
+    currency: DEFAULT_CURRENCY,
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
   }).format(amount);
-
-  return isPersian ? toPersianDigits(formatted) : formatted;
 }
 
 /**
- * Client-side currency formatter (for use in components with useLocale)
+ * Client-side currency formatter (for use in components)
+ * @param amount - Amount to format
+ * @param options - Formatting options
+ * @param options.showFree - Show "Free" for zero amounts (default: true)
+ * @param options.compact - Use compact notation (not implemented yet)
+ * @param locale - Locale to use (defaults to 'en-US')
  */
 export function formatCurrencyClient(
   amount: number,
-  locale: string,
-  currency: 'USD' | 'IRR' | 'TOMAN' = 'USD',
   options: {
     showFree?: boolean;
     compact?: boolean;
   } = {},
+  locale: string = DEFAULT_LOCALE,
 ): string {
-  const { showFree = true } = options;
-  const isPersian = locale === 'fa';
-
-  // Handle free/zero amounts
-  if (amount === 0 && showFree) {
-    return isPersian ? 'رایگان' : 'Free';
-  }
-
-  if (amount === 0) {
-    return '0';
-  }
-
-  // Handle Toman currency
-  if (currency === 'TOMAN') {
-    const formatted = new Intl.NumberFormat(locale, {
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(Math.round(amount));
-
-    const unit = isPersian ? 'تومان' : 'Toman';
-    const result = `${formatted} ${unit}`;
-
-    return isPersian ? toPersianDigits(result) : result;
-  }
-
-  // Standard currency formatting
-  const formatted = new Intl.NumberFormat(locale, {
-    style: 'currency',
-    currency: currency === 'IRR' ? 'IRR' : 'USD',
-    minimumFractionDigits: currency === 'IRR' ? 0 : 2,
-    maximumFractionDigits: currency === 'IRR' ? 0 : 2,
-  }).format(amount);
-
-  return isPersian ? toPersianDigits(formatted) : formatted;
+  return formatCurrencyLocale(amount, options, locale);
 }
 
 /**
- * Locale-aware number formatter
+ * Number formatter
+ * @param number - Number to format
+ * @param options - Formatting options
+ * @param locale - Locale to use (defaults to 'en-US')
  */
 export function formatNumberLocale(
   number: number,
-  locale: string,
   options?: Intl.NumberFormatOptions,
+  locale: string = DEFAULT_LOCALE,
 ): string {
-  const formatted = new Intl.NumberFormat(locale, options).format(number);
-  return locale === 'fa' ? toPersianDigits(formatted) : formatted;
+  return new Intl.NumberFormat(locale, options).format(number);
 }
 
 /**
- * Locale-aware date formatter
+ * Date formatter
+ * @param date - Date to format
+ * @param options - Formatting options
+ * @param locale - Locale to use (defaults to 'en-US')
  */
 export function formatDateLocale(
   date: string | Date,
-  locale: string,
   options?: Intl.DateTimeFormatOptions,
+  locale: string = DEFAULT_LOCALE,
 ): string {
   const dateObj = typeof date === 'string' ? new Date(date) : date;
   const defaultOptions: Intl.DateTimeFormatOptions = {
@@ -155,16 +94,17 @@ export function formatDateLocale(
     ...options,
   };
 
-  const formatted = new Intl.DateTimeFormat(locale, defaultOptions).format(dateObj);
-  return locale === 'fa' ? toPersianDigits(formatted) : formatted;
+  return new Intl.DateTimeFormat(locale, defaultOptions).format(dateObj);
 }
 
 /**
- * Locale-aware relative time formatter (e.g., "2 days ago")
+ * Relative time formatter (e.g., "2 days ago")
+ * @param date - Date to format
+ * @param locale - Locale to use (defaults to 'en-US')
  */
 export function formatRelativeTimeLocale(
   date: string | Date,
-  locale: string,
+  locale: string = DEFAULT_LOCALE,
 ): string {
   const dateObj = typeof date === 'string' ? new Date(date) : date;
   const now = new Date();
@@ -173,66 +113,63 @@ export function formatRelativeTimeLocale(
   const rtf = new Intl.RelativeTimeFormat(locale, { numeric: 'auto' });
 
   if (diffInSeconds < 60) {
-    const result = rtf.format(-diffInSeconds, 'second');
-    return locale === 'fa' ? toPersianDigits(result) : result;
+    return rtf.format(-diffInSeconds, 'second');
   }
   if (diffInSeconds < 3600) {
     const minutes = Math.floor(diffInSeconds / 60);
-    const result = rtf.format(-minutes, 'minute');
-    return locale === 'fa' ? toPersianDigits(result) : result;
+    return rtf.format(-minutes, 'minute');
   }
   if (diffInSeconds < 86400) {
     const hours = Math.floor(diffInSeconds / 3600);
-    const result = rtf.format(-hours, 'hour');
-    return locale === 'fa' ? toPersianDigits(result) : result;
+    return rtf.format(-hours, 'hour');
   }
   if (diffInSeconds < 2592000) {
     const days = Math.floor(diffInSeconds / 86400);
-    const result = rtf.format(-days, 'day');
-    return locale === 'fa' ? toPersianDigits(result) : result;
+    return rtf.format(-days, 'day');
   }
 
   const months = Math.floor(diffInSeconds / 2592000);
-  const result = rtf.format(-months, 'month');
-  return locale === 'fa' ? toPersianDigits(result) : result;
+  return rtf.format(-months, 'month');
 }
 
 /**
- * Format percentage with locale awareness
+ * Format percentage
+ * @param value - Percentage value to format
+ * @param options - Formatting options
+ * @param locale - Locale to use (defaults to 'en-US')
  */
 export function formatPercentageLocale(
   value: number,
-  locale: string,
   options?: Intl.NumberFormatOptions,
+  locale: string = DEFAULT_LOCALE,
 ): string {
-  const formatted = new Intl.NumberFormat(locale, {
+  return new Intl.NumberFormat(locale, {
     style: 'percent',
     minimumFractionDigits: 0,
     maximumFractionDigits: 1,
     ...options,
   }).format(value / 100);
-
-  return locale === 'fa' ? toPersianDigits(formatted) : formatted;
 }
 
 /**
- * Hook-compatible formatters for client components
+ * Create formatters for client components
+ * @param locale - Locale to use (defaults to 'en-US')
  */
-export function createLocaleFormatters(locale: string) {
+export function createLocaleFormatters(locale: string = DEFAULT_LOCALE) {
   return {
-    currency: (amount: number, currency: 'USD' | 'IRR' | 'TOMAN' = 'USD', options?: { showFree?: boolean; compact?: boolean }) =>
-      formatCurrencyClient(amount, locale, currency, options),
+    currency: (amount: number, options?: { showFree?: boolean; compact?: boolean }) =>
+      formatCurrencyClient(amount, options, locale),
 
     number: (number: number, options?: Intl.NumberFormatOptions) =>
-      formatNumberLocale(number, locale, options),
+      formatNumberLocale(number, options, locale),
 
     date: (date: string | Date, options?: Intl.DateTimeFormatOptions) =>
-      formatDateLocale(date, locale, options),
+      formatDateLocale(date, options, locale),
 
     relativeTime: (date: string | Date) =>
       formatRelativeTimeLocale(date, locale),
 
     percentage: (value: number, options?: Intl.NumberFormatOptions) =>
-      formatPercentageLocale(value, locale, options),
+      formatPercentageLocale(value, options, locale),
   };
 }

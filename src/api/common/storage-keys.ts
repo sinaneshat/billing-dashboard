@@ -11,8 +11,6 @@ export const storagePurposeSchema = z.enum([
   'company_logo',
   'company_banner',
   'document',
-  'receipt',
-  'invoice',
   'temp',
 ]);
 

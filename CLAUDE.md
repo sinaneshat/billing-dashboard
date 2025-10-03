@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-Project guidance for Claude Code specialized agents working on Roundtable's billing dashboard - a white-labelable ZarinPal payment platform for Iranian businesses.
+Project guidance for Claude Code specialized agents working on roundtable.now - a collaborative AI brainstorming platform where multiple AI models work together to solve problems and generate ideas.
 
 ## 🚨 DOCUMENTATION HIERARCHY
 
@@ -47,7 +47,7 @@ pnpm deploy:preview        # Deploy to preview environment
 pnpm deploy:production     # Deploy to production
 
 # Testing & Quality
-pnpm i18n:full-check       # Check all i18n translations
+pnpm i18n:full-check       # Check all i18n translation keys
 pnpm i18n:validate         # Validate translation structure
 pnpm i18n:check-unused     # Find unused translation keys
 ```
@@ -57,56 +57,44 @@ pnpm i18n:check-unused     # Find unused translation keys
 ```
 src/
 ├── app/                    # Next.js App Router
-│   ├── (app)/dashboard/   # Protected billing dashboard
+│   ├── (app)/dashboard/   # Protected dashboard
 │   ├── auth/              # Authentication pages
-│   ├── api/               # Next.js API routes (proxy)
-│   └── payment/           # Payment callback pages
+│   └── api/               # Next.js API routes (proxy)
 ├── api/                   # Hono API implementation
 │   ├── routes/            # Domain-specific routes
-│   │   ├── auth/          # Better Auth integration
-│   │   ├── subscriptions/ # Subscription lifecycle
-│   │   ├── payment-methods/ # Direct debit contracts
-│   │   ├── payments/      # Payment processing
-│   │   └── webhooks/      # ZarinPal webhooks
+│   │   └── auth/          # Better Auth integration
 │   ├── services/          # Business logic
-│   │   ├── zarinpal.ts    # Core payment processing
-│   │   └── zarinpal-direct-debit.ts # Payman API
 │   └── middleware/        # Auth, CORS, rate limiting
 ├── components/            # React components
 │   ├── ui/                # shadcn/ui base components
-│   ├── billing/           # Billing-specific UI
 │   └── auth/              # Authentication UI
 ├── db/                    # Database layer
 │   ├── tables/            # Drizzle schema definitions
-│   │   ├── auth.ts        # Users, sessions, accounts
-│   │   ├── billing.ts     # Products, subscriptions, payments
-│   │   └── external-integrations.ts # Webhooks, logs
+│   │   └── auth.ts        # Users, sessions, accounts, verification
+│   ├── validation/        # Schema validation
 │   └── migrations/        # SQL migration files
 ├── hooks/                 # React Query data fetching
 ├── lib/                   # Utility libraries
-└── i18n/                  # Internationalization
-    └── locales/           # en/common.json, fa/common.json translations
+└── i18n/                  # Internationalization (English-only, dynamic keys)
+    └── locales/           # en/common.json translation keys
 ```
 
 ## Core Architecture Patterns
 
 ### Database Layer (Drizzle + Cloudflare D1)
 **Critical Tables** (`src/db/tables/`):
-- **billing.ts**: `product`, `subscription`, `payment`, `paymentMethod`, `billingEvent`, `webhookEvent`
 - **auth.ts**: `user`, `session`, `account`, `verification`
 
 **Essential Patterns**:
-- All billing operations create `billingEvent` audit entries
-- Payment methods store ZarinPal Payman direct debit contracts only
 - Use `createSelectSchema`/`createInsertSchema` from drizzle-zod for type safety
 - Multi-table operations require `db.transaction()` for consistency
-- Indexes optimized for billing queries and reporting
+- Indexes optimized for queries and reporting
+- Schema validation in `src/db/validation/`
 
 **Key Relationships**:
-- Users → Subscriptions (one-to-many)
-- Subscriptions → Payments (one-to-many)
-- Users → Payment Methods (one-to-many)
-- All entities → Billing Events (audit trail)
+- Users → Sessions (one-to-many)
+- Users → Accounts (one-to-many for OAuth providers)
+- Users → Verification tokens (one-to-many)
 
 ### API Layer (Hono + OpenAPI + Zod)
 **Structure Pattern**: `src/api/routes/{domain}/`
@@ -125,25 +113,50 @@ src/
 **Component Structure**: `src/components/{domain}/{component}.tsx`
 - Reuse existing shadcn/ui components from `src/components/ui/`
 - TanStack Query hooks in `src/hooks/` for server state
-- All user text through `useTranslations()` - NO hardcoded strings
-- RTL support for Persian/Farsi locale
+- All user text through `useTranslations()` - NO hardcoded strings (English-only)
+- Dark theme only (no theme switching)
 
-## ZarinPal Integration Context
+## Email System
 
-**Direct Debit (Payman)** contracts enable automated recurring billing:
-- Contract signatures stored in `paymentMethod.contractSignature`
-- Status flow: `pending_signature` → `active` → `cancelled_by_user` → `expired`
-- Key services: `zarinpal.ts`, `zarinpal-direct-debit.ts`
-- Webhook processing for real-time payment status updates
+**React Email Template System** (`src/emails/`):
+- Component-based email templates in `src/emails/components/`
+- Template compositions in `src/emails/templates/`
+- Email utility functions in `src/lib/email/`
+- Auth-related emails (verification, magic link, etc.)
+
+## Icon Management
+
+**Icon System** (`src/icons/`):
+- Lucide React for standard icons
+- Custom SVG icons in `src/icons/svg/`
+- Icon components in `src/icons/component/`
 
 ## Environment Configuration
 
 **Critical Variables**:
 ```bash
-# Database: Uses Cloudflare D1 bindings (env.DB) in production, ./local.db for local development
-BETTER_AUTH_SECRET=your-secret-key         # Session encryption
-NEXT_PUBLIC_ZARINPAL_MERCHANT_ID=your-merchant-id      # Payment gateway
+# Application Environment
+NODE_ENV=development
 NEXT_PUBLIC_WEBAPP_ENV=local|preview|prod  # Environment detection
+NEXT_PUBLIC_APP_URL=http://localhost:3000
+
+# Authentication - Session encryption
+BETTER_AUTH_SECRET=your-better-auth-secret-32-chars-minimum
+BETTER_AUTH_URL=http://localhost:3000
+
+# Google OAuth - Get from Google Cloud Console
+AUTH_GOOGLE_ID=your-google-client-id.apps.googleusercontent.com
+AUTH_GOOGLE_SECRET=your-google-client-secret
+
+# AWS SES Email - Get from AWS Console
+AWS_SES_ACCESS_KEY_ID=your-aws-ses-access-key-id
+AWS_SES_SECRET_ACCESS_KEY=your-aws-ses-secret-access-key
+NEXT_PUBLIC_AWS_SES_REGION=your-aws-region
+NEXT_PUBLIC_FROM_EMAIL=noreply@your-domain.com
+NEXT_PUBLIC_SES_REPLY_TO_EMAIL=support@your-domain.com
+NEXT_PUBLIC_SES_VERIFIED_EMAIL=noreply@your-domain.com
+
+# Database: Uses Cloudflare D1 bindings (env.DB) in production, ./local.db for local development
 ```
 
 **Cloudflare Bindings** (wrangler.jsonc):
@@ -168,19 +181,17 @@ NEXT_PUBLIC_WEBAPP_ENV=local|preview|prod  # Environment detection
 
 - **Route Patterns**: `/src/api/routes/{domain}/` - Study existing route implementations
   - `/src/api/routes/auth/` - Authentication and session handling patterns
-  - `/src/api/routes/subscriptions/` - Subscription lifecycle management
-  - `/src/api/routes/payment-methods/` - Direct debit contract patterns
-  - `/src/api/routes/payments/` - Payment processing workflows
-  - `/src/api/routes/webhooks/` - ZarinPal webhook handling
+  - `/src/api/routes/currency/` - Currency management endpoints
+  - `/src/api/routes/emails/` - Email operation endpoints
+  - `/src/api/routes/system/` - System health and status endpoints
 
 - **Database Schema**: `/src/db/tables/` - All database entity definitions
-  - `/src/db/tables/billing.ts` - Core billing entities and relationships
   - `/src/db/tables/auth.ts` - User authentication and session tables
-  - `/src/db/tables/external-integrations.ts` - Webhook and audit logging
 
 - **Service Layer**: `/src/api/services/` - Business logic implementations
-  - `/src/api/services/zarinpal.ts` - Core payment processing service
-  - `/src/api/services/zarinpal-direct-debit.ts` - Payman API integration
+
+- **Core Patterns**: `/src/api/core/` - Framework foundations
+- **Common Utilities**: `/src/api/common/` - Shared API utilities
 
 - **Middleware Patterns**: `/src/api/middleware/` - Authentication, CORS, rate limiting
 - **Migration Examples**: `/src/db/migrations/` - Database change patterns
@@ -197,13 +208,11 @@ NEXT_PUBLIC_WEBAPP_ENV=local|preview|prod  # Environment detection
 
 - **Component Patterns**: `/src/components/` - Established UI component architecture
   - `/src/components/ui/` - shadcn/ui base components (Button, Card, Dialog, etc.)
-  - `/src/components/billing/` - Domain-specific billing UI components
   - `/src/components/auth/` - Authentication flow components
 
 - **Page Layouts**: `/src/app/` - Next.js App Router structure
   - `/src/app/(app)/dashboard/` - Protected dashboard pages and layouts
   - `/src/app/auth/` - Authentication pages (login, register, callback)
-  - `/src/app/payment/` - Payment flow pages and status handling
 
 - **Data Fetching**: `/src/hooks/` - TanStack Query patterns for server state
 - **Utility Functions**: `/src/lib/` - Shared utilities, validation, formatting
@@ -211,11 +220,11 @@ NEXT_PUBLIC_WEBAPP_ENV=local|preview|prod  # Environment detection
 
 ### Internationalization Context (`i18n-translation-manager`)
 **Primary Context Documents**:
-- **Translation Files**: `/src/i18n/locales/` - Translation key management
-  - `/src/i18n/locales/en/common.json` - English translations (source of truth)
-  - `/src/i18n/locales/fa/common.json` - Persian/Farsi translations (RTL)
-- **Component Usage**: `/src/components/` - Scan for hardcoded strings and translation usage
-- **Translation Patterns**: Look for `useTranslations()` hooks and `t()` function usage
+- **Translation Files**: `/src/i18n/locales/` - Translation key management (English-only)
+  - `/src/i18n/locales/en/common.json` - English translations (single locale)
+- **Component Usage**: `/src/components/` - Scan for hardcoded strings and ensure `useTranslations()` usage
+- **Translation Patterns**: All user-facing text must use `useTranslations()` hooks and `t()` function
+- **Note**: Application is English-only, but translation keys are maintained for consistency and maintainability
 
 ### Configuration Context (All Agents)
 **Primary Context Documents**:
@@ -232,8 +241,8 @@ NEXT_PUBLIC_WEBAPP_ENV=local|preview|prod  # Environment detection
 **Primary Context Documents**:
 - **API Documentation**: Look for existing API integrations in `/src/api/services/`
 - **Environment Variables**: Check `/.env.example` and `/wrangler.jsonc` for configuration patterns
-- **Business Logic**: Analyze `/src/db/tables/billing.ts` for domain understanding
-- **Integration Patterns**: Review `/src/api/routes/webhooks/` for third-party integration examples
+- **Business Logic**: Analyze `/src/db/tables/` for domain understanding
+- **Integration Patterns**: Review `/src/api/routes/` for third-party integration examples
 
 ## Context Prime Workflow Patterns
 
@@ -269,9 +278,9 @@ NEXT_PUBLIC_WEBAPP_ENV=local|preview|prod  # Environment detection
 ### 4. Reference Documentation Pattern
 When implementing or referencing code:
 - **File References**: Use `src/api/routes/auth/route.ts:45` format for specific lines
-- **Pattern References**: Cite `"following the pattern established in src/api/routes/subscriptions/"`
-- **Schema References**: Reference `"extending the schema pattern from src/db/tables/billing.ts:112"`
-- **Example References**: Point to `"similar implementation in src/components/billing/PaymentMethodCard.tsx"`
+- **Pattern References**: Cite `"following the pattern established in src/api/routes/auth/"`
+- **Schema References**: Reference `"extending the schema pattern from src/db/tables/auth.ts:112"`
+- **Example References**: Point to `"similar implementation in src/components/ui/Card.tsx"`
 
 ### 5. Quality Verification Pattern
 ```bash
@@ -284,30 +293,30 @@ When implementing or referencing code:
 
 ### Context Prime Example Workflow
 
-**Backend Agent Task**: "Add new subscription renewal endpoint"
+**Backend Agent Task**: "Add new user profile endpoint"
 
 ```bash
 1. READ CONTEXT PRIME: /docs/backend-patterns.md - THE SINGLE SOURCE OF TRUTH for backend implementation
 2. FOLLOW ALL PATTERNS: Every implementation MUST follow the patterns documented in backend-patterns.md
-3. READ CONTEXT: /src/api/routes/subscriptions/ existing endpoints
+3. READ CONTEXT: /src/api/routes/auth/ or /src/api/routes/system/ existing endpoints
 4. ANALYZE PATTERN: route.ts + handler.ts + schema.ts structure
-5. EXAMINE SCHEMA: /src/db/tables/billing.ts subscription table
-6. STUDY SERVICES: /src/api/services/zarinpal.ts payment processing
+5. EXAMINE SCHEMA: /src/db/tables/auth.ts user table
+6. STUDY SERVICES: /src/api/services/ existing service patterns (if applicable)
 7. IMPLEMENT: Using ONLY patterns from docs/backend-patterns.md (no deviations allowed)
-8. REFERENCE: "This endpoint follows the backend-patterns.md:subscription-patterns specification and src/api/routes/subscriptions/create.ts:23"
+8. REFERENCE: "This endpoint follows the backend-patterns.md patterns and src/api/routes/auth/route.ts:8 or src/api/routes/system/route.ts:6"
 ```
 
-**Frontend Agent Task**: "Create subscription status card component"
+**Frontend Agent Task**: "Create user status card component"
 
 ```bash
 1. READ CONTEXT PRIME: /docs/frontend-patterns.md - THE SINGLE SOURCE OF TRUTH for frontend implementation
 2. FOLLOW ALL PATTERNS: Every implementation MUST follow the patterns documented in frontend-patterns.md
-3. READ CONTEXT: /src/components/billing/ existing billing components
+3. READ CONTEXT: /src/components/dashboard/ existing dashboard components
 4. ANALYZE PATTERN: /src/components/ui/ shadcn component structure
-5. EXAMINE HOOKS: /src/hooks/ data fetching patterns for subscriptions
-6. STUDY LAYOUTS: /src/app/(app)/dashboard/ page layout patterns
+5. EXAMINE HOOKS: /src/hooks/ data fetching patterns
+6. STUDY LAYOUTS: /src/containers/screens/dashboard/ screen patterns
 7. IMPLEMENT: Using ONLY patterns from docs/frontend-patterns.md (no deviations allowed)
-8. REFERENCE: "This component follows the frontend-patterns.md:component-architecture specification and src/components/billing/PaymentMethodCard.tsx:15"
+8. REFERENCE: "This component follows the frontend-patterns.md:component-architecture specification and src/components/ui/card.tsx:15"
 ```
 
 ## Specialized Agent Context
@@ -319,29 +328,32 @@ Each agent has domain-specific expertise:
 **backend-pattern-expert.md**: Hono + Cloudflare Workers + Drizzle ORM specialist
 - **🚨 MANDATORY FIRST ACTION**: Read `/docs/backend-patterns.md` - THE ONLY authoritative backend guide
 - **NO BACKEND WORK WITHOUT READING THIS DOCUMENT FIRST**
-- **Must consult**: `/src/api/routes/{domain}/` patterns, `/src/db/tables/billing.ts` schema, `/src/api/services/zarinpal.ts`
+- **Must consult**: `/src/api/routes/{domain}/` patterns (auth, currency, emails, system), `/src/db/tables/auth.ts` schema
 - Database schema changes and migrations (`/src/db/migrations/` examples)
 - API endpoint creation following established patterns (`/src/api/routes/` structure)
-- ZarinPal integration and webhook handling (`/src/api/routes/webhooks/`, `/src/api/services/`)
+- Service layer patterns (`/src/api/services/` if services exist for domain)
 
 **frontend-ui-expert.md**: Next.js + shadcn/ui + TanStack Query specialist
 - **🚨 MANDATORY FIRST ACTION**: Read `/docs/frontend-patterns.md` - THE ONLY authoritative frontend guide
 - **NO FRONTEND WORK WITHOUT READING THIS DOCUMENT FIRST**
-- **Must consult**: `/src/components/ui/` patterns, `/src/app/(app)/dashboard/` layouts, `/src/hooks/` data fetching
+- **Must consult**: `/src/components/ui/` patterns, `/src/containers/` layouts and screens, `/src/hooks/` utilities
 - Component creation following design system (`/src/components/ui/` base components)
-- Data fetching with React Query patterns (`/src/hooks/` existing implementations)
-- Responsive UI with accessibility standards (`/src/components/billing/` examples)
+- Container patterns (`/src/containers/layouts/` and `/src/containers/screens/`)
+- Email templates (`/src/emails/templates/` and `/src/emails/components/`)
+- Direct TanStack Query usage until hook abstraction layer is built
+- Responsive UI with accessibility standards
 
-**i18n-translation-manager.md**: Internationalization specialist
-- **Must consult**: `/src/i18n/locales/en/common.json` source keys, `/src/components/` translation usage patterns
-- Translation key management and validation (`/src/i18n/locales/` files)
-- Hardcoded string detection and replacement (`/src/components/` scan for `useTranslations()`)
-- Persian/Farsi RTL layout support (`/src/i18n/locales/fa/common.json` patterns)
+**i18n-translation-manager.md**: Translation key management specialist (English-only)
+- **Must consult**: `/src/i18n/locales/en/common.json` for translation keys
+- Translation key management and validation in English locale
+- Hardcoded string detection and replacement with `useTranslations()`
+- Maintain consistent translation key naming conventions
+- **Note**: English-only application, but translation keys maintained for consistency
 
 **research-analyst.md**: Documentation and analysis specialist
-- **Must consult**: `/src/api/services/` for integration patterns, `/wrangler.jsonc` for configuration
+- **Must consult**: `/src/api/` for backend patterns, `/wrangler.jsonc` for configuration
 - Project documentation and planning (`.claude/agents/` specifications)
-- Third-party API research and integration analysis (`/src/api/services/zarinpal.ts` examples)
+- API research and integration analysis
 - Best practices research and recommendations (`/src/db/tables/` domain modeling)
 
 ## Agent Chaining Examples
@@ -355,13 +367,13 @@ Each agent has domain-specific expertise:
 1. Research agent analyzes requirements and APIs
 2. Backend agent implements database schema and API endpoints
 3. Frontend agent creates UI components and data fetching
-4. i18n agent ensures all text is properly translated
+4. i18n agent ensures all text uses translation keys (English-only)
 
-**Payment Integration Pattern**:
-1. Backend agent implements ZarinPal API integration
-2. Database operations for payment tracking and audit trails
-3. Frontend agent creates payment UI and status handling
-4. Webhook processing for real-time updates
+**External Integration Pattern**:
+1. Backend agent implements external API integration
+2. Database operations for data tracking and audit trails
+3. Frontend agent creates UI and status handling
+4. Real-time updates via polling or server-sent events
 
 ## Advanced Agent Orchestration Patterns
 
@@ -371,12 +383,12 @@ Each agent has domain-specific expertise:
 
 ```bash
 # Example: Feature development with parallel agents
-> Use the research-analyst agent to research ZarinPal Payman API patterns while the backend-pattern-expert agent analyzes our current payment flow, and have the i18n-translation-manager agent audit the existing payment forms for translation coverage
+> Use the research-analyst agent to research external API patterns while the backend-pattern-expert agent analyzes our current data flow, and have the i18n-translation-manager agent audit the existing forms for translation key coverage
 
 # Claude Code will execute all three agents in parallel:
-# 1. research-analyst: ZarinPal API documentation research
-# 2. backend-pattern-expert: Current payment flow analysis
-# 3. i18n-translation-manager: Translation audit of payment forms
+# 1. research-analyst: External API documentation research
+# 2. backend-pattern-expert: Current data flow analysis
+# 3. i18n-translation-manager: Translation key audit of forms
 ```
 
 **Parallel Task Decomposition**:
@@ -391,20 +403,20 @@ Each agent has domain-specific expertise:
 
 ```bash
 # Pattern 1: Discovery → Implementation → Validation
-1. research-analyst: "Analyze current subscription billing patterns and identify gaps"
+1. research-analyst: "Analyze current resource management patterns and identify gaps"
    → Output: Findings document with specific implementation recommendations
 
-2. backend-pattern-expert: "Implement subscription renewal automation using research findings"
+2. backend-pattern-expert: "Implement resource automation using research findings"
    → Input: Research agent's findings and recommendations
    → Output: API endpoints, database schema changes, service implementations
 
-3. frontend-ui-expert: "Create UI components for the new subscription management features"
+3. frontend-ui-expert: "Create UI components for the new resource management features"
    → Input: Backend agent's API specifications and data models
    → Output: React components, TanStack Query hooks, user flows
 
-4. i18n-translation-manager: "Ensure all new UI text is properly internationalized"
+4. i18n-translation-manager: "Ensure all new UI text uses translation keys"
    → Input: Frontend agent's components and user-facing text
-   → Output: Translation keys, updated locale files, compliance report
+   → Output: Translation keys in en/common.json, compliance report
 ```
 
 **Context Handoff Strategies**:
@@ -419,16 +431,16 @@ Each agent has domain-specific expertise:
 
 ```bash
 # Example: Multiple backend agents for different domains
-> Use one backend-pattern-expert agent to implement subscription billing endpoints while another backend-pattern-expert agent implements payment method management endpoints
+> Use one backend-pattern-expert agent to implement resource endpoints while another backend-pattern-expert agent implements user management endpoints
 
 # Agent Instance Differentiation:
-# Instance 1: backend-pattern-expert (subscriptions domain)
-#   - Context: src/api/routes/subscriptions/, src/db/tables/billing.ts
-#   - Focus: Subscription lifecycle, billing events, renewal automation
+# Instance 1: backend-pattern-expert (email domain)
+#   - Context: src/api/routes/emails/, src/db/tables/auth.ts
+#   - Focus: Email operations, template rendering, notifications
 #
-# Instance 2: backend-pattern-expert (payment-methods domain)
-#   - Context: src/api/routes/payment-methods/, src/api/services/zarinpal-direct-debit.ts
-#   - Focus: Payman contracts, direct debit management, payment method CRUD
+# Instance 2: backend-pattern-expert (users domain)
+#   - Context: src/api/routes/users/, src/api/services/integration.ts
+#   - Focus: User management, authentication, CRUD operations
 ```
 
 **Specialized Agent Configurations**:
@@ -445,19 +457,19 @@ Each agent has domain-specific expertise:
 # Trigger Patterns for Automatic Agent Selection:
 
 # Code Quality Tasks → Automatic code-reviewer delegation
-"Review my recent payment processing changes"
+"Review my recent data processing changes"
 → Automatically invokes code-reviewer agent proactively
 
 # Data Analysis Tasks → Automatic research-analyst delegation
-"What's the best approach for handling failed ZarinPal payments?"
+"What's the best approach for handling failed operations?"
 → Automatically invokes research-analyst for API research and best practices
 
 # UI Implementation → Automatic frontend-ui-expert delegation
-"Add a subscription status dashboard"
+"Add a resource status dashboard"
 → Automatically invokes frontend-ui-expert for component implementation
 
 # Complex Multi-Domain → Automatic agent chaining
-"Implement recurring billing with ZarinPal Payman"
+"Implement automated resource management"
 → Automatically chains: research-analyst → backend-pattern-expert → frontend-ui-expert → i18n-translation-manager
 ```
 
@@ -480,9 +492,9 @@ Agent B consumes → reads Agent A's outputs, builds upon them
 Agent C validates → reviews Agent A & B outputs, provides feedback
 
 # 2. Reference-Based Sharing
-Agent A provides → "Following patterns from src/api/routes/subscriptions/create.ts:23"
-Agent B extends → "Building on Agent A's subscription pattern, implementing payment flow"
-Agent C integrates → "Connecting Agent A's subscriptions with Agent B's payments in UI"
+Agent A provides → "Following patterns from src/api/routes/auth/route.ts:23"
+Agent B extends → "Building on Agent A's auth pattern, implementing user data flow"
+Agent C integrates → "Connecting Agent A's auth system with Agent B's user data processing in UI"
 
 # 3. Context Cascade Sharing
 Agent A establishes → Core domain understanding and constraints
@@ -553,17 +565,17 @@ Incremental context building → Each agent adds to shared context for subsequen
 - **Context Window Management**: Maintain clean, focused context to prevent context window exhaustion
 - **Concurrent Agent Limits**: Balance parallel execution with system resource constraints
 
-### Agent Orchestration Examples for Billing Dashboard
+### Agent Orchestration Examples for Dashboard
 
 **Complete Feature Implementation Pattern**:
 ```bash
-# Task: "Implement subscription pause/resume functionality"
+# Task: "Implement resource pause/resume functionality"
 
 # Automatic Agent Orchestration:
-1. research-analyst (parallel) → Research pause/resume best practices, ZarinPal implications
+1. research-analyst (parallel) → Research pause/resume best practices, external API implications
 2. backend-pattern-expert (after research) → Implement API endpoints, database schema updates
 3. frontend-ui-expert (parallel with backend) → Design pause/resume UI components
-4. i18n-translation-manager (after frontend) → Add translations for pause/resume messaging
+4. i18n-translation-manager (after frontend) → Add translation keys for pause/resume messaging
 5. code-reviewer (after all) → Review complete implementation for quality and security
 
 # Context Flow:
@@ -572,12 +584,12 @@ research-analyst findings → backend-pattern-expert implementation → frontend
 
 **Performance-Critical Implementation Pattern**:
 ```bash
-# Task: "Optimize payment processing performance"
+# Task: "Optimize data processing performance"
 
 # Strategic Agent Deployment:
 1. Multiple research-analyst instances (parallel) →
    - Instance A: Database query optimization research
-   - Instance B: ZarinPal API performance best practices
+   - Instance B: External API performance best practices
    - Instance C: Caching strategy research
 
 2. backend-pattern-expert (sequential) → Implement optimizations based on research
@@ -588,7 +600,7 @@ research-analyst findings → backend-pattern-expert implementation → frontend
 
 **Before Committing**:
 - Run `pnpm lint && pnpm check-types` for code quality
-- Execute `pnpm i18n:full-check` for translation completeness
+- Execute `pnpm i18n:full-check` for translation key completeness
 - Test database migrations with `pnpm db:migrate:local`
 - Verify API documentation at `http://localhost:3000/api/v1/scalar`
 
@@ -596,4 +608,4 @@ research-analyst findings → backend-pattern-expert implementation → frontend
 - All routes protected with CSRF middleware
 - Rate limiting on authentication endpoints
 - No secrets in environment files (use wrangler secrets)
-- Audit trail for all billing operations via `billingEvent` table
+- Audit trail for all operations via event logging system

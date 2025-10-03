@@ -1,143 +1,303 @@
-# Backend Patterns - Comprehensive Implementation Guide
+# Backend Patterns - Implementation Guide
 
-> **Context Prime Document**: Essential reference for all backend development in the billing dashboard project. This document consolidates patterns from 10 specialized backend analysis agents and serves as the single source of truth for implementation standards.
+> **Context Prime Document**: Essential reference for all backend development in roundtable.now. This document serves as the single source of truth for backend implementation standards.
 
 ## Table of Contents
 
 1. [Architecture Overview](#architecture-overview)
-2. [Authentication Route Patterns](#authentication-route-patterns)
-3. [Payment Route Patterns](#payment-route-patterns)
-4. [Subscription Route Patterns](#subscription-route-patterns)
-5. [Payment Methods Route Patterns](#payment-methods-route-patterns)
-6. [Webhook Route Patterns](#webhook-route-patterns)
-7. [Service Layer Patterns](#service-layer-patterns)
-8. [Middleware Patterns](#middleware-patterns)
-9. [Core Framework Patterns](#core-framework-patterns)
-10. [Common Utilities Patterns](#common-utilities-patterns)
-11. [System Routes & Infrastructure Patterns](#system-routes-infrastructure-patterns)
-12. [Implementation Guidelines](#implementation-guidelines)
+2. [Next.js vs Hono Routes](#nextjs-vs-hono-routes)
+3. [Authentication Patterns](#authentication-patterns)
+4. [API Route Patterns](#api-route-patterns)
+5. [Service Layer Patterns](#service-layer-patterns)
+6. [Middleware Patterns](#middleware-patterns)
+7. [Database Patterns](#database-patterns)
+8. [Error Handling](#error-handling)
+9. [Implementation Guidelines](#implementation-guidelines)
 
 ---
 
 ## Architecture Overview
 
-The billing dashboard implements a modern, type-safe API architecture built on **Hono.js** with **Cloudflare Workers**, **Drizzle ORM**, and **Better Auth**. The architecture emphasizes:
+roundtable.now implements a modern, type-safe API architecture built on:
+- **Hono.js** - Fast, lightweight web framework
+- **Cloudflare Workers** - Edge runtime for global performance
+- **Drizzle ORM** - Type-safe database operations
+- **Better Auth** - Modern authentication
+- **Zod** - Runtime type validation
+
+### Core Principles
 
 - **Factory Pattern Handlers** with integrated validation and authentication
 - **Zero-Casting Type Safety** using Zod schemas and type guards
-- **Transactional Database Operations** for consistency
-- **Comprehensive Audit Trails** through billing events
-- **ZarinPal Integration** for Iranian payment processing
+- **Batch-First Database Operations** for atomic consistency (Cloudflare D1)
 - **Middleware-Based Security** with rate limiting and CSRF protection
+- **OpenAPI Documentation** auto-generated from code
 
-### Core Directory Structure
+### Directory Structure
+
 ```
 src/api/
-├── routes/{domain}/           # Domain-specific routes (3-file pattern)
+├── routes/{domain}/           # Domain-specific routes (3-4 file pattern)
 │   ├── route.ts              # OpenAPI route definitions
-│   ├── handler.ts            # Business logic with factory pattern
-│   └── schema.ts             # Zod validation schemas
+│   ├── handler.ts            # Business logic implementation
+│   ├── schema.ts             # Zod validation schemas
+│   └── helpers.ts            # Domain-specific helpers (optional)
 ├── services/                 # Business logic services
 ├── middleware/               # Cross-cutting concerns
 ├── core/                     # Framework foundations
 ├── common/                   # Shared utilities
-├── types/                    # Type definitions
-├── utils/                    # Helper functions
-├── patterns/                 # Base patterns (repositories)
-└── scheduled/                # Background tasks
+└── types/                    # Type definitions
 ```
 
 ---
 
-## Authentication Route Patterns
+## Next.js vs Hono Routes
 
-### File Organization Pattern
-**Reference**: `src/api/routes/auth/route.ts:8-26`
+### Single Source of Truth: ALL Business Logic in `src/api/`
 
-Authentication follows the **three-file pattern** consistently:
-- **route.ts**: OpenAPI route definitions with Zod schemas
-- **handler.ts**: Business logic implementation using factory pattern
-- **schema.ts**: Request/response validation schemas
+**CRITICAL RULE**: 99% of API routes MUST be implemented in the Hono API (`src/api/routes/`), NOT as Next.js routes (`src/app/api/`).
 
-### Route Definition Pattern
+### ✅ Allowed Next.js Routes (`src/app/api/`)
+
+Only these specific routes are permitted as Next.js App Router routes:
+
+**1. `/api/v1/[[...route]]/route.ts` - Hono API Proxy (REQUIRED)**
 ```typescript
-export const secureMeRoute = createRoute({
-  method: 'get',
-  path: '/auth/me',
-  tags: ['auth'],
-  summary: 'Get current authenticated user',
-  description: 'Returns information about the currently authenticated user',
-  responses: {
-    [HttpStatusCodes.OK]: {
-      description: 'Current user information retrieved successfully',
+// Proxies ALL requests to the Hono API
+// This is the ONLY way to access Hono routes from Next.js
+import api from '@/api';
+
+export const GET = handler;
+export const POST = handler;
+// ... other HTTP methods
+```
+
+**2. `/api/auth/[...auth]/route.ts` - Better Auth Handler (REQUIRED)**
+```typescript
+// Better Auth REQUIRES its own Next.js route
+// Cannot be implemented in Hono due to Better Auth architecture
+import { auth } from '@/lib/auth/server';
+
+export const { GET, POST } = auth.handler;
+```
+
+**3. `/api/og/route.tsx` - OG Image Generation (ACCEPTABLE)**
+```typescript
+// Next.js ImageResponse REQUIRES Next.js runtime
+// Cannot be implemented in Hono as it uses React Server Components
+export async function GET(request: NextRequest) {
+  return generateOgImage({ title, description });
+}
+```
+
+### ❌ ANTI-PATTERNS - Never Create These
+
+**Standalone Next.js API Routes for Business Logic**:
+```typescript
+// ❌ WRONG - Don't create routes like this in src/app/api/
+export async function POST(request: Request) {
+  const body = await request.json();
+  // Validation, business logic, database operations
+  return NextResponse.json({ success: true });
+}
+```
+
+**Why This is Wrong**:
+- ❌ Bypasses Hono middleware (CSRF, rate limiting, session, logging)
+- ❌ No Zod validation or type safety
+- ❌ Not included in OpenAPI documentation
+- ❌ Inconsistent error handling
+- ❌ No structured logging
+- ❌ Breaks RPC type inference for frontend
+- ❌ Cannot use project's `createHandler` factory pattern
+
+### ✅ CORRECT PATTERN - Hono API Route
+
+**Instead, implement in `src/api/routes/{domain}/`**:
+
+```typescript
+// src/api/routes/system/route.ts
+export const myRoute = createRoute({
+  method: 'post',
+  path: '/system/my-endpoint',
+  tags: ['system'],
+  request: {
+    body: {
       content: {
-        'application/json': {
-          schema: createApiResponseSchema(SecureMePayloadSchema),
-        },
+        'application/json': { schema: MyRequestSchema },
       },
     },
-    [HttpStatusCodes.UNAUTHORIZED]: { description: 'Authentication required' },
-    [HttpStatusCodes.INTERNAL_SERVER_ERROR]: { description: 'Internal Server Error' },
   },
+  responses: {
+    [HttpStatusCodes.OK]: {
+      description: 'Success',
+      content: {
+        'application/json': { schema: MyResponseSchema },
+      },
+    },
+  },
+});
+
+// src/api/routes/system/handler.ts
+export const myHandler = createHandler(
+  {
+    auth: 'session',
+    validateBody: MyRequestSchema,
+    operationName: 'myOperation',
+  },
+  async (c) => {
+    const body = c.validated.body;
+    const user = c.get('user');
+
+    c.logger.info('Processing request', {
+      logType: 'operation',
+      operationName: 'myOperation',
+      userId: user.id,
+    });
+
+    // Business logic here
+
+    return Responses.ok(c, { success: true });
+  },
+);
+
+// src/api/routes/system/schema.ts
+export const MyRequestSchema = z.object({
+  field: z.string().min(1),
+}).openapi('MyRequest');
+
+export const MyResponseSchema = z.object({
+  success: z.boolean(),
+}).openapi('MyResponse');
+```
+
+### When to Use Next.js Routes vs Hono Routes
+
+| Use Case | Implementation | Location |
+|----------|----------------|----------|
+| REST API endpoints | ✅ Hono API | `src/api/routes/{domain}/` |
+| GraphQL endpoints | ✅ Hono API | `src/api/routes/graphql/` |
+| Webhook handlers | ✅ Hono API | `src/api/routes/{service}/` |
+| Database operations | ✅ Hono API | `src/api/routes/{domain}/` |
+| Business logic | ✅ Hono API | `src/api/routes/{domain}/` |
+| Authentication (Better Auth) | ✅ Next.js Route | `src/app/api/auth/[...auth]/` |
+| OG Image Generation | ✅ Next.js Route | `src/app/api/og/` |
+| Hono API Proxy | ✅ Next.js Route | `src/app/api/v1/[[...route]]/` |
+| Everything else | ✅ Hono API | `src/api/routes/{domain}/` |
+
+### Next.js-Specific Features That Require Next.js Routes
+
+**These are the ONLY exceptions**:
+1. **`revalidatePath()` / `revalidateTag()`** - Next.js ISR revalidation
+2. **`ImageResponse`** - OG image generation using React Server Components
+3. **Better Auth handler** - Requires Next.js route due to library architecture
+4. **`redirect()` / `notFound()`** - Next.js navigation (use inside Server Components instead)
+
+**For everything else, use Hono API routes.**
+
+### Migration Guide: Converting Next.js Routes to Hono
+
+If you find a Next.js route that should be in Hono:
+
+1. **Create route definition** in `src/api/routes/{domain}/route.ts`
+2. **Create Zod schemas** in `src/api/routes/{domain}/schema.ts`
+3. **Implement handler** in `src/api/routes/{domain}/handler.ts` using `createHandler`
+4. **Register route** in `src/api/index.ts`
+5. **Delete Next.js route** from `src/app/api/`
+6. **Update frontend** to use new RPC client path
+
+### Example: Moving a Revalidation Endpoint
+
+**❌ Wrong (Next.js Route)**:
+```typescript
+// src/app/api/revalidate/route.ts
+export async function POST(request: Request) {
+  const body = await request.json() as { secret?: string; paths?: string[] };
+
+  if (body.secret !== process.env.REVALIDATION_SECRET) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  for (const path of body.paths) {
+    revalidatePath(path);
+  }
+
+  return NextResponse.json({ success: true });
+}
+```
+
+**✅ Correct (Hybrid Approach)**:
+
+If you MUST use Next.js-specific features like `revalidatePath()`, use a thin Next.js wrapper:
+
+```typescript
+// src/app/api/system/revalidate/route.ts
+import { revalidatePath } from 'next/cache';
+import { NextResponse } from 'next/server';
+
+import { createApiClient } from '@/api/client';
+
+export async function POST(request: Request) {
+  // Validate request using Hono API
+  const client = await createApiClient();
+  const validation = await client.system.revalidate.validate.$post({
+    json: await request.json(),
+  });
+
+  if (!validation.ok) {
+    return NextResponse.json(
+      await validation.json(),
+      { status: validation.status },
+    );
+  }
+
+  const { paths } = await validation.json();
+
+  // Use Next.js-specific feature
+  for (const path of paths) {
+    revalidatePath(path);
+  }
+
+  return NextResponse.json({ success: true });
+}
+```
+
+```typescript
+// src/api/routes/system/route.ts
+export const revalidateValidationRoute = createRoute({
+  method: 'post',
+  path: '/system/revalidate/validate',
+  tags: ['system'],
+  request: {
+    body: {
+      content: {
+        'application/json': { schema: RevalidateRequestSchema },
+      },
+    },
+  },
+  // ... response schemas
 });
 ```
 
-### Handler Factory Pattern
-**Reference**: `src/api/routes/auth/handler.ts:14-54`
+**However, in most cases, you don't need this complexity. Simply implement everything in Hono.**
 
-```typescript
-export const secureMeHandler: RouteHandler<typeof secureMeRoute, ApiEnv> = createHandler(
-  {
-    auth: 'session',      // Authentication mode
-    operationName: 'getMe', // For logging and tracing
-  },
-  async (c) => {
-    const user = c.get('user');
-    const session = c.get('session');
+---
 
-    if (!user || !session) {
-      throw createError.unauthenticated('Valid session required for user information');
-    }
-
-    // Structured logging with operation context
-    c.logger.info('Retrieving current user information from Better Auth session', {
-      logType: 'operation',
-      operationName: 'getMe',
-      userId: user.id,
-      resource: session.id,
-    });
-
-    const payload = {
-      userId: user.id,
-      email: user.email,
-      name: user.name,
-      emailVerified: user.emailVerified,
-      image: user.image,
-      createdAt: user.createdAt,
-      updatedAt: user.updatedAt,
-    } as const;
-
-    return Responses.ok(c, payload);
-  },
-);
-```
+## Authentication Patterns
 
 ### Better Auth Integration
-**Reference**: `src/lib/auth/server/index.ts:51-111`
+
+**Reference**: `src/lib/auth/server/index.ts`
 
 ```typescript
 export const auth = betterAuth({
   secret: process.env.BETTER_AUTH_SECRET,
-  baseURL: process.env.BETTER_AUTH_URL || `${getBaseUrl()}/api/auth`,
+  baseURL: process.env.BETTER_AUTH_URL,
   database: createAuthAdapter(),
 
   session: {
     expiresIn: 60 * 60 * 24 * 7, // 7 days
     updateAge: 60 * 60 * 24, // 1 day
-    cookieCache: {
-      enabled: true,
-      maxAge: 60 * 15, // 15 minutes cache
-    },
   },
 
   plugins: [
@@ -145,7 +305,6 @@ export const auth = betterAuth({
     admin(),
     magicLink({
       sendMagicLink: async ({ email, url }) => {
-        const { emailService } = await import('@/lib/email/ses-service');
         await emailService.sendMagicLink(email, url);
       },
     }),
@@ -153,717 +312,45 @@ export const auth = betterAuth({
 });
 ```
 
-### Schema Validation Best Practices
-**Reference**: `src/api/routes/auth/schema.ts:6-35`
+### Session Middleware
 
+**Reference**: `src/api/middleware/auth.ts`
+
+The project uses two middleware patterns for session management:
+
+**1. requireSession - For Protected Routes**
 ```typescript
-export const SecureMePayloadSchema = z.object({
-  userId: CoreSchemas.id().openapi({
-    example: 'cm4abc123def456ghi',
-    description: 'Better Auth user identifier',
-  }),
-  email: CoreSchemas.email().openapi({
-    example: 'user@example.com',
-    description: 'User email address',
-  }),
-  emailVerified: z.boolean().openapi({
-    example: true,
-    description: 'Whether the user email has been verified',
-  }),
-  // ... other fields with OpenAPI metadata
-}).openapi('SecureMePayload');
-```
+export const requireSession = createMiddleware<ApiEnv>(async (c, next) => {
+  const { session, user } = await authenticateSession(c);
 
-**Key Principles**:
-- Always use `CoreSchemas.id()`, `CoreSchemas.email()` for consistency
-- Every field requires `.openapi()` with example and description
-- Export inferred types: `export type SecureMePayload = z.infer<typeof SecureMePayloadSchema>`
+  if (!user || !session) {
+    throw new HTTPException(HttpStatusCodes.UNAUTHORIZED, {
+      res: new Response(JSON.stringify({
+        code: HttpStatusCodes.UNAUTHORIZED,
+        message: 'Authentication required',
+        details: 'Valid session required to access this resource',
+      }), {
+        status: HttpStatusCodes.UNAUTHORIZED,
+        headers: {
+          'Content-Type': 'application/json',
+          'WWW-Authenticate': 'Session realm="api"',
+        },
+      }),
+    });
+  }
 
----
-
-## Payment Route Patterns
-
-### Route Structure Pattern
-**Reference**: `src/api/routes/payments/route.ts:8-25`
-
-Payment routes follow the established pattern with comprehensive error handling:
-
-```typescript
-export const getPaymentsRoute = createRoute({
-  method: 'get',
-  path: '/payments',
-  tags: ['payments'],
-  summary: 'Get user payment history',
-  description: 'Get all payments for the authenticated user',
-  responses: {
-    [HttpStatusCodes.OK]: {
-      description: 'Payment history retrieved successfully',
-      content: {
-        'application/json': { schema: GetPaymentsResponseSchema },
-      },
-    },
-    [HttpStatusCodes.BAD_REQUEST]: { description: 'Bad Request' },
-    [HttpStatusCodes.NOT_FOUND]: { description: 'Not Found' },
-    [HttpStatusCodes.INTERNAL_SERVER_ERROR]: { description: 'Internal Server Error' },
-  },
+  return next();
 });
 ```
 
-### ZarinPal Service Integration
-**Reference**: `src/api/services/zarinpal.ts:304-344`
-
+**2. attachSession - For Optional Authentication**
 ```typescript
-async requestPayment(request: PaymentRequest): Promise<PaymentResponse> {
-  // 1. Input validation using Zod schema
-  const validatedRequest = PaymentRequestSchema.parse(request);
-
-  const payload = {
-    merchant_id: this.config.merchantId,
-    amount: validatedRequest.amount,
-    currency: validatedRequest.currency,
-    description: validatedRequest.description,
-    callback_url: validatedRequest.callbackUrl,
-    metadata: validatedRequest.metadata,
-  };
-
-  try {
-    // 2. HTTP request with authorization
-    const rawResult = await this.post<typeof payload, PaymentResponse>(
-      '/pg/v4/payment/request.json',
-      payload,
-      { Authorization: `Bearer ${this.config.accessToken}` },
-      'request payment',
-    );
-
-    // 3. Response validation
-    const validatedResult = PaymentResponseSchema.parse(rawResult);
-
-    // 4. Handle ZarinPal error codes
-    if (validatedResult.data && validatedResult.data.code !== 100) {
-      const errorMessage = this.getZarinPalErrorMessage(validatedResult.data.code);
-      throw new HTTPException(HttpStatusCodes.PAYMENT_REQUIRED, {
-        message: `Payment request failed: ${errorMessage} (Code: ${validatedResult.data.code})`,
-      });
-    }
-
-    return validatedResult;
-  } catch (error) {
-    throw this.handleError(error, 'request payment', {
-      errorType: 'payment' as const,
-      provider: 'zarinpal' as const,
-    });
-  }
-}
-```
-
-### Payment State Management
-**Reference**: `src/db/tables/billing.ts:154-156`
-
-```typescript
-status: text('status', {
-  enum: ['pending', 'completed', 'failed', 'refunded', 'canceled'],
-}).notNull().default('pending'),
-```
-
-**State Transitions**:
-- `pending` → `completed`: Successful payment verification
-- `pending` → `failed`: Payment rejection or verification failure
-- `pending` → `canceled`: User cancellation before completion
-- `completed` → `refunded`: Administrative refund (rare)
-
-### Transaction Safety Pattern
-**Reference**: `src/api/routes/webhooks/handler.ts:824-1190`
-
-```typescript
-export const zarinPalWebhookHandler = createHandlerWithTransaction(
-  {
-    auth: 'public',
-    validateBody: ZarinPalWebhookRequestSchema,
-    operationName: 'zarinPalWebhook',
-  },
-  async (c, tx) => {  // 'tx' is the transaction context
-    // All database operations use the transaction context
-    await tx.insert(webhookEvent).values({
-      id: crypto.randomUUID(),
-      source: 'zarinpal',
-      eventType: `payment.${webhookPayload.status === 'OK' ? 'completed' : 'failed'}`,
-      rawPayload: webhookPayload,
-    });
-
-    // Find payment by authority
-    const paymentResults = await tx.select().from(payment)
-      .where(eq(payment.zarinpalAuthority, webhookPayload.authority))
-      .limit(1);
-
-    if (paymentRecord && webhookPayload.status === 'OK') {
-      // Verify payment with ZarinPal
-      const verification = await zarinPal.verifyPayment({
-        authority: webhookPayload.authority,
-        amount: paymentRecord.amount,
-      });
-
-      if (verification.data?.code === 100) {
-        // Update payment status atomically
-        await tx.update(payment)
-          .set({
-            status: 'completed',
-            zarinpalRefId: verification.data?.ref_id?.toString(),
-            paidAt: new Date(),
-            updatedAt: new Date(),
-          })
-          .where(eq(payment.id, paymentRecord.id));
-
-        // Update related subscription if exists
-        if (paymentRecord.subscriptionId) {
-          await tx.update(subscription)
-            .set({
-              status: 'active',
-              startDate: new Date(),
-              nextBillingDate: calculateNextBilling(),
-              updatedAt: new Date(),
-            })
-            .where(eq(subscription.id, paymentRecord.subscriptionId));
-        }
-
-        // Create billing event for audit trail
-        await tx.insert(billingEvent).values({
-          id: crypto.randomUUID(),
-          userId: paymentRecord.userId,
-          paymentId: paymentRecord.id,
-          subscriptionId: paymentRecord.subscriptionId,
-          eventType: 'payment_success',
-          eventData: { verificationData: verification.data },
-          createdAt: new Date(),
-        });
-      }
-    }
-
-    return Responses.ok(c, { received: true, processed: true });
-  },
-);
-```
-
-### Drizzle-Zod Integration
-**Reference**: `src/api/routes/payments/schema.ts:4-23`
-
-```typescript
-import { paymentSelectSchema, productSelectSchema, subscriptionSelectSchema } from '@/db/validation/billing';
-
-// Single source of truth - use drizzle-zod schemas with OpenAPI metadata
-const PaymentSchema = paymentSelectSchema.openapi({
-  example: {
-    id: 'pay_123',
-    userId: 'user_123',
-    subscriptionId: 'sub_123',
-    productId: 'prod_123',
-    amount: 99000,
-    currency: 'IRR',
-    status: 'completed',
-    paymentMethod: 'zarinpal',
-    zarinpalAuthority: 'A00000000000000000000000000123456789',
-    zarinpalRefId: '123456789',
-    paidAt: new Date().toISOString(),
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  },
-});
-```
-
----
-
-## Subscription Route Patterns
-
-### Factory Pattern with Transaction Support
-**Reference**: `src/api/routes/subscriptions/handler.ts:144`
-
-```typescript
-export const createSubscriptionHandler = createHandlerWithTransaction(
-  {
-    auth: 'session',
-    validateBody: CreateSubscriptionRequestSchema,
-    operationName: 'createSubscription',
-  },
-  async (c, tx) => {
-    // Validation chain
-    // 1. Validate product exists and is active
-    // 2. Check for existing active subscriptions
-    // 3. Validate payment method/contract
-
-    // Direct debit contract creation
-    const subscriptionData = {
-      id: crypto.randomUUID(),
-      userId: user.id,
-      productId: productRecord.id,
-      status: 'active' as const,
-      startDate: new Date(),
-      nextBillingDate: productRecord.billingPeriod === 'monthly'
-        ? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
-        : null,
-      currentPrice: productRecord.price,
-      billingPeriod: productRecord.billingPeriod,
-      paymentMethodId: paymentMethodRecord.id,
-      directDebitContractId: contractId,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
-
-    await tx.insert(subscription).values(subscriptionData);
-
-    // Billing event audit trail
-    await tx.insert(billingEvent).values({
-      id: crypto.randomUUID(),
-      userId: user.id,
-      subscriptionId: newSubscriptionId,
-      eventType: 'subscription_created_direct_debit',
-      eventData: { /* comprehensive event data */ },
-      severity: 'info',
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    });
-
-    // Webhook dispatch (non-blocking)
-    await dispatchRoundtableWebhook(subscriptionData, userRecord);
-  },
-);
-```
-
-### Subscription Lifecycle Management
-**Reference**: `src/db/tables/billing.ts` schema definitions
-
-```typescript
-status: text('status', {
-  enum: ['active', 'canceled', 'expired', 'pending'],
-}).notNull().default('pending')
-```
-
-**Lifecycle Flow**:
-1. **pending** → **active** (on successful payment/contract activation)
-2. **active** → **canceled** (user cancellation)
-3. **active** → **expired** (billing failure/contract expiry)
-
-### Billing Cycle Automation
-**Reference**: Database schema and billing logic
-
-```typescript
-startDate: integer('start_date', { mode: 'timestamp' }).notNull(),
-endDate: integer('end_date', { mode: 'timestamp' }), // null for active
-nextBillingDate: integer('next_billing_date', { mode: 'timestamp' }), // For recurring
-
-// Billing automation index for cron jobs
-index('subscription_billing_automation_idx').on(
-  table.status,           // active subscriptions only
-  table.nextBillingDate,  // due for billing
-  table.paymentMethodId   // has payment method
-),
-```
-
-### Iranian-Specific Validation
-**Reference**: `src/api/routes/subscriptions/schema.ts:99-127`
-
-```typescript
-export const IranianValidationSchemas = {
-  mobileNumber: z.string()
-    .regex(/^(?:\+98|0)?9\d{9}$/, 'Invalid Iranian mobile number format'),
-  rialAmount: z.number()
-    .int('Rial amounts must be whole numbers')
-    .min(1000, 'Minimum amount is 1,000 IRR')
-    .max(1000000000, 'Maximum amount is 1,000,000,000 IRR'),
-};
-```
-
-### Plan Change with Proration
-**Reference**: `src/api/routes/subscriptions/handler.ts:460`
-
-```typescript
-// Proration calculation
-const totalBillingPeriodMs = 30 * 24 * 60 * 60 * 1000;
-const remainingTimeMs = nextBillingDate.getTime() - now.getTime();
-const remainingRatio = Math.max(0, remainingTimeMs / totalBillingPeriodMs);
-
-// Credit for unused time
-prorationCredit = Math.floor(subscriptionRecord.currentPrice * remainingRatio);
-
-// Charge for new plan
-const newPlanCharge = Math.floor(newProductRecord.price * remainingRatio);
-netAmount = newPlanCharge - prorationCredit;
-```
-
----
-
-## Payment Methods Route Patterns
-
-### ZarinPal Payman Three-Endpoint Flow
-**Reference**: `src/api/routes/payment-methods/route.ts:79-183`
-
-1. **Contract Creation** with bank validation
-2. **Contract Verification** after user signing
-3. **Contract Cancellation** for user control
-
-### Contract Signature Encryption
-**Reference**: `src/api/routes/payment-methods/handler.ts:292-308`
-
-```typescript
-// Encrypt the signature before storing
-const { encrypted, hash } = await encryptSignature(verifyResult.data.signature);
-
-// Create payment method with encrypted contract signature
-const [newPaymentMethod] = await db
-  .insert(paymentMethod)
-  .values({
-    userId: user.id,
-    contractType: 'direct_debit_contract',
-    contractSignatureEncrypted: encrypted,    // AES-GCM encrypted
-    contractSignatureHash: hash,              // SHA-256 hash for uniqueness
-    contractStatus: 'active',
-    isPrimary: false,
-    isActive: true,
-  })
-  .returning();
-```
-
-### Cryptographic Security Pattern
-**Reference**: `src/api/utils/crypto.ts:13-93`
-
-```typescript
-// Derive encryption key from BETTER_AUTH_SECRET using PBKDF2
-async function getEncryptionKey(): Promise<CryptoKey> {
-  const keyMaterial = await crypto.subtle.importKey(
-    'raw',
-    encoder.encode(env.BETTER_AUTH_SECRET),
-    'PBKDF2',
-    false,
-    ['deriveKey'],
-  );
-
-  return crypto.subtle.deriveKey(
-    {
-      name: 'PBKDF2',
-      salt: encoder.encode('zarinpal-signature-salt'), // Fixed salt for deterministic key
-      iterations: 100000,
-      hash: 'SHA-256',
-    },
-    keyMaterial,
-    { name: 'AES-GCM', length: 256 },
-    false,
-    ['encrypt', 'decrypt'],
-  );
-}
-```
-
-### Iranian Validation Patterns
-**Reference**: `src/api/routes/payment-methods/schema.ts:97-122`
-
-```typescript
-export const CreateContractRequestSchema = z.object({
-  mobile: z.string().regex(/^(?:\+98|0)?9\d{9}$/, 'Invalid Iranian mobile number format').openapi({
-    example: '09123456789',
-    description: 'Customer mobile number',
-  }),
-  ssn: z.string().regex(/^\d{10}$/, 'Iranian national ID must be exactly 10 digits').optional().openapi({
-    example: '0480123456',
-    description: 'Customer national ID (optional)',
-  }),
-  expireAt: z.string().regex(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/, 'Date must be in Y-m-d H:i:s format').openapi({
-    example: '2025-12-31 23:59:59',
-    description: 'Contract expiry date (minimum 30 days)',
-  }),
-});
-```
-
-### Atomic Default Payment Method Setting
-**Reference**: `src/api/routes/payment-methods/handler.ts:119-133`
-
-```typescript
-// Atomic operation: Set all user's payment methods isPrimary = false
-await tx
-  .update(paymentMethod)
-  .set({ isPrimary: false, updatedAt: new Date() })
-  .where(eq(paymentMethod.userId, user.id));
-
-// Set target payment method as primary
-await tx
-  .update(paymentMethod)
-  .set({
-    isPrimary: true,
-    lastUsedAt: new Date(),
-    updatedAt: new Date(),
-  })
-  .where(eq(paymentMethod.id, id));
-```
-
----
-
-## Webhook Route Patterns
-
-### Multi-Layer Security Validation
-**Reference**: `src/api/routes/webhooks/handler.ts:734-814`
-
-```typescript
-async function validateWebhookSecurity(c: { req: { header: (name: string) => string | undefined } }): Promise<void> {
-  const clientIP = c.req.header('cf-connecting-ip') || c.req.header('x-forwarded-for') || 'unknown';
-  const userAgent = c.req.header('user-agent') || '';
-  const timestamp = c.req.header('x-zarinpal-timestamp') || '';
-
-  // Rate limiting: max 10 requests per minute per IP
-  const rateLimitKey = `webhook:${clientIP}`;
-  const current = webhookRateLimiter.get(rateLimitKey);
-  if (current && current.count >= maxRequests) {
-    throw createError.rateLimit('Webhook rate limit exceeded');
-  }
-
-  // Validate User-Agent
-  if (!userAgent.toLowerCase().includes('zarinpal')) {
-    throw createError.unauthorized('Invalid webhook source');
-  }
-
-  // Timestamp validation (prevent replay attacks)
-  if (timestamp) {
-    const timeDiff = Math.abs(currentTimestamp - webhookTimestamp);
-    if (timeDiff > 300) {  // 5 minute window
-      throw createError.unauthorized('Webhook timestamp validation failed');
-    }
-  }
-
-  // IP whitelist validation for production
-  const zarinpalIPRanges = ['185.231.115.0/24', '5.253.26.0/24'];
-  if (!isLocalhost && process.env.NODE_ENV === 'production') {
-    const isValidIP = zarinpalIPRanges.some(range => range.includes(clientIP));
-    if (!isValidIP) {
-      throw createError.unauthorized('Webhook request from unauthorized IP');
-    }
-  }
-}
-```
-
-### Stripe-Compatible Event Generation
-**Reference**: `src/api/routes/webhooks/handler.ts:276-305`
-
-```typescript
-static createPaymentSucceededEvent(paymentId: string, customerId: string, amount: number, metadata?: Record<string, string>, paymentMethodId?: string): WebhookEvent {
-  const event = {
-    id: this.generateEventId(),
-    object: 'event' as const,
-    type: 'payment_intent.succeeded' as const,
-    created: this.toUnixTimestamp(new Date()),
-    data: {
-      object: {
-        id: paymentId,
-        object: 'payment_intent' as const,
-        amount: Math.round(amount),
-        currency: 'irr' as const,
-        customer: customerId,
-        status: 'succeeded' as const,
-        payment_method: paymentMethodId,
-        description: `Payment for subscription ${metadata?.subscriptionId || ''}`.trim(),
-        created: this.toUnixTimestamp(new Date()),
-        metadata: metadata || {},
-      },
-    },
-    livemode: process.env.NODE_ENV === 'production',
-    api_version: '2024-01-01',
-  };
-
-  // Validate against Stripe schema
-  const validation = StripeWebhookEventSchema.safeParse(event);
-  if (!validation.success) {
-    throw new Error(`Invalid webhook event schema: ${validation.error.message}`);
-  }
-  return validation.data;
-}
-```
-
-### Event Processing Workflow
-**Reference**: `src/api/routes/webhooks/handler.ts:898-1026`
-
-1. **Verify Payment**: Call ZarinPal verification API
-2. **Update Payment**: Set status to `completed`, add ref_id and card_hash
-3. **Update Subscription**: Activate subscription if pending
-4. **Generate Events**: Create Stripe-compatible webhook events
-5. **Forward Events**: Send to external webhook endpoints
-
-### Comprehensive Audit Logging
-**Reference**: `src/db/tables/billing.ts:270-290`
-
-```typescript
-export const webhookEvent = sqliteTable('webhook_event', {
-  id: text('id').primaryKey(),
-  source: text('source').notNull().default('zarinpal'),
-  eventType: text('event_type').notNull(),
-  paymentId: text('payment_id').references(() => payment.id),
-  rawPayload: text('raw_payload', { mode: 'json' }).notNull(),
-  processed: integer('processed', { mode: 'boolean' }).default(false),
-  processedAt: integer('processed_at', { mode: 'timestamp' }),
-  forwardedToExternal: integer('forwarded_to_external', { mode: 'boolean' }),
-  forwardedAt: integer('forwarded_at', { mode: 'timestamp' }),
-  externalWebhookUrl: text('external_webhook_url'),
-  processingError: text('processing_error'),
-  forwardingError: text('forwarding_error'),
-});
-```
-
----
-
-## Service Layer Patterns
-
-### Class-Based Service Architecture
-**Reference**: `src/api/services/zarinpal.ts:295-298`
-
-```typescript
-// Factory pattern with environment validation
-class ZarinPalService {
-  private config: ZarinPalConfig;
-
-  static getConfig(): ZarinPalConfig {
-    const { env } = getCloudflareContext();
-
-    // Critical validation - fail fast if credentials missing
-    if (!env.NEXT_PUBLIC_ZARINPAL_MERCHANT_ID || !env.ZARINPAL_ACCESS_TOKEN) {
-      throw new HTTPException(HttpStatusCodes.INTERNAL_SERVER_ERROR, {
-        message: 'ZarinPal credentials not configured. Set NEXT_PUBLIC_ZARINPAL_MERCHANT_ID and ZARINPAL_ACCESS_TOKEN.',
-      });
-    }
-
-    const config = {
-      serviceName: 'ZarinPal',
-      baseUrl: isSandbox ? 'https://sandbox.zarinpal.com' : 'https://api.zarinpal.com',
-      timeout: 30000,
-      retries: 3,
-      merchantId: env.NEXT_PUBLIC_ZARINPAL_MERCHANT_ID,
-      accessToken: env.ZARINPAL_ACCESS_TOKEN,
-      isSandbox: env.NODE_ENV === 'development',
-    };
-
-    return ZarinPalConfigSchema.parse(config); // Zod validation
-  }
-}
-```
-
-### Direct Debit Multi-Step Workflow
-**Reference**: `src/api/services/zarinpal-direct-debit.ts:437-519`
-
-```typescript
-async requestContract(request: DirectDebitContractRequest): Promise<DirectDebitContractResponse> {
-  // Multi-step validation with Iranian-specific patterns
-  const requestResult = validateWithSchema(DirectDebitContractRequestSchema, request);
-  if (!requestResult.success) {
-    const errorMessage = requestResult.errors[0]?.message || 'Contract request validation failed';
-    throw new Error(`Direct debit contract request validation failed: ${errorMessage}`);
-  }
-
-  try {
-    const rawResult = await this.post<typeof payload, DirectDebitContractResponse>(
-      '/pg/v4/payman/request.json',
-      payload,
-      {},
-      'contract request',
-    );
-
-    // Enhanced error handling for common direct debit setup issues
-    if (errorMessage.includes('merchant have not access') || errorMessage.includes('-80')) {
-      throw new HTTPException(HttpStatusCodes.FORBIDDEN, {
-        message: 'Direct debit service is not enabled for this merchant account. Please contact ZarinPal support to enable the direct debit (Payman) service first.',
-      });
-    }
-
-    return validatedResult;
-  } catch (error) {
-    throw this.handleError(error, 'request contract', {
-      errorType: 'payment' as const,
-      provider: 'zarinpal' as const,
-    });
-  }
-}
-```
-
-### Currency Exchange with Smart Caching
-**Reference**: `src/api/services/currency-exchange.ts:63-65`
-
-```typescript
-// In-memory caching with fallback strategy
-private cachedRate: { rate: number; timestamp: number } | null = null;
-private fallbackRate = 42000; // Hardcoded fallback when API fails
-
-// Smart rounding algorithm for Iranian pricing psychology
-private smartRoundToman(amount: number): number {
-  if (amount < 1000) return Math.ceil(amount / 100) * 100;     // Round to 100s
-  if (amount < 10000) return Math.ceil(amount / 500) * 500;    // Round to 500s
-  if (amount < 100000) return Math.ceil(amount / 1000) * 1000; // Round to 1000s
-  // ... progressive rounding based on amount
-}
-```
-
-### Consistent Error Transformation
-**Reference**: `src/api/services/zarinpal.ts:228-254`
-
-```typescript
-private handleError(
-  error: unknown,
-  operationName: string,
-  context: { errorType: 'payment' | 'network'; provider: 'zarinpal' },
-): HTTPException {
-  if (error instanceof HTTPException) {
-    return error;
-  }
-
-  const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-
-  // Specific error type handling
-  if (errorMessage.includes('timeout') || errorMessage.includes('abort')) {
-    return new HTTPException(HttpStatusCodes.REQUEST_TIMEOUT, {
-      message: `ZarinPal ${operationName} timed out: ${errorMessage}`,
-    });
-  }
-
-  if (errorMessage.includes('network') || errorMessage.includes('fetch')) {
-    return new HTTPException(HttpStatusCodes.BAD_GATEWAY, {
-      message: `ZarinPal ${operationName} network error: ${errorMessage}`,
-    });
-  }
-
-  return new HTTPException(HttpStatusCodes.INTERNAL_SERVER_ERROR, {
-    message: `ZarinPal ${operationName} failed: ${errorMessage}`,
-  });
-}
-```
-
----
-
-## Middleware Patterns
-
-### Layered Middleware Architecture
-**Reference**: `src/api/index.ts:108-204`
-
-The middleware chain follows this specific order:
-
-1. **Logging & Formatting** (`prettyJSON`, `honoLoggerMiddleware`, `errorLoggerMiddleware`)
-2. **Security & Headers** (`secureHeaders`, `requestId`, `contextStorage`)
-3. **Performance** (`timing`, `timeout`, `bodyLimit`)
-4. **CORS & CSRF Protection** (environment-aware configuration)
-5. **Error Handling** (`enhancedErrorHandler`)
-6. **Authentication** (`attachSession`)
-7. **Rate Limiting** (`RateLimiterFactory.create('api')`)
-
-### Session Attachment vs. Enforcement
-**Reference**: `src/api/middleware/auth.ts:12-39`
-
-```typescript
-// Attach session if present; does not enforce authentication
 export const attachSession = createMiddleware<ApiEnv>(async (c, next) => {
   try {
-    const sessionData = await auth.api.getSession({
-      headers: c.req.raw.headers,
-    });
-
-    if (sessionData?.user && sessionData?.session) {
-      c.set('session', sessionData.session);
-      c.set('user', sessionData.user);
-    } else {
-      c.set('session', null);
-      c.set('user', null);
-    }
-    c.set('requestId', c.req.header('x-request-id') || crypto.randomUUID());
+    await authenticateSession(c);
   } catch (error) {
-    // Log error but don't throw - allow unauthenticated requests
+    // Log error but don't throw - allow unauthenticated requests to proceed
+    apiLogger.apiError(c, 'Error retrieving Better Auth session', error);
     c.set('session', null);
     c.set('user', null);
   }
@@ -871,848 +358,724 @@ export const attachSession = createMiddleware<ApiEnv>(async (c, next) => {
 });
 ```
 
-### Enhanced Error Handler with Circuit Breaker
-**Reference**: `src/api/middleware/enhanced-error-handler.ts:55-111`
-
+**3. Handler Factory Authentication (Preferred)**
 ```typescript
-class CircuitBreaker {
-  private failures = 0;
-  private state: 'closed' | 'open' | 'half-open' = 'closed';
-  private nextAttempt = 0;
-
-  canExecute(): boolean {
-    const now = Date.now();
-
-    switch (this.state) {
-      case 'closed':
-        return true; // Normal operation
-      case 'open':
-        if (now >= this.nextAttempt) {
-          this.state = 'half-open';
-          return true; // Test if service recovered
-        }
-        return false; // Block requests
-      case 'half-open':
-        return true; // Allow limited testing
-    }
+// Modern approach - authentication integrated into handler
+export const handler = createHandler(
+  {
+    auth: 'session', // or 'session-optional', 'public', 'api-key'
+    operationName: 'getUser',
+  },
+  async (c) => {
+    // Session and user automatically available in context
+    const user = c.get('user');
+    const session = c.get('session');
+    // ... implementation
   }
-}
-```
-
-### Rate Limiter Factory with Presets
-**Reference**: `src/api/middleware/rate-limiter-factory.ts:27-76`
-
-```typescript
-export const RATE_LIMIT_PRESETS = {
-  upload: { windowMs: 60 * 60 * 1000, maxRequests: 100 },
-  read: { windowMs: 60 * 1000, maxRequests: 300 },
-  delete: { windowMs: 60 * 60 * 1000, maxRequests: 50 },
-  api: { windowMs: 60 * 1000, maxRequests: 100 },
-  auth: { windowMs: 15 * 60 * 1000, maxRequests: 20 },
-  organization: { windowMs: 60 * 60 * 1000, maxRequests: 200 },
-  ip: { windowMs: 15 * 60 * 1000, maxRequests: 1000 },
-};
-```
-
-### Environment Validation Middleware
-**Reference**: `src/api/middleware/environment-validation.ts:30-83`
-
-```typescript
-const CRITICAL_ENV_VARS = ['NODE_ENV', 'BETTER_AUTH_SECRET'];
-const PAYMENT_ENV_VARS = ['NEXT_PUBLIC_ZARINPAL_MERCHANT_ID', 'ZARINPAL_ACCESS_TOKEN'];
-const EMAIL_ENV_VARS = ['AWS_SES_REGION', 'AWS_SES_FROM_EMAIL'];
-const OAUTH_ENV_VARS = ['GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET'];
-const WEBHOOK_ENV_VARS = ['NEXT_PUBLIC_ROUNDTABLE_WEBHOOK_URL', 'WEBHOOK_SECRET'];
-```
-
-### Structured Logging with Context
-**Reference**: `src/api/middleware/hono-logger.ts:93-104`
-
-```typescript
-apiError(c: Context, message: string, error?: unknown): void {
-  const errorContext = {
-    method: c.req.method,
-    path: c.req.path,
-    userAgent: c.req.header('User-Agent'),
-    error: error instanceof Error ? {
-      name: error.name,
-      message: error.message,
-      stack: isDevelopment ? error.stack : undefined
-    } : error,
-  };
-}
+);
 ```
 
 ---
 
-## Core Framework Patterns
+## API Route Patterns
 
-### Unified Module System
-**Reference**: `src/api/core/index.ts:1-225`
+### Three-File Pattern
 
-The core framework provides a single entry point with organized exports:
+Every API domain follows this structure:
 
+**1. route.ts** - OpenAPI Route Definitions
 ```typescript
-// Single entry point for type-safe, unified API system
-import { Schemas, Validators, Responses, createHandler } from '@/api/core';
-
-// Usage example
-const handler = createHandler({
-  auth: 'session',
-  validateBody: Schemas.CoreSchemas.email(),
-  operationName: 'CreateUser'
-}, async (c) => {
-  const email = c.validated.body;
-  return Responses.created(c, { userId: 'user_123' });
+export const secureMeRoute = createRoute({
+  method: 'get',
+  path: '/auth/me',
+  tags: ['users'],
+  summary: 'Get current authenticated user',
+  request: {
+    params: z.object({
+      id: CoreSchemas.id(),
+    }),
+  },
+  responses: {
+    [HttpStatusCodes.OK]: {
+      description: 'User retrieved successfully',
+      content: {
+        'application/json': {
+          schema: createApiResponseSchema(SecureMePayloadSchema),
+        },
+      },
+    },
+  },
 });
 ```
 
-### Type-Safe Validation System
-**Reference**: `src/api/core/validation.ts:49-67`
-
+**2. handler.ts** - Business Logic
 ```typescript
-export type ValidationResult<T> = ValidationSuccess<T> | ValidationFailure;
-export type ValidationSuccess<T> = { readonly success: true; readonly data: T };
-export type ValidationFailure = { readonly success: false; readonly errors: ValidationError[] };
-
-export function validateWithSchema<T>(schema: z.ZodSchema<T>, data: unknown): ValidationResult<T> {
-  const result = schema.safeParse(data);
-  if (result.success) {
-    return { success: true, data: result.data };
-  }
-  return {
-    success: false,
-    errors: result.error.issues.map(issue => ({
-      field: issue.path.join('.') || 'root',
-      message: issue.message,
-      code: issue.code,
-    })),
-  };
-}
-```
-
-### Iranian-Specific Core Schemas
-**Reference**: `src/api/core/schemas.ts:121-185`
-
-```typescript
-// Iranian national ID with checksum validation
-export function iranianNationalIdSchema(message?: string) {
-  return z.string()
-    .regex(/^\d{10}$/, 'National ID must be exactly 10 digits')
-    .refine((value) => {
-      // Iranian national ID checksum validation
-      if (value.length !== 10 || /^(\d)\1{9}$/.test(value)) return false;
-      // Luhn-like checksum algorithm for Iranian IDs
-      // ... checksum implementation
-    }, message ?? 'Invalid Iranian national ID');
-}
-
-// Mobile number normalization
-export function iranianMobileSchema() {
-  return z.string()
-    .regex(/^(\+98|0)?9\d{9}$/, 'Invalid Iranian mobile format')
-    .transform((phone) => {
-      // Normalize to +98 format
-      if (phone.startsWith('09')) return `+98${phone.slice(1)}`;
-      // ... other normalization rules
-    });
-}
-```
-
-### Discriminated Union Response System
-**Reference**: `src/api/core/responses.ts:60-76`
-
-```typescript
-export function ok<T>(c: Context, data: T, additionalMeta?: ResponseMetadata): Response {
-  const response: ApiResponse<T> = {
-    success: true,
-    data,
-    meta: {
-      ...extractResponseMetadata(c),
-      ...getPerformanceMetadata(c),
-      ...additionalMeta,
-    },
-  };
-  return c.json(response, HttpStatusCodes.OK);
-}
-```
-
-### Enhanced HTTP Exception Factory
-**Reference**: `src/api/core/http-exceptions.ts:151-192`
-
-```typescript
-export class EnhancedHTTPException extends HTTPException {
-  public readonly errorCode?: ErrorCode;
-  public readonly severity?: ErrorSeverity;
-  public readonly context?: ErrorContext;
-  public readonly correlationId?: string;
-  public readonly timestamp: Date;
-
-  toJSON() {
-    return {
-      name: this.name,
-      message: this.message,
-      status: this.status,
-      errorCode: this.errorCode,
-      context: this.context,
-      timestamp: this.timestamp.toISOString(),
-    };
-  }
-}
-```
-
-### Handler Factory with Validation Pipeline
-**Reference**: `src/api/core/handlers.ts:184-337`
-
-```typescript
-// Authentication mode handling
-async function applyAuthentication(c: Context, authMode: AuthMode): Promise<void> {
-  const { auth } = await import('@/lib/auth/server');
-
-  switch (authMode) {
-    case 'session':
-      const sessionData = await auth.api.getSession({ headers: c.req.raw.headers });
-      if (!sessionData?.user || !sessionData?.session) {
-        throw new HTTPException(HttpStatusCodes.UNAUTHORIZED, {
-          message: 'Authentication required',
-        });
-      }
-      c.set('session', sessionData.session);
-      c.set('user', sessionData.user);
-      break;
-    // ... other auth modes
-  }
-}
-```
-
----
-
-## Common Utilities Patterns
-
-### ZarinPal Error Processing
-**Reference**: `src/api/common/zarinpal-error-utils.ts`
-
-```typescript
-// Type-safe ZarinPal error parsing
-function parseZarinPalApiResponse(responseText: string): {
-  isError: boolean;
-  zarinPalError?: ZarinPalError;
-  parsedData?: unknown;
-}
-
-// Structured HTTPException creation
-export function createZarinPalHTTPException(
-  operation: string,
-  httpStatus: number,
-  responseText: string,
-): never {
-  const { isError, zarinPalError } = parseZarinPalApiResponse(responseText);
-
-  if (isError && zarinPalError) {
-    throw HTTPExceptionFactory.zarinPalError({
-      message: `ZarinPal ${operation} failed: ${zarinPalMessage}`,
-      operation,
-      zarinpalCode: String(zarinPalCode),
-      zarinpalMessage: zarinPalMessage,
-      details: {
-        original_http_status: httpStatus,
-        response_body: responseText,
-      },
-    });
-  }
-}
-```
-
-### Type-Safe FormData Processing
-**Reference**: `src/api/common/form-utils.ts`
-
-```typescript
-// Type guard approach instead of casting
-function isFile(entry: FormDataEntryValue | null): entry is File {
-  return entry instanceof File;
-}
-
-// Safe file extraction with HTTP exceptions
-export function extractFile(formData: FormData, fieldName: string): File {
-  const entry = formData.get(fieldName);
-
-  if (!entry) {
-    throw new HTTPException(HttpStatusCodes.BAD_REQUEST, {
-      message: `Missing required file: ${fieldName}`,
-    });
-  }
-
-  if (!isFile(entry)) {
-    throw new HTTPException(HttpStatusCodes.BAD_REQUEST, {
-      message: `Invalid file type for field: ${fieldName}`,
-    });
-  }
-
-  return entry;
-}
-```
-
-### Production-Ready HTTP Client
-**Reference**: `src/api/common/fetch-utilities.ts`
-
-```typescript
-// Circuit breaker state management
-type CircuitBreakerState = {
-  failures: number;
-  lastFailureTime: number;
-  nextAttemptTime: number;
-  state: 'closed' | 'open' | 'half-open';
-};
-
-const circuitBreakers = new Map<string, CircuitBreakerState>();
-
-function shouldAllowRequest(url: string, config: FetchConfig): boolean {
-  if (!config.circuitBreaker) return true;
-
-  const state = getCircuitBreakerState(url);
-  const now = Date.now();
-
-  switch (state.state) {
-    case 'closed': return true;
-    case 'open':
-      if (now >= state.nextAttemptTime) {
-        state.state = 'half-open';
-        return true;
-      }
-      return false;
-    case 'half-open': return true;
-  }
-}
-```
-
-### Safe Logger with Data Sanitization
-**Reference**: `src/lib/utils/safe-logger.ts`
-
-```typescript
-// Comprehensive sensitive pattern detection
-const SENSITIVE_PATTERNS = [
-  /password/i, /secret/i, /token/i, /auth/i,
-  /card[_-]?number/i, /cvv/i, /pin/i,
-  /national[_-]?id/i, /ssn/i, /phone/i,
-  /merchant[_-]?id/i, /signature/i,
-] as const;
-
-const REDACTED_FIELDS = new Set([
-  'password', 'secret', 'token', 'merchantId',
-  'nationalId', 'cardNumber', 'signature',
-]);
-```
-
-### Discriminated Union Metadata
-**Reference**: `src/api/common/metadata-utils.ts`
-
-```typescript
-// Context7 Pattern - Maximum type safety replacing Record<string, unknown>
-const MetadataSchema = z.discriminatedUnion('type', [
-  z.object({
-    type: z.literal('subscription'),
-    planChangeHistory: z.array(z.object({
-      fromProductId: z.string(),
-      toProductId: z.string(),
-      fromPrice: z.number(),
-      toPrice: z.number(),
-      changedAt: z.string().datetime(),
-      effectiveDate: z.string().datetime(),
-    })).optional(),
-    autoRenewal: z.boolean().optional(),
-    trialEnd: z.string().datetime().optional(),
-  }),
-  z.object({
-    type: z.literal('payment'),
-    paymentMethod: z.enum(['card', 'bank_transfer', 'wallet']).optional(),
-    retryAttempts: z.number().int().min(0).optional(),
-    failureReason: z.string().optional(),
-  }),
-]);
-```
-
----
-
-## System Routes & Infrastructure Patterns
-
-### Health Check Architecture
-**Reference**: `src/api/routes/system/handler.ts:44-116`
-
-```typescript
-// Comprehensive dependency checking
-const healthChecks = [
-  // Database health check
+export const secureMeHandler = createHandler(
   {
-    name: 'database',
-    check: async () => {
-      const db = await getDbAsync();
-      await db.select().from(user).limit(1);
-      return { status: 'healthy' as const };
-    }
+    auth: 'session',
+    operationName: 'getUser',
   },
-  // Environment validation check
-  {
-    name: 'environment',
-    check: async () => {
-      const validation = validateEnvironment();
-      return {
-        status: validation.isHealthy ? 'healthy' as const : 'degraded' as const,
-        details: validation.summary,
-      };
+  async (c) => {
+    const { id } = c.req.valid('param');
+    const user = c.get('user');
+
+    c.logger.info('Fetching user', {
+      logType: 'operation',
+      operationName: 'getUser',
+      userId: user.id,
+      targetId: id,
+    });
+
+    const targetUser = await db.query.user.findFirst({
+      where: eq(tables.user.id, id),
+    });
+
+    if (!targetUser) {
+      throw createError.notFound('User not found');
     }
-  }
-];
 
-// Status aggregation logic
-const healthyCount = results.filter(r => r.status === 'healthy').length;
-const degradedCount = results.filter(r => r.status === 'degraded').length;
-const unhealthyCount = results.filter(r => r.status === 'unhealthy').length;
-
-const overallStatus = unhealthyCount > 0 ? 'unhealthy' :
-                     degradedCount > 0 ? 'degraded' : 'healthy';
+    return Responses.ok(c, targetUser);
+  },
+);
 ```
 
-### Scheduled Task Patterns
-**Reference**: `src/api/scheduled/monthly-billing.ts:100-605`
+**3. schema.ts** - Validation Schemas
+```typescript
+export const SecureMePayloadSchema = z.object({
+  id: CoreSchemas.id().openapi({
+    example: 'cm4abc123',
+    description: 'User identifier',
+  }),
+  email: CoreSchemas.email().openapi({
+    example: 'user@example.com',
+  }),
+  name: z.string().min(1).openapi({
+    example: 'John Doe',
+  }),
+}).openapi('User');
+
+export type User = z.infer<typeof SecureMePayloadSchema>;
+```
+
+---
+
+## Service Layer Patterns
+
+### Service Organization
+
+The `/src/api/services/` directory is currently empty. Services will be implemented as needed to handle business logic and external integrations following these patterns:
+
+**When implementing services, follow this structure:**
 
 ```typescript
-// Cloudflare Workers optimization
-const WORKER_TIMEOUT_MS = 28000; // 28-second limit
-const MAX_BATCH_SIZE = 100; // D1 database limits
-const CHUNK_SIZE = 50; // Process in chunks
+class ExampleService {
+  constructor(private config: ServiceConfig) {}
 
-// Database operation patterns
-const isD1 = typeof db.batch === 'function';
-if (isD1) {
-  // Use batch operations for D1
-  await db.batch(operations);
-} else {
-  // Use transactions for BetterSQLite3
-  await db.transaction(async (tx) => {
-    for (const operation of operations) {
-      await operation(tx);
-    }
+  async performOperation(params: OperationParams): Promise<OperationResult> {
+    // Implementation with proper error handling and logging
+  }
+
+  private async internalHelper(data: HelperData): Promise<HelperResult> {
+    // Implementation
+  }
+}
+
+export const exampleService = new ExampleService(getServiceConfig());
+```
+
+### Service Best Practices (for future implementations)
+
+1. **Dependency Injection**: Pass configuration through constructor
+2. **Error Handling**: Wrap external calls in try-catch with proper error types
+3. **Logging**: Use structured logging for all operations
+4. **Type Safety**: Return typed results, never `any`
+
+**Note**: Currently, business logic is implemented directly in route handlers. The service layer will be introduced when needed for:
+- Complex business logic that spans multiple routes
+- External API integrations
+- Reusable operations across different domains
+
+---
+
+## Middleware Patterns
+
+### Available Middleware Files
+
+Located in `/src/api/middleware/`:
+
+- **auth.ts** - Session authentication (`attachSession`, `requireSession`)
+- **rate-limiter-factory.ts** - Rate limiting with preset configurations
+- **size-limits.ts** - Request/response size validation
+- **hono-logger.ts** - Structured logging for API requests
+- **environment-validation.ts** - Environment variable validation
+- **index.ts** - Middleware exports
+
+**Note**: CORS and CSRF middleware are configured inline in `/src/api/index.ts` (lines 79-139), not as separate middleware files.
+
+### Authentication Middleware
+
+**Reference**: `src/api/middleware/auth.ts`
+
+The project provides a shared authentication helper and two middleware patterns:
+
+**Internal Helper Function**:
+```typescript
+// authenticateSession - Shared authentication helper
+// Extracts session from request headers and sets context variables
+// Used internally by attachSession and requireSession middleware
+async function authenticateSession(c: Context<ApiEnv>): Promise<{
+  session: SelectSession | null;
+  user: SelectUser | null;
+}> {
+  const sessionData = await auth.api.getSession({
+    headers: c.req.raw.headers,
   });
+
+  // Normalize undefined fields to null for proper type safety
+  const session = sessionData?.session ? {
+    ...sessionData.session,
+    ipAddress: sessionData.session.ipAddress ?? null,
+    userAgent: sessionData.session.userAgent ?? null,
+    impersonatedBy: sessionData.session.impersonatedBy ?? null,
+  } as SelectSession : null;
+
+  const user = sessionData?.user ? {
+    ...sessionData.user,
+    image: sessionData.user.image ?? null,
+    role: sessionData.user.role ?? null,
+    banned: sessionData.user.banned ?? null,
+    banReason: sessionData.user.banReason ?? null,
+    banExpires: sessionData.user.banExpires ?? null,
+  } as SelectUser : null;
+
+  c.set('session', session);
+  c.set('user', user);
+  c.set('requestId', c.req.header('x-request-id') || crypto.randomUUID());
+
+  return { session, user };
 }
 ```
 
-### Repository Base Pattern
-**Reference**: `src/api/patterns/base-repository.ts:224-1013`
+**Public Middleware - attachSession**:
+```typescript
+// Attach session if present; does not enforce authentication
+// Allows unauthenticated requests to proceed
+export const attachSession = createMiddleware<ApiEnv>(async (c, next) => {
+  try {
+    await authenticateSession(c);
+  } catch (error) {
+    // Log error but don't throw
+    apiLogger.apiError(c, 'Error retrieving Better Auth session', error);
+    c.set('session', null);
+    c.set('user', null);
+  }
+  return next();
+});
+```
+
+**Public Middleware - requireSession**:
+```typescript
+// Require an authenticated session using Better Auth
+// Throws 401 Unauthorized if session is missing or invalid
+export const requireSession = createMiddleware<ApiEnv>(async (c, next) => {
+  const { session, user } = await authenticateSession(c);
+
+  if (!user || !session) {
+    throw new HTTPException(HttpStatusCodes.UNAUTHORIZED, {
+      res: new Response(JSON.stringify({
+        code: HttpStatusCodes.UNAUTHORIZED,
+        message: 'Authentication required',
+        details: 'Valid session required to access this resource',
+      }), {
+        status: HttpStatusCodes.UNAUTHORIZED,
+        headers: {
+          'Content-Type': 'application/json',
+          'WWW-Authenticate': 'Session realm="api"',
+        },
+      }),
+    });
+  }
+
+  return next();
+});
+```
+
+### Rate Limiting Middleware
+
+**Reference**: `src/api/middleware/rate-limiter-factory.ts`
 
 ```typescript
-// Type-safe repository architecture
-export abstract class BaseRepository<
-  TTable extends Table,
-  TSelectSchema extends z.ZodSchema,
-  TInsertSchema extends z.ZodSchema,
-  TUpdateSchema extends z.ZodSchema
-> {
-  protected abstract table: TTable;
-  protected abstract selectSchema: TSelectSchema;
-  protected abstract insertSchema: TInsertSchema;
-  protected abstract updateSchema: TUpdateSchema;
+import { RateLimiterFactory } from '@/api/middleware/rate-limiter-factory';
 
-  // CRUD operations with automatic validation
-  async create(data: z.infer<TInsertSchema>): Promise<OperationResult<TSelectType>> {
-    const validationResult = validateWithSchema(this.insertSchema, data);
-    if (!validationResult.success) {
-      return { success: false, errors: validationResult.errors };
+// Use preset configurations
+app.use('*', RateLimiterFactory.create('api')); // General API rate limiting
+app.use('/auth/*', RateLimiterFactory.create('auth')); // Auth-specific limits
+app.use('/upload/*', RateLimiterFactory.create('upload')); // Upload limits
+
+// Custom rate limiter
+const customLimiter = RateLimiterFactory.createCustom({
+  windowMs: 60 * 1000, // 1 minute
+  maxRequests: 100,
+  message: 'Too many requests',
+});
+```
+
+### Size Limits Middleware
+
+**Reference**: `src/api/middleware/size-limits.ts`
+
+```typescript
+import {
+  createRequestSizeLimitMiddleware,
+  createFileUploadSizeLimitMiddleware,
+  DEFAULT_SIZE_LIMITS,
+} from '@/api/middleware/size-limits';
+
+// Request size validation
+app.use('*', createRequestSizeLimitMiddleware({
+  requestBody: 10 * 1024 * 1024, // 10MB
+}));
+
+// File upload size validation
+app.use('/upload/*', createFileUploadSizeLimitMiddleware({
+  fileUpload: 50 * 1024 * 1024, // 50MB
+}));
+```
+
+### Logging Middleware
+
+**Reference**: `src/api/middleware/hono-logger.ts`
+
+```typescript
+import { honoLoggerMiddleware, errorLoggerMiddleware } from '@/api/middleware/hono-logger';
+
+// Request/response logging
+app.use('*', honoLoggerMiddleware);
+
+// Error logging
+app.use('*', errorLoggerMiddleware);
+```
+
+### Environment Validation Middleware
+
+**Reference**: `src/api/middleware/environment-validation.ts`
+
+```typescript
+import { createEnvironmentValidationMiddleware } from '@/api/middleware/environment-validation';
+
+// Validate required environment variables on startup
+app.use('*', createEnvironmentValidationMiddleware());
+```
+
+### CORS and CSRF Configuration
+
+**Reference**: `src/api/index.ts` (lines 79-139)
+
+CORS and CSRF are configured inline in the main API file, not as separate middleware:
+
+```typescript
+// CORS configuration (inline in index.ts)
+app.use('*', (c, next) => {
+  const appUrl = c.env.NEXT_PUBLIC_APP_URL;
+  const webappEnv = c.env.NEXT_PUBLIC_WEBAPP_ENV || 'local';
+  const isDevelopment = webappEnv === 'local' || c.env.NODE_ENV === 'development';
+
+  const allowedOrigins: string[] = [];
+  if (isDevelopment) {
+    allowedOrigins.push('http://localhost:3000', 'http://127.0.0.1:3000');
+  }
+  if (appUrl && !appUrl.includes('localhost')) {
+    allowedOrigins.push(appUrl);
+  }
+
+  const middleware = cors({
+    origin: (origin) => {
+      if (!origin) return origin;
+      return allowedOrigins.includes(origin) ? origin : null;
+    },
+    credentials: true,
+    allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+    allowHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
+  });
+  return middleware(c, next);
+});
+
+// CSRF protection (inline in index.ts)
+function csrfMiddleware(c: Context<ApiEnv>, next: Next) {
+  const appUrl = c.env.NEXT_PUBLIC_APP_URL;
+  // ... similar origin configuration
+  const middleware = csrf({ origin: allowedOrigins });
+  return middleware(c, next);
+}
+
+// Applied selectively to protected routes
+app.use('/auth/me', csrfMiddleware, requireSession);
+```
+
+---
+
+## Database Patterns
+
+### Drizzle ORM Usage
+
+```typescript
+// Query pattern
+const users = await db.query.user.findMany({
+  where: eq(tables.user.emailVerified, true),
+  orderBy: desc(tables.user.createdAt),
+  limit: 10,
+});
+
+// Insert pattern
+const newUser = await db.insert(tables.user).values({
+  email: 'user@example.com',
+  name: 'John Doe',
+}).returning();
+
+// Update pattern
+await db.update(tables.user)
+  .set({ emailVerified: true })
+  .where(eq(tables.user.id, userId));
+
+// Delete pattern
+await db.delete(tables.user)
+  .where(eq(tables.user.id, userId));
+```
+
+### 🚨 Batch Operations - Cloudflare D1 Pattern (REQUIRED)
+
+**⚠️ CRITICAL**: Traditional `db.transaction()` is **PROHIBITED** with Cloudflare D1. Use `db.batch()` instead.
+
+**Why Batch Operations?**
+- Cloudflare D1 is optimized for batch operations, not transactions
+- Batches provide atomic execution with better performance in serverless
+- Transactions have limitations and performance issues in D1
+- ESLint rules enforce batch-first architecture
+
+#### Pattern 1: Manual Batch Operations
+
+```typescript
+// ✅ CORRECT: Using db.batch() for atomic operations
+const [insertResult, updateResult] = await db.batch([
+  db.insert(tables.user).values({ email, name }).returning(),
+  db.insert(tables.profile).values({ userId: newUserId, bio: '' })
+]);
+
+// Multiple operations in single atomic batch
+await db.batch([
+  db.insert(tables.stripeCustomer).values(customer),
+  db.update(tables.user).set({ hasCustomer: true }).where(eq(tables.user.id, userId)),
+  db.insert(tables.webhookEvent).values(eventLog)
+]);
+```
+
+#### Pattern 2: createHandlerWithBatch (RECOMMENDED)
+
+The `createHandlerWithBatch` factory provides automatic batch accumulation:
+
+```typescript
+// ✅ RECOMMENDED: Automatic batching in handlers
+export const createUserHandler = createHandlerWithBatch(
+  {
+    auth: 'session',
+    validateBody: CreateUserSchema,
+  },
+  async (c, batch) => {
+    const body = c.validated.body;
+
+    // Operations are automatically accumulated in batch
+    const [newUser] = await batch.db.insert(tables.user).values({
+      email: body.email,
+      name: body.name,
+    }).returning();
+
+    // This operation is added to the same batch
+    await batch.db.insert(tables.profile).values({
+      userId: newUser.id,
+      bio: body.bio || '',
+    });
+
+    // Batch executes atomically when handler completes
+    return Responses.ok(c, { user: newUser });
+  }
+);
+```
+
+**How it works:**
+1. All `batch.db.*` operations are collected during handler execution
+2. At handler completion, all operations execute in single atomic batch
+3. If any operation fails, all operations rollback automatically
+4. Zero boilerplate - just use `batch.db` instead of `db`
+
+#### Pattern 3: Conditional Batch Operations
+
+```typescript
+export const syncStripeHandler = createHandlerWithBatch(
+  { auth: 'session' },
+  async (c, batch) => {
+    // Conditional operations still batched atomically
+    await batch.db.insert(tables.stripeCustomer).values(customer);
+
+    if (hasSubscription) {
+      await batch.db.insert(tables.stripeSubscription).values(subscription);
     }
 
-    // Automatic audit field injection
-    const auditData = {
-      ...validationResult.data,
-      id: crypto.randomUUID(),
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
+    if (hasInvoices) {
+      await batch.db.insert(tables.stripeInvoice).values(invoice);
+    }
 
-    const result = await this.db.insert(this.table).values(auditData).returning();
-    return { success: true, data: result[0] };
+    // All operations execute atomically together
   }
+);
+```
+
+#### Pattern 4: Upsert in Batches
+
+```typescript
+await db.batch([
+  db.insert(tables.stripeCustomer).values(customer).onConflictDoUpdate({
+    target: tables.stripeCustomer.id,
+    set: { email: customer.email, updatedAt: new Date() }
+  }),
+  db.insert(tables.stripeSubscription).values(subscription)
+]);
+```
+
+#### ❌ PROHIBITED Pattern: db.transaction()
+
+```typescript
+// ❌ WRONG: This will trigger ESLint error and TypeScript error
+await db.transaction(async (tx) => {
+  await tx.insert(tables.user).values(newUser);
+  await tx.update(tables.user).set({ verified: true });
+});
+
+// Error: local/no-db-transactions
+// Error: Property 'transaction' does not exist on type 'D1BatchDatabase'
+```
+
+#### Migration from Transactions to Batches
+
+**Before (Transaction):**
+```typescript
+await db.transaction(async (tx) => {
+  await tx.insert(users).values(newUser);
+  await tx.update(users).set({ verified: true }).where(eq(users.id, userId));
+  await tx.delete(users).where(eq(users.inactive, true));
+});
+```
+
+**After (Batch):**
+```typescript
+await db.batch([
+  db.insert(users).values(newUser),
+  db.update(users).set({ verified: true }).where(eq(users.id, userId)),
+  db.delete(users).where(eq(users.inactive, true))
+]);
+```
+
+**After (Batch Handler - Recommended):**
+```typescript
+export const handler = createHandlerWithBatch({ auth: 'session' }, async (c, batch) => {
+  await batch.db.insert(users).values(newUser);
+  await batch.db.update(users).set({ verified: true }).where(eq(users.id, userId));
+  await batch.db.delete(users).where(eq(users.inactive, true));
+});
+```
+
+#### Type Safety
+
+The project enforces batch-first architecture through:
+
+**TypeScript Types:**
+```typescript
+import type { D1BatchDatabase } from '@/db/d1-types';
+
+const db = await getDbAsync(); // Returns D1BatchDatabase<Schema>
+// db.transaction() -> TypeScript error: Property 'transaction' does not exist
+// db.batch() -> ✅ Correct
+```
+
+**ESLint Rules:**
+- `local/no-db-transactions`: Blocks db.transaction() usage (ERROR)
+- `local/prefer-batch-handler`: Suggests createHandlerWithBatch (WARNING)
+- `local/batch-context-awareness`: Prefer batch.db over getDbAsync() (WARNING)
+
+**Reference Implementation:**
+- `src/api/routes/billing/handler.ts:171-283` - Stripe checkout with batch operations
+- `src/api/services/stripe-sync.service.ts:131-165` - Subscription upsert in batch
+- `src/api/core/handlers.ts:490-605` - createHandlerWithBatch implementation
+- `src/db/d1-types.ts` - Type definitions and patterns
+- `eslint-local-rules.js` - ESLint enforcement
+
+**Further Reading:**
+- [Cloudflare D1 Batch API](https://developers.cloudflare.com/d1/build-with-d1/d1-client-api/#batch-statements)
+- [Drizzle ORM Batch Operations](https://orm.drizzle.team/docs/batch-api)
+
+---
+
+## Error Handling
+
+### Structured Errors with Type-Safe Context
+
+All errors should include type-safe `ErrorContext` using discriminated unions:
+
+```typescript
+import { AppError, createError, normalizeError } from '@/api/common/error-handling';
+import type { ErrorContext } from '@/api/core';
+
+// Database errors
+const context: ErrorContext = {
+  errorType: 'database',
+  operation: 'select',
+  table: 'stripeProduct',
+  userId: user.id,          // optional
+  resourceId: productId,    // optional
+};
+throw createError.internal('Failed to retrieve product', context);
+
+// Resource errors
+const context: ErrorContext = {
+  errorType: 'resource',
+  resource: 'subscription',
+  resourceId: id,
+  userId: user.id,
+};
+throw createError.notFound(`Subscription ${id} not found`, context);
+
+// Authentication errors
+const context: ErrorContext = {
+  errorType: 'authentication',
+  operation: 'session_required',
+};
+throw createError.unauthenticated('Valid session required', context);
+
+// Authorization errors
+const context: ErrorContext = {
+  errorType: 'authorization',
+  resource: 'subscription',
+  resourceId: id,
+  userId: user.id,
+};
+throw createError.unauthorized('You do not have access to this subscription', context);
+
+// External service errors
+const context: ErrorContext = {
+  errorType: 'external_service',
+  service: 'stripe',
+  operation: 'create_checkout_session',
+  userId: user.id,
+};
+throw createError.internal('Failed to create checkout session', context);
+
+// Validation errors
+const context: ErrorContext = {
+  errorType: 'validation',
+  field: 'stripe-signature',
+};
+throw createError.badRequest('Missing stripe-signature header', context);
+```
+
+### Error Normalization Helper
+
+Use `normalizeError()` to convert unknown errors to Error instances:
+
+```typescript
+try {
+  await someOperation();
+} catch (error) {
+  // Re-throw AppError instances without modification
+  if (error instanceof AppError) {
+    throw error;
+  }
+
+  // Log normalized error
+  c.logger.error('Operation failed', normalizeError(error));
+
+  // Create new structured error
+  const context: ErrorContext = {
+    errorType: 'database',
+    operation: 'select',
+    table: 'users',
+  };
+  throw createError.internal('Failed to retrieve user', context);
 }
 ```
 
-### Type Organization Patterns
-**Reference**: `src/api/types/logger.ts`, `src/api/types/metadata.ts`
+### Response Helpers
 
 ```typescript
-// Discriminated union logging contexts
-export const LogContextSchema = z.discriminatedUnion('logType', [
-  z.object({
-    logType: z.literal('request'),
-    method: z.string(),
-    path: z.string(),
-    statusCode: z.number().optional(),
-    duration: z.number().optional(),
-  }),
-  z.object({
-    logType: z.literal('database'),
-    operation: z.enum(['select', 'insert', 'update', 'delete']),
-    table: z.string(),
-    affectedRows: z.number().optional(),
-  }),
-  z.object({
-    logType: z.literal('payment'),
-    provider: z.enum(['zarinpal', 'stripe', 'paypal']),
-    amount: z.number(),
-    currency: z.string(),
-    status: z.enum(['pending', 'completed', 'failed']),
-  }),
-]).passthrough(); // Allow additional properties
+// Success responses
+return Responses.ok(c, data);
+return Responses.created(c, newResource);
+
+// Error responses
+return Responses.error(c, 'Error message', HttpStatusCodes.BAD_REQUEST);
+return Responses.notFound(c, 'Resource not found');
+```
+
+### Response Mapping Helpers
+
+For consistent API responses, use domain-specific mapping helpers:
+
+```typescript
+import { mapSubscriptionToResponse, mapProductToResponse } from './helpers';
+
+// Single subscription mapping
+const subscription = mapSubscriptionToResponse(dbSubscription);
+return Responses.ok(c, { subscription });
+
+// Multiple subscriptions
+const subscriptions = dbSubscriptions.map(mapSubscriptionToResponse);
+return Responses.ok(c, { subscriptions, count: subscriptions.length });
+
+// Product mapping with prices
+const product = mapProductToResponse(dbProduct);
+return Responses.ok(c, { product });
 ```
 
 ---
 
 ## Implementation Guidelines
 
-### 1. Core Principles
+### 1. Route Creation Checklist
 
-**Type Safety First**
-- Use Zod schemas for all input/output validation
-- Implement discriminated unions instead of `Record<string, unknown>`
-- Apply type guards instead of type assertions
-- Export TypeScript types from all schemas
+- [ ] Create route definition in `route.ts`
+- [ ] Add Zod schema in `schema.ts`
+- [ ] Implement handler in `handler.ts` using `createHandler`
+- [ ] Add OpenAPI documentation with examples
+- [ ] Include proper error responses
+- [ ] Add structured logging
+- [ ] Test with authentication
 
-**Zero-Casting Pattern**
-- No `any` types or unsafe casting (`as` keyword)
-- Use function overloads for type safety
-- Implement proper type guards for runtime checks
-- Validate external data through schemas
+### 2. Database Operation Guidelines
 
-**Transaction-First Database Operations**
-- Use `createHandlerWithTransaction` for multi-step operations
-- Apply database transactions for related updates
-- Create audit trails through `billingEvent` table
-- Implement proper error rollback handling
+- [ ] Use transactions for multi-table operations
+- [ ] Include proper error handling
+- [ ] Log all database operations
+- [ ] Use type-safe queries with Drizzle
+- [ ] Validate input with Zod schemas
 
-### 2. File Organization Standards
+### 3. Security Checklist
 
-**Three-File Pattern for Routes**
-```
-src/api/routes/{domain}/
-├── route.ts          # OpenAPI route definitions
-├── handler.ts        # Business logic implementation
-└── schema.ts         # Request/response validation
-```
+- [ ] Authenticate requests with session middleware
+- [ ] Validate all input with Zod
+- [ ] Sanitize user input
+- [ ] Use CSRF protection for mutations
+- [ ] Implement rate limiting
+- [ ] Log security-relevant events
 
-**Consistent Import Structure**
-```typescript
-// 1. External dependencies
-import { createRoute } from '@hono/zod-openapi';
-import { HttpStatusCodes } from 'stoker/http-status-codes';
+### 4. Code Quality Standards
 
-// 2. Internal core imports
-import { createHandler, Responses, createError } from '@/api/core';
-
-// 3. Domain-specific imports
-import { getDbAsync } from '@/db';
-import { user, subscription } from '@/db/tables/billing';
-
-// 4. Local imports
-import { CreateUserSchema, UserResponseSchema } from './schema';
-```
-
-### 3. Authentication Patterns
-
-**Handler Authentication Modes**
-- `'session'`: Requires authenticated user session
-- `'session-optional'`: Attaches session if available
-- `'public'`: No authentication required
-- `'api-key'`: External API key authentication
-
-**Session Context Usage**
-```typescript
-const handler = createHandler({
-  auth: 'session',
-  operationName: 'getUser',
-}, async (c) => {
-  const user = c.get('user');      // Always available with session auth
-  const session = c.get('session'); // Always available with session auth
-  // ... implementation
-});
-```
-
-### 4. Error Handling Standards
-
-**Use Factory Methods**
-```typescript
-// Import standardized error creators
-import { createError } from '@/api/core';
-
-// Use specific error types
-throw createError.notFound('User not found');
-throw createError.badRequest('Invalid email format');
-throw createError.paymentFailed('ZarinPal transaction failed');
-```
-
-**Iranian Payment Context**
-```typescript
-// ZarinPal-specific errors
-throw HTTPExceptionFactory.zarinPalError({
-  operation: 'payment_request',
-  zarinpalCode: '-33',
-  zarinpalMessage: 'Amount below minimum threshold',
-});
-```
-
-### 5. Schema Definition Standards
-
-**OpenAPI Integration**
-```typescript
-export const CreateUserSchema = z.object({
-  email: CoreSchemas.email().openapi({
-    example: 'user@example.com',
-    description: 'User email address',
-  }),
-  name: z.string().min(1).openapi({
-    example: 'John Doe',
-    description: 'User display name',
-  }),
-}).openapi('CreateUserRequest');
-
-// Export TypeScript type
-export type CreateUserRequest = z.infer<typeof CreateUserSchema>;
-```
-
-**Iranian Validation Integration**
-```typescript
-// Use built-in Iranian validators
-import { IranianValidationSchemas } from '@/api/core';
-
-const contractSchema = z.object({
-  mobile: IranianValidationSchemas.mobileNumber,
-  amount: IranianValidationSchemas.rialAmount,
-});
-```
-
-### 6. Database Operation Patterns
-
-**Transaction Usage**
-```typescript
-export const complexOperationHandler = createHandlerWithTransaction({
-  auth: 'session',
-  validateBody: OperationSchema,
-  operationName: 'complexOperation',
-}, async (c, tx) => {
-  // All operations use transaction context 'tx'
-  const result1 = await tx.insert(table1).values(data1);
-  const result2 = await tx.update(table2).set(data2);
-
-  // Create audit trail
-  await tx.insert(billingEvent).values({
-    userId: user.id,
-    eventType: 'operation_completed',
-    eventData: { result1, result2 },
-  });
-
-  return Responses.ok(c, { success: true });
-});
-```
-
-**Query Patterns**
-```typescript
-// Use Drizzle ORM patterns with proper typing
-const subscriptions = await db
-  .select()
-  .from(subscription)
-  .where(and(
-    eq(subscription.userId, user.id),
-    eq(subscription.status, 'active')
-  ))
-  .orderBy(desc(subscription.createdAt));
-```
-
-### 7. Service Integration Patterns
-
-**ZarinPal Service Usage**
-```typescript
-import { ZarinPalService } from '@/api/services/zarinpal';
-
-const zarinpal = ZarinPalService.create();
-const paymentResult = await zarinpal.requestPayment({
-  amount: 99000,
-  currency: 'IRR',
-  description: 'Subscription payment',
-  callbackUrl: `${env.NEXT_PUBLIC_APP_URL}/payment/callback`,
-  metadata: { subscriptionId: 'sub_123' },
-});
-```
-
-**Error Context Preservation**
-```typescript
-try {
-  const result = await externalService.call();
-} catch (error) {
-  throw createError.externalServiceError(
-    'Payment gateway unavailable',
-    {
-      errorType: 'payment',
-      provider: 'zarinpal',
-      operation: 'payment_request',
-      originalError: error instanceof Error ? error.message : String(error),
-    }
-  );
-}
-```
-
-### 8. Logging and Monitoring
-
-**Structured Logging**
-```typescript
-c.logger.info('Payment processed successfully', {
-  logType: 'payment',
-  provider: 'zarinpal',
-  amount: 99000,
-  currency: 'IRR',
-  paymentId: 'pay_123',
-  userId: user.id,
-});
-```
-
-**Performance Monitoring**
-```typescript
-const startTime = Date.now();
-const result = await expensiveOperation();
-const duration = Date.now() - startTime;
-
-c.logger.info('Operation completed', {
-  logType: 'performance',
-  operation: 'expensiveOperation',
-  duration,
-  recordsProcessed: result.length,
-});
-```
-
-### 9. Iranian Business Requirements
-
-**Currency Handling**
-- All amounts stored in Iranian Rials (smallest unit)
-- Use `IranianValidationSchemas.rialAmount` for validation
-- Implement currency conversion with smart rounding
-
-**Mobile Number Normalization**
-- Accept formats: `09123456789`, `+989123456789`, `9123456789`
-- Normalize to `+98` format for storage
-- Use `IranianValidationSchemas.mobileNumber` schema
-
-**National ID Validation**
-- Implement checksum validation for Iranian national IDs
-- Use `iranianNationalIdSchema()` from core schemas
-- Handle edge cases (repeated digits, invalid checksums)
-
-### 10. Security Implementation
-
-**Input Sanitization**
-```typescript
-import { sanitizeInput } from '@/api/core';
-
-const sanitizedData = sanitizeInput(userInput, {
-  allowedTags: [], // No HTML tags
-  maxLength: 1000,
-  stripXSS: true,
-});
-```
-
-**Contract Signature Security**
-```typescript
-import { encryptSignature, decryptSignature } from '@/api/utils/crypto';
-
-// Encrypt before storage
-const { encrypted, hash } = await encryptSignature(signature);
-
-// Store encrypted signature and hash
-await db.insert(paymentMethod).values({
-  contractSignatureEncrypted: encrypted,
-  contractSignatureHash: hash,
-});
-```
-
-### 11. Performance Optimization
-
-**Cloudflare Workers Patterns**
-```typescript
-// Check if D1 database (Cloudflare)
-const isD1 = typeof db.batch === 'function';
-
-if (isD1) {
-  // Use batch operations for better D1 performance
-  await db.batch(operations);
-} else {
-  // Use transactions for local SQLite
-  await db.transaction(async (tx) => {
-    for (const op of operations) await op(tx);
-  });
-}
-```
-
-**Caching Strategies**
-```typescript
-// Service-level caching with TTL
-private cache = new Map<string, { data: T; expires: number }>();
-
-async getCachedData(key: string): Promise<T | null> {
-  const cached = this.cache.get(key);
-  if (cached && cached.expires > Date.now()) {
-    return cached.data;
-  }
-  return null;
-}
-```
-
-### 12. Testing Integration
-
-**Handler Testing Pattern**
-```typescript
-import { testClient } from '@hono/testing';
-import { app } from '@/api';
-
-const client = testClient(app);
-
-test('should create subscription', async () => {
-  const response = await client.subscriptions.$post({
-    json: {
-      productId: 'prod_123',
-      contractId: 'contract_123',
-    },
-  });
-
-  expect(response.status).toBe(201);
-  const result = await response.json();
-  expect(result.success).toBe(true);
-});
-```
+- [ ] Zero TypeScript `any` types
+- [ ] No type casting unless absolutely necessary
+- [ ] Comprehensive error handling
+- [ ] Structured logging for all operations
+- [ ] OpenAPI documentation complete
+- [ ] Follow established patterns
 
 ---
 
-## Summary
+## Conclusion
 
-This comprehensive backend patterns document serves as the definitive guide for all backend development in the billing dashboard project. It consolidates analysis from 10 specialized agents covering:
-
-- **Authentication & Authorization** with Better Auth integration
-- **Payment Processing** with ZarinPal API integration
-- **Subscription Management** with Iranian business logic
-- **Payment Methods** with encrypted contract storage
-- **Webhook Processing** with security validation
-- **Service Layer** architecture and error handling
-- **Middleware** for cross-cutting concerns
-- **Core Framework** foundations and utilities
-- **Common Utilities** for shared functionality
-- **System Infrastructure** and monitoring
-
-**Key Architectural Principles**:
-
-1. **Type Safety**: Zero-casting with Zod schemas and discriminated unions
-2. **Transaction Safety**: Database consistency with comprehensive audit trails
-3. **Iranian Compliance**: Mobile numbers, national IDs, Rial amounts, ZarinPal integration
-4. **Security First**: Encrypted storage, input sanitization, rate limiting
-5. **Performance**: Cloudflare Workers optimization, caching, circuit breakers
-6. **Observability**: Structured logging, error correlation, health monitoring
-
-All backend development should reference this document and follow the established patterns to ensure consistency, maintainability, and compliance with Iranian business requirements.
-
----
-
-**Last Updated**: Generated by 10 parallel research-analyst agents analyzing the complete backend codebase
-**Context Prime**: Essential reference for `backend-pattern-expert` and other specialized agents
-**Maintenance**: Update when adding new domains or changing core patterns
+These patterns ensure consistency, type safety, and maintainability across the roundtable.now backend. Always reference existing implementations when adding new features, and maintain these established patterns for optimal developer experience.

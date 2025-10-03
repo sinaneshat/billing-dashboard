@@ -1,766 +1,1050 @@
-/**
- * Billing Operations Handler - Recurring Payments & Metrics
- *
- * Handles automated billing operations including:
- * - Recurring payment processing for direct debit subscriptions
- * - Billing metrics and monitoring
- * - Subscription lifecycle management
- */
-
 import type { RouteHandler } from '@hono/zod-openapi';
-import { and, eq, gte, isNotNull, lte } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
+import type Stripe from 'stripe';
 
-import { createError } from '@/api/common/error-handling';
-import type { HandlerContext } from '@/api/core';
-import { createHandler, Responses } from '@/api/core';
-import { createCurrencyExchangeService } from '@/api/services/currency-exchange';
-import { ZarinPalDirectDebitService } from '@/api/services/zarinpal-direct-debit';
+import { AppError, createError, normalizeError } from '@/api/common/error-handling';
+import type { ErrorContext } from '@/api/core';
+import { createHandler, createHandlerWithBatch, Responses } from '@/api/core';
+import { apiLogger } from '@/api/middleware/hono-logger';
+import { stripeService } from '@/api/services/stripe.service';
+import { getCustomerIdByUserId, syncStripeDataFromStripe } from '@/api/services/stripe-sync.service';
 import type { ApiEnv } from '@/api/types';
-import { decryptSignature } from '@/api/utils/crypto';
 import { getDbAsync } from '@/db';
-import { user } from '@/db/tables/auth';
-import { billingEvent, payment, paymentMethod, product, subscription, webhookEvent } from '@/db/tables/billing';
+import * as tables from '@/db/schema';
 
-import type { getBillingMetricsRoute, processRecurringPaymentsRoute } from './route';
-
-// ============================================================================
-// RECURRING PAYMENT PROCESSING
-// ============================================================================
-
-type RecurringPaymentResult = {
-  subscriptionId: string;
-  userId: string;
-  status: 'success' | 'failed' | 'skipped';
-  amount?: number;
-  reason?: string;
-};
-
-type SubscriptionRow = {
-  subscription: typeof subscription.$inferSelect;
-  product: typeof product.$inferSelect;
-  payment_method: typeof paymentMethod.$inferSelect;
-  user: typeof user.$inferSelect;
-};
+import type {
+  createCheckoutSessionRoute,
+  createCustomerPortalSessionRoute,
+  getProductRoute,
+  getSubscriptionRoute,
+  handleWebhookRoute,
+  listProductsRoute,
+  listSubscriptionsRoute,
+  syncAfterCheckoutRoute,
+} from './route';
+import {
+  CheckoutRequestSchema,
+  CustomerPortalRequestSchema,
+  ProductIdParamSchema,
+  SubscriptionIdParamSchema,
+} from './schema';
 
 // ============================================================================
-// HELPER FUNCTIONS FOR BILLING PROCESSING
+// Product Handlers
 // ============================================================================
 
-/**
- * Check if subscription was already processed today
- */
-async function checkAlreadyProcessedToday(
-  db: Awaited<ReturnType<typeof getDbAsync>>,
-  subscriptionId: string,
-  today: Date,
-): Promise<boolean> {
-  const existingPaymentToday = await db
-    .select()
-    .from(payment)
-    .where(
-      and(
-        eq(payment.subscriptionId, subscriptionId),
-        eq(payment.status, 'completed'),
-        gte(payment.createdAt, new Date(today.getFullYear(), today.getMonth(), today.getDate())),
-      ),
-    )
-    .limit(1);
-
-  return existingPaymentToday.length > 0;
-}
-
-/**
- * Validate contract and transaction limits
- */
-async function validateContractAndLimits(
-  db: Awaited<ReturnType<typeof getDbAsync>>,
-  paymentMethodRecord: typeof paymentMethod.$inferSelect,
-  amountInRials: number,
-  userId: string,
-  today: Date,
-): Promise<void> {
-  // Contract expiration monitoring
-  if (paymentMethodRecord.contractExpiresAt && paymentMethodRecord.contractExpiresAt <= today) {
-    await db.update(paymentMethod)
-      .set({
-        contractStatus: 'expired',
-        isActive: false,
-      })
-      .where(eq(paymentMethod.id, paymentMethodRecord.id));
-
-    await db.insert(billingEvent).values({
-      userId,
-      paymentMethodId: paymentMethodRecord.id,
-      eventType: 'contract_expired',
-      eventData: {
-        contractExpiresAt: paymentMethodRecord.contractExpiresAt.toISOString(),
-        expiredOn: today.toISOString(),
-        contractDisplayName: paymentMethodRecord.contractDisplayName,
-      },
-      severity: 'warning',
-    });
-
-    throw createError.badRequest(
-      `Direct debit contract expired on ${paymentMethodRecord.contractExpiresAt.toLocaleDateString('fa-IR')}. Please create a new contract to continue billing.`,
-    );
-  }
-
-  // Transaction amount limits
-  if (paymentMethodRecord.maxTransactionAmount && amountInRials > paymentMethodRecord.maxTransactionAmount) {
-    throw createError.badRequest(
-      `Transaction amount (${(amountInRials / 10).toLocaleString('fa-IR')} Toman) exceeds contract maximum transaction limit (${(paymentMethodRecord.maxTransactionAmount / 10).toLocaleString('fa-IR')} Toman)`,
-    );
-  }
-
-  // Daily limits validation
-  await validateDailyLimits(db, paymentMethodRecord, amountInRials, userId, today);
-
-  // Monthly limits validation
-  if (paymentMethodRecord.maxMonthlyCount) {
-    await validateMonthlyLimits(db, paymentMethodRecord, userId, today);
-  }
-}
-
-/**
- * Validate daily transaction limits
- */
-async function validateDailyLimits(
-  db: Awaited<ReturnType<typeof getDbAsync>>,
-  paymentMethodRecord: typeof paymentMethod.$inferSelect,
-  amountInRials: number,
-  userId: string,
-  today: Date,
-): Promise<void> {
-  const startOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-  const endOfDay = new Date(startOfDay);
-  endOfDay.setDate(endOfDay.getDate() + 1);
-
-  const dailyPayments = await db
-    .select()
-    .from(payment)
-    .where(
-      and(
-        eq(payment.userId, userId),
-        eq(payment.status, 'completed'),
-        gte(payment.createdAt, startOfDay),
-        lte(payment.createdAt, endOfDay),
-      ),
-    );
-
-  const dailyTotal = dailyPayments.reduce((sum, payment) => sum + payment.amount, 0);
-  const dailyCount = dailyPayments.length;
-
-  if (paymentMethodRecord.maxDailyAmount && (dailyTotal + amountInRials) > paymentMethodRecord.maxDailyAmount) {
-    throw createError.badRequest(
-      `Transaction would exceed daily amount limit. Current: ${(dailyTotal / 10).toLocaleString('fa-IR')} Toman, Limit: ${(paymentMethodRecord.maxDailyAmount / 10).toLocaleString('fa-IR')} Toman`,
-    );
-  }
-
-  if (paymentMethodRecord.maxDailyCount && (dailyCount + 1) > paymentMethodRecord.maxDailyCount) {
-    throw createError.badRequest(
-      `Transaction would exceed daily transaction count limit. Current: ${dailyCount}, Limit: ${paymentMethodRecord.maxDailyCount}`,
-    );
-  }
-}
-
-/**
- * Validate monthly transaction limits
- */
-async function validateMonthlyLimits(
-  db: Awaited<ReturnType<typeof getDbAsync>>,
-  paymentMethodRecord: typeof paymentMethod.$inferSelect,
-  userId: string,
-  today: Date,
-): Promise<void> {
-  const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
-  const endOfMonth = new Date(startOfMonth);
-  endOfMonth.setMonth(endOfMonth.getMonth() + 1);
-
-  const monthlyPayments = await db
-    .select()
-    .from(payment)
-    .where(
-      and(
-        eq(payment.userId, userId),
-        eq(payment.status, 'completed'),
-        gte(payment.createdAt, startOfMonth),
-        lte(payment.createdAt, endOfMonth),
-      ),
-    );
-
-  const monthlyCount = monthlyPayments.length;
-
-  if (paymentMethodRecord.maxMonthlyCount && (monthlyCount + 1) > paymentMethodRecord.maxMonthlyCount) {
-    throw createError.badRequest(
-      `Transaction would exceed monthly transaction count limit. Current: ${monthlyCount}, Limit: ${paymentMethodRecord.maxMonthlyCount}`,
-    );
-  }
-}
-
-/**
- * Process successful payment
- */
-async function processSuccessfulPayment(
-  db: Awaited<ReturnType<typeof getDbAsync>>,
-  c: HandlerContext<ApiEnv>,
-  subscriptionData: SubscriptionRow,
-  paymentId: string,
-  amountInRials: number,
-  refId: string,
-  today: Date,
-): Promise<void> {
-  const { subscription: sub, user: userRecord } = subscriptionData;
-
-  // Update payment status
-  await db.update(payment)
-    .set({
-      status: 'completed',
-      zarinpalRefId: refId,
-      paidAt: new Date(),
-    })
-    .where(eq(payment.id, paymentId));
-
-  // Update subscription billing cycle
-  const nextBillingDate = new Date(today);
-  nextBillingDate.setMonth(nextBillingDate.getMonth() + 1);
-
-  await db.update(subscription)
-    .set({
-      billingCycleCount: (sub.billingCycleCount || 0) + 1,
-      lastBillingAttempt: new Date(),
-      nextBillingDate,
-      failedBillingAttempts: 0,
-    })
-    .where(eq(subscription.id, sub.id));
-
-  // Log billing event
-  await db.insert(billingEvent).values({
-    userId: sub.userId,
-    subscriptionId: sub.id,
-    paymentId,
-    paymentMethodId: subscriptionData.payment_method.id,
-    eventType: 'recurring_payment_success',
-    eventData: {
-      amount: amountInRials,
-      refId,
-      billingCycle: (sub.billingCycleCount || 0) + 1,
-      nextBillingDate: nextBillingDate.toISOString(),
-    },
-    severity: 'info',
-  });
-
-  // Dispatch Roundtable webhook
-  try {
-    await dispatchSuccessWebhook(subscriptionData, paymentId, amountInRials, refId, userRecord);
-  } catch (webhookError) {
-    c.logger.error('Failed to dispatch Roundtable webhook for recurring payment', webhookError instanceof Error ? webhookError : new Error(String(webhookError)));
-  }
-}
-
-/**
- * Process failed payment
- */
-async function processFailedPayment(
-  db: Awaited<ReturnType<typeof getDbAsync>>,
-  c: HandlerContext<ApiEnv>,
-  subscriptionData: SubscriptionRow,
-  paymentId: string,
-  amountInRials: number,
-  failureReason: string,
-  today: Date,
-): Promise<void> {
-  const { subscription: sub, user: userRecord } = subscriptionData;
-  const maxFailedAttempts = 3;
-
-  // Update payment status
-  await db.update(payment)
-    .set({
-      status: 'failed',
-      failureReason,
-      failedAt: new Date(),
-    })
-    .where(eq(payment.id, paymentId));
-
-  // Update subscription with failed billing attempt
-  const failedAttempts = (sub.failedBillingAttempts || 0) + 1;
-
-  type SubscriptionUpdate = {
-    lastBillingAttempt: Date;
-    failedBillingAttempts: number;
-    status?: 'active' | 'canceled' | 'expired' | 'pending';
-    endDate?: Date | null;
-    cancellationReason?: string | null;
-    nextBillingDate?: Date | null;
-  };
-
-  const subscriptionUpdate: SubscriptionUpdate = {
-    lastBillingAttempt: new Date(),
-    failedBillingAttempts: failedAttempts,
-  };
-
-  if (failedAttempts >= maxFailedAttempts) {
-    subscriptionUpdate.status = 'canceled';
-    subscriptionUpdate.endDate = new Date();
-    subscriptionUpdate.cancellationReason = `Payment failed ${maxFailedAttempts} times`;
-    subscriptionUpdate.nextBillingDate = null;
-  } else {
-    const retryDate = new Date(today);
-    retryDate.setDate(retryDate.getDate() + 3);
-    subscriptionUpdate.nextBillingDate = retryDate;
-  }
-
-  await db.update(subscription)
-    .set(subscriptionUpdate)
-    .where(eq(subscription.id, sub.id));
-
-  // Log billing event
-  await db.insert(billingEvent).values({
-    userId: sub.userId,
-    subscriptionId: sub.id,
-    paymentId,
-    paymentMethodId: subscriptionData.payment_method.id,
-    eventType: failedAttempts >= maxFailedAttempts ? 'subscription_cancelled_payment_failure' : 'recurring_payment_failed',
-    eventData: {
-      amount: amountInRials,
-      failureReason,
-      failedAttempts,
-      subscriptionCanceled: failedAttempts >= maxFailedAttempts,
-    },
-    severity: failedAttempts >= maxFailedAttempts ? 'critical' : 'warning',
-  });
-
-  // Dispatch failure webhook
-  try {
-    await dispatchFailureWebhook(subscriptionData, paymentId, amountInRials, failureReason, failedAttempts, maxFailedAttempts, userRecord);
-  } catch (webhookError) {
-    c.logger.error('Failed to dispatch Roundtable webhook for failed payment', webhookError instanceof Error ? webhookError : new Error(String(webhookError)));
-  }
-}
-
-/**
- * Dispatch success webhook to Roundtable using existing webhook system
- */
-async function dispatchSuccessWebhook(
-  subscriptionData: SubscriptionRow,
-  paymentId: string,
-  amountInRials: number,
-  refId: string,
-  userRecord: typeof user.$inferSelect,
-): Promise<void> {
-  const { WebhookEventBuilders, RoundtableWebhookForwarder } = await import('@/api/routes/webhooks/handler');
-  const { subscription: sub, product: prod } = subscriptionData;
-
-  // Use existing customer ID generation based on user email (not user ID)
-  const customerId = WebhookEventBuilders.generateVirtualStripeCustomerId(userRecord.email);
-
-  // Generate proper invoice ID using existing pattern
-  const invoiceId = `in_${WebhookEventBuilders.generateEventId().replace('evt_', '')}`;
-
-  const invoiceEvent = WebhookEventBuilders.createInvoicePaymentSucceededEvent(
-    invoiceId,
-    customerId,
-    sub.id,
-    amountInRials,
-    {
-      userEmail: userRecord.email,
-      roundtableProductId: prod.roundtableId || prod.id,
-      productName: prod.name,
-      planName: (prod.metadata as Record<string, unknown>)?.roundtable_plan_name as string || prod.name || 'Pro',
-      billingUserId: sub.userId,
-      paymentId,
-      zarinpalRefId: refId,
-      billingCycle: ((sub.billingCycleCount || 0) + 1).toString(),
-      recurringPayment: 'true',
-    },
-  );
-
-  await RoundtableWebhookForwarder.forwardEvent(invoiceEvent);
-}
-
-/**
- * Dispatch failure webhook to Roundtable using existing webhook system
- */
-async function dispatchFailureWebhook(
-  subscriptionData: SubscriptionRow,
-  paymentId: string,
-  amountInRials: number,
-  failureReason: string,
-  failedAttempts: number,
-  maxFailedAttempts: number,
-  userRecord: typeof user.$inferSelect,
-): Promise<void> {
-  const { WebhookEventBuilders, RoundtableWebhookForwarder } = await import('@/api/routes/webhooks/handler');
-  const { subscription: sub, product: prod } = subscriptionData;
-
-  // Use existing customer ID generation based on user email (not user ID)
-  const customerId = WebhookEventBuilders.generateVirtualStripeCustomerId(userRecord.email);
-
-  if (failedAttempts >= maxFailedAttempts) {
-    // Send subscription cancellation event
-    const subscriptionDeletedEvent = WebhookEventBuilders.createCustomerSubscriptionDeletedEvent(
-      sub.id,
-      customerId,
-      {
-        userEmail: userRecord.email,
-        roundtableProductId: prod.roundtableId || prod.id,
-        productName: prod.name,
-        planName: (prod.metadata as Record<string, unknown>)?.roundtable_plan_name as string || prod.name || 'Pro',
-        billingUserId: sub.userId,
-        cancellationReason: `Payment failed ${maxFailedAttempts} times`,
-        canceledAt: new Date().toISOString(),
-      },
-    );
-    await RoundtableWebhookForwarder.forwardEvent(subscriptionDeletedEvent);
-  } else {
-    // Send invoice payment failed event
-    const invoiceId = `in_${WebhookEventBuilders.generateEventId().replace('evt_', '')}`;
-    const invoiceFailedEvent = WebhookEventBuilders.createInvoicePaymentFailedEvent(
-      invoiceId,
-      customerId,
-      sub.id,
-      amountInRials,
-      failureReason,
-      {
-        userEmail: userRecord.email,
-        roundtableProductId: prod.roundtableId || prod.id,
-        productName: prod.name,
-        planName: (prod.metadata as Record<string, unknown>)?.roundtable_plan_name as string || prod.name || 'Pro',
-        billingUserId: sub.userId,
-        paymentId,
-        failedAttempts: failedAttempts.toString(),
-        recurringPayment: 'true',
-      },
-    );
-    await RoundtableWebhookForwarder.forwardEvent(invoiceFailedEvent);
-  }
-}
-
-/**
- * Process recurring payments for subscriptions with direct debit contracts
- * This endpoint should be called by a cron job (Cloudflare Cron Triggers)
- * Simplified with helper functions for better maintainability
- */
-export const processRecurringPaymentsHandler: RouteHandler<typeof processRecurringPaymentsRoute, ApiEnv> = createHandler(
+export const listProductsHandler: RouteHandler<typeof listProductsRoute, ApiEnv> = createHandler(
   {
-    auth: 'api-key', // API key authentication for cron jobs
-    operationName: 'processRecurringPayments',
+    auth: 'public',
+    operationName: 'listProducts',
   },
   async (c) => {
-    const db = await getDbAsync();
-    const today = new Date();
-
-    c.logger.info('Starting recurring payments processing', {
+    // Operation start logging
+    c.logger.info('Listing all products', {
       logType: 'operation',
-      operationName: 'processRecurringPayments',
-      resource: `date:${today.toISOString()}`,
-    });
-
-    // Find subscriptions due for billing today
-    const dueSubscriptions = await db
-      .select()
-      .from(subscription)
-      .innerJoin(product, eq(subscription.productId, product.id))
-      .innerJoin(paymentMethod, eq(subscription.paymentMethodId, paymentMethod.id))
-      .innerJoin(user, eq(subscription.userId, user.id))
-      .where(
-        and(
-          eq(subscription.status, 'active'),
-          eq(subscription.billingPeriod, 'monthly'), // Only monthly recurring
-          isNotNull(subscription.nextBillingDate),
-          lte(subscription.nextBillingDate, today), // Due today or overdue
-          eq(paymentMethod.contractStatus, 'active'), // Active direct debit contract
-          eq(product.isActive, true),
-        ),
-      );
-
-    const results: RecurringPaymentResult[] = [];
-    let successfulPayments = 0;
-    let failedPayments = 0;
-    let skippedSubscriptions = 0;
-
-    for (const subscriptionRow of dueSubscriptions) {
-      try {
-        // Skip if already processed today
-        const alreadyProcessed = await checkAlreadyProcessedToday(db, subscriptionRow.subscription.id, today);
-        if (alreadyProcessed) {
-          results.push({
-            subscriptionId: subscriptionRow.subscription.id,
-            userId: subscriptionRow.subscription.userId,
-            status: 'skipped',
-            reason: 'Already processed today',
-          });
-          skippedSubscriptions++;
-          continue;
-        }
-
-        // Calculate amount in IRR using currency exchange service
-        const currencyService = createCurrencyExchangeService();
-        const conversionResult = await currencyService.convertUsdToToman(subscriptionRow.product.price);
-        const amountInRials = Math.round(conversionResult.rialPrice);
-
-        // Create payment record (database generates ID)
-        const paymentData = {
-          userId: subscriptionRow.subscription.userId,
-          subscriptionId: subscriptionRow.subscription.id,
-          productId: subscriptionRow.product.id,
-          amount: amountInRials,
-          currency: 'IRR' as const,
-          status: 'pending' as const,
-          paymentMethod: 'zarinpal',
-          zarinpalDirectDebitUsed: true,
-        };
-
-        const result = await db.insert(payment).values(paymentData).returning();
-        if (!result[0]) {
-          throw createError.internal('Failed to create payment record');
-        }
-        const newPayment = result[0];
-        const paymentId = newPayment.id;
-
-        // Validate contract signature exists
-        if (!subscriptionRow.payment_method.contractSignatureEncrypted) {
-          throw createError.badRequest('Payment method has no valid contract signature');
-        }
-
-        // Validate contract status and transaction limits
-        await validateContractAndLimits(
-          db,
-          subscriptionRow.payment_method,
-          amountInRials,
-          subscriptionRow.subscription.userId,
-          today,
-        );
-
-        // Process payment with ZarinPal Direct Debit
-        const decryptedSignature = await decryptSignature(subscriptionRow.payment_method.contractSignatureEncrypted, c.env);
-        const zarinPalDirectDebit = ZarinPalDirectDebitService.create({ Bindings: c.env, Variables: c.var });
-
-        const directDebitResult = await zarinPalDirectDebit.chargeDirectDebit({
-          amount: amountInRials,
-          currency: 'IRR',
-          description: `Monthly subscription to ${subscriptionRow.product.name}`,
-          contractSignature: decryptedSignature,
-          metadata: {
-            subscriptionId: subscriptionRow.subscription.id,
-            paymentId,
-            userId: subscriptionRow.subscription.userId,
-            productId: subscriptionRow.product.id,
-            type: 'subscription',
-            billingCycle: 'monthly',
-          },
-        });
-
-        if (directDebitResult.success && directDebitResult.data?.refId) {
-          // Payment succeeded - use helper function
-          await processSuccessfulPayment(
-            db,
-            c,
-            subscriptionRow,
-            paymentId,
-            amountInRials,
-            directDebitResult.data.refId.toString(),
-            today,
-          );
-
-          results.push({
-            subscriptionId: subscriptionRow.subscription.id,
-            userId: subscriptionRow.subscription.userId,
-            status: 'success',
-            amount: amountInRials,
-          });
-          successfulPayments++;
-        } else {
-          // Payment failed - use helper function
-          const failureReason = directDebitResult.error || 'Direct debit payment failed';
-
-          await processFailedPayment(
-            db,
-            c,
-            subscriptionRow,
-            paymentId,
-            amountInRials,
-            failureReason,
-            today,
-          );
-
-          results.push({
-            subscriptionId: subscriptionRow.subscription.id,
-            userId: subscriptionRow.subscription.userId,
-            status: 'failed',
-            amount: amountInRials,
-            reason: failureReason,
-          });
-          failedPayments++;
-        }
-      } catch (error) {
-        c.logger.error(
-          `Error processing recurring payment for subscription ${subscriptionRow.subscription.id}`,
-          error instanceof Error ? error : new Error(String(error)),
-        );
-
-        results.push({
-          subscriptionId: subscriptionRow.subscription.id,
-          userId: subscriptionRow.subscription.userId,
-          status: 'failed',
-          reason: error instanceof Error ? error.message : 'Unknown error',
-        });
-        failedPayments++;
-      }
-    }
-
-    c.logger.info(`Recurring payments processing completed: ${successfulPayments} successful, ${failedPayments} failed, ${skippedSubscriptions} skipped`, {
-      logType: 'operation',
-      operationName: 'processRecurringPayments',
-      resource: `processed:${results.length}`,
-    });
-
-    return Responses.ok(c, {
-      processedCount: results.length,
-      successfulPayments,
-      failedPayments,
-      skippedSubscriptions,
-      details: results,
-    });
-  },
-);
-
-// ============================================================================
-// BILLING METRICS
-// ============================================================================
-
-/**
- * Get billing metrics for monitoring and analytics
- */
-export const getBillingMetricsHandler: RouteHandler<typeof getBillingMetricsRoute, ApiEnv> = createHandler(
-  {
-    auth: 'api-key', // API key authentication for monitoring
-    operationName: 'getBillingMetrics',
-  },
-  async (c) => {
-    const db = await getDbAsync();
-
-    c.logger.info('Fetching billing metrics', {
-      logType: 'operation',
-      operationName: 'getBillingMetrics',
+      operationName: 'listProducts',
     });
 
     try {
-      // Subscription metrics - using simple select and count in JavaScript (like base repository)
-      const [
-        totalSubscriptions,
-        activeSubscriptions,
-        pendingSubscriptions,
-        canceledSubscriptions,
-        dueTodaySubscriptions,
-      ] = await Promise.all([
-        db.select().from(subscription),
-        db.select().from(subscription).where(eq(subscription.status, 'active')),
-        db.select().from(subscription).where(eq(subscription.status, 'pending')),
-        db.select().from(subscription).where(eq(subscription.status, 'canceled')),
-        db.select().from(subscription).where(
-          and(
-            eq(subscription.status, 'active'),
-            lte(subscription.nextBillingDate, new Date()),
-          ),
-        ),
-      ]);
+      const db = await getDbAsync();
 
-      // Payment metrics - using simple select and calculation in JavaScript
-      const now = new Date();
-      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-      const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-      const endOfLastMonth = new Date(now.getFullYear(), now.getMonth(), 0);
-
-      const [
-        allCompletedPayments,
-        thisMonthPayments,
-        lastMonthPayments,
-        paymentsForAverage,
-      ] = await Promise.all([
-        db.select().from(payment).where(eq(payment.status, 'completed')),
-        db.select().from(payment).where(
-          and(
-            eq(payment.status, 'completed'),
-            gte(payment.paidAt, startOfMonth),
-          ),
-        ),
-        db.select().from(payment).where(
-          and(
-            eq(payment.status, 'completed'),
-            gte(payment.paidAt, startOfLastMonth),
-            lte(payment.paidAt, endOfLastMonth),
-          ),
-        ),
-        db.select().from(payment).where(eq(payment.status, 'completed')),
-      ]);
-
-      // Calculate totals in JavaScript
-      const totalRevenue = { total: allCompletedPayments.reduce((sum, p) => sum + p.amount, 0) };
-      const thisMonthRevenue = { total: thisMonthPayments.reduce((sum, p) => sum + p.amount, 0) };
-      const lastMonthRevenue = { total: lastMonthPayments.reduce((sum, p) => sum + p.amount, 0) };
-      const averageOrderValue = {
-        count: paymentsForAverage.length,
-        total: paymentsForAverage.reduce((sum, p) => sum + p.amount, 0),
-      };
-
-      // Direct debit contract metrics
-      const [
-        activeContracts,
-        pendingContracts,
-        expiredContracts,
-      ] = await Promise.all([
-        db.select().from(paymentMethod).where(eq(paymentMethod.contractStatus, 'active')),
-        db.select().from(paymentMethod).where(eq(paymentMethod.contractStatus, 'pending_signature')),
-        db.select().from(paymentMethod).where(eq(paymentMethod.contractStatus, 'expired')),
-      ]);
-
-      // Webhook metrics
-      const lastWeek = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-      const [
-        totalWebhooks,
-        successfulWebhooks,
-        failedWebhooks,
-        lastWeekWebhooks,
-      ] = await Promise.all([
-        db.select().from(webhookEvent),
-        db.select().from(webhookEvent).where(eq(webhookEvent.processed, true)),
-        db.select().from(webhookEvent).where(eq(webhookEvent.processed, false)),
-        db.select().from(webhookEvent).where(gte(webhookEvent.createdAt, lastWeek)),
-      ]);
-
-      const avgOrderValue = averageOrderValue.count && averageOrderValue.total
-        ? Number(averageOrderValue.total) / averageOrderValue.count
-        : 0;
-
-      return Responses.ok(c, {
-        subscriptions: {
-          total: totalSubscriptions.length,
-          active: activeSubscriptions.length,
-          pending: pendingSubscriptions.length,
-          canceled: canceledSubscriptions.length,
-          dueTodayCount: dueTodaySubscriptions.length,
-        },
-        payments: {
-          totalRevenue: Number(totalRevenue.total || 0),
-          thisMonth: Number(thisMonthRevenue.total || 0),
-          lastMonth: Number(lastMonthRevenue.total || 0),
-          averageOrderValue: avgOrderValue,
-        },
-        directDebits: {
-          activeContracts: activeContracts.length,
-          pendingContracts: pendingContracts.length,
-          expiredContracts: expiredContracts.length,
-        },
-        webhooks: {
-          totalSent: totalWebhooks.length,
-          successfulDeliveries: successfulWebhooks.length,
-          failedDeliveries: failedWebhooks.length,
-          lastWeekActivity: lastWeekWebhooks.length,
+      // Use Drizzle relational query to get products with prices
+      const dbProducts = await db.query.stripeProduct.findMany({
+        where: eq(tables.stripeProduct.active, true),
+        with: {
+          prices: {
+            where: eq(tables.stripePrice.active, true),
+          },
         },
       });
+
+      const products = dbProducts
+        .map(product => ({
+          id: product.id,
+          name: product.name,
+          description: product.description,
+          features: product.features,
+          active: product.active,
+          prices: product.prices
+            .map(price => ({
+              id: price.id,
+              productId: price.productId,
+              unitAmount: price.unitAmount || 0,
+              currency: price.currency,
+              interval: (price.interval || 'month') as 'month' | 'year',
+              trialPeriodDays: price.trialPeriodDays,
+              active: price.active,
+            }))
+            .sort((a, b) => a.unitAmount - b.unitAmount), // Sort prices by amount (low to high)
+        }))
+        .sort((a, b) => {
+          // Sort products by their lowest price (low to high)
+          const lowestPriceA = a.prices[0]?.unitAmount ?? 0;
+          const lowestPriceB = b.prices[0]?.unitAmount ?? 0;
+          return lowestPriceA - lowestPriceB;
+        });
+
+      // Success logging with resource count
+      c.logger.info('Products retrieved successfully', {
+        logType: 'operation',
+        operationName: 'listProducts',
+        resource: `products[${products.length}]`,
+      });
+
+      return Responses.ok(c, {
+        products,
+        count: products.length,
+      });
     } catch (error) {
-      c.logger.error('Error fetching billing metrics', error instanceof Error ? error : new Error(String(error)));
-      throw createError.internal('Failed to fetch billing metrics');
+      // Error logging with proper Error instance
+      c.logger.error('Failed to list products', normalizeError(error));
+
+      const context: ErrorContext = {
+        errorType: 'database',
+        operation: 'select',
+        table: 'stripeProduct',
+      };
+      throw createError.internal('Failed to retrieve products', context);
     }
   },
 );
+
+export const getProductHandler: RouteHandler<typeof getProductRoute, ApiEnv> = createHandler(
+  {
+    auth: 'public',
+    validateParams: ProductIdParamSchema,
+    operationName: 'getProduct',
+  },
+  async (c) => {
+    const { id } = c.validated.params;
+
+    c.logger.info('Fetching product details', {
+      logType: 'operation',
+      operationName: 'getProduct',
+      resource: id,
+    });
+
+    try {
+      const db = await getDbAsync();
+
+      // Use Drizzle relational query
+      const dbProduct = await db.query.stripeProduct.findFirst({
+        where: eq(tables.stripeProduct.id, id),
+        with: {
+          prices: {
+            where: eq(tables.stripePrice.active, true),
+          },
+        },
+      });
+
+      if (!dbProduct) {
+        c.logger.warn('Product not found', {
+          logType: 'operation',
+          operationName: 'getProduct',
+          resource: id,
+        });
+        const context: ErrorContext = {
+          errorType: 'resource',
+          resource: 'product',
+          resourceId: id,
+        };
+        throw createError.notFound(`Product ${id} not found`, context);
+      }
+
+      c.logger.info('Product retrieved successfully', {
+        logType: 'operation',
+        operationName: 'getProduct',
+        resource: id,
+      });
+
+      return Responses.ok(c, {
+        product: {
+          id: dbProduct.id,
+          name: dbProduct.name,
+          description: dbProduct.description,
+          features: dbProduct.features,
+          active: dbProduct.active,
+          prices: dbProduct.prices
+            .map(price => ({
+              id: price.id,
+              productId: price.productId,
+              unitAmount: price.unitAmount || 0,
+              currency: price.currency,
+              interval: (price.interval || 'month') as 'month' | 'year',
+              trialPeriodDays: price.trialPeriodDays,
+              active: price.active,
+            }))
+            .sort((a, b) => a.unitAmount - b.unitAmount), // Sort prices by amount (low to high)
+        },
+      });
+    } catch (error) {
+      if (error instanceof AppError) {
+        throw error;
+      }
+      c.logger.error('Failed to get product', normalizeError(error));
+      const context: ErrorContext = {
+        errorType: 'database',
+        operation: 'select',
+        table: 'stripeProduct',
+        resourceId: id,
+      };
+      throw createError.internal('Failed to retrieve product', context);
+    }
+  },
+);
+
+// ============================================================================
+// Checkout Handlers (Theo's Pattern: Eager Sync After Checkout)
+// ============================================================================
+
+/**
+ * Create Checkout Session
+ *
+ * Following Theo's "Stay Sane with Stripe" pattern:
+ * - Creates Stripe Checkout session for subscription purchase
+ * - Success URL redirects to /dashboard/billing/success (WITHOUT session_id parameter)
+ * - Success page auto-triggers eager sync from Stripe API
+ * - This prevents race condition where UI loads before webhooks arrive
+ * - Webhooks still run in background but UI doesn't depend on them
+ *
+ * Flow:
+ * 1. User clicks "Subscribe" → This endpoint creates checkout session
+ * 2. User completes payment on Stripe
+ * 3. Stripe redirects to success URL
+ * 4. Success page calls /sync-after-checkout endpoint
+ * 5. Sync endpoint fetches fresh data from Stripe API
+ * 6. User sees updated subscription status immediately
+ */
+export const createCheckoutSessionHandler: RouteHandler<typeof createCheckoutSessionRoute, ApiEnv> = createHandlerWithBatch(
+  {
+    auth: 'session',
+    validateBody: CheckoutRequestSchema,
+    operationName: 'createCheckoutSession',
+  },
+  async (c, batch) => {
+    const user = c.get('user');
+    const body = c.validated.body;
+
+    if (!user) {
+      const context: ErrorContext = {
+        errorType: 'authentication',
+        operation: 'session_required',
+      };
+      throw createError.unauthenticated('Valid session required for checkout', context);
+    }
+
+    // Operation start logging with user and resource
+    c.logger.info('Creating checkout session', {
+      logType: 'operation',
+      operationName: 'createCheckoutSession',
+      userId: user.id,
+      resource: body.priceId,
+    });
+
+    try {
+      // Get or create Stripe customer (using batch.db for consistency)
+      const stripeCustomer = await batch.db.query.stripeCustomer.findFirst({
+        where: eq(tables.stripeCustomer.userId, user.id),
+      });
+
+      let customerId: string;
+
+      if (!stripeCustomer) {
+        const customer = await stripeService.createCustomer({
+          email: user.email,
+          name: user.name || undefined,
+          metadata: { userId: user.id },
+        });
+
+        // Insert using batch.db for atomic operation
+        const [insertedCustomer] = await batch.db.insert(tables.stripeCustomer).values({
+          id: customer.id,
+          userId: user.id,
+          email: customer.email ?? user.email,
+          name: customer.name ?? null,
+          createdAt: new Date(customer.created * 1000),
+          updatedAt: new Date(),
+        }).returning();
+
+        if (!insertedCustomer) {
+          throw createError.internal('Failed to create customer record', {
+            errorType: 'database',
+            operation: 'insert',
+            table: 'stripeCustomer',
+          });
+        }
+
+        customerId = insertedCustomer.id;
+
+        // Log customer creation
+        c.logger.info('Created new Stripe customer', {
+          logType: 'operation',
+          operationName: 'createCheckoutSession',
+          userId: user.id,
+          resource: customerId,
+        });
+      } else {
+        customerId = stripeCustomer.id;
+
+        // Log using existing customer
+        c.logger.info('Using existing Stripe customer', {
+          logType: 'operation',
+          operationName: 'createCheckoutSession',
+          userId: user.id,
+          resource: customerId,
+        });
+      }
+
+      const appUrl = c.env.NEXT_PUBLIC_APP_URL;
+      // Theo's pattern: Do NOT use CHECKOUT_SESSION_ID (ignore it)
+      // Success page will eagerly sync fresh data from Stripe API
+      const successUrl = body.successUrl || `${appUrl}/dashboard/billing/success`;
+      const cancelUrl = body.cancelUrl || `${appUrl}/dashboard/billing`;
+
+      const session = await stripeService.createCheckoutSession({
+        priceId: body.priceId,
+        customerId,
+        successUrl,
+        cancelUrl,
+        metadata: { userId: user.id },
+      });
+
+      if (!session.url) {
+        const context: ErrorContext = {
+          errorType: 'external_service',
+          service: 'stripe',
+          operation: 'create_checkout_session',
+          userId: user.id,
+        };
+        throw createError.internal('Checkout session created but URL is missing', context);
+      }
+
+      // Success logging with session ID
+      c.logger.info('Checkout session created successfully', {
+        logType: 'operation',
+        operationName: 'createCheckoutSession',
+        userId: user.id,
+        resource: session.id,
+      });
+
+      return Responses.ok(c, {
+        sessionId: session.id,
+        url: session.url,
+      });
+    } catch (error) {
+      // Error logging with proper Error instance
+      c.logger.error('Failed to create checkout session', normalizeError(error));
+      const context: ErrorContext = {
+        errorType: 'external_service',
+        service: 'stripe',
+        operation: 'create_checkout_session',
+        userId: user.id,
+      };
+      throw createError.internal('Failed to create checkout session', context);
+    }
+  },
+);
+
+// ============================================================================
+// Customer Portal Handlers
+// ============================================================================
+
+/**
+ * Create Stripe customer portal session handler
+ * Allows customers to manage their subscriptions and billing information
+ *
+ * Pattern: Returns portal URL for client-side redirect
+ */
+export const createCustomerPortalSessionHandler: RouteHandler<typeof createCustomerPortalSessionRoute, ApiEnv> = createHandler(
+  {
+    auth: 'session',
+    validateBody: CustomerPortalRequestSchema,
+    operationName: 'createCustomerPortalSession',
+  },
+  async (c) => {
+    const user = c.get('user');
+    const body = c.validated.body;
+
+    if (!user) {
+      const context: ErrorContext = {
+        errorType: 'authentication',
+        operation: 'session_required',
+      };
+      throw createError.unauthenticated('Valid session required for customer portal', context);
+    }
+
+    // Operation start logging
+    c.logger.info('Creating customer portal session', {
+      logType: 'operation',
+      operationName: 'createCustomerPortalSession',
+      userId: user.id,
+    });
+
+    try {
+      // Get customer ID from database
+      const customerId = await getCustomerIdByUserId(user.id);
+
+      if (!customerId) {
+        const context: ErrorContext = {
+          errorType: 'resource',
+          resource: 'customer',
+          userId: user.id,
+        };
+        throw createError.badRequest('No Stripe customer found for this user. Please create a subscription first.', context);
+      }
+
+      const appUrl = c.env.NEXT_PUBLIC_APP_URL;
+      const returnUrl = body.returnUrl || `${appUrl}/dashboard`;
+
+      const session = await stripeService.createCustomerPortalSession({
+        customerId,
+        returnUrl,
+      });
+
+      if (!session.url) {
+        const context: ErrorContext = {
+          errorType: 'external_service',
+          service: 'stripe',
+          operation: 'create_portal_session',
+          userId: user.id,
+        };
+        throw createError.internal('Portal session created but URL is missing', context);
+      }
+
+      // Success logging
+      c.logger.info('Customer portal session created successfully', {
+        logType: 'operation',
+        operationName: 'createCustomerPortalSession',
+        userId: user.id,
+        resource: customerId,
+      });
+
+      return Responses.ok(c, {
+        url: session.url,
+      });
+    } catch (error) {
+      // Re-throw if already an AppError
+      if (error instanceof AppError) {
+        throw error;
+      }
+
+      // Error logging with proper Error instance
+      c.logger.error('Failed to create customer portal session', normalizeError(error));
+      const context: ErrorContext = {
+        errorType: 'external_service',
+        service: 'stripe',
+        operation: 'create_portal_session',
+        userId: user.id,
+      };
+      throw createError.internal('Failed to create customer portal session', context);
+    }
+  },
+);
+
+// ============================================================================
+// Subscription Handlers
+// ============================================================================
+
+export const listSubscriptionsHandler: RouteHandler<typeof listSubscriptionsRoute, ApiEnv> = createHandler(
+  {
+    auth: 'session',
+    operationName: 'listSubscriptions',
+  },
+  async (c) => {
+    const user = c.get('user');
+
+    if (!user) {
+      const context: ErrorContext = {
+        errorType: 'authentication',
+        operation: 'session_required',
+      };
+      throw createError.unauthenticated('Valid session required to list subscriptions', context);
+    }
+
+    // Operation start logging
+    c.logger.info('Listing user subscriptions', {
+      logType: 'operation',
+      operationName: 'listSubscriptions',
+      userId: user.id,
+    });
+
+    try {
+      const db = await getDbAsync();
+
+      // Use Drizzle relational query with nested relations
+      const dbSubscriptions = await db.query.stripeSubscription.findMany({
+        where: eq(tables.stripeSubscription.userId, user.id),
+        with: {
+          price: {
+            with: {
+              product: true,
+            },
+          },
+        },
+      });
+
+      const subscriptions = dbSubscriptions.map(subscription => ({
+        id: subscription.id,
+        status: subscription.status as 'active' | 'past_due' | 'unpaid' | 'canceled' | 'incomplete' | 'incomplete_expired' | 'trialing' | 'paused',
+        priceId: subscription.priceId,
+        productId: subscription.price.productId,
+        currentPeriodStart: subscription.currentPeriodStart.toISOString(),
+        currentPeriodEnd: subscription.currentPeriodEnd.toISOString(),
+        cancelAtPeriodEnd: subscription.cancelAtPeriodEnd,
+        canceledAt: subscription.canceledAt?.toISOString() || null,
+        trialStart: subscription.trialStart?.toISOString() || null,
+        trialEnd: subscription.trialEnd?.toISOString() || null,
+      }));
+
+      // Success logging with resource count
+      c.logger.info('Subscriptions retrieved successfully', {
+        logType: 'operation',
+        operationName: 'listSubscriptions',
+        userId: user.id,
+        resource: `subscriptions[${subscriptions.length}]`,
+      });
+
+      return Responses.ok(c, {
+        subscriptions,
+        count: subscriptions.length,
+      });
+    } catch (error) {
+      // Error logging with proper Error instance
+      c.logger.error('Failed to list subscriptions', normalizeError(error));
+      const context: ErrorContext = {
+        errorType: 'database',
+        operation: 'select',
+        table: 'stripeSubscription',
+        userId: user.id,
+      };
+      throw createError.internal('Failed to retrieve subscriptions', context);
+    }
+  },
+);
+
+export const getSubscriptionHandler: RouteHandler<typeof getSubscriptionRoute, ApiEnv> = createHandler(
+  {
+    auth: 'session',
+    validateParams: SubscriptionIdParamSchema,
+    operationName: 'getSubscription',
+  },
+  async (c) => {
+    const user = c.get('user');
+    const { id } = c.validated.params;
+
+    if (!user) {
+      const context: ErrorContext = {
+        errorType: 'authentication',
+        operation: 'session_required',
+      };
+      throw createError.unauthenticated('Valid session required to view subscription', context);
+    }
+
+    c.logger.info('Fetching subscription details', {
+      logType: 'operation',
+      operationName: 'getSubscription',
+      userId: user.id,
+      resource: id,
+    });
+
+    const db = await getDbAsync();
+
+    try {
+      // Use Drizzle relational query with nested relations
+      const subscription = await db.query.stripeSubscription.findFirst({
+        where: eq(tables.stripeSubscription.id, id),
+        with: {
+          price: {
+            with: {
+              product: true,
+            },
+          },
+        },
+      });
+
+      if (!subscription) {
+        // Warning log before throwing not found error
+        c.logger.warn('Subscription not found', {
+          logType: 'operation',
+          operationName: 'getSubscription',
+          userId: user.id,
+          resource: id,
+        });
+        const context: ErrorContext = {
+          errorType: 'resource',
+          resource: 'subscription',
+          resourceId: id,
+          userId: user.id,
+        };
+        throw createError.notFound(`Subscription ${id} not found`, context);
+      }
+
+      if (subscription.userId !== user.id) {
+        // Warning log before throwing unauthorized error
+        c.logger.warn('Unauthorized subscription access attempt', {
+          logType: 'operation',
+          operationName: 'getSubscription',
+          userId: user.id,
+          resource: id,
+        });
+        const context: ErrorContext = {
+          errorType: 'authorization',
+          resource: 'subscription',
+          resourceId: id,
+          userId: user.id,
+        };
+        throw createError.unauthorized('You do not have access to this subscription', context);
+      }
+
+      c.logger.info('Subscription retrieved successfully', {
+        logType: 'operation',
+        operationName: 'getSubscription',
+        userId: user.id,
+        resource: id,
+      });
+
+      return Responses.ok(c, {
+        subscription: {
+          id: subscription.id,
+          status: subscription.status as 'active' | 'past_due' | 'unpaid' | 'canceled' | 'incomplete' | 'incomplete_expired' | 'trialing' | 'paused',
+          priceId: subscription.priceId,
+          productId: subscription.price.productId,
+          currentPeriodStart: subscription.currentPeriodStart.toISOString(),
+          currentPeriodEnd: subscription.currentPeriodEnd.toISOString(),
+          cancelAtPeriodEnd: subscription.cancelAtPeriodEnd,
+          canceledAt: subscription.canceledAt?.toISOString() || null,
+          trialStart: subscription.trialStart?.toISOString() || null,
+          trialEnd: subscription.trialEnd?.toISOString() || null,
+        },
+      });
+    } catch (error) {
+      if (error instanceof AppError) {
+        throw error;
+      }
+      c.logger.error('Failed to get subscription', normalizeError(error));
+      const context: ErrorContext = {
+        errorType: 'database',
+        operation: 'select',
+        table: 'stripeSubscription',
+        resourceId: id,
+        userId: user.id,
+      };
+      throw createError.internal('Failed to retrieve subscription', context);
+    }
+  },
+);
+
+// ============================================================================
+// Sync Handler (Theo's Pattern: Eager Sync After Checkout)
+// ============================================================================
+
+/**
+ * Sync Stripe Data After Checkout
+ *
+ * Following Theo's "Stay Sane with Stripe" pattern:
+ * - Called immediately after user returns from Stripe Checkout
+ * - Prevents race condition where user sees page before webhooks arrive
+ * - Fetches fresh data from Stripe API (not webhook payload)
+ * - Returns synced subscription state
+ */
+export const syncAfterCheckoutHandler: RouteHandler<typeof syncAfterCheckoutRoute, ApiEnv> = createHandler(
+  {
+    auth: 'session',
+    operationName: 'syncAfterCheckout',
+  },
+  async (c) => {
+    const user = c.get('user');
+
+    if (!user) {
+      const context: ErrorContext = {
+        errorType: 'authentication',
+        operation: 'session_required',
+      };
+      throw createError.unauthenticated('Valid session required for sync', context);
+    }
+
+    c.logger.info('Syncing Stripe data after checkout', {
+      logType: 'operation',
+      operationName: 'syncAfterCheckout',
+      userId: user.id,
+    });
+
+    try {
+      // Get customer ID from user ID
+      const customerId = await getCustomerIdByUserId(user.id);
+
+      if (!customerId) {
+        c.logger.warn('No Stripe customer found for user', {
+          logType: 'operation',
+          operationName: 'syncAfterCheckout',
+          userId: user.id,
+        });
+
+        const context: ErrorContext = {
+          errorType: 'resource',
+          resource: 'customer',
+          userId: user.id,
+        };
+        throw createError.notFound('No Stripe customer found for user', context);
+      }
+
+      // Eagerly sync data from Stripe API (Theo's pattern)
+      const syncedState = await syncStripeDataFromStripe(customerId);
+
+      c.logger.info('Stripe data synced successfully', {
+        logType: 'operation',
+        operationName: 'syncAfterCheckout',
+        userId: user.id,
+        resource: syncedState.status !== 'none' ? syncedState.subscriptionId : 'none',
+      });
+
+      return Responses.ok(c, {
+        synced: true,
+        subscription: syncedState.status !== 'none'
+          ? {
+              status: syncedState.status,
+              subscriptionId: syncedState.subscriptionId,
+            }
+          : null,
+      });
+    } catch (error) {
+      c.logger.error('Failed to sync Stripe data', normalizeError(error));
+      const context: ErrorContext = {
+        errorType: 'external_service',
+        service: 'stripe',
+        operation: 'sync_data',
+        userId: user.id,
+      };
+      throw createError.internal('Failed to sync Stripe data', context);
+    }
+  },
+);
+
+// ============================================================================
+// Webhook Handler (Theo's Pattern: Always Return 200, Async Processing)
+// ============================================================================
+
+/**
+ * Stripe Webhook Handler
+ *
+ * Following Theo's "Stay Sane with Stripe" pattern:
+ * - Verifies webhook signature from Stripe
+ * - ALWAYS returns 200 OK (even on processing errors) to prevent retry storms
+ * - Extracts only customerId from webhook payload (never trust full payload data)
+ * - Fetches fresh data from Stripe API (single source of truth)
+ * - Processes asynchronously using Cloudflare Workers waitUntil (production)
+ * - Falls back to synchronous processing (local development)
+ * - Implements idempotency check to prevent duplicate processing
+ *
+ * Architecture:
+ * 1. Verify signature → Return 400 if invalid (Stripe will not retry)
+ * 2. Check idempotency → Return 200 if already processed
+ * 3. Insert webhook event record (processed: false)
+ * 4. Return 200 immediately
+ * 5. Process webhook in background (extract customerId, sync from Stripe API)
+ * 6. Update webhook event record (processed: true)
+ *
+ * Error Handling:
+ * - Signature errors → 400 Bad Request (not 401)
+ * - Processing errors → Log and return 200 (prevents Stripe retry storms)
+ * - Background errors → Logged for manual investigation/retry
+ */
+export const handleWebhookHandler: RouteHandler<typeof handleWebhookRoute, ApiEnv> = createHandlerWithBatch(
+  {
+    auth: 'public',
+    operationName: 'handleStripeWebhook',
+  },
+  async (c, batch) => {
+    const signature = c.req.header('stripe-signature');
+
+    if (!signature) {
+      // Log missing signature attempt
+      c.logger.warn('Webhook request missing stripe-signature header', {
+        logType: 'operation',
+        operationName: 'handleStripeWebhook',
+      });
+      const context: ErrorContext = {
+        errorType: 'validation',
+        field: 'stripe-signature',
+      };
+      throw createError.badRequest('Missing stripe-signature header', context);
+    }
+
+    // Operation start logging
+    c.logger.info('Processing Stripe webhook', {
+      logType: 'operation',
+      operationName: 'handleStripeWebhook',
+    });
+
+    try {
+      const rawBody = await c.req.text();
+      const event = stripeService.constructWebhookEvent(rawBody, signature);
+
+      // Log successful signature verification
+      c.logger.info('Webhook signature verified', {
+        logType: 'operation',
+        operationName: 'handleStripeWebhook',
+        resource: `${event.type}-${event.id}`,
+      });
+
+      // Check for existing event using batch.db for consistency
+      const existingEvent = await batch.db.query.stripeWebhookEvent.findFirst({
+        where: eq(tables.stripeWebhookEvent.id, event.id),
+      });
+
+      if (existingEvent?.processed) {
+        // Log idempotent webhook (already processed)
+        c.logger.info('Webhook event already processed (idempotent)', {
+          logType: 'operation',
+          operationName: 'handleStripeWebhook',
+          resource: event.id,
+        });
+
+        return Responses.ok(c, {
+          received: true,
+          event: {
+            id: event.id,
+            type: event.type,
+            processed: true,
+          },
+        });
+      }
+
+      // Insert webhook event using batch.db for atomic operation
+      await batch.db.insert(tables.stripeWebhookEvent).values({
+        id: event.id,
+        type: event.type,
+        data: event.data.object as unknown as Record<string, unknown>,
+        processed: false,
+        createdAt: new Date(event.created * 1000),
+      }).onConflictDoNothing();
+
+      // Async webhook processing pattern for Cloudflare Workers
+      // Return 200 immediately, process webhook in background
+      const processAsync = async () => {
+        try {
+          // Process webhook event using batch.db
+          await processWebhookEvent(event, batch.db);
+
+          // Update webhook event as processed using batch.db
+          await batch.db.update(tables.stripeWebhookEvent)
+            .set({ processed: true })
+            .where(eq(tables.stripeWebhookEvent.id, event.id));
+
+          // Success logging with event type and ID
+          c.logger.info('Webhook processed successfully', {
+            logType: 'operation',
+            operationName: 'handleStripeWebhook',
+            resource: `${event.type}-${event.id}`,
+          });
+        } catch (error) {
+          // Background processing error - log but don't fail the response
+          c.logger.error(
+            `Background webhook processing failed for event ${event.type} (${event.id})`,
+            normalizeError(error),
+          );
+        }
+      };
+
+      // Use Cloudflare Workers async processing if available (production)
+      // Otherwise process synchronously (local development)
+      if (c.executionCtx) {
+        c.executionCtx.waitUntil(processAsync());
+      } else {
+        await processAsync();
+      }
+
+      return Responses.ok(c, {
+        received: true,
+        event: {
+          id: event.id,
+          type: event.type,
+          processed: true,
+        },
+      });
+    } catch (error) {
+      // Error logging with proper Error instance
+      c.logger.error('Webhook processing failed', normalizeError(error));
+
+      // CRITICAL (Theo's Pattern): ALWAYS return 200 to Stripe even on errors
+      // This prevents webhook retry storms. Stripe will mark webhook as delivered.
+      // Failed processing is logged for investigation and manual retry if needed.
+      return Responses.ok(c, {
+        received: true,
+        event: {
+          id: 'unknown',
+          type: 'unknown',
+          processed: false,
+          error: 'Processing failed - logged for investigation',
+        },
+      });
+    }
+  },
+);
+
+// ============================================================================
+// Webhook Event Processing (Theo's Pattern)
+// ============================================================================
+
+/**
+ * Tracked Webhook Events (Following Theo's "Stay Sane with Stripe" Pattern)
+ *
+ * Source: https://github.com/t3dotgg/stay-sane-with-stripe
+ *
+ * Philosophy:
+ * - ALL events trigger the SAME sync function (syncStripeDataFromStripe)
+ * - NO event-specific logic needed
+ * - Extract customerId → Fetch fresh data from Stripe API → Upsert to database
+ * - Never trust webhook payloads, always fetch fresh from Stripe API
+ *
+ * This is Theo's EXACT event list from his implementation.
+ * While some events may seem redundant (e.g., customer.subscription.paused is also
+ * fired as customer.subscription.updated), tracking them explicitly ensures we never
+ * miss critical subscription state changes due to Stripe's eventual consistency model.
+ *
+ * Event Categories:
+ *
+ * 1. CHECKOUT EVENTS:
+ *    - checkout.session.completed: User completes checkout
+ *
+ * 2. SUBSCRIPTION LIFECYCLE:
+ *    - customer.subscription.created: New subscription
+ *    - customer.subscription.updated: Subscription changed
+ *    - customer.subscription.deleted: Subscription canceled
+ *    - customer.subscription.paused: Subscription paused
+ *    - customer.subscription.resumed: Subscription resumed
+ *    - customer.subscription.pending_update_applied: Scheduled update applied
+ *    - customer.subscription.pending_update_expired: Scheduled update expired
+ *    - customer.subscription.trial_will_end: Trial ending (3 days before)
+ *
+ * 3. INVOICE & PAYMENT EVENTS:
+ *    - invoice.paid: Invoice successfully paid
+ *    - invoice.payment_failed: Payment failed
+ *    - invoice.payment_action_required: 3D Secure/SCA required
+ *    - invoice.upcoming: Invoice upcoming (7 days before)
+ *    - invoice.marked_uncollectible: Invoice uncollectible after retries
+ *    - invoice.payment_succeeded: Payment succeeded (safety duplicate)
+ *    - payment_intent.succeeded: Payment intent succeeded
+ *    - payment_intent.payment_failed: Payment intent failed
+ *    - payment_intent.canceled: Payment intent canceled
+ *
+ * Total Events: 18 (Theo's exact specification)
+ */
+const TRACKED_WEBHOOK_EVENTS: Stripe.Event.Type[] = [
+  // Checkout
+  'checkout.session.completed',
+
+  // Subscription lifecycle
+  'customer.subscription.created',
+  'customer.subscription.updated',
+  'customer.subscription.deleted',
+  'customer.subscription.paused',
+  'customer.subscription.resumed',
+  'customer.subscription.pending_update_applied',
+  'customer.subscription.pending_update_expired',
+  'customer.subscription.trial_will_end',
+
+  // Invoice and payment events
+  'invoice.paid',
+  'invoice.payment_failed',
+  'invoice.payment_action_required',
+  'invoice.upcoming',
+  'invoice.marked_uncollectible',
+  'invoice.payment_succeeded',
+  'payment_intent.succeeded',
+  'payment_intent.payment_failed',
+  'payment_intent.canceled',
+];
+
+/**
+ * Extract customer ID from webhook event
+ * All tracked events have a customer property
+ *
+ * Theo's Pattern: Type-check customerId is string (throw if not)
+ */
+function extractCustomerId(event: Stripe.Event): string | null {
+  const obj = event.data.object as { customer?: string | { id: string } };
+
+  if (!obj.customer)
+    return null;
+
+  // Type guard: string customer ID
+  if (typeof obj.customer === 'string') {
+    return obj.customer;
+  }
+
+  // Type guard: expanded customer object with id
+  if (typeof obj.customer === 'object' && typeof obj.customer.id === 'string') {
+    return obj.customer.id;
+  }
+
+  // Throw on invalid type (Theo's requirement: "Type-check customerId is string (throw if not)")
+  const context: ErrorContext = {
+    errorType: 'external_service',
+    service: 'stripe',
+    operation: 'webhook_processing',
+  };
+  throw createError.badRequest(
+    `Invalid customer type in webhook event: expected string or object with id, got ${typeof obj.customer}`,
+    context,
+  );
+}
+
+/**
+ * Process Webhook Event (Theo's Simplified Pattern)
+ *
+ * Philosophy:
+ * - Don't trust webhook payloads (can be stale or incomplete)
+ * - Extract customerId only
+ * - Call single sync function that fetches fresh data from Stripe API
+ * - No event-specific logic needed
+ */
+async function processWebhookEvent(
+  event: Stripe.Event,
+  db: Awaited<ReturnType<typeof getDbAsync>>,
+): Promise<void> {
+  // Skip if event type not tracked
+  if (!TRACKED_WEBHOOK_EVENTS.includes(event.type)) {
+    apiLogger.info('Skipping untracked webhook event', {
+      logType: 'operation',
+      operationName: 'webhookSkipped',
+      resource: `${event.type}-${event.id}`,
+    });
+    return;
+  }
+
+  // Extract customer ID
+  const customerId = extractCustomerId(event);
+
+  if (!customerId) {
+    apiLogger.warn('Webhook event missing customer ID', {
+      logType: 'operation',
+      operationName: 'webhookMissingCustomer',
+      resource: `${event.type}-${event.id}`,
+    });
+    return;
+  }
+
+  // Verify customer exists in our database
+  const customer = await db.query.stripeCustomer.findFirst({
+    where: eq(tables.stripeCustomer.id, customerId),
+  });
+
+  if (!customer) {
+    apiLogger.warn('Webhook event for unknown customer', {
+      logType: 'operation',
+      operationName: 'webhookUnknownCustomer',
+      resource: `${event.type}-${customerId}`,
+    });
+    return;
+  }
+
+  // Single sync function - fetches fresh data from Stripe API (Theo's pattern)
+  await syncStripeDataFromStripe(customerId);
+
+  apiLogger.info('Webhook event processed via sync', {
+    logType: 'operation',
+    operationName: 'webhookSynced',
+    resource: `${event.type}-${customerId}`,
+  });
+}

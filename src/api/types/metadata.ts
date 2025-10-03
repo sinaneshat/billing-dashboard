@@ -1,11 +1,16 @@
 /**
- * Type-safe metadata interfaces following Context7 Hono best practices
- * Replaces generic Record<string, unknown> with specific typed interfaces
+ * Type-safe metadata interfaces for SEO and structured data
+ * Following Context7 Hono best practices
+ *
+ * Restored from commit a24d1f67 and adapted for Stripe billing
  */
 
 import { z } from 'zod';
 
-// Base metadata schema for validation
+// ============================================================================
+// Base Metadata Schema
+// ============================================================================
+
 export const BaseMetadataSchema = z.object({
   createdBy: z.string().optional(),
   createdAt: z.string().datetime().optional(),
@@ -15,38 +20,52 @@ export const BaseMetadataSchema = z.object({
   tags: z.array(z.string()).optional(),
 });
 
-// Product-specific metadata
+// ============================================================================
+// Domain-Specific Metadata Schemas
+// ============================================================================
+
+/**
+ * Product metadata for Stripe products
+ * Used for SEO, structured data, and product catalog
+ */
 export const ProductMetadataSchema = BaseMetadataSchema.extend({
-  features: z.array(z.string()),
-  tier: z.enum(['free', 'starter', 'pro', 'power', 'enterprise']),
-  popular: z.boolean(),
-  messagesPerMonth: z.number().int().positive(),
-  aiModelsLimit: z.number().int().positive(),
-  conversationsPerMonth: z.number().int().positive(),
+  features: z.array(z.string()).optional(),
+  tier: z.enum(['free', 'starter', 'pro', 'power', 'enterprise']).optional(),
+  popular: z.boolean().optional(),
+  messagesPerMonth: z.number().int().positive().optional(),
+  aiModelsLimit: z.number().int().positive().optional(),
+  conversationsPerMonth: z.number().int().positive().optional(),
+  category: z.string().optional(),
+  seoTitle: z.string().optional(),
+  seoDescription: z.string().optional(),
+  ogImage: z.string().url().optional(),
 });
 
-// Payment-specific metadata
-export const PaymentMetadataSchema = BaseMetadataSchema.extend({
-  source: z.enum(['web', 'mobile', 'api', 'webhook']),
-  gateway: z.string(),
-  gatewayTransactionId: z.string().optional(),
-  currency: z.string().length(3),
-  exchangeRate: z.number().positive().optional(),
-  fees: z.number().nonnegative().optional(),
-  description: z.string().optional(),
-});
-
-// Subscription-specific metadata
+/**
+ * Subscription metadata for Stripe subscriptions
+ * Tracks subscription lifecycle and billing information
+ */
 export const SubscriptionMetadataSchema = BaseMetadataSchema.extend({
-  planType: z.enum(['monthly', 'yearly', 'lifetime']),
-  autoRenewal: z.boolean(),
+  planType: z.enum(['monthly', 'yearly', 'lifetime']).optional(),
+  autoRenewal: z.boolean().optional(),
   trialEnd: z.string().datetime().optional(),
   promotionCode: z.string().optional(),
   discountAmount: z.number().nonnegative().optional(),
   nextBillingDate: z.string().datetime().optional(),
+  planChangeHistory: z.array(z.object({
+    fromProductId: z.string(),
+    toProductId: z.string(),
+    fromPrice: z.number(),
+    toPrice: z.number(),
+    changedAt: z.string().datetime(),
+    effectiveDate: z.string().datetime(),
+  })).optional(),
 });
 
-// User-specific metadata
+/**
+ * User metadata for preferences and tracking
+ * Used for personalization and analytics
+ */
 export const UserMetadataSchema = BaseMetadataSchema.extend({
   preferences: z.object({
     language: z.string().length(2),
@@ -58,22 +77,52 @@ export const UserMetadataSchema = BaseMetadataSchema.extend({
   referredBy: z.string().optional(),
 });
 
-// Type inference from schemas
+/**
+ * SEO metadata for pages and routes
+ * Used for dynamic Open Graph and meta tags
+ */
+export const SeoMetadataSchema = z.object({
+  title: z.string().max(60),
+  description: z.string().max(160),
+  keywords: z.array(z.string()),
+  ogImage: z.string().url(),
+  ogType: z.enum(['website', 'article', 'product']),
+  canonicalUrl: z.string().url().optional(),
+  noindex: z.boolean().optional(),
+  publishedTime: z.string().datetime().optional(),
+  modifiedTime: z.string().datetime().optional(),
+  author: z.string().optional(),
+});
+
+// ============================================================================
+// Type Inference
+// ============================================================================
+
 export type BaseMetadata = z.infer<typeof BaseMetadataSchema>;
 export type ProductMetadata = z.infer<typeof ProductMetadataSchema>;
-export type PaymentMetadata = z.infer<typeof PaymentMetadataSchema>;
 export type SubscriptionMetadata = z.infer<typeof SubscriptionMetadataSchema>;
 export type UserMetadata = z.infer<typeof UserMetadataSchema>;
+export type SeoMetadata = z.infer<typeof SeoMetadataSchema>;
 
-// Union type for all metadata types
-export type TypedMetadata
-  = | ProductMetadata
-    | PaymentMetadata
-    | SubscriptionMetadata
-    | UserMetadata
-    | BaseMetadata;
+/**
+ * Union type for all metadata types
+ * Enables type-safe metadata handling across domains
+ */
+export type TypedMetadata =
+  | ProductMetadata
+  | SubscriptionMetadata
+  | UserMetadata
+  | SeoMetadata
+  | BaseMetadata;
 
-// Validation functions
+// ============================================================================
+// Validation Functions
+// ============================================================================
+
+/**
+ * Validate product metadata with Zod
+ * Throws descriptive error if validation fails
+ */
 export function validateProductMetadata(data: unknown): ProductMetadata {
   const result = ProductMetadataSchema.safeParse(data);
   if (!result.success) {
@@ -82,14 +131,10 @@ export function validateProductMetadata(data: unknown): ProductMetadata {
   return result.data;
 }
 
-export function validatePaymentMetadata(data: unknown): PaymentMetadata {
-  const result = PaymentMetadataSchema.safeParse(data);
-  if (!result.success) {
-    throw new Error(`Payment metadata validation failed: ${result.error.message}`);
-  }
-  return result.data;
-}
-
+/**
+ * Validate subscription metadata with Zod
+ * Throws descriptive error if validation fails
+ */
 export function validateSubscriptionMetadata(data: unknown): SubscriptionMetadata {
   const result = SubscriptionMetadataSchema.safeParse(data);
   if (!result.success) {
@@ -98,6 +143,10 @@ export function validateSubscriptionMetadata(data: unknown): SubscriptionMetadat
   return result.data;
 }
 
+/**
+ * Validate user metadata with Zod
+ * Throws descriptive error if validation fails
+ */
 export function validateUserMetadata(data: unknown): UserMetadata {
   const result = UserMetadataSchema.safeParse(data);
   if (!result.success) {
@@ -106,7 +155,26 @@ export function validateUserMetadata(data: unknown): UserMetadata {
   return result.data;
 }
 
-// Safe metadata parsing with fallback
+/**
+ * Validate SEO metadata with Zod
+ * Throws descriptive error if validation fails
+ */
+export function validateSeoMetadata(data: unknown): SeoMetadata {
+  const result = SeoMetadataSchema.safeParse(data);
+  if (!result.success) {
+    throw new Error(`SEO metadata validation failed: ${result.error.message}`);
+  }
+  return result.data;
+}
+
+/**
+ * Safe metadata parsing with fallback
+ * Returns null instead of throwing on validation failure
+ *
+ * @param data - Unknown data to parse
+ * @param schema - Zod schema to validate against
+ * @returns Parsed data or null
+ */
 export function parseTypedMetadata<T extends TypedMetadata>(
   data: unknown,
   schema: z.ZodSchema<T>,

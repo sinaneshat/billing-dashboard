@@ -150,10 +150,6 @@ function checkEnvironment(c: { env: ApiEnv['Bindings'] }) {
     // Check for required environment variables
     if (!c.env.BETTER_AUTH_SECRET)
       missingVars.push('BETTER_AUTH_SECRET');
-    if (!c.env.NEXT_PUBLIC_ZARINPAL_MERCHANT_ID)
-      missingVars.push('NEXT_PUBLIC_ZARINPAL_MERCHANT_ID');
-    if (!c.env.ZARINPAL_ACCESS_TOKEN)
-      missingVars.push('ZARINPAL_ACCESS_TOKEN');
     if (!c.env.NEXT_PUBLIC_WEBAPP_ENV)
       missingVars.push('NEXT_PUBLIC_WEBAPP_ENV');
 

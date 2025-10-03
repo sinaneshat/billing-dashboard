@@ -1,59 +1,55 @@
-// Auth service removed - using Better Auth directly
+/**
+ * API Services - Centralized Exports
+ *
+ * Single import point for all API service functions and types
+ * Follows the pattern from commit a24d1f67d90381a2e181818f93b6a7ad63c062cc
+ */
 
-// Payment Methods service exports
-export {
-  type CancelDirectDebitContractRequest,
-  type CancelDirectDebitContractResponse,
-  cancelDirectDebitContractService,
-  // Consolidated direct debit contract flow (3 endpoints)
-  type CreateDirectDebitContractRequest,
-  type CreateDirectDebitContractResponse,
-  createDirectDebitContractService,
-  // Basic payment method management
-  type GetPaymentMethodsRequest,
-  type GetPaymentMethodsResponse,
-  getPaymentMethodsService,
-  // Recovery service for failed verifications
-  type RecoverDirectDebitContractRequest,
-  type RecoverDirectDebitContractResponse,
-  recoverDirectDebitContractService,
-  // Set default payment method
-  type SetDefaultPaymentMethodRequest,
-  type SetDefaultPaymentMethodResponse,
-  setDefaultPaymentMethodService,
-  type VerifyDirectDebitContractRequest,
-  type VerifyDirectDebitContractResponse,
-  verifyDirectDebitContractService,
-} from './payment-methods';
+// ============================================================================
+// Checkout Service Exports
+// ============================================================================
 
-// Payments service exports
 export {
-  type GetPaymentsResponse,
-  getPaymentsService,
-} from './payments';
+  type CreateCheckoutSessionRequest,
+  type CreateCheckoutSessionResponse,
+  createCheckoutSessionService,
+  type SyncAfterCheckoutRequest,
+  type SyncAfterCheckoutResponse,
+  syncAfterCheckoutService,
+} from './checkout';
 
-// Products service exports
+// ============================================================================
+// Customer Portal Service Exports
+// ============================================================================
+
 export {
+  type CreateCustomerPortalSessionRequest,
+  type CreateCustomerPortalSessionResponse,
+  createCustomerPortalSessionService,
+} from './customer-portal';
+
+// ============================================================================
+// Subscriptions Service Exports
+// ============================================================================
+
+export {
+  type GetProductRequest,
+  type GetProductResponse,
+  getProductService,
   type GetProductsRequest,
   type GetProductsResponse,
   getProductsService,
 } from './products';
 
-// Subscriptions service exports
+// ============================================================================
+// Checkout Service Exports
+// ============================================================================
+
 export {
-  type CancelSubscriptionRequest,
-  type CancelSubscriptionResponse,
-  cancelSubscriptionService,
-  type CreateSubscriptionRequest,
-  type CreateSubscriptionResponse,
-  createSubscriptionService,
   type GetSubscriptionRequest,
   type GetSubscriptionResponse,
   getSubscriptionService,
   type GetSubscriptionsRequest,
   type GetSubscriptionsResponse,
   getSubscriptionsService,
-  type SwitchSubscriptionRequest,
-  type SwitchSubscriptionResponse,
-  switchSubscriptionService,
 } from './subscriptions';

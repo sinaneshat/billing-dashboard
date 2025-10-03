@@ -207,7 +207,7 @@ export function FormField({
     className: cn(
       (children as React.ReactElement<any>).props.className,
       hasError && 'border-destructive focus:ring-destructive',
-      isTouched && !hasError && showValidationState && 'border-green-500 focus:ring-green-500'
+      isTouched && !hasError && showValidationState && 'border-chart-3 focus:ring-chart-3'
     ),
   });
 
@@ -220,7 +220,7 @@ export function FormField({
           {showValidationState && isTouched && (
             <>
               {isValidating && <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />}
-              {!isValidating && !hasError && <CheckCircle className="h-3 w-3 text-green-600" />}
+              {!isValidating && !hasError && <CheckCircle className="h-3 w-3 text-chart-3" />}
               {!isValidating && hasError && <AlertCircle className="h-3 w-3 text-destructive" />}
             </>
           )}
@@ -287,10 +287,10 @@ export function PasswordField({
   };
 
   const getStrengthColor = (strength: number): string => {
-    if (strength < 30) return 'bg-red-500';
-    if (strength < 60) return 'bg-yellow-500';
-    if (strength < 80) return 'bg-blue-500';
-    return 'bg-green-500';
+    if (strength < 30) return 'bg-destructive';
+    if (strength < 60) return 'bg-chart-2';
+    if (strength < 80) return 'bg-primary';
+    return 'bg-chart-3';
   };
 
   const handlePasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -335,10 +335,10 @@ export function PasswordField({
               <span className="text-muted-foreground">Password strength</span>
               <span className={cn(
                 "font-medium",
-                strength < 30 ? 'text-red-600' :
-                strength < 60 ? 'text-yellow-600' :
-                strength < 80 ? 'text-blue-600' :
-                'text-green-600'
+                strength < 30 ? 'text-destructive' :
+                strength < 60 ? 'text-chart-2' :
+                strength < 80 ? 'text-primary' :
+                'text-chart-3'
               )}>
                 {getStrengthLabel(strength)}
               </span>
@@ -400,7 +400,7 @@ export function TextareaField({
           rows={rows}
           className={cn(
             'resize-none',
-            maxLength && value.length > maxLength * 0.9 && 'border-yellow-500 focus:ring-yellow-500'
+            maxLength && value.length > maxLength * 0.9 && 'border-chart-2 focus:ring-chart-2'
           )}
         />
         
@@ -408,15 +408,15 @@ export function TextareaField({
           <div className="flex justify-between text-xs text-muted-foreground">
             {minLength && (
               <span className={cn(
-                value.length < minLength && 'text-yellow-600'
+                value.length < minLength && 'text-chart-2'
               )}>
                 Minimum {minLength} characters
               </span>
             )}
             {maxLength && (
               <span className={cn(
-                value.length > maxLength * 0.9 && 'text-yellow-600',
-                value.length === maxLength && 'text-red-600'
+                value.length > maxLength * 0.9 && 'text-chart-2',
+                value.length === maxLength && 'text-destructive'
               )}>
                 {value.length}/{maxLength}
               </span>

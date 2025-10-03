@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "199b30c3-dc1f-4015-a419-17821d6d5039",
+  "id": "97561255-08d2-4ce1-9b6a-7f3eb013c269",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
     "account": {
@@ -369,8 +369,8 @@
       "uniqueConstraints": {},
       "checkConstraints": {}
     },
-    "billing_event": {
-      "name": "billing_event",
+    "stripe_customer": {
+      "name": "stripe_customer",
       "columns": {
         "id": {
           "name": "id",
@@ -386,48 +386,33 @@
           "notNull": true,
           "autoincrement": false
         },
-        "subscription_id": {
-          "name": "subscription_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "payment_id": {
-          "name": "payment_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "payment_method_id": {
-          "name": "payment_method_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "event_type": {
-          "name": "event_type",
+        "email": {
+          "name": "email",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
         },
-        "event_data": {
-          "name": "event_data",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "severity": {
-          "name": "severity",
+        "name": {
+          "name": "name",
           "type": "text",
           "primaryKey": false,
           "notNull": false,
-          "autoincrement": false,
-          "default": "'info'"
+          "autoincrement": false
+        },
+        "default_payment_method_id": {
+          "name": "default_payment_method_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "metadata": {
+          "name": "metadata",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
         },
         "created_at": {
           "name": "created_at",
@@ -445,95 +430,28 @@
         }
       },
       "indexes": {
-        "billing_event_user_id_idx": {
-          "name": "billing_event_user_id_idx",
+        "stripe_customer_user_id_unique": {
+          "name": "stripe_customer_user_id_unique",
           "columns": [
             "user_id"
           ],
-          "isUnique": false
+          "isUnique": true
         },
-        "billing_event_subscription_id_idx": {
-          "name": "billing_event_subscription_id_idx",
+        "stripe_customer_user_idx": {
+          "name": "stripe_customer_user_idx",
           "columns": [
-            "subscription_id"
-          ],
-          "isUnique": false
-        },
-        "billing_event_payment_id_idx": {
-          "name": "billing_event_payment_id_idx",
-          "columns": [
-            "payment_id"
-          ],
-          "isUnique": false
-        },
-        "billing_event_type_idx": {
-          "name": "billing_event_type_idx",
-          "columns": [
-            "event_type"
-          ],
-          "isUnique": false
-        },
-        "billing_event_severity_idx": {
-          "name": "billing_event_severity_idx",
-          "columns": [
-            "severity"
-          ],
-          "isUnique": false
-        },
-        "billing_event_created_at_idx": {
-          "name": "billing_event_created_at_idx",
-          "columns": [
-            "created_at"
+            "user_id"
           ],
           "isUnique": false
         }
       },
       "foreignKeys": {
-        "billing_event_user_id_user_id_fk": {
-          "name": "billing_event_user_id_user_id_fk",
-          "tableFrom": "billing_event",
+        "stripe_customer_user_id_user_id_fk": {
+          "name": "stripe_customer_user_id_user_id_fk",
+          "tableFrom": "stripe_customer",
           "tableTo": "user",
           "columnsFrom": [
             "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "billing_event_subscription_id_subscription_id_fk": {
-          "name": "billing_event_subscription_id_subscription_id_fk",
-          "tableFrom": "billing_event",
-          "tableTo": "subscription",
-          "columnsFrom": [
-            "subscription_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "billing_event_payment_id_payment_id_fk": {
-          "name": "billing_event_payment_id_payment_id_fk",
-          "tableFrom": "billing_event",
-          "tableTo": "payment",
-          "columnsFrom": [
-            "payment_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "billing_event_payment_method_id_payment_method_id_fk": {
-          "name": "billing_event_payment_method_id_payment_method_id_fk",
-          "tableFrom": "billing_event",
-          "tableTo": "payment_method",
-          "columnsFrom": [
-            "payment_method_id"
           ],
           "columnsTo": [
             "id"
@@ -546,8 +464,8 @@
       "uniqueConstraints": {},
       "checkConstraints": {}
     },
-    "payment": {
-      "name": "payment",
+    "stripe_invoice": {
+      "name": "stripe_invoice",
       "columns": {
         "id": {
           "name": "id",
@@ -556,8 +474,8 @@
           "notNull": true,
           "autoincrement": false
         },
-        "user_id": {
-          "name": "user_id",
+        "customer_id": {
+          "name": "customer_id",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
@@ -570,16 +488,23 @@
           "notNull": false,
           "autoincrement": false
         },
-        "product_id": {
-          "name": "product_id",
+        "status": {
+          "name": "status",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
         },
-        "amount": {
-          "name": "amount",
-          "type": "real",
+        "amount_due": {
+          "name": "amount_due",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "amount_paid": {
+          "name": "amount_paid",
+          "type": "integer",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
@@ -590,96 +515,51 @@
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
-          "default": "'IRR'"
+          "default": "'usd'"
         },
-        "status": {
-          "name": "status",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "'pending'"
-        },
-        "payment_method": {
-          "name": "payment_method",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "'zarinpal'"
-        },
-        "zarinpal_authority": {
-          "name": "zarinpal_authority",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "zarinpal_ref_id": {
-          "name": "zarinpal_ref_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "zarinpal_card_hash": {
-          "name": "zarinpal_card_hash",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "zarinpal_direct_debit_used": {
-          "name": "zarinpal_direct_debit_used",
+        "period_start": {
+          "name": "period_start",
           "type": "integer",
           "primaryKey": false,
           "notNull": false,
+          "autoincrement": false
+        },
+        "period_end": {
+          "name": "period_end",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "hosted_invoice_url": {
+          "name": "hosted_invoice_url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "invoice_pdf": {
+          "name": "invoice_pdf",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "paid": {
+          "name": "paid",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
           "autoincrement": false,
           "default": false
         },
-        "retry_count": {
-          "name": "retry_count",
+        "attempt_count": {
+          "name": "attempt_count",
           "type": "integer",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
           "default": 0
-        },
-        "max_retries": {
-          "name": "max_retries",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": 3
-        },
-        "next_retry_at": {
-          "name": "next_retry_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "paid_at": {
-          "name": "paid_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "failed_at": {
-          "name": "failed_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "failure_reason": {
-          "name": "failure_reason",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
         },
         "metadata": {
           "name": "metadata",
@@ -704,103 +584,35 @@
         }
       },
       "indexes": {
-        "payment_user_id_idx": {
-          "name": "payment_user_id_idx",
+        "stripe_invoice_customer_idx": {
+          "name": "stripe_invoice_customer_idx",
           "columns": [
-            "user_id"
+            "customer_id"
           ],
           "isUnique": false
         },
-        "payment_subscription_id_idx": {
-          "name": "payment_subscription_id_idx",
+        "stripe_invoice_subscription_idx": {
+          "name": "stripe_invoice_subscription_idx",
           "columns": [
             "subscription_id"
           ],
           "isUnique": false
         },
-        "payment_product_id_idx": {
-          "name": "payment_product_id_idx",
-          "columns": [
-            "product_id"
-          ],
-          "isUnique": false
-        },
-        "payment_status_idx": {
-          "name": "payment_status_idx",
+        "stripe_invoice_status_idx": {
+          "name": "stripe_invoice_status_idx",
           "columns": [
             "status"
-          ],
-          "isUnique": false
-        },
-        "payment_zarinpal_authority_idx": {
-          "name": "payment_zarinpal_authority_idx",
-          "columns": [
-            "zarinpal_authority"
-          ],
-          "isUnique": false
-        },
-        "payment_zarinpal_ref_id_idx": {
-          "name": "payment_zarinpal_ref_id_idx",
-          "columns": [
-            "zarinpal_ref_id"
-          ],
-          "isUnique": false
-        },
-        "payment_paid_at_idx": {
-          "name": "payment_paid_at_idx",
-          "columns": [
-            "paid_at"
-          ],
-          "isUnique": false
-        },
-        "payment_next_retry_at_idx": {
-          "name": "payment_next_retry_at_idx",
-          "columns": [
-            "next_retry_at"
-          ],
-          "isUnique": false
-        },
-        "payment_user_status_idx": {
-          "name": "payment_user_status_idx",
-          "columns": [
-            "user_id",
-            "status"
-          ],
-          "isUnique": false
-        },
-        "payment_subscription_status_idx": {
-          "name": "payment_subscription_status_idx",
-          "columns": [
-            "subscription_id",
-            "status"
-          ],
-          "isUnique": false
-        },
-        "payment_retry_processing_idx": {
-          "name": "payment_retry_processing_idx",
-          "columns": [
-            "status",
-            "next_retry_at"
-          ],
-          "isUnique": false
-        },
-        "payment_financial_reports_idx": {
-          "name": "payment_financial_reports_idx",
-          "columns": [
-            "status",
-            "paid_at",
-            "amount"
           ],
           "isUnique": false
         }
       },
       "foreignKeys": {
-        "payment_user_id_user_id_fk": {
-          "name": "payment_user_id_user_id_fk",
-          "tableFrom": "payment",
-          "tableTo": "user",
+        "stripe_invoice_customer_id_stripe_customer_id_fk": {
+          "name": "stripe_invoice_customer_id_stripe_customer_id_fk",
+          "tableFrom": "stripe_invoice",
+          "tableTo": "stripe_customer",
           "columnsFrom": [
-            "user_id"
+            "customer_id"
           ],
           "columnsTo": [
             "id"
@@ -808,30 +620,17 @@
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
-        "payment_subscription_id_subscription_id_fk": {
-          "name": "payment_subscription_id_subscription_id_fk",
-          "tableFrom": "payment",
-          "tableTo": "subscription",
+        "stripe_invoice_subscription_id_stripe_subscription_id_fk": {
+          "name": "stripe_invoice_subscription_id_stripe_subscription_id_fk",
+          "tableFrom": "stripe_invoice",
+          "tableTo": "stripe_subscription",
           "columnsFrom": [
             "subscription_id"
           ],
           "columnsTo": [
             "id"
           ],
-          "onDelete": "restrict",
-          "onUpdate": "no action"
-        },
-        "payment_product_id_product_id_fk": {
-          "name": "payment_product_id_product_id_fk",
-          "tableFrom": "payment",
-          "tableTo": "product",
-          "columnsFrom": [
-            "product_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "restrict",
+          "onDelete": "set null",
           "onUpdate": "no action"
         }
       },
@@ -839,8 +638,8 @@
       "uniqueConstraints": {},
       "checkConstraints": {}
     },
-    "payment_method": {
-      "name": "payment_method",
+    "stripe_payment_method": {
+      "name": "stripe_payment_method",
       "columns": {
         "id": {
           "name": "id",
@@ -849,119 +648,192 @@
           "notNull": true,
           "autoincrement": false
         },
-        "user_id": {
-          "name": "user_id",
+        "customer_id": {
+          "name": "customer_id",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
         },
-        "contract_type": {
-          "name": "contract_type",
+        "type": {
+          "name": "type",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
-          "autoincrement": false,
-          "default": "'pending_contract'"
+          "autoincrement": false
         },
-        "contract_signature": {
-          "name": "contract_signature",
+        "card_brand": {
+          "name": "card_brand",
           "type": "text",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
         },
-        "contract_status": {
-          "name": "contract_status",
+        "card_last4": {
+          "name": "card_last4",
           "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "card_exp_month": {
+          "name": "card_exp_month",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "card_exp_year": {
+          "name": "card_exp_year",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "bank_name": {
+          "name": "bank_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "bank_last4": {
+          "name": "bank_last4",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "is_default": {
+          "name": "is_default",
+          "type": "integer",
           "primaryKey": false,
           "notNull": true,
-          "autoincrement": false,
-          "default": "'pending_signature'"
-        },
-        "payman_authority": {
-          "name": "payman_authority",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "contract_display_name": {
-          "name": "contract_display_name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "'Direct Debit Contract'"
-        },
-        "contract_mobile": {
-          "name": "contract_mobile",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "contract_duration_days": {
-          "name": "contract_duration_days",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false,
-          "default": 365
-        },
-        "max_daily_amount": {
-          "name": "max_daily_amount",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "max_daily_count": {
-          "name": "max_daily_count",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "max_monthly_count": {
-          "name": "max_monthly_count",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "is_primary": {
-          "name": "is_primary",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
           "autoincrement": false,
           "default": false
         },
-        "is_active": {
-          "name": "is_active",
+        "metadata": {
+          "name": "metadata",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "stripe_payment_method_customer_idx": {
+          "name": "stripe_payment_method_customer_idx",
+          "columns": [
+            "customer_id"
+          ],
+          "isUnique": false
+        },
+        "stripe_payment_method_default_idx": {
+          "name": "stripe_payment_method_default_idx",
+          "columns": [
+            "is_default"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "stripe_payment_method_customer_id_stripe_customer_id_fk": {
+          "name": "stripe_payment_method_customer_id_stripe_customer_id_fk",
+          "tableFrom": "stripe_payment_method",
+          "tableTo": "stripe_customer",
+          "columnsFrom": [
+            "customer_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "stripe_price": {
+      "name": "stripe_price",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "product_id": {
+          "name": "product_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "active": {
+          "name": "active",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": true
+        },
+        "currency": {
+          "name": "currency",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'usd'"
+        },
+        "unit_amount": {
+          "name": "unit_amount",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "type": {
+          "name": "type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'recurring'"
+        },
+        "interval": {
+          "name": "interval",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "interval_count": {
+          "name": "interval_count",
           "type": "integer",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false,
-          "default": true
+          "default": 1
         },
-        "last_used_at": {
-          "name": "last_used_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "contract_expires_at": {
-          "name": "contract_expires_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "contract_verified_at": {
-          "name": "contract_verified_at",
+        "trial_period_days": {
+          "name": "trial_period_days",
           "type": "integer",
           "primaryKey": false,
           "notNull": false,
@@ -990,86 +862,28 @@
         }
       },
       "indexes": {
-        "payment_method_contract_signature_unique": {
-          "name": "payment_method_contract_signature_unique",
+        "stripe_price_product_idx": {
+          "name": "stripe_price_product_idx",
           "columns": [
-            "contract_signature"
-          ],
-          "isUnique": true
-        },
-        "payment_method_user_id_idx": {
-          "name": "payment_method_user_id_idx",
-          "columns": [
-            "user_id"
+            "product_id"
           ],
           "isUnique": false
         },
-        "payment_method_contract_signature_idx": {
-          "name": "payment_method_contract_signature_idx",
+        "stripe_price_active_idx": {
+          "name": "stripe_price_active_idx",
           "columns": [
-            "contract_signature"
-          ],
-          "isUnique": false
-        },
-        "payment_method_contract_type_idx": {
-          "name": "payment_method_contract_type_idx",
-          "columns": [
-            "contract_type"
-          ],
-          "isUnique": false
-        },
-        "payment_method_contract_status_idx": {
-          "name": "payment_method_contract_status_idx",
-          "columns": [
-            "contract_status"
-          ],
-          "isUnique": false
-        },
-        "payment_method_payman_authority_idx": {
-          "name": "payment_method_payman_authority_idx",
-          "columns": [
-            "payman_authority"
-          ],
-          "isUnique": false
-        },
-        "payment_method_is_primary_idx": {
-          "name": "payment_method_is_primary_idx",
-          "columns": [
-            "is_primary"
-          ],
-          "isUnique": false
-        },
-        "payment_method_is_active_idx": {
-          "name": "payment_method_is_active_idx",
-          "columns": [
-            "is_active"
-          ],
-          "isUnique": false
-        },
-        "payment_method_user_status_idx": {
-          "name": "payment_method_user_status_idx",
-          "columns": [
-            "user_id",
-            "contract_status"
-          ],
-          "isUnique": false
-        },
-        "payment_method_user_active_idx": {
-          "name": "payment_method_user_active_idx",
-          "columns": [
-            "user_id",
-            "is_active"
+            "active"
           ],
           "isUnique": false
         }
       },
       "foreignKeys": {
-        "payment_method_user_id_user_id_fk": {
-          "name": "payment_method_user_id_user_id_fk",
-          "tableFrom": "payment_method",
-          "tableTo": "user",
+        "stripe_price_product_id_stripe_product_id_fk": {
+          "name": "stripe_price_product_id_stripe_product_id_fk",
+          "tableFrom": "stripe_price",
+          "tableTo": "stripe_product",
           "columnsFrom": [
-            "user_id"
+            "product_id"
           ],
           "columnsTo": [
             "id"
@@ -1082,8 +896,8 @@
       "uniqueConstraints": {},
       "checkConstraints": {}
     },
-    "product": {
-      "name": "product",
+    "stripe_product": {
+      "name": "stripe_product",
       "columns": {
         "id": {
           "name": "id",
@@ -1106,53 +920,31 @@
           "notNull": false,
           "autoincrement": false
         },
-        "price": {
-          "name": "price",
-          "type": "real",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "billing_period": {
-          "name": "billing_period",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "'one_time'"
-        },
-        "is_active": {
-          "name": "is_active",
+        "active": {
+          "name": "active",
           "type": "integer",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
           "default": true
         },
-        "roundtable_id": {
-          "name": "roundtable_id",
+        "default_price_id": {
+          "name": "default_price_id",
           "type": "text",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
         },
-        "message_quota": {
-          "name": "message_quota",
-          "type": "integer",
+        "metadata": {
+          "name": "metadata",
+          "type": "text",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
         },
-        "conversation_limit": {
-          "name": "conversation_limit",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "model_limit": {
-          "name": "model_limit",
-          "type": "integer",
+        "images": {
+          "name": "images",
+          "type": "text",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
@@ -1164,41 +956,6 @@
           "notNull": false,
           "autoincrement": false
         },
-        "stripe_product_id": {
-          "name": "stripe_product_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "stripe_price_id": {
-          "name": "stripe_price_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "usage_type": {
-          "name": "usage_type",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "system_prompt_id": {
-          "name": "system_prompt_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "metadata": {
-          "name": "metadata",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
         "created_at": {
           "name": "created_at",
           "type": "integer",
@@ -1215,74 +972,10 @@
         }
       },
       "indexes": {
-        "product_roundtable_id_unique": {
-          "name": "product_roundtable_id_unique",
+        "stripe_product_active_idx": {
+          "name": "stripe_product_active_idx",
           "columns": [
-            "roundtable_id"
-          ],
-          "isUnique": true
-        },
-        "product_name_idx": {
-          "name": "product_name_idx",
-          "columns": [
-            "name"
-          ],
-          "isUnique": false
-        },
-        "product_billing_period_idx": {
-          "name": "product_billing_period_idx",
-          "columns": [
-            "billing_period"
-          ],
-          "isUnique": false
-        },
-        "product_is_active_idx": {
-          "name": "product_is_active_idx",
-          "columns": [
-            "is_active"
-          ],
-          "isUnique": false
-        },
-        "product_roundtable_id_idx": {
-          "name": "product_roundtable_id_idx",
-          "columns": [
-            "roundtable_id"
-          ],
-          "isUnique": false
-        },
-        "product_stripe_product_id_idx": {
-          "name": "product_stripe_product_id_idx",
-          "columns": [
-            "stripe_product_id"
-          ],
-          "isUnique": false
-        },
-        "product_stripe_price_id_idx": {
-          "name": "product_stripe_price_id_idx",
-          "columns": [
-            "stripe_price_id"
-          ],
-          "isUnique": false
-        },
-        "product_message_quota_idx": {
-          "name": "product_message_quota_idx",
-          "columns": [
-            "message_quota"
-          ],
-          "isUnique": false
-        },
-        "product_model_limit_idx": {
-          "name": "product_model_limit_idx",
-          "columns": [
-            "model_limit"
-          ],
-          "isUnique": false
-        },
-        "product_active_billing_idx": {
-          "name": "product_active_billing_idx",
-          "columns": [
-            "is_active",
-            "billing_period"
+            "active"
           ],
           "isUnique": false
         }
@@ -1292,13 +985,20 @@
       "uniqueConstraints": {},
       "checkConstraints": {}
     },
-    "subscription": {
-      "name": "subscription",
+    "stripe_subscription": {
+      "name": "stripe_subscription",
       "columns": {
         "id": {
           "name": "id",
           "type": "text",
           "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "customer_id": {
+          "name": "customer_id",
+          "type": "text",
+          "primaryKey": false,
           "notNull": true,
           "autoincrement": false
         },
@@ -1309,135 +1009,84 @@
           "notNull": true,
           "autoincrement": false
         },
-        "product_id": {
-          "name": "product_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
         "status": {
           "name": "status",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
-          "autoincrement": false,
-          "default": "'pending'"
-        },
-        "start_date": {
-          "name": "start_date",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
           "autoincrement": false
         },
-        "end_date": {
-          "name": "end_date",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "next_billing_date": {
-          "name": "next_billing_date",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "direct_debit_contract_id": {
-          "name": "direct_debit_contract_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "direct_debit_signature": {
-          "name": "direct_debit_signature",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "current_price": {
-          "name": "current_price",
-          "type": "real",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "billing_period": {
-          "name": "billing_period",
+        "price_id": {
+          "name": "price_id",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
         },
-        "payment_method_id": {
-          "name": "payment_method_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "trial_end_date": {
-          "name": "trial_end_date",
+        "quantity": {
+          "name": "quantity",
           "type": "integer",
           "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "grace_period_end_date": {
-          "name": "grace_period_end_date",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "cancellation_reason": {
-          "name": "cancellation_reason",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "upgrade_downgrade_at": {
-          "name": "upgrade_downgrade_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "proration_credit": {
-          "name": "proration_credit",
-          "type": "real",
-          "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
           "autoincrement": false,
-          "default": 0
+          "default": 1
         },
-        "billing_cycle_count": {
-          "name": "billing_cycle_count",
+        "cancel_at_period_end": {
+          "name": "cancel_at_period_end",
           "type": "integer",
           "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
           "autoincrement": false,
-          "default": 0
+          "default": false
         },
-        "last_billing_attempt": {
-          "name": "last_billing_attempt",
+        "cancel_at": {
+          "name": "cancel_at",
           "type": "integer",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
         },
-        "failed_billing_attempts": {
-          "name": "failed_billing_attempts",
+        "canceled_at": {
+          "name": "canceled_at",
           "type": "integer",
           "primaryKey": false,
           "notNull": false,
-          "autoincrement": false,
-          "default": 0
+          "autoincrement": false
+        },
+        "current_period_start": {
+          "name": "current_period_start",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "current_period_end": {
+          "name": "current_period_end",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "trial_start": {
+          "name": "trial_start",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "trial_end": {
+          "name": "trial_end",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "ended_at": {
+          "name": "ended_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
         },
         "metadata": {
           "name": "metadata",
@@ -1462,79 +1111,52 @@
         }
       },
       "indexes": {
-        "subscription_user_id_idx": {
-          "name": "subscription_user_id_idx",
+        "stripe_subscription_customer_idx": {
+          "name": "stripe_subscription_customer_idx",
+          "columns": [
+            "customer_id"
+          ],
+          "isUnique": false
+        },
+        "stripe_subscription_user_idx": {
+          "name": "stripe_subscription_user_idx",
           "columns": [
             "user_id"
           ],
           "isUnique": false
         },
-        "subscription_product_id_idx": {
-          "name": "subscription_product_id_idx",
-          "columns": [
-            "product_id"
-          ],
-          "isUnique": false
-        },
-        "subscription_status_idx": {
-          "name": "subscription_status_idx",
+        "stripe_subscription_status_idx": {
+          "name": "stripe_subscription_status_idx",
           "columns": [
             "status"
           ],
           "isUnique": false
         },
-        "subscription_next_billing_date_idx": {
-          "name": "subscription_next_billing_date_idx",
+        "stripe_subscription_price_idx": {
+          "name": "stripe_subscription_price_idx",
           "columns": [
-            "next_billing_date"
-          ],
-          "isUnique": false
-        },
-        "subscription_direct_debit_contract_id_idx": {
-          "name": "subscription_direct_debit_contract_id_idx",
-          "columns": [
-            "direct_debit_contract_id"
-          ],
-          "isUnique": false
-        },
-        "subscription_user_status_idx": {
-          "name": "subscription_user_status_idx",
-          "columns": [
-            "user_id",
-            "status"
-          ],
-          "isUnique": false
-        },
-        "subscription_user_product_idx": {
-          "name": "subscription_user_product_idx",
-          "columns": [
-            "user_id",
-            "product_id"
-          ],
-          "isUnique": false
-        },
-        "subscription_status_billing_date_idx": {
-          "name": "subscription_status_billing_date_idx",
-          "columns": [
-            "status",
-            "next_billing_date"
-          ],
-          "isUnique": false
-        },
-        "subscription_billing_automation_idx": {
-          "name": "subscription_billing_automation_idx",
-          "columns": [
-            "status",
-            "next_billing_date",
-            "payment_method_id"
+            "price_id"
           ],
           "isUnique": false
         }
       },
       "foreignKeys": {
-        "subscription_user_id_user_id_fk": {
-          "name": "subscription_user_id_user_id_fk",
-          "tableFrom": "subscription",
+        "stripe_subscription_customer_id_stripe_customer_id_fk": {
+          "name": "stripe_subscription_customer_id_stripe_customer_id_fk",
+          "tableFrom": "stripe_subscription",
+          "tableTo": "stripe_customer",
+          "columnsFrom": [
+            "customer_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "stripe_subscription_user_id_user_id_fk": {
+          "name": "stripe_subscription_user_id_user_id_fk",
+          "tableFrom": "stripe_subscription",
           "tableTo": "user",
           "columnsFrom": [
             "user_id"
@@ -1545,30 +1167,17 @@
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
-        "subscription_product_id_product_id_fk": {
-          "name": "subscription_product_id_product_id_fk",
-          "tableFrom": "subscription",
-          "tableTo": "product",
+        "stripe_subscription_price_id_stripe_price_id_fk": {
+          "name": "stripe_subscription_price_id_stripe_price_id_fk",
+          "tableFrom": "stripe_subscription",
+          "tableTo": "stripe_price",
           "columnsFrom": [
-            "product_id"
+            "price_id"
           ],
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "subscription_payment_method_id_payment_method_id_fk": {
-          "name": "subscription_payment_method_id_payment_method_id_fk",
-          "tableFrom": "subscription",
-          "tableTo": "payment_method",
-          "columnsFrom": [
-            "payment_method_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "restrict",
+          "onDelete": "no action",
           "onUpdate": "no action"
         }
       },
@@ -1576,8 +1185,8 @@
       "uniqueConstraints": {},
       "checkConstraints": {}
     },
-    "webhook_event": {
-      "name": "webhook_event",
+    "stripe_webhook_event": {
+      "name": "stripe_webhook_event",
       "columns": {
         "id": {
           "name": "id",
@@ -1586,33 +1195,18 @@
           "notNull": true,
           "autoincrement": false
         },
-        "source": {
-          "name": "source",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "'zarinpal'"
-        },
-        "event_type": {
-          "name": "event_type",
+        "type": {
+          "name": "type",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
         },
-        "payment_id": {
-          "name": "payment_id",
+        "api_version": {
+          "name": "api_version",
           "type": "text",
           "primaryKey": false,
           "notNull": false,
-          "autoincrement": false
-        },
-        "raw_payload": {
-          "name": "raw_payload",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
           "autoincrement": false
         },
         "processed": {
@@ -1623,35 +1217,6 @@
           "autoincrement": false,
           "default": false
         },
-        "processed_at": {
-          "name": "processed_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "forwarded_to_external": {
-          "name": "forwarded_to_external",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false,
-          "default": false
-        },
-        "forwarded_at": {
-          "name": "forwarded_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "external_webhook_url": {
-          "name": "external_webhook_url",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
         "processing_error": {
           "name": "processing_error",
           "type": "text",
@@ -1659,8 +1224,8 @@
           "notNull": false,
           "autoincrement": false
         },
-        "forwarding_error": {
-          "name": "forwarding_error",
+        "data": {
+          "name": "data",
           "type": "text",
           "primaryKey": false,
           "notNull": false,
@@ -1673,408 +1238,31 @@
           "notNull": true,
           "autoincrement": false
         },
-        "updated_at": {
-          "name": "updated_at",
+        "processed_at": {
+          "name": "processed_at",
           "type": "integer",
           "primaryKey": false,
-          "notNull": true,
+          "notNull": false,
           "autoincrement": false
         }
       },
       "indexes": {
-        "webhook_event_source_idx": {
-          "name": "webhook_event_source_idx",
+        "stripe_webhook_event_type_idx": {
+          "name": "stripe_webhook_event_type_idx",
           "columns": [
-            "source"
+            "type"
           ],
           "isUnique": false
         },
-        "webhook_event_type_idx": {
-          "name": "webhook_event_type_idx",
-          "columns": [
-            "event_type"
-          ],
-          "isUnique": false
-        },
-        "webhook_event_payment_id_idx": {
-          "name": "webhook_event_payment_id_idx",
-          "columns": [
-            "payment_id"
-          ],
-          "isUnique": false
-        },
-        "webhook_event_processed_idx": {
-          "name": "webhook_event_processed_idx",
+        "stripe_webhook_event_processed_idx": {
+          "name": "stripe_webhook_event_processed_idx",
           "columns": [
             "processed"
-          ],
-          "isUnique": false
-        },
-        "webhook_event_created_at_idx": {
-          "name": "webhook_event_created_at_idx",
-          "columns": [
-            "created_at"
-          ],
-          "isUnique": false
-        }
-      },
-      "foreignKeys": {
-        "webhook_event_payment_id_payment_id_fk": {
-          "name": "webhook_event_payment_id_payment_id_fk",
-          "tableFrom": "webhook_event",
-          "tableTo": "payment",
-          "columnsFrom": [
-            "payment_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "checkConstraints": {}
-    },
-    "external_webhook_endpoint": {
-      "name": "external_webhook_endpoint",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "name": {
-          "name": "name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "url": {
-          "name": "url",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "secret_key": {
-          "name": "secret_key",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "is_active": {
-          "name": "is_active",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": true
-        },
-        "enabled_events": {
-          "name": "enabled_events",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "'[\"*\"]'"
-        },
-        "max_retries": {
-          "name": "max_retries",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": 3
-        },
-        "retry_backoff_multiplier": {
-          "name": "retry_backoff_multiplier",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": 2
-        },
-        "timeout_ms": {
-          "name": "timeout_ms",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": 15000
-        },
-        "total_deliveries": {
-          "name": "total_deliveries",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": 0
-        },
-        "successful_deliveries": {
-          "name": "successful_deliveries",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": 0
-        },
-        "failed_deliveries": {
-          "name": "failed_deliveries",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": 0
-        },
-        "last_success_at": {
-          "name": "last_success_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "last_failure_at": {
-          "name": "last_failure_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "metadata": {
-          "name": "metadata",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        }
-      },
-      "indexes": {
-        "external_webhook_endpoint_name_idx": {
-          "name": "external_webhook_endpoint_name_idx",
-          "columns": [
-            "name"
-          ],
-          "isUnique": false
-        },
-        "external_webhook_endpoint_is_active_idx": {
-          "name": "external_webhook_endpoint_is_active_idx",
-          "columns": [
-            "is_active"
-          ],
-          "isUnique": false
-        },
-        "external_webhook_endpoint_url_idx": {
-          "name": "external_webhook_endpoint_url_idx",
-          "columns": [
-            "url"
           ],
           "isUnique": false
         }
       },
       "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "checkConstraints": {}
-    },
-    "webhook_delivery_attempt": {
-      "name": "webhook_delivery_attempt",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "webhook_event_id": {
-          "name": "webhook_event_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "endpoint_id": {
-          "name": "endpoint_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "attempt_number": {
-          "name": "attempt_number",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": 1
-        },
-        "http_status_code": {
-          "name": "http_status_code",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "response_body": {
-          "name": "response_body",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "response_headers": {
-          "name": "response_headers",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "delivered_at": {
-          "name": "delivered_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "response_time_ms": {
-          "name": "response_time_ms",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "success": {
-          "name": "success",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": false
-        },
-        "error_message": {
-          "name": "error_message",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "error_type": {
-          "name": "error_type",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "next_retry_at": {
-          "name": "next_retry_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "retry_after_ms": {
-          "name": "retry_after_ms",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        }
-      },
-      "indexes": {
-        "webhook_delivery_attempt_event_idx": {
-          "name": "webhook_delivery_attempt_event_idx",
-          "columns": [
-            "webhook_event_id"
-          ],
-          "isUnique": false
-        },
-        "webhook_delivery_attempt_endpoint_idx": {
-          "name": "webhook_delivery_attempt_endpoint_idx",
-          "columns": [
-            "endpoint_id"
-          ],
-          "isUnique": false
-        },
-        "webhook_delivery_attempt_success_idx": {
-          "name": "webhook_delivery_attempt_success_idx",
-          "columns": [
-            "success"
-          ],
-          "isUnique": false
-        },
-        "webhook_delivery_attempt_next_retry_idx": {
-          "name": "webhook_delivery_attempt_next_retry_idx",
-          "columns": [
-            "next_retry_at"
-          ],
-          "isUnique": false
-        },
-        "webhook_delivery_attempt_event_endpoint_idx": {
-          "name": "webhook_delivery_attempt_event_endpoint_idx",
-          "columns": [
-            "webhook_event_id",
-            "endpoint_id"
-          ],
-          "isUnique": false
-        },
-        "webhook_delivery_attempt_retry_queue_idx": {
-          "name": "webhook_delivery_attempt_retry_queue_idx",
-          "columns": [
-            "next_retry_at",
-            "success"
-          ],
-          "isUnique": false
-        }
-      },
-      "foreignKeys": {
-        "webhook_delivery_attempt_endpoint_id_external_webhook_endpoint_id_fk": {
-          "name": "webhook_delivery_attempt_endpoint_id_external_webhook_endpoint_id_fk",
-          "tableFrom": "webhook_delivery_attempt",
-          "tableTo": "external_webhook_endpoint",
-          "columnsFrom": [
-            "endpoint_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {}

@@ -1,22 +1,18 @@
 {
-  "name": "roundtable-billing-dashboard",
+  "name": "roundtable-dashboard",
   "version": "1.0.0",
   "private": true,
   "packageManager": "pnpm@10.11.0",
-  "description": "Roundtable Billing Dashboard - Advanced billing solutions for AI collaboration platforms. Multiple AI Models Brainstorm Together.",
+  "description": "Roundtable Dashboard - AI collaboration platform. Multiple AI Models Brainstorm Together.",
   "author": "Roundtable <hello@roundtable.now>",
   "homepage": "https://roundtable.now/",
   "repository": {
     "type": "git",
-    "url": "https://github.com/roundtable/billing-dashboard"
+    "url": "https://github.com/roundtable/dashboard"
   },
   "keywords": [
     "roundtable",
     "AI collaboration",
-    "billing",
-    "payments",
-    "zarinpal",
-    "subscriptions",
     "brainstorming",
     "multiple models",
     "misaligned",
@@ -24,9 +20,7 @@
     "cloudflare workers",
     "edge",
     "nextjs",
-    "dashboard",
-    "iranian-payments",
-    "rial"
+    "dashboard"
   ],
   "exports": {
     ".": {
@@ -97,6 +91,7 @@
     "db:full-reset:local": "pnpm db:drop-all:local && pnpm db:migrate:local",
     "db:full-reset:preview": "pnpm db:drop-all:preview && pnpm db:migrate:preview",
     "db:full-reset:prod": "pnpm db:drop-all:prod && pnpm db:migrate:prod",
+    "db:seed:stripe:local": "tsx scripts/seed-stripe.ts",
     "db:full-reset-all:local": "pnpm db:drop-all:local && pnpm db:migrate:local && pnpm db:seed:all:local",
     "db:full-reset-blog:local": "pnpm db:drop-all:local && pnpm db:migrate:local && pnpm db:seed:static:local && pnpm db:seed:blog:local",
     "db:full-reset-blog:preview": "pnpm db:drop-all:preview && pnpm db:migrate:preview && pnpm db:seed:static:preview && pnpm db:seed:blog:preview",
@@ -109,11 +104,6 @@
     "db:reset:prod": "chmod +x ./src/db/scripts/reset_and_reseed.sh && ./src/db/scripts/reset_and_reseed.sh prod",
     "db:fresh": "chmod +x ./scripts/reset-db-clean.sh && ./scripts/reset-db-clean.sh",
     "db:fresh:quick": "pnpm db:drop-all:local && pnpm db:migrate:local && npx tsx scripts/reset-db-fresh.ts",
-    "db:seed:production": "npx tsx scripts/seed-production.ts",
-    "db:seed:preview": "npx wrangler d1 execute DB --env preview --remote --file=./scripts/seed-products.sql",
-    "db:seed:prod": "npx wrangler d1 execute DB --env production --remote --file=./scripts/seed-products.sql",
-    "db:seed:all": "pnpm db:seed:production && pnpm db:seed:preview && pnpm db:seed:prod",
-    "db:deploy:fresh": "npm run db:push && npm run db:seed:production",
     "blog:schema": "tsc -p tsconfig.json src/tools/blog-generator/schema.ts",
     "blog:generate": "chmod +x ./src/tools/blog-generator/generate-blog.sh && ./src/tools/blog-generator/generate-blog.sh",
     "blog:generate:ts": "tsx src/tools/blog-generator/run-blog-generator.ts",
@@ -160,7 +150,6 @@
     "@react-email/render": "^1.1.2",
     "@scalar/hono-api-reference": "^0.9.13",
     "@scalar/openapi-to-markdown": "^0.2.26",
-    "@supabase/supabase-js": "^2.57.4",
     "@tanstack/react-query": "^5.77.0",
     "@tanstack/react-table": "^8.21.3",
     "@types/js-cookie": "^3.0.6",
@@ -191,8 +180,10 @@
     "react-hook-form": "^7.62.0",
     "recharts": "2.15.4",
     "stoker": "^2.0.1",
+    "stripe": "^19.0.0",
     "tailwind-merge": "^3.3.0",
     "tailwindcss-animate": "^1.0.7",
+    "use-debounce": "^10.0.6",
     "zod": "^4.0.17"
   },
   "devDependencies": {

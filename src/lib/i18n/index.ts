@@ -1,65 +1,24 @@
 /**
- * i18n Utility Functions
- * Helper functions for internationalization with next-intl
+ * Internationalization Utilities - English-only
+ *
+ * This application uses next-intl for translation key management with English-only support.
+ *
+ * **Usage in components:**
+ * ```tsx
+ * import { useTranslations } from 'next-intl';
+ *
+ * export function MyComponent() {
+ *   const t = useTranslations('namespace');
+ *   return <h1>{t('key')}</h1>;
+ * }
+ * ```
+ *
+ * **Translation keys:** Located in `/src/i18n/locales/en/common.json`
+ * **Locale:** Hardcoded to 'en' throughout the application
+ * **Currency:** USD-only formatting via standard Intl.NumberFormat
+ *
+ * Note: Import hooks directly from 'next-intl' rather than from this module.
  */
 
-import { useFormatter, useTranslations } from 'next-intl';
-
-/**
- * Custom hook for formatting Toman currency
- */
-export function useTomanFormatter() {
-  const format = useFormatter();
-  const t = useTranslations();
-
-  return {
-    formatToman: (amount: number) => {
-      if (amount === 0)
-        return t('plans.free');
-      const formatted = format.number(amount, 'toman');
-      return `${formatted} ${t('currency.toman')}`;
-    },
-    formatTomanShort: (amount: number) => {
-      if (amount === 0)
-        return t('plans.free');
-      return format.number(amount, 'toman');
-    },
-  };
-}
-
-/**
- * Translation keys for common UI patterns
- */
-export const commonKeys = {
-  // Actions
-  save: 'actions.save',
-  cancel: 'actions.cancel',
-  delete: 'actions.delete',
-  edit: 'actions.edit',
-  loading: 'actions.loading',
-  tryAgain: 'actions.tryAgain',
-
-  // Status
-  active: 'status.active',
-  inactive: 'status.inactive',
-  pending: 'status.pending',
-  completed: 'status.completed',
-  failed: 'status.failed',
-
-  // States
-  loadingDefault: 'states.loading.default',
-  errorDefault: 'states.error.default',
-  emptyDefault: 'states.empty.default',
-  successDefault: 'states.success.default',
-
-  // Time
-  now: 'time.now',
-  today: 'time.today',
-  perMonth: 'time.perMonth',
-  forever: 'time.forever',
-} as const;
-
-/**
- * Type-safe translation key helper
- */
-export type TranslationKey = keyof typeof commonKeys;
+// Locale utility (returns 'en' for English-only app)
+export { getUserLocale } from './locale-cookies';

@@ -1,7 +1,7 @@
 /**
  * PricingDisplay Component
  * Reusable pricing display component following shadcn/ui patterns
- * Supports USD to Toman conversion with real-time exchange rates
+ * Supports USD pricing display with proper formatting
  */
 
 import * as React from "react"
@@ -24,9 +24,9 @@ const pricingDisplayVariants = cva(
         default: "text-foreground",
         primary: "text-primary font-semibold",
         secondary: "text-muted-foreground",
-        success: "text-green-600 dark:text-green-400",
-        warning: "text-orange-600 dark:text-orange-400",
-        destructive: "text-red-600 dark:text-red-400",
+        success: "text-chart-3",
+        warning: "text-chart-2",
+        destructive: "text-destructive",
       },
       size: {
         sm: "text-sm",
@@ -56,7 +56,7 @@ const pricingDisplayVariants = cva(
 export interface PricingDisplayProps
   extends Omit<React.HTMLAttributes<HTMLDivElement>, 'size'>,
     VariantProps<typeof pricingDisplayVariants> {
-  /** Pre-formatted price from backend API (e.g., "99,000 تومان/ماه") */
+  /** Pre-formatted price from backend API (e.g., "$99/month") */
   formattedPrice: string
   /** Loading state while fetching price data */
   isLoading?: boolean

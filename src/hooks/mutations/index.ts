@@ -1,21 +1,21 @@
+/**
+ * Mutation Hooks - Centralized Exports
+ *
+ * Single import point for all TanStack Mutation hooks
+ * Following patterns from commit a24d1f67d90381a2e181818f93b6a7ad63c062cc
+ */
+
 // ============================================================================
 // MUTATION HOOKS BY DOMAIN
 // ============================================================================
 
-// Contract recovery
-export { useRecoverContractMutation } from './contract-recovery';
-
-// Direct debit contract management
+// Checkout mutations (protected)
 export {
-  useCancelDirectDebitContractMutation,
-  useCreateDirectDebitContractMutation,
-  useInitiateDirectDebitContractMutation,
-  useSetDefaultPaymentMethodMutation,
-  useVerifyDirectDebitContractMutation,
-} from './payment-methods';
+  useCreateCheckoutSessionMutation,
+  useSyncAfterCheckoutMutation,
+} from './checkout';
 
-// Subscription lifecycle management
+// Customer Portal mutations (protected)
 export {
-  useCancelSubscriptionMutation,
-  useCreateSubscriptionMutation,
-} from './subscriptions';
+  useCreateCustomerPortalSessionMutation,
+} from './customer-portal';

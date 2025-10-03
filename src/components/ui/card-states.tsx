@@ -4,8 +4,6 @@ import React from 'react';
 import {
   AlertTriangle,
   CheckCircle,
-  CreditCard,
-  FileText,
   Package,
   RefreshCw,
   WifiOff
@@ -20,9 +18,8 @@ import { LoadingSpinner } from '@/components/ui/loading-spinner';
 import { cn } from '@/lib/ui/cn';
 
 // =============================================================================
-// ENHANCED UNIFIED CARD STATE SYSTEM
-// Extends existing dashboard-cards.tsx and dashboard-states.tsx patterns
-// Provides better TypeScript support and TanStack Query integration
+// UNIFIED CARD STATE SYSTEM
+// Provides loading, empty, error, and success states for cards
 // =============================================================================
 
 // Enhanced loading state with better TanStack Query integration
@@ -128,7 +125,6 @@ export type CardEmptyStateProps = {
   description?: string;
   icon?: React.ReactNode;
   action?: React.ReactNode;
-  variant?: 'subscriptions' | 'payments' | 'plans' | 'methods' | 'general';
   size?: 'sm' | 'md' | 'lg';
   style?: 'default' | 'dashed' | 'minimal';
   className?: string;
@@ -139,43 +135,15 @@ export function CardEmptyState({
   description,
   icon,
   action,
-  variant = 'general',
   size = 'md',
   style = 'dashed',
   className,
 }: CardEmptyStateProps) {
   const t = useTranslations();
 
-  const variantConfig = {
-    subscriptions: {
-      icon: Package,
-      title: t('states.empty.subscriptions'),
-      description: t('states.empty.subscriptionsDescription'),
-    },
-    payments: {
-      icon: CreditCard,
-      title: t('states.empty.payments'),
-      description: t('states.empty.paymentsDescription'),
-    },
-    plans: {
-      icon: FileText,
-      title: t('states.empty.plans'),
-      description: t('states.empty.plansDescription'),
-    },
-    methods: {
-      icon: CreditCard,
-      title: t('states.empty.methods'),
-      description: t('states.empty.methodsDescription'),
-    },
-    general: {
-      icon: Package,
-      title: t('states.empty.default'),
-      description: t('states.empty.description'),
-    },
-  };
-
-  const config = variantConfig[variant];
-  const IconComponent = icon || config.icon;
+  const defaultTitle = title || t('states.empty.default');
+  const defaultDescription = description || t('states.empty.description');
+  const IconComponent = icon || Package;
 
   const sizeConfig = {
     sm: {
@@ -230,13 +198,13 @@ export function CardEmptyState({
           </div>
           <div className="space-y-2">
             <h3 className={sizeSettings.title}>
-              {title || config.title}
+              {defaultTitle}
             </h3>
             <p className={cn(
               sizeSettings.description,
               'text-muted-foreground max-w-md mx-auto',
             )}>
-              {description || config.description}
+              {defaultDescription}
             </p>
           </div>
           {action && (
@@ -393,11 +361,11 @@ export function CardSuccessState({
 }: CardSuccessStateProps) {
   if (variant === 'alert') {
     return (
-      <Alert className={cn('border-emerald-200 bg-emerald-50/50 dark:border-emerald-800 dark:bg-emerald-900/10', className)}>
-        <CheckCircle className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-        <AlertTitle className="text-emerald-800 dark:text-emerald-400">{title}</AlertTitle>
+      <Alert className={cn('border-chart-3/20 bg-chart-3/10', className)}>
+        <CheckCircle className="h-4 w-4 text-chart-3" />
+        <AlertTitle className="text-chart-3">{title}</AlertTitle>
         {description && (
-          <AlertDescription className="text-emerald-700 dark:text-emerald-300">
+          <AlertDescription className="text-chart-3/80">
             {description}
           </AlertDescription>
         )}
@@ -407,15 +375,15 @@ export function CardSuccessState({
   }
 
   return (
-    <Card className={cn('border-emerald-200 bg-emerald-50/50 dark:border-emerald-800 dark:bg-emerald-900/10', className)}>
+    <Card className={cn('border-chart-3/20 bg-chart-3/10', className)}>
       <CardContent className="text-center py-8 space-y-4">
-        <div className="w-16 h-16 bg-emerald-50 dark:bg-emerald-950/20 rounded-full flex items-center justify-center mx-auto">
-          <CheckCircle className="h-8 w-8 text-emerald-600 dark:text-emerald-400" />
+        <div className="w-16 h-16 bg-chart-3/20 rounded-full flex items-center justify-center mx-auto">
+          <CheckCircle className="h-8 w-8 text-chart-3" />
         </div>
         <div className="space-y-2">
-          <h3 className="text-base font-semibold text-emerald-800 dark:text-emerald-400">{title}</h3>
+          <h3 className="text-base font-semibold text-chart-3">{title}</h3>
           {description && (
-            <p className="text-sm text-emerald-700 dark:text-emerald-300">{description}</p>
+            <p className="text-sm text-chart-3/80">{description}</p>
           )}
         </div>
         {action && <div className="pt-2">{action}</div>}
@@ -484,57 +452,4 @@ export function CardWithStates<T>({
 
   // Render children with data
   return <>{children(data)}</>;
-}
-
-// Billing-specific card variants for common use cases
-export type BillingCardContainerProps<T> = {
-  data?: T[];
-  isLoading?: boolean;
-  isError?: boolean;
-  error?: Error | null;
-  onRetry?: () => void;
-  variant?: 'subscriptions' | 'payments' | 'methods' | 'general';
-  emptyAction?: React.ReactNode;
-  className?: string;
-  children: (items: T[]) => React.ReactNode;
-};
-
-export function BillingCardContainer<T>({
-  data,
-  isLoading,
-  isError,
-  error,
-  onRetry,
-  variant = 'general',
-  emptyAction,
-  className,
-  children,
-}: BillingCardContainerProps<T>) {
-  return (
-    <CardWithStates
-      data={data}
-      isLoading={isLoading}
-      isError={isError}
-      error={error}
-      onRetry={onRetry}
-      className={className}
-      loadingProps={{
-        variant: 'skeleton',
-        size: 'md',
-        rows: 3,
-      }}
-      emptyProps={{
-        variant,
-        action: emptyAction,
-        size: 'md',
-        style: 'dashed',
-      }}
-      errorProps={{
-        variant: 'card',
-        severity: 'error',
-      }}
-    >
-      {children}
-    </CardWithStates>
-  );
 }

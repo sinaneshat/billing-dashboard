@@ -20,11 +20,11 @@ type EmailBrandFooterProps = {
 // Simple minimal footer
 
 export function EmailBrandFooter({
-  companyName = 'Billing Dashboard',
+  companyName = 'Roundtable',
   unsubscribeUrl,
   privacyUrl,
   termsUrl,
-  contactEmail = 'support@example.com',
+  contactEmail = 'support@roundtable.now',
   style,
   children,
 }: EmailBrandFooterProps) {

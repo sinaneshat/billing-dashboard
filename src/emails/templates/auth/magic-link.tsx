@@ -28,7 +28,7 @@ export function MagicLink({
   requestIp,
   requestLocation,
 }: MagicLinkProps) {
-  const previewText = 'Your secure login link for Billing Dashboard';
+  const previewText = 'Your secure login link for Roundtable';
 
   return (
     <EmailLayout>
@@ -40,7 +40,7 @@ export function MagicLink({
           <EmailHeading level={1}>
             Sign in to
             {' '}
-            <strong>Billing Dashboard</strong>
+            <strong>Roundtable</strong>
           </EmailHeading>
 
           <EmailText>

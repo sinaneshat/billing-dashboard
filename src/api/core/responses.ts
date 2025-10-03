@@ -339,36 +339,6 @@ export function rateLimitExceeded(
 }
 
 /**
- * Create a payment error response
- */
-export function paymentError(
-  c: Context,
-  message: string,
-  provider: 'zarinpal' | 'stripe' | 'other',
-  gatewayError?: string,
-  gatewayCode?: string,
-): Response {
-  const errorContext: ErrorContext = {
-    errorType: 'payment',
-    provider,
-    gatewayError,
-    gatewayCode,
-  };
-
-  const response = {
-    success: false as const,
-    error: {
-      code: 'PAYMENT_ERROR',
-      message,
-      context: errorContext,
-    },
-    meta: extractResponseMetadata(c),
-  };
-
-  return c.json(response, HttpStatusCodes.BAD_REQUEST);
-}
-
-/**
  * Create an external service error response
  */
 export function externalServiceError(
@@ -596,7 +566,6 @@ export const Responses = {
   notFound,
   conflict,
   rateLimitExceeded,
-  paymentError,
   externalServiceError,
   databaseError,
   badRequest,

@@ -85,6 +85,13 @@ function getD1Binding(): D1Database | null {
  * Create database instance following official OpenNext.js patterns
  * Uses React cache for optimal performance in server components
  * CRITICAL FIX: Added error handling for ExecutionContext availability
+ *
+ * ⚠️ CLOUDFLARE D1 NOTE: Use batch operations, not transactions.
+ * For Cloudflare D1 environments, db.transaction() should NOT be used.
+ * Use db.batch() for atomic operations.
+ *
+ * @see {@link D1BatchDatabase} for batch operation documentation
+ * @see docs/backend-patterns.md#batch-operations for usage examples
  */
 export const getDb = cache(() => {
   try {
@@ -104,6 +111,13 @@ export const getDb = cache(() => {
 /**
  * Async version for static routes (ISR/SSG) following OpenNext.js patterns
  * CRITICAL FIX: Added error handling for ExecutionContext availability
+ *
+ * ⚠️ CLOUDFLARE D1 NOTE: Use batch operations, not transactions.
+ * For Cloudflare D1 environments, db.transaction() should NOT be used.
+ * Use db.batch() for atomic operations.
+ *
+ * @see {@link D1BatchDatabase} for batch operation documentation
+ * @see docs/backend-patterns.md#batch-operations for usage examples
  */
 export const getDbAsync = cache(async () => {
   try {
@@ -171,3 +185,6 @@ export type DbType = typeof db;
 
 // Export schema for Better Auth CLI compatibility
 export { schema };
+
+// Export batch-related types for TypeScript enforcement
+export type { BatchableOperation, BatchResults, D1BatchDatabase } from './d1-types';

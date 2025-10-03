@@ -13,11 +13,11 @@ type EmailFooterProps = {
 };
 
 export function EmailFooter({
-  companyName = 'Billing Dashboard',
+  companyName = 'Roundtable',
   unsubscribeUrl,
   privacyUrl,
   termsUrl,
-  contactEmail = 'support@example.com',
+  contactEmail = 'support@roundtable.now',
   className,
 }: EmailFooterProps) {
   return (

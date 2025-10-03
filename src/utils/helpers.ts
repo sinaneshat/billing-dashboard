@@ -104,7 +104,7 @@ export function getBaseUrl(): string {
   }
 
   // Default fallback
-  return 'https://billing.roundtable.now';
+  return 'https://app.roundtable.now';
 }
 
 // Export env as a getter for dynamic environment variables

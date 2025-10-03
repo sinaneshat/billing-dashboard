@@ -4,6 +4,8 @@ import pluginQuery from '@tanstack/eslint-plugin-query';
 import jsxA11y from 'eslint-plugin-jsx-a11y';
 import simpleImportSort from 'eslint-plugin-simple-import-sort';
 
+import localRules from './eslint-local-rules.js';
+
 export default antfu(
   {
     formatters: {
@@ -79,6 +81,18 @@ export default antfu(
       // 'import/no-duplicates': 'error', // Prevents importing the same module in multiple places
       // 'import/prefer-default-export': 'off', // Don't force default exports
       // 'import/no-default-export': 'off', // Allow default exports where needed
+    },
+  },
+  {
+    plugins: {
+      local: localRules,
+    },
+    rules: {
+      // 🚨 CRITICAL: Cloudflare D1 Batch-First Architecture Enforcement
+      // These rules prevent transaction usage and enforce batch operations
+      'local/no-db-transactions': 'error', // Block db.transaction() usage
+      'local/prefer-batch-handler': 'warn', // Suggest using createHandlerWithBatch
+      'local/batch-context-awareness': 'warn', // Prefer batch.db over getDbAsync() in batch handlers
     },
   },
 );

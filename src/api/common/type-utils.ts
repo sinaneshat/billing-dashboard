@@ -6,7 +6,7 @@
 
 /**
  * Safely extract a number from metadata with fallback
- * Used by monthly billing system for failure count tracking
+ * Used by systems for failure count tracking
  */
 export function getNumberFromMetadata(metadata: Record<string, unknown>, key: string, defaultValue: number = 0): number {
   const value = metadata?.[key];
