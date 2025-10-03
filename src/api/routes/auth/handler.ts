@@ -39,8 +39,8 @@ export const secureMeHandler: RouteHandler<typeof secureMeRoute, ApiEnv> = creat
       name: user.name,
       emailVerified: user.emailVerified,
       image: user.image,
-      createdAt: user.createdAt,
-      updatedAt: user.updatedAt,
+      createdAt: user.createdAt.toISOString(),
+      updatedAt: user.updatedAt.toISOString(),
     } as const;
 
     c.logger.info('User information retrieved successfully from Better Auth', {

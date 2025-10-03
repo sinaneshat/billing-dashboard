@@ -29,9 +29,29 @@ import { createOpenApiApp } from './factory';
 import { attachSession, requireSession } from './middleware';
 import { errorLoggerMiddleware, honoLoggerMiddleware } from './middleware/hono-logger';
 import { RateLimiterFactory } from './middleware/rate-limiter-factory';
+import { ensureStripeInitialized } from './middleware/stripe';
 // Import routes and handlers directly for proper RPC type inference
 import { secureMeHandler } from './routes/auth/handler';
 import { secureMeRoute } from './routes/auth/route';
+// Billing routes
+import {
+  cancelSubscriptionHandler,
+  createCheckoutSessionHandler,
+  getProductHandler,
+  getSubscriptionHandler,
+  handleWebhookHandler,
+  listProductsHandler,
+  listSubscriptionsHandler,
+} from './routes/billing/handler';
+import {
+  cancelSubscriptionRoute,
+  createCheckoutSessionRoute,
+  getProductRoute,
+  getSubscriptionRoute,
+  handleWebhookRoute,
+  listProductsRoute,
+  listSubscriptionsRoute,
+} from './routes/billing/route';
 // System/health routes
 import {
   detailedHealthHandler,
@@ -144,6 +164,9 @@ app.use('*', etag());
 // Session attachment
 app.use('*', attachSession);
 
+// Stripe initialization for billing routes
+app.use('/billing/*', ensureStripeInitialized);
+
 // Global rate limiting
 app.use('*', RateLimiterFactory.create('api'));
 
@@ -162,6 +185,10 @@ app.notFound(notFound);
 // Apply CSRF protection and authentication to protected routes
 // Following Hono best practices: apply CSRF only to authenticated routes
 app.use('/auth/me', csrfMiddleware, requireSession);
+app.use('/billing/checkout', csrfMiddleware, requireSession);
+app.use('/billing/subscriptions', csrfMiddleware, requireSession);
+app.use('/billing/subscriptions/:id', csrfMiddleware, requireSession);
+app.use('/billing/subscriptions/:id/cancel', csrfMiddleware, requireSession);
 
 // Register all routes directly on the app
 const appRoutes = app
@@ -170,6 +197,17 @@ const appRoutes = app
   .openapi(detailedHealthRoute, detailedHealthHandler)
   // Auth routes
   .openapi(secureMeRoute, secureMeHandler)
+  // Billing routes - Products (public)
+  .openapi(listProductsRoute, listProductsHandler)
+  .openapi(getProductRoute, getProductHandler)
+  // Billing routes - Checkout (protected)
+  .openapi(createCheckoutSessionRoute, createCheckoutSessionHandler)
+  // Billing routes - Subscriptions (protected)
+  .openapi(listSubscriptionsRoute, listSubscriptionsHandler)
+  .openapi(getSubscriptionRoute, getSubscriptionHandler)
+  .openapi(cancelSubscriptionRoute, cancelSubscriptionHandler)
+  // Billing routes - Webhooks (public with signature verification)
+  .openapi(handleWebhookRoute, handleWebhookHandler)
 ;
 
 // ============================================================================

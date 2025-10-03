@@ -40,7 +40,7 @@ export const CoreSchemas = {
     description: 'Valid email address',
   }),
 
-  url: () => z.string().url().openapi({
+  url: () => z.url().openapi({
     example: 'https://example.com',
     description: 'Valid URL',
   }),
@@ -67,7 +67,7 @@ export const CoreSchemas = {
   }),
 
   // Temporal fields
-  timestamp: () => z.string().datetime().openapi({
+  timestamp: () => z.iso.datetime().openapi({
     example: new Date().toISOString(),
     description: 'ISO 8601 timestamp',
   }),
@@ -125,7 +125,7 @@ export const RequestMetadataSchema = z.discriminatedUnion('type', [
     userId: z.string().uuid(),
     role: z.enum(['user', 'admin', 'moderator']),
     permissions: z.array(z.string()),
-    lastActivity: z.string().datetime(),
+    lastActivity: z.iso.datetime(),
     ipAddress: z.string().regex(/^(?:(?:25[0-5]|2[0-4]\d|[01]?\d{1,2})\.){3}(?:25[0-5]|2[0-4]\d|[01]?\d{1,2})$|^(?:[\da-f]{1,4}:){7}[\da-f]{1,4}$/i, 'Invalid IP address').optional(),
   }),
   z.object({
@@ -239,7 +239,7 @@ export const ResponseMetadataSchema = z.discriminatedUnion('metaType', [
   }),
   z.object({
     metaType: z.literal('location'),
-    resourceUrl: z.string().url(),
+    resourceUrl: z.url(),
     resourceId: z.string(),
     resourceType: z.string(),
   }),
@@ -251,7 +251,7 @@ export const ResponseMetadataSchema = z.discriminatedUnion('metaType', [
   }),
   z.object({
     metaType: z.literal('security'),
-    tokenExpires: z.string().datetime().optional(),
+    tokenExpires: z.iso.datetime().optional(),
     permissions: z.array(z.string()).optional(),
     ipAddress: z.string().optional(),
   }),
@@ -325,13 +325,13 @@ export const FeatureMetadataSchema = z.discriminatedUnion('featureType', [
     featureType: z.literal('user_setting'),
     preferenceKey: z.string(),
     preferenceValue: z.union([z.string(), z.number(), z.boolean()]),
-    updatedAt: z.string().datetime(),
+    updatedAt: z.iso.datetime(),
   }),
   z.object({
     featureType: z.literal('collaboration_session'),
     sessionId: z.string().uuid(),
     participants: z.array(z.string()),
-    startedAt: z.string().datetime(),
+    startedAt: z.iso.datetime(),
     status: z.enum(['active', 'paused', 'completed']),
   }),
 ]).openapi({
@@ -357,7 +357,7 @@ export function createApiResponseSchema<T extends z.ZodTypeAny>(dataSchema: T) {
     data: dataSchema,
     meta: z.object({
       requestId: z.string().uuid().optional(),
-      timestamp: z.string().datetime().optional(),
+      timestamp: z.iso.datetime().optional(),
       version: z.string().optional(),
     }).optional(),
   }).openapi({
@@ -383,7 +383,7 @@ export const ApiErrorResponseSchema = z.object({
   }),
   meta: z.object({
     requestId: z.string().uuid().optional(),
-    timestamp: z.string().datetime().optional(),
+    timestamp: z.iso.datetime().optional(),
     correlationId: z.string().optional(),
   }).optional(),
 }).openapi({
