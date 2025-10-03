@@ -23,6 +23,7 @@ import type { ApiEnv } from '@/api/types';
 type StripeServiceConfig = {
   secretKey: string;
   webhookSecret: string;
+  portalConfigId?: string;
   apiVersion?: Stripe.LatestApiVersion;
 };
 
@@ -33,6 +34,7 @@ type StripeServiceConfig = {
 class StripeService {
   private stripe: Stripe | null = null;
   private webhookSecret: string | null = null;
+  private portalConfigId: string | null = null;
 
   /**
    * Initialize Stripe client with configuration
@@ -50,6 +52,7 @@ class StripeService {
     });
 
     this.webhookSecret = config.webhookSecret;
+    this.portalConfigId = config.portalConfigId || null;
 
     apiLogger.info('Stripe service initialized', {
       apiVersion: config.apiVersion || '2025-09-30.clover',
@@ -389,10 +392,17 @@ class StripeService {
   }): Promise<Stripe.BillingPortal.Session> {
     const stripe = this.getClient();
 
-    const session = await stripe.billingPortal.sessions.create({
+    const sessionParams: Stripe.BillingPortal.SessionCreateParams = {
       customer: params.customerId,
       return_url: params.returnUrl,
-    });
+    };
+
+    // Add portal configuration if available
+    if (this.portalConfigId) {
+      sessionParams.configuration = this.portalConfigId;
+    }
+
+    const session = await stripe.billingPortal.sessions.create(sessionParams);
 
     return session;
   }
@@ -441,5 +451,6 @@ export function initializeStripe(env: ApiEnv['Bindings']): void {
   stripeService.initialize({
     secretKey: env.STRIPE_SECRET_KEY,
     webhookSecret: env.STRIPE_WEBHOOK_SECRET,
+    portalConfigId: env.NEXT_PUBLIC_STRIPE_CUSTOMER_PORTAL_CONFIG_ID,
   });
 }

@@ -255,7 +255,7 @@ export function PricingCard({
                 className={cn(
                   'w-full text-center text-sm font-medium transition-all duration-200',
                   isMostPopular && 'bg-primary text-primary-foreground',
-                  isCurrentPlan && 'bg-muted/50 text-muted-foreground',
+                  isCurrentPlan && 'bg-primary/10 text-primary hover:bg-primary/20',
                   !isMostPopular && !isCurrentPlan && 'bg-background text-foreground',
                 )}
                 onClick={handleAction}
@@ -265,7 +265,7 @@ export function PricingCard({
                   ? (
                       <span className="flex items-center justify-center gap-2">
                         <Loader2 className="h-4 w-4 animate-spin" />
-                        {t('loading', { ns: 'common' })}
+                        {t('processing')}
                       </span>
                     )
                   : isCurrentPlan

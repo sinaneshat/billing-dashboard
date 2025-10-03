@@ -96,7 +96,7 @@ export async function syncStripeDataFromStripe(
       customer: customerId,
       limit: 1,
       status: 'all',
-      expand: ['data.default_payment_method', 'data.items.data.price.product'],
+      expand: ['data.default_payment_method', 'data.items.data.price'],
     });
   } catch (error) {
     apiLogger.error('Failed to fetch subscriptions from Stripe API', normalizeError(error));
@@ -155,11 +155,75 @@ export async function syncStripeDataFromStripe(
     };
   }
 
-  // Extract period timestamps (these properties exist but are not in the base type)
-  const subData = subscription as Stripe.Subscription & {
-    current_period_start: number;
-    current_period_end: number;
+  // Extract period timestamps
+  // For flexible billing mode, these are on the subscription item
+  // For traditional subscriptions, they're on the subscription itself
+  let currentPeriodStart: number;
+  let currentPeriodEnd: number;
+
+  const subWithPeriod = subscription as Stripe.Subscription & {
+    current_period_start?: number;
+    current_period_end?: number;
   };
+
+  if (subWithPeriod.current_period_start && subWithPeriod.current_period_end) {
+    // Traditional subscription structure
+    currentPeriodStart = subWithPeriod.current_period_start;
+    currentPeriodEnd = subWithPeriod.current_period_end;
+  } else {
+    // Flexible billing mode - get from subscription item
+    const itemWithPeriod = firstItem as typeof firstItem & {
+      current_period_start?: number;
+      current_period_end?: number;
+    };
+
+    if (itemWithPeriod.current_period_start && itemWithPeriod.current_period_end) {
+      currentPeriodStart = itemWithPeriod.current_period_start;
+      currentPeriodEnd = itemWithPeriod.current_period_end;
+    } else {
+      // Fallback to billing_cycle_anchor and calculate end date
+      const billingCycleAnchor = (subscription as typeof subscription & { billing_cycle_anchor?: number }).billing_cycle_anchor;
+      if (billingCycleAnchor) {
+        currentPeriodStart = billingCycleAnchor;
+        // Calculate end date based on price interval
+        const interval = price.recurring?.interval || 'month';
+        const intervalCount = price.recurring?.interval_count || 1;
+        const startDate = new Date(billingCycleAnchor * 1000);
+        const endDate = new Date(startDate);
+
+        if (interval === 'month') {
+          endDate.setMonth(endDate.getMonth() + intervalCount);
+        } else if (interval === 'year') {
+          endDate.setFullYear(endDate.getFullYear() + intervalCount);
+        } else if (interval === 'week') {
+          endDate.setDate(endDate.getDate() + (7 * intervalCount));
+        } else if (interval === 'day') {
+          endDate.setDate(endDate.getDate() + intervalCount);
+        }
+
+        currentPeriodEnd = Math.floor(endDate.getTime() / 1000);
+      } else {
+        // Last resort: use subscription creation date
+        currentPeriodStart = subscription.created;
+        const startDate = new Date(subscription.created * 1000);
+        const endDate = new Date(startDate);
+        const interval = price.recurring?.interval || 'month';
+        const intervalCount = price.recurring?.interval_count || 1;
+
+        if (interval === 'month') {
+          endDate.setMonth(endDate.getMonth() + intervalCount);
+        } else if (interval === 'year') {
+          endDate.setFullYear(endDate.getFullYear() + intervalCount);
+        } else if (interval === 'week') {
+          endDate.setDate(endDate.getDate() + (7 * intervalCount));
+        } else if (interval === 'day') {
+          endDate.setDate(endDate.getDate() + intervalCount);
+        }
+
+        currentPeriodEnd = Math.floor(endDate.getTime() / 1000);
+      }
+    }
+  }
 
   // Fetch recent invoices (wrapped for error handling)
   let invoices: Stripe.ApiList<Stripe.Invoice>;
@@ -243,8 +307,8 @@ export async function syncStripeDataFromStripe(
     priceId: price.id,
     status: subscription.status,
     quantity: firstItem.quantity ?? 1,
-    currentPeriodStart: new Date(subData.current_period_start * 1000),
-    currentPeriodEnd: new Date(subData.current_period_end * 1000),
+    currentPeriodStart: new Date(currentPeriodStart * 1000),
+    currentPeriodEnd: new Date(currentPeriodEnd * 1000),
     cancelAtPeriodEnd: subscription.cancel_at_period_end,
     cancelAt: subscription.cancel_at ? new Date(subscription.cancel_at * 1000) : null,
     canceledAt: subscription.canceled_at ? new Date(subscription.canceled_at * 1000) : null,
@@ -259,8 +323,8 @@ export async function syncStripeDataFromStripe(
     set: {
       status: subscription.status,
       quantity: firstItem.quantity ?? 1,
-      currentPeriodStart: new Date(subData.current_period_start * 1000),
-      currentPeriodEnd: new Date(subData.current_period_end * 1000),
+      currentPeriodStart: new Date(currentPeriodStart * 1000),
+      currentPeriodEnd: new Date(currentPeriodEnd * 1000),
       cancelAtPeriodEnd: subscription.cancel_at_period_end,
       cancelAt: subscription.cancel_at ? new Date(subscription.cancel_at * 1000) : null,
       canceledAt: subscription.canceled_at ? new Date(subscription.canceled_at * 1000) : null,
@@ -383,8 +447,8 @@ export async function syncStripeDataFromStripe(
     subscriptionId: subscription.id,
     priceId: price.id,
     productId: product,
-    currentPeriodStart: subData.current_period_start,
-    currentPeriodEnd: subData.current_period_end,
+    currentPeriodStart,
+    currentPeriodEnd,
     cancelAtPeriodEnd: subscription.cancel_at_period_end,
     canceledAt: subscription.canceled_at ?? null,
     trialStart: subscription.trial_start ?? null,

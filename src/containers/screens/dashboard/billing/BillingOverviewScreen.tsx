@@ -1,6 +1,6 @@
 'use client';
 
-import { CreditCard, Package } from 'lucide-react';
+import { CreditCard, ExternalLink, Loader2, Package, RefreshCw } from 'lucide-react';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 
@@ -9,11 +9,29 @@ import { DashboardContainer } from '@/components/dashboard/dashboard-layout';
 import { DashboardPage } from '@/components/dashboard/dashboard-states';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { useCurrentSubscriptionQuery } from '@/hooks';
+import { useCreateCustomerPortalSessionMutation, useCurrentSubscriptionQuery, useSyncAfterCheckoutMutation } from '@/hooks';
 
 export default function BillingOverviewScreen() {
   const t = useTranslations();
   const { data: currentSubscription, isLoading } = useCurrentSubscriptionQuery();
+  const portalMutation = useCreateCustomerPortalSessionMutation();
+  const syncMutation = useSyncAfterCheckoutMutation();
+
+  const handleManageSubscription = async () => {
+    const result = await portalMutation.mutateAsync({
+      json: {
+        returnUrl: window.location.href,
+      },
+    });
+
+    if (result.data.url) {
+      window.location.href = result.data.url;
+    }
+  };
+
+  const handleSync = async () => {
+    await syncMutation.mutateAsync({});
+  };
 
   return (
     <DashboardPage>
@@ -40,7 +58,7 @@ export default function BillingOverviewScreen() {
                   )
                 : currentSubscription
                   ? (
-                      <div className="space-y-2">
+                      <div className="space-y-3">
                         <p className="text-sm">
                           <span className="font-medium">
                             {t('billing.status')}
@@ -49,11 +67,47 @@ export default function BillingOverviewScreen() {
                           {' '}
                           <span className="capitalize">{currentSubscription.status}</span>
                         </p>
-                        <Button asChild variant="outline" className="w-full">
-                          <Link href="/dashboard/pricing">
-                            {t('billing.manageBilling')}
-                          </Link>
-                        </Button>
+                        <div className="space-y-2">
+                          <Button
+                            onClick={handleManageSubscription}
+                            disabled={portalMutation.isPending}
+                            className="w-full"
+                          >
+                            {portalMutation.isPending
+                              ? (
+                                  <>
+                                    <Loader2 className="mr-2 size-4 animate-spin" />
+                                    {t('common.loading')}
+                                  </>
+                                )
+                              : (
+                                  <>
+                                    <ExternalLink className="mr-2 size-4" />
+                                    {t('billing.manageSubscription')}
+                                  </>
+                                )}
+                          </Button>
+                          <Button
+                            onClick={handleSync}
+                            disabled={syncMutation.isPending}
+                            variant="outline"
+                            className="w-full"
+                          >
+                            {syncMutation.isPending
+                              ? (
+                                  <>
+                                    <Loader2 className="mr-2 size-4 animate-spin" />
+                                    {t('billing.syncing')}
+                                  </>
+                                )
+                              : (
+                                  <>
+                                    <RefreshCw className="mr-2 size-4" />
+                                    {t('billing.syncSubscription')}
+                                  </>
+                                )}
+                          </Button>
+                        </div>
                       </div>
                     )
                   : (

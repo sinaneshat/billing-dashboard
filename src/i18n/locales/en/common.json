@@ -338,6 +338,8 @@
     "manageBillingInfo": "Manage your billing information",
     "manageSubscription": "Manage Subscription",
     "manageSubscriptionDescription": "Modify or cancel your current plan",
+    "syncSubscription": "Sync Subscription",
+    "syncing": "Syncing...",
     "monthlyCost": "Monthly Cost",
     "monthlyPrice": "Monthly Price",
     "nextBilling": "Next Billing Date",
@@ -1439,7 +1441,8 @@
       "daysFreeTrial": "days free trial",
       "saveAnnually": "Save {percent}% annually",
       "manageBilling": "Manage Billing",
-      "subscribe": "Subscribe"
+      "subscribe": "Subscribe",
+      "processing": "Processing..."
     }
   },
   "product": {

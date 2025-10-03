@@ -70,6 +70,11 @@ export function PricingContent({
     sub => sub.status === 'active' || sub.status === 'trialing',
   );
 
+  // Check if user has ANY active subscription
+  const hasAnyActiveSubscription = subscriptions.some(
+    sub => sub.status === 'active' || sub.status === 'trialing',
+  );
+
   // Check if user has active subscription for a specific product
   const hasActiveSubscription = (productId: string): boolean => {
     return subscriptions.some(
@@ -189,6 +194,7 @@ export function PricingContent({
             products={getProductsForInterval('month')}
             interval="month"
             hasActiveSubscription={hasActiveSubscription}
+            hasAnyActiveSubscription={hasAnyActiveSubscription}
             processingPriceId={processingPriceId}
             onSubscribe={onSubscribe}
             onManageBilling={onManageBilling}
@@ -204,6 +210,7 @@ export function PricingContent({
             products={getProductsForInterval('year')}
             interval="year"
             hasActiveSubscription={hasActiveSubscription}
+            hasAnyActiveSubscription={hasAnyActiveSubscription}
             processingPriceId={processingPriceId}
             onSubscribe={onSubscribe}
             onManageBilling={onManageBilling}
@@ -222,6 +229,7 @@ type ProductGridProps = {
   products: Product[];
   interval: BillingInterval;
   hasActiveSubscription: (productId: string) => boolean;
+  hasAnyActiveSubscription: boolean;
   processingPriceId: string | null;
   onSubscribe: (priceId: string) => void | Promise<void>;
   onManageBilling: () => void;
@@ -234,10 +242,11 @@ function ProductGrid({
   products,
   interval,
   hasActiveSubscription,
+  hasAnyActiveSubscription,
   processingPriceId,
   onSubscribe,
   onManageBilling,
-  isProcessing,
+  isProcessing: _isProcessing,
   calculateAnnualSavings,
   t,
 }: ProductGridProps) {
@@ -282,8 +291,8 @@ function ProductGrid({
             features={product.features}
             isCurrentPlan={hasSubscription}
             isMostPopular={isMostPopular}
-            isProcessing={processingPriceId === price.id || isProcessing}
-            onSubscribe={() => onSubscribe(price.id)}
+            isProcessing={processingPriceId === price.id}
+            onSubscribe={() => hasAnyActiveSubscription && !hasSubscription ? onManageBilling() : onSubscribe(price.id)}
             onManageBilling={onManageBilling}
             delay={index * 0.1}
             annualSavingsPercent={interval === 'year' ? calculateAnnualSavings(product.id) : undefined}

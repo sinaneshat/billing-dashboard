@@ -44,13 +44,14 @@ type PricingModalProps = {
  * Displays available products with pricing and subscription management in a modal dialog.
  * Uses the shared PricingContent component to ensure consistency with the standalone pricing page.
  *
- * @param open - Controls modal visibility
- * @param onOpenChange - Callback when modal visibility changes
- * @param products - Array of available products
- * @param subscriptions - Array of user subscriptions
- * @param isLoading - Loading state for products
- * @param onSubscribe - Callback when user subscribes to a product
- * @param onManageBilling - Callback to open Stripe customer portal
+ * @param props - Component props
+ * @param props.open - Controls modal visibility
+ * @param props.onOpenChange - Callback when modal visibility changes
+ * @param props.products - Array of available products
+ * @param props.subscriptions - Array of user subscriptions
+ * @param props.isLoading - Loading state for products
+ * @param props.onSubscribe - Callback when user subscribes to a product
+ * @param props.onManageBilling - Callback to open Stripe customer portal
  */
 export function PricingModal({
   open,
@@ -93,7 +94,7 @@ export function PricingModal({
         onSubscribe={handleSubscribe}
         onManageBilling={onManageBilling}
         isProcessing={false}
-        showSubscriptionBanner={true}
+        showSubscriptionBanner={false}
       />
     </BaseModal>
   );

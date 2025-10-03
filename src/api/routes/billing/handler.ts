@@ -887,61 +887,54 @@ export const handleWebhookHandler: RouteHandler<typeof handleWebhookRoute, ApiEn
 // ============================================================================
 
 /**
- * Tracked Webhook Events
+ * Tracked Webhook Events (Following Theo's "Stay Sane with Stripe" Pattern)
  *
- * Following Theo's "Stay Sane with Stripe" pattern:
+ * Source: https://github.com/t3dotgg/stay-sane-with-stripe
+ *
+ * Philosophy:
  * - ALL events trigger the SAME sync function (syncStripeDataFromStripe)
  * - NO event-specific logic needed
  * - Extract customerId → Fetch fresh data from Stripe API → Upsert to database
+ * - Never trust webhook payloads, always fetch fresh from Stripe API
+ *
+ * This is Theo's EXACT event list from his implementation.
+ * While some events may seem redundant (e.g., customer.subscription.paused is also
+ * fired as customer.subscription.updated), tracking them explicitly ensures we never
+ * miss critical subscription state changes due to Stripe's eventual consistency model.
  *
  * Event Categories:
  *
- * 1. CHECKOUT EVENTS (Theo's base list):
+ * 1. CHECKOUT EVENTS:
  *    - checkout.session.completed: User completes checkout
  *
- * 2. SUBSCRIPTION LIFECYCLE (Theo's base list):
+ * 2. SUBSCRIPTION LIFECYCLE:
  *    - customer.subscription.created: New subscription
  *    - customer.subscription.updated: Subscription changed
  *    - customer.subscription.deleted: Subscription canceled
+ *    - customer.subscription.paused: Subscription paused
+ *    - customer.subscription.resumed: Subscription resumed
+ *    - customer.subscription.pending_update_applied: Scheduled update applied
+ *    - customer.subscription.pending_update_expired: Scheduled update expired
+ *    - customer.subscription.trial_will_end: Trial ending (3 days before)
  *
- * 3. CUSTOMER PORTAL EVENTS (Added for portal support - not in Theo's minimal list):
- *    These events fire when users manage subscriptions via Stripe Customer Portal:
- *
- *    Subscription Actions:
- *    - customer.subscription.paused: User pauses subscription in portal
- *    - customer.subscription.resumed: User resumes paused subscription
- *    - customer.subscription.pending_update_applied: Scheduled plan change applied
- *    - customer.subscription.pending_update_expired: Scheduled plan change expired
- *    - customer.subscription.trial_will_end: Trial ending notification (3 days before)
- *
- *    Customer Profile:
- *    - customer.updated: User updates email, name, or billing details in portal
- *
- *    Payment Methods:
- *    - payment_method.attached: User adds new card in portal
- *    - payment_method.detached: User removes card in portal
- *    - payment_method.updated: Card details updated (exp date, etc.)
- *
- * 4. BILLING EVENTS (Theo's base list + extras):
+ * 3. INVOICE & PAYMENT EVENTS:
  *    - invoice.paid: Invoice successfully paid
- *    - invoice.payment_failed: Payment failed (card declined, etc.)
- *    - invoice.payment_action_required: 3D Secure or SCA required
- *    - invoice.upcoming: Invoice will be charged soon (7 days before)
- *    - invoice.marked_uncollectible: Invoice marked as uncollectible after retries
- *    - invoice.payment_succeeded: Payment succeeded (duplicate of invoice.paid for safety)
- *    - payment_intent.succeeded: Payment processing succeeded
- *    - payment_intent.payment_failed: Payment processing failed
- *    - payment_intent.canceled: Payment canceled
+ *    - invoice.payment_failed: Payment failed
+ *    - invoice.payment_action_required: 3D Secure/SCA required
+ *    - invoice.upcoming: Invoice upcoming (7 days before)
+ *    - invoice.marked_uncollectible: Invoice uncollectible after retries
+ *    - invoice.payment_succeeded: Payment succeeded (safety duplicate)
+ *    - payment_intent.succeeded: Payment intent succeeded
+ *    - payment_intent.payment_failed: Payment intent failed
+ *    - payment_intent.canceled: Payment intent canceled
  *
- * Philosophy:
- * By syncing on ALL events, we guarantee database is always up-to-date
- * regardless of which Stripe feature or portal action the user uses.
+ * Total Events: 18 (Theo's exact specification)
  */
 const TRACKED_WEBHOOK_EVENTS: Stripe.Event.Type[] = [
-  // Checkout events
+  // Checkout
   'checkout.session.completed',
 
-  // Subscription lifecycle (Portal actions: cancel, upgrade, downgrade, pause, resume)
+  // Subscription lifecycle
   'customer.subscription.created',
   'customer.subscription.updated',
   'customer.subscription.deleted',
@@ -950,14 +943,6 @@ const TRACKED_WEBHOOK_EVENTS: Stripe.Event.Type[] = [
   'customer.subscription.pending_update_applied',
   'customer.subscription.pending_update_expired',
   'customer.subscription.trial_will_end',
-
-  // Customer updates (Portal actions: update billing info, email, name)
-  'customer.updated',
-
-  // Payment method updates (Portal actions: add/remove card)
-  'payment_method.attached',
-  'payment_method.detached',
-  'payment_method.updated',
 
   // Invoice and payment events
   'invoice.paid',
