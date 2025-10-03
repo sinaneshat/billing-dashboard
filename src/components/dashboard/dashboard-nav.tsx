@@ -6,9 +6,10 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 
 import { ChatList } from '@/components/dashboard/chat-list';
+import { ChatSearch } from '@/components/dashboard/chat-search';
 import { NavUser } from '@/components/dashboard/nav-user';
 import { Button } from '@/components/ui/button';
 import {
@@ -28,7 +29,8 @@ import { groupChatsByPeriod, mockChats } from '@/lib/types/chat';
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const router = useRouter();
   const t = useTranslations();
-  const [chats] = useState<Chat[]>(mockChats);
+  const [chats, setChats] = useState<Chat[]>(mockChats);
+  const [searchTerm, setSearchTerm] = useState('');
 
   const handleNewChat = () => {
     router.push('/dashboard');
@@ -36,10 +38,34 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
   const handleDeleteChat = (chatId: string) => {
     // TODO: Implement delete chat functionality
-    console.log('Delete chat:', chatId);
+    console.warn('Delete chat:', chatId);
+    setChats(chats.filter(chat => chat.id !== chatId));
   };
 
-  const chatGroups = groupChatsByPeriod(chats);
+  const handleToggleFavorite = (chatId: string) => {
+    setChats(chats.map(chat =>
+      chat.id === chatId ? { ...chat, isFavorite: !chat.isFavorite } : chat,
+    ));
+  };
+
+  // Filter chats based on search term
+  const filteredChats = useMemo(() => {
+    if (!searchTerm)
+      return chats;
+    return chats.filter(chat =>
+      chat.title.toLowerCase().includes(searchTerm.toLowerCase()),
+    );
+  }, [chats, searchTerm]);
+
+  // Get favorites from filtered chats
+  const favorites = useMemo(() =>
+    filteredChats.filter(chat => chat.isFavorite), [filteredChats]);
+
+  // Get non-favorite chats for grouping
+  const nonFavoriteChats = useMemo(() =>
+    filteredChats.filter(chat => !chat.isFavorite), [filteredChats]);
+
+  const chatGroups = groupChatsByPeriod(nonFavoriteChats);
 
   return (
     <Sidebar collapsible="icon" {...props}>
@@ -53,22 +79,18 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             <SidebarMenuItem>
               <SidebarMenuButton size="lg" asChild>
                 <Link href="/dashboard">
-                  <motion.div
-                    className="bg-sidebar-primary text-sidebar-primary-foreground flex aspect-square size-8 items-center justify-center rounded-lg"
-                    whileHover={{ rotate: 360 }}
-                    transition={{ duration: 0.6 }}
-                  >
+                  <div className="flex aspect-square size-8 items-center justify-center rounded-lg">
                     <Image
                       src="/static/logo.png"
                       alt={t('brand.logoAlt')}
-                      width={20}
-                      height={20}
-                      className="size-5 object-contain"
+                      width={32}
+                      height={32}
+                      className="size-8 object-contain"
                     />
-                  </motion.div>
-                  <div className="flex flex-col gap-0.5 leading-none">
-                    <span className="font-semibold">{BRAND.name}</span>
-                    <span className="text-xs">{BRAND.tagline}</span>
+                  </div>
+                  <div className="grid flex-1 text-left text-sm leading-tight">
+                    <span className="truncate font-semibold">{BRAND.name}</span>
+                    <span className="truncate text-xs">{BRAND.tagline}</span>
                   </div>
                 </Link>
               </SidebarMenuButton>
@@ -85,20 +107,26 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         >
           <Button
             onClick={handleNewChat}
-            className="w-full justify-center group-data-[collapsible=icon]:justify-center"
+            className="w-full justify-center group-data-[collapsible=icon]:justify-center gap-2"
             size="sm"
-            asChild
           >
-            <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-              <Plus className="h-4 w-4" />
-              <span className="group-data-[collapsible=icon]:hidden">{t('navigation.newChat')}</span>
-            </motion.button>
+            <Plus />
+            <span className="group-data-[collapsible=icon]:hidden">{t('navigation.newChat')}</span>
           </Button>
         </motion.div>
+
+        {/* Search Bar */}
+        <ChatSearch value={searchTerm} onChange={setSearchTerm} />
       </SidebarHeader>
 
       <SidebarContent>
-        <ChatList chatGroups={chatGroups} onDeleteChat={handleDeleteChat} />
+        <ChatList
+          chatGroups={chatGroups}
+          favorites={favorites}
+          onDeleteChat={handleDeleteChat}
+          onToggleFavorite={handleToggleFavorite}
+          searchTerm={searchTerm}
+        />
       </SidebarContent>
 
       <SidebarFooter>

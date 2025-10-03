@@ -937,7 +937,13 @@
     "searchChats": "Search chats...",
     "noChats": "No chats yet",
     "noChatsDescription": "Start a new chat to get started",
-    "chatHistory": "Chat History"
+    "chatHistory": "Chat History",
+    "favorites": "Favorites",
+    "addToFavorites": "Add to favorites",
+    "removeFromFavorites": "Remove from favorites",
+    "noFavorites": "No favorite chats yet",
+    "noResults": "No chats found",
+    "noResultsDescription": "Try a different search term"
   },
   "networkStatus": {
     "connectionError": "Connection Error",

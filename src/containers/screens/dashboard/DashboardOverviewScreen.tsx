@@ -21,8 +21,8 @@ export default function DashboardOverviewScreen() {
 
       <DashboardContainer>
         <div className="flex flex-col items-center justify-center gap-4 py-12">
-          <h2 className="text-2xl font-semibold">{t('dashboard.overview')}</h2>
-          <p className="text-muted-foreground">{t('dashboard.welcomeMessage')}</p>
+          <h2 className="text-2xl font-semibold">{t('dashboard.overview.title')}</h2>
+          <p className="text-muted-foreground">{t('chat.selectOrCreate')}</p>
         </div>
       </DashboardContainer>
     </DashboardPage>

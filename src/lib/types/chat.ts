@@ -14,6 +14,7 @@ export type Chat = {
   updatedAt: Date;
   messages: ChatMessage[];
   isActive?: boolean;
+  isFavorite?: boolean;
 };
 
 export type ChatGroup = {
@@ -37,6 +38,7 @@ export const mockChats: Chat[] = [
       },
     ],
     isActive: false,
+    isFavorite: true,
   },
   {
     id: '2',
@@ -45,6 +47,7 @@ export const mockChats: Chat[] = [
     updatedAt: new Date(Date.now() - 1000 * 60 * 60 * 2),
     messages: [],
     isActive: false,
+    isFavorite: false,
   },
   {
     id: '3',
@@ -53,6 +56,7 @@ export const mockChats: Chat[] = [
     updatedAt: new Date(Date.now() - 1000 * 60 * 60 * 5),
     messages: [],
     isActive: false,
+    isFavorite: true,
   },
   {
     id: '4',
