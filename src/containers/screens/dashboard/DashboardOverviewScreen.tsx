@@ -2,29 +2,49 @@
 
 import { useTranslations } from 'next-intl';
 
-import { DashboardPageHeader } from '@/components/dashboard/dashboard-header';
-import { DashboardContainer } from '@/components/dashboard/dashboard-layout';
-import { DashboardPage } from '@/components/dashboard/dashboard-states';
-import { useSession } from '@/lib/auth/client';
+import { Logo } from '@/components/logo';
+import { LayoutTextFlip } from '@/components/ui/layout-text-flip';
 
 export default function DashboardOverviewScreen() {
   const t = useTranslations();
-  const { data: session } = useSession();
-  const user = session?.user;
+
+  // Prepare rotating words from translations
+  const rotatingWords = [
+    t('dashboard.hero.rotatingWords.multipleAI'),
+    t('dashboard.hero.rotatingWords.expertSystems'),
+    t('dashboard.hero.rotatingWords.smartAssistants'),
+    t('dashboard.hero.rotatingWords.aiThinkTanks'),
+  ];
 
   return (
-    <DashboardPage>
-      <DashboardPageHeader
-        title={`${t('dashboard.welcome')}, ${user?.name || user?.email?.split('@')[0] || t('user.defaultName')}!`}
-        description={t('dashboard.description')}
-      />
-
-      <DashboardContainer>
-        <div className="flex flex-col items-center justify-center gap-4 py-12">
-          <h2 className="text-2xl font-semibold">{t('dashboard.overview.title')}</h2>
-          <p className="text-muted-foreground">{t('chat.selectOrCreate')}</p>
+    <div className="flex min-h-screen w-full flex-col items-center justify-center px-4">
+      {/* Main centered content block */}
+      <div className="flex flex-col items-center gap-12 text-center">
+        {/* Logo */}
+        <div className="flex items-center justify-center">
+          <Logo size="md" variant="full" />
         </div>
-      </DashboardContainer>
-    </DashboardPage>
+
+        {/* Hero Section with Animated Text */}
+        <div className="flex flex-col items-center gap-6">
+          <LayoutTextFlip
+            text={t('dashboard.hero.staticText')}
+            words={rotatingWords}
+            duration={3000}
+          />
+
+          <p className="text-lg text-muted-foreground max-w-2xl">
+            {t('dashboard.hero.subtitle')}
+          </p>
+        </div>
+
+        {/* Getting Started Hint */}
+        <div className="mt-4">
+          <p className="text-sm text-muted-foreground/70">
+            {t('chat.selectOrCreate')}
+          </p>
+        </div>
+      </div>
+    </div>
   );
 }

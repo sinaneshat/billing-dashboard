@@ -312,6 +312,16 @@
       "description": "Manage your active subscription",
       "title": "Current Subscription"
     },
+    "success": {
+      "activatingSubscription": "Activating your subscription...",
+      "confirmingPayment": "Please wait while we confirm your payment"
+    },
+    "interval": {
+      "monthly": "Monthly",
+      "annual": "Annual",
+      "month": "month",
+      "year": "year"
+    },
     "currentUsage": "Current Usage",
     "default": "Default",
     "description": "Description",
@@ -324,6 +334,7 @@
     "expiresOn": "Expires On",
     "failedPaymentMessage": "There was an issue with your recent payment. Please check your payment method or contact support.",
     "invoiceDate": "Invoice Date",
+    "manageBilling": "Manage Billing",
     "manageBillingInfo": "Manage your billing information",
     "manageSubscription": "Manage Subscription",
     "manageSubscriptionDescription": "Modify or cancel your current plan",
@@ -332,9 +343,11 @@
     "nextBilling": "Next Billing Date",
     "noActiveSubscription": "You don't have an active subscription. Browse our plans to get started.",
     "noDescription": "No description available",
+    "noPlansForInterval": "No plans available for this billing period",
     "noPricing": "No pricing information available",
     "noProducts": "No products available",
     "noSubscription": "No active subscription",
+    "priceId": "Price ID",
     "noValidContract": "No valid payment contract found. Please set up your payment method first.",
     "alreadyOnThisPlan": "You are already on this plan",
     "alreadyHasActiveSubscription": "You already have an active subscription. Use the switch plan option to change your subscription.",
@@ -458,6 +471,16 @@
   },
   "dashboard": {
     "description": "Manage your billing and subscriptions from your comprehensive dashboard overview",
+    "hero": {
+      "staticText": "Collaborate with",
+      "rotatingWords": {
+        "multipleAI": "Multiple AI Models",
+        "expertSystems": "Expert Systems",
+        "smartAssistants": "Smart Assistants",
+        "aiThinkTanks": "AI Think Tanks"
+      },
+      "subtitle": "Where multiple AI models brainstorm together to solve complex problems"
+    },
     "overview": {
       "activeSubscriptions": "Active Subscriptions",
       "monthlySpend": "Monthly Spend",
@@ -983,7 +1006,8 @@
     "removeFromFavorites": "Remove from favorites",
     "noFavorites": "No favorite chats yet",
     "noResults": "No chats found",
-    "noResultsDescription": "Try a different search term"
+    "noResultsDescription": "Try a different search term",
+    "noMessages": "No messages"
   },
   "networkStatus": {
     "connectionError": "Connection Error",
@@ -1408,6 +1432,14 @@
       "conversations": "Conversations:",
       "messages": "Messages:",
       "models": "models"
+    },
+    "card": {
+      "mostPopular": "Most Popular",
+      "currentPlan": "Current Plan",
+      "daysFreeTrial": "days free trial",
+      "saveAnnually": "Save {percent}% annually",
+      "manageBilling": "Manage Billing",
+      "subscribe": "Subscribe"
     }
   },
   "product": {

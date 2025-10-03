@@ -42,7 +42,7 @@ export function NavUser() {
     : user?.email?.[0]?.toUpperCase() || 'U';
 
   const handleBillingPortal = async () => {
-    const result = await createPortalMutation.mutateAsync();
+    const result = await createPortalMutation.mutateAsync({ json: {} });
 
     if (result.success && result.data?.url) {
       window.location.href = result.data.url;
