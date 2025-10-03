@@ -111,8 +111,8 @@ export const CheckoutRequestSchema = z.object({
     example: 'price_1ABC123',
   }),
   successUrl: CoreSchemas.url().optional().openapi({
-    description: 'URL to redirect to after successful checkout (defaults to /dashboard/billing/success)',
-    example: 'https://app.example.com/dashboard/billing/success?session_id={CHECKOUT_SESSION_ID}',
+    description: 'URL to redirect to after successful checkout (defaults to /dashboard/billing/success). Do NOT include session_id parameter - success page will eagerly sync fresh data from Stripe API.',
+    example: 'https://app.example.com/dashboard/billing/success',
   }),
   cancelUrl: CoreSchemas.url().optional().openapi({
     description: 'URL to redirect to if checkout is canceled (defaults to /dashboard/billing)',
@@ -132,6 +132,26 @@ const CheckoutPayloadSchema = z.object({
 }).openapi('CheckoutPayload');
 
 export const CheckoutResponseSchema = createApiResponseSchema(CheckoutPayloadSchema).openapi('CheckoutResponse');
+
+// ============================================================================
+// Customer Portal Schemas
+// ============================================================================
+
+export const CustomerPortalRequestSchema = z.object({
+  returnUrl: CoreSchemas.url().optional().openapi({
+    description: 'URL to redirect to after customer portal session (defaults to /dashboard)',
+    example: 'https://app.example.com/dashboard',
+  }),
+}).openapi('CustomerPortalRequest');
+
+const CustomerPortalPayloadSchema = z.object({
+  url: CoreSchemas.url().openapi({
+    description: 'Stripe customer portal URL to redirect user to',
+    example: 'https://billing.stripe.com/p/session/test_abc123',
+  }),
+}).openapi('CustomerPortalPayload');
+
+export const CustomerPortalResponseSchema = createApiResponseSchema(CustomerPortalPayloadSchema).openapi('CustomerPortalResponse');
 
 // ============================================================================
 // Subscription Schemas

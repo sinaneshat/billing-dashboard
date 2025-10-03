@@ -27,6 +27,7 @@ import { DashboardSection } from './dashboard-states';
 
 const breadcrumbMap: Record<string, { titleKey: string; parent?: string }> = {
   '/dashboard': { titleKey: 'navigation.dashboard' },
+  '/dashboard/pricing': { titleKey: 'navigation.pricing', parent: '/dashboard' },
 };
 
 // Navigation Header - replaces dashboard-header.tsx

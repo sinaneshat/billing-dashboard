@@ -1,6 +1,6 @@
 'use client';
 
-import { ChevronsUpDown, CreditCard, LogOut, Settings, User } from 'lucide-react';
+import { ChevronsUpDown, CreditCard, LogOut, Receipt } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
@@ -21,6 +21,7 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from '@/components/ui/sidebar';
+import { useCreateCustomerPortalSessionMutation, useCurrentSubscriptionQuery } from '@/hooks';
 import { signOut, useSession } from '@/lib/auth/client';
 
 export function NavUser() {
@@ -28,6 +29,8 @@ export function NavUser() {
   const { isMobile } = useSidebar();
   const router = useRouter();
   const t = useTranslations();
+  const { data: subscription } = useCurrentSubscriptionQuery();
+  const createPortalMutation = useCreateCustomerPortalSessionMutation();
 
   const user = session?.user;
   const userInitials = user?.name
@@ -37,6 +40,14 @@ export function NavUser() {
         .join('')
         .toUpperCase()
     : user?.email?.[0]?.toUpperCase() || 'U';
+
+  const handleBillingPortal = async () => {
+    const result = await createPortalMutation.mutateAsync();
+
+    if (result.success && result.data?.url) {
+      window.location.href = result.data.url;
+    }
+  };
 
   const handleSignOut = async () => {
     await signOut({
@@ -97,23 +108,17 @@ export function NavUser() {
             <DropdownMenuSeparator />
             <DropdownMenuGroup>
               <DropdownMenuItem asChild>
-                <Link href="/dashboard/profile">
-                  <User />
-                  {t('navigation.profile')}
-                </Link>
-              </DropdownMenuItem>
-              <DropdownMenuItem asChild>
-                <Link href="/dashboard/settings">
-                  <Settings />
-                  {t('navigation.settings')}
-                </Link>
-              </DropdownMenuItem>
-              <DropdownMenuItem asChild>
-                <Link href="/dashboard/billing">
+                <Link href="/dashboard/pricing">
                   <CreditCard />
-                  {t('navigation.billing')}
+                  {t('navigation.pricing')}
                 </Link>
               </DropdownMenuItem>
+              {subscription && (
+                <DropdownMenuItem onClick={handleBillingPortal}>
+                  <Receipt />
+                  {t('navigation.billingPortal')}
+                </DropdownMenuItem>
+              )}
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={handleSignOut}>

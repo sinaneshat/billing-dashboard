@@ -16,19 +16,19 @@ import { createApiClient } from '@/api/client';
 // ============================================================================
 
 export type CreateCheckoutSessionRequest = InferRequestType<
-  ApiClientType['checkout']['$post']
+  ApiClientType['billing']['checkout']['$post']
 >;
 
 export type CreateCheckoutSessionResponse = InferResponseType<
-  ApiClientType['checkout']['$post']
+  ApiClientType['billing']['checkout']['$post']
 >;
 
 export type SyncAfterCheckoutRequest = InferRequestType<
-  ApiClientType['sync-after-checkout']['$post']
+  ApiClientType['billing']['sync-after-checkout']['$post']
 >;
 
 export type SyncAfterCheckoutResponse = InferResponseType<
-  ApiClientType['sync-after-checkout']['$post']
+  ApiClientType['billing']['sync-after-checkout']['$post']
 >;
 
 // ============================================================================
@@ -43,7 +43,7 @@ export type SyncAfterCheckoutResponse = InferResponseType<
  */
 export async function createCheckoutSessionService(data: CreateCheckoutSessionRequest) {
   const client = await createApiClient();
-  return parseResponse(client.checkout.$post(data));
+  return parseResponse(client.billing.checkout.$post(data));
 }
 
 /**
@@ -57,6 +57,6 @@ export async function createCheckoutSessionService(data: CreateCheckoutSessionRe
 export async function syncAfterCheckoutService(data?: SyncAfterCheckoutRequest) {
   const client = await createApiClient();
   return data
-    ? parseResponse(client['sync-after-checkout'].$post(data))
-    : parseResponse(client['sync-after-checkout'].$post());
+    ? parseResponse(client.billing['sync-after-checkout'].$post(data))
+    : parseResponse(client.billing['sync-after-checkout'].$post());
 }

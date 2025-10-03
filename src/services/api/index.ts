@@ -6,7 +6,7 @@
  */
 
 // ============================================================================
-// Products Service Exports
+// Checkout Service Exports
 // ============================================================================
 
 export {
@@ -17,6 +17,16 @@ export {
   type SyncAfterCheckoutResponse,
   syncAfterCheckoutService,
 } from './checkout';
+
+// ============================================================================
+// Customer Portal Service Exports
+// ============================================================================
+
+export {
+  type CreateCustomerPortalSessionRequest,
+  type CreateCustomerPortalSessionResponse,
+  createCustomerPortalSessionService,
+} from './customer-portal';
 
 // ============================================================================
 // Subscriptions Service Exports

@@ -5,13 +5,14 @@
 ## Table of Contents
 
 1. [Architecture Overview](#architecture-overview)
-2. [Authentication Patterns](#authentication-patterns)
-3. [API Route Patterns](#api-route-patterns)
-4. [Service Layer Patterns](#service-layer-patterns)
-5. [Middleware Patterns](#middleware-patterns)
-6. [Database Patterns](#database-patterns)
-7. [Error Handling](#error-handling)
-8. [Implementation Guidelines](#implementation-guidelines)
+2. [Next.js vs Hono Routes](#nextjs-vs-hono-routes)
+3. [Authentication Patterns](#authentication-patterns)
+4. [API Route Patterns](#api-route-patterns)
+5. [Service Layer Patterns](#service-layer-patterns)
+6. [Middleware Patterns](#middleware-patterns)
+7. [Database Patterns](#database-patterns)
+8. [Error Handling](#error-handling)
+9. [Implementation Guidelines](#implementation-guidelines)
 
 ---
 
@@ -47,6 +48,238 @@ src/api/
 ├── common/                   # Shared utilities
 └── types/                    # Type definitions
 ```
+
+---
+
+## Next.js vs Hono Routes
+
+### Single Source of Truth: ALL Business Logic in `src/api/`
+
+**CRITICAL RULE**: 99% of API routes MUST be implemented in the Hono API (`src/api/routes/`), NOT as Next.js routes (`src/app/api/`).
+
+### ✅ Allowed Next.js Routes (`src/app/api/`)
+
+Only these specific routes are permitted as Next.js App Router routes:
+
+**1. `/api/v1/[[...route]]/route.ts` - Hono API Proxy (REQUIRED)**
+```typescript
+// Proxies ALL requests to the Hono API
+// This is the ONLY way to access Hono routes from Next.js
+import api from '@/api';
+
+export const GET = handler;
+export const POST = handler;
+// ... other HTTP methods
+```
+
+**2. `/api/auth/[...auth]/route.ts` - Better Auth Handler (REQUIRED)**
+```typescript
+// Better Auth REQUIRES its own Next.js route
+// Cannot be implemented in Hono due to Better Auth architecture
+import { auth } from '@/lib/auth/server';
+
+export const { GET, POST } = auth.handler;
+```
+
+**3. `/api/og/route.tsx` - OG Image Generation (ACCEPTABLE)**
+```typescript
+// Next.js ImageResponse REQUIRES Next.js runtime
+// Cannot be implemented in Hono as it uses React Server Components
+export async function GET(request: NextRequest) {
+  return generateOgImage({ title, description });
+}
+```
+
+### ❌ ANTI-PATTERNS - Never Create These
+
+**Standalone Next.js API Routes for Business Logic**:
+```typescript
+// ❌ WRONG - Don't create routes like this in src/app/api/
+export async function POST(request: Request) {
+  const body = await request.json();
+  // Validation, business logic, database operations
+  return NextResponse.json({ success: true });
+}
+```
+
+**Why This is Wrong**:
+- ❌ Bypasses Hono middleware (CSRF, rate limiting, session, logging)
+- ❌ No Zod validation or type safety
+- ❌ Not included in OpenAPI documentation
+- ❌ Inconsistent error handling
+- ❌ No structured logging
+- ❌ Breaks RPC type inference for frontend
+- ❌ Cannot use project's `createHandler` factory pattern
+
+### ✅ CORRECT PATTERN - Hono API Route
+
+**Instead, implement in `src/api/routes/{domain}/`**:
+
+```typescript
+// src/api/routes/system/route.ts
+export const myRoute = createRoute({
+  method: 'post',
+  path: '/system/my-endpoint',
+  tags: ['system'],
+  request: {
+    body: {
+      content: {
+        'application/json': { schema: MyRequestSchema },
+      },
+    },
+  },
+  responses: {
+    [HttpStatusCodes.OK]: {
+      description: 'Success',
+      content: {
+        'application/json': { schema: MyResponseSchema },
+      },
+    },
+  },
+});
+
+// src/api/routes/system/handler.ts
+export const myHandler = createHandler(
+  {
+    auth: 'session',
+    validateBody: MyRequestSchema,
+    operationName: 'myOperation',
+  },
+  async (c) => {
+    const body = c.validated.body;
+    const user = c.get('user');
+
+    c.logger.info('Processing request', {
+      logType: 'operation',
+      operationName: 'myOperation',
+      userId: user.id,
+    });
+
+    // Business logic here
+
+    return Responses.ok(c, { success: true });
+  },
+);
+
+// src/api/routes/system/schema.ts
+export const MyRequestSchema = z.object({
+  field: z.string().min(1),
+}).openapi('MyRequest');
+
+export const MyResponseSchema = z.object({
+  success: z.boolean(),
+}).openapi('MyResponse');
+```
+
+### When to Use Next.js Routes vs Hono Routes
+
+| Use Case | Implementation | Location |
+|----------|----------------|----------|
+| REST API endpoints | ✅ Hono API | `src/api/routes/{domain}/` |
+| GraphQL endpoints | ✅ Hono API | `src/api/routes/graphql/` |
+| Webhook handlers | ✅ Hono API | `src/api/routes/{service}/` |
+| Database operations | ✅ Hono API | `src/api/routes/{domain}/` |
+| Business logic | ✅ Hono API | `src/api/routes/{domain}/` |
+| Authentication (Better Auth) | ✅ Next.js Route | `src/app/api/auth/[...auth]/` |
+| OG Image Generation | ✅ Next.js Route | `src/app/api/og/` |
+| Hono API Proxy | ✅ Next.js Route | `src/app/api/v1/[[...route]]/` |
+| Everything else | ✅ Hono API | `src/api/routes/{domain}/` |
+
+### Next.js-Specific Features That Require Next.js Routes
+
+**These are the ONLY exceptions**:
+1. **`revalidatePath()` / `revalidateTag()`** - Next.js ISR revalidation
+2. **`ImageResponse`** - OG image generation using React Server Components
+3. **Better Auth handler** - Requires Next.js route due to library architecture
+4. **`redirect()` / `notFound()`** - Next.js navigation (use inside Server Components instead)
+
+**For everything else, use Hono API routes.**
+
+### Migration Guide: Converting Next.js Routes to Hono
+
+If you find a Next.js route that should be in Hono:
+
+1. **Create route definition** in `src/api/routes/{domain}/route.ts`
+2. **Create Zod schemas** in `src/api/routes/{domain}/schema.ts`
+3. **Implement handler** in `src/api/routes/{domain}/handler.ts` using `createHandler`
+4. **Register route** in `src/api/index.ts`
+5. **Delete Next.js route** from `src/app/api/`
+6. **Update frontend** to use new RPC client path
+
+### Example: Moving a Revalidation Endpoint
+
+**❌ Wrong (Next.js Route)**:
+```typescript
+// src/app/api/revalidate/route.ts
+export async function POST(request: Request) {
+  const body = await request.json() as { secret?: string; paths?: string[] };
+
+  if (body.secret !== process.env.REVALIDATION_SECRET) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  for (const path of body.paths) {
+    revalidatePath(path);
+  }
+
+  return NextResponse.json({ success: true });
+}
+```
+
+**✅ Correct (Hybrid Approach)**:
+
+If you MUST use Next.js-specific features like `revalidatePath()`, use a thin Next.js wrapper:
+
+```typescript
+// src/app/api/system/revalidate/route.ts
+import { revalidatePath } from 'next/cache';
+import { NextResponse } from 'next/server';
+
+import { createApiClient } from '@/api/client';
+
+export async function POST(request: Request) {
+  // Validate request using Hono API
+  const client = await createApiClient();
+  const validation = await client.system.revalidate.validate.$post({
+    json: await request.json(),
+  });
+
+  if (!validation.ok) {
+    return NextResponse.json(
+      await validation.json(),
+      { status: validation.status },
+    );
+  }
+
+  const { paths } = await validation.json();
+
+  // Use Next.js-specific feature
+  for (const path of paths) {
+    revalidatePath(path);
+  }
+
+  return NextResponse.json({ success: true });
+}
+```
+
+```typescript
+// src/api/routes/system/route.ts
+export const revalidateValidationRoute = createRoute({
+  method: 'post',
+  path: '/system/revalidate/validate',
+  tags: ['system'],
+  request: {
+    body: {
+      content: {
+        'application/json': { schema: RevalidateRequestSchema },
+      },
+    },
+  },
+  // ... response schemas
+});
+```
+
+**However, in most cases, you don't need this complexity. Simply implement everything in Hono.**
 
 ---
 

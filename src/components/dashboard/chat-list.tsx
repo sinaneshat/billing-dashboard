@@ -1,7 +1,6 @@
 'use client';
 
-import { MoreHorizontal, Star, Trash2 } from 'lucide-react';
-import { motion } from 'motion/react';
+import { MessageSquare, MoreHorizontal, Star } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useTranslations } from 'next-intl';
@@ -37,52 +36,45 @@ export function ChatList({ chatGroups, favorites = [], onDeleteChat, onToggleFav
   const pathname = usePathname();
   const t = useTranslations('chat');
 
-  const renderChatItem = (chat: Chat, index: number, groupDelay = 0) => {
+  const renderChatItem = (chat: Chat, showIcon: boolean = false) => {
     const isActive = pathname === `/dashboard/chat/${chat.id}`;
     return (
-      <motion.div
-        key={chat.id}
-        initial={{ opacity: 0, x: -20 }}
-        animate={{ opacity: 1, x: 0 }}
-        transition={{
-          duration: 0.2,
-          delay: groupDelay + index * 0.03,
-        }}
-      >
-        <SidebarMenuItem>
-          <SidebarMenuButton asChild isActive={isActive} tooltip={chat.title}>
-            <Link href={`/dashboard/chat/${chat.id}`}>
-              <span>{chat.title}</span>
-            </Link>
-          </SidebarMenuButton>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <SidebarMenuAction showOnHover>
-                <MoreHorizontal />
-                <span className="sr-only">More</span>
-              </SidebarMenuAction>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent
-              className="w-48 rounded-lg"
-              side={isMobile ? 'bottom' : 'right'}
-              align={isMobile ? 'end' : 'start'}
+      <SidebarMenuItem key={chat.id}>
+        <SidebarMenuButton
+          asChild
+          isActive={isActive}
+          tooltip={chat.title}
+          className="group-has-[[data-state=open]]/menu-item:bg-sidebar-accent"
+        >
+          <Link href={`/dashboard/chat/${chat.id}`}>
+            {showIcon && <MessageSquare className="size-4" />}
+            <span className="truncate">{chat.title}</span>
+          </Link>
+        </SidebarMenuButton>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <SidebarMenuAction showOnHover>
+              <MoreHorizontal className="size-4" />
+              <span className="sr-only">More</span>
+            </SidebarMenuAction>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent
+            side={isMobile ? 'bottom' : 'right'}
+            align={isMobile ? 'end' : 'start'}
+          >
+            <DropdownMenuItem onClick={() => onToggleFavorite(chat.id)}>
+              <span>{chat.isFavorite ? t('removeFromFavorites') : t('addToFavorites')}</span>
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              onClick={() => onDeleteChat(chat.id)}
+              className="text-destructive focus:text-destructive"
             >
-              <DropdownMenuItem onClick={() => onToggleFavorite(chat.id)}>
-                <Star className={chat.isFavorite ? 'fill-current' : ''} />
-                <span>{chat.isFavorite ? t('removeFromFavorites') : t('addToFavorites')}</span>
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                onClick={() => onDeleteChat(chat.id)}
-                className="text-destructive focus:text-destructive"
-              >
-                <Trash2 />
-                <span>{t('deleteChat')}</span>
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </SidebarMenuItem>
-      </motion.div>
+              <span>{t('deleteChat')}</span>
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </SidebarMenuItem>
     );
   };
 
@@ -103,33 +95,22 @@ export function ChatList({ chatGroups, favorites = [], onDeleteChat, onToggleFav
       {/* Favorites Section */}
       {favorites.length > 0 && (
         <SidebarGroup className="group-data-[collapsible=icon]:hidden">
-          <motion.div
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.3, delay: 0 }}
-          >
-            <SidebarGroupLabel>{t('favorites')}</SidebarGroupLabel>
-          </motion.div>
+          <SidebarGroupLabel className="flex items-center gap-2">
+            <Star className="size-4 fill-yellow-500 text-yellow-500" />
+            {t('favorites')}
+          </SidebarGroupLabel>
           <SidebarMenu>
-            {favorites.map((chat, index) => renderChatItem(chat, index, 0))}
+            {favorites.map(chat => renderChatItem(chat, true))}
           </SidebarMenu>
         </SidebarGroup>
       )}
 
       {/* Regular Chat Groups */}
-      {chatGroups.map((group, groupIndex) => (
+      {chatGroups.map(group => (
         <SidebarGroup key={group.label} className="group-data-[collapsible=icon]:hidden">
-          <motion.div
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.3, delay: (groupIndex + (favorites.length > 0 ? 1 : 0)) * 0.05 }}
-          >
-            <SidebarGroupLabel>{group.label}</SidebarGroupLabel>
-          </motion.div>
+          <SidebarGroupLabel>{group.label}</SidebarGroupLabel>
           <SidebarMenu>
-            {group.chats.map((chat, chatIndex) =>
-              renderChatItem(chat, chatIndex, (groupIndex + (favorites.length > 0 ? 1 : 0)) * 0.05),
-            )}
+            {group.chats.map(chat => renderChatItem(chat, true))}
           </SidebarMenu>
         </SidebarGroup>
       ))}

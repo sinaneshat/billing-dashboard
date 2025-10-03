@@ -366,12 +366,35 @@ class StripeService {
     } catch (error) {
       apiLogger.error('Stripe webhook signature verification failed', normalizeError(error));
       const context: ErrorContext = {
-        errorType: 'authentication',
+        errorType: 'external_service',
         service: 'stripe',
         operation: 'webhook_verification',
       };
-      throw createError.unauthorized('Webhook signature verification failed', context);
+      // Signature verification failure is a 400 Bad Request (malformed/invalid signature)
+      // not a 401 Unauthorized (authentication would suggest retrying with credentials)
+      throw createError.badRequest('Invalid webhook signature', context);
     }
+  }
+
+  // ============================================================================
+  // Billing Portal Operations
+  // ============================================================================
+
+  /**
+   * Create a customer portal session for managing subscriptions and billing
+   */
+  async createCustomerPortalSession(params: {
+    customerId: string;
+    returnUrl: string;
+  }): Promise<Stripe.BillingPortal.Session> {
+    const stripe = this.getClient();
+
+    const session = await stripe.billingPortal.sessions.create({
+      customer: params.customerId,
+      return_url: params.returnUrl,
+    });
+
+    return session;
   }
 
   // ============================================================================

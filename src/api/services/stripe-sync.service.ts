@@ -14,8 +14,9 @@
 import { eq } from 'drizzle-orm';
 import type Stripe from 'stripe';
 
-import { createError } from '@/api/common/error-handling';
+import { createError, normalizeError } from '@/api/common/error-handling';
 import type { ErrorContext } from '@/api/core';
+import { apiLogger } from '@/api/middleware/hono-logger';
 import { stripeService } from '@/api/services/stripe.service';
 import { getDbAsync } from '@/db';
 import * as tables from '@/db/schema';
@@ -63,6 +64,14 @@ export type SyncedSubscriptionState =
 export async function syncStripeDataFromStripe(
   customerId: string,
 ): Promise<SyncedSubscriptionState> {
+  // Theo's Pattern: Type-check customerId is string (throw if not)
+  if (typeof customerId !== 'string' || !customerId) {
+    throw createError.badRequest('Invalid customer ID: must be a non-empty string', {
+      errorType: 'validation',
+      field: 'customerId',
+    });
+  }
+
   const db = await getDbAsync();
 
   // Verify customer exists in our database
@@ -79,13 +88,25 @@ export async function syncStripeDataFromStripe(
   }
 
   // Fetch latest subscription data from Stripe API (NOT webhook payload)
-  const stripe = stripeService.getClient();
-  const subscriptions = await stripe.subscriptions.list({
-    customer: customerId,
-    limit: 1,
-    status: 'all',
-    expand: ['data.default_payment_method', 'data.items.data.price.product'],
-  });
+  // Wrapped in try/catch for proper error handling of Stripe API failures
+  let subscriptions: Stripe.ApiList<Stripe.Subscription>;
+  try {
+    const stripe = stripeService.getClient();
+    subscriptions = await stripe.subscriptions.list({
+      customer: customerId,
+      limit: 1,
+      status: 'all',
+      expand: ['data.default_payment_method', 'data.items.data.price.product'],
+    });
+  } catch (error) {
+    apiLogger.error('Failed to fetch subscriptions from Stripe API', normalizeError(error));
+    throw createError.internal('Failed to sync subscription data from Stripe', {
+      errorType: 'external_service',
+      service: 'stripe',
+      operation: 'sync_subscription',
+      resourceId: customerId,
+    });
+  }
 
   // No subscription exists
   if (subscriptions.data.length === 0) {
@@ -140,20 +161,66 @@ export async function syncStripeDataFromStripe(
     current_period_end: number;
   };
 
-  // Fetch recent invoices
-  const invoices = await stripe.invoices.list({
-    customer: customerId,
-    limit: 10,
-  });
+  // Fetch recent invoices (wrapped for error handling)
+  let invoices: Stripe.ApiList<Stripe.Invoice>;
+  try {
+    const stripe = stripeService.getClient();
+    invoices = await stripe.invoices.list({
+      customer: customerId,
+      limit: 10,
+    });
+  } catch (error) {
+    apiLogger.error('Failed to fetch invoices from Stripe API', normalizeError(error));
+    throw createError.internal('Failed to sync invoice data from Stripe', {
+      errorType: 'external_service',
+      service: 'stripe',
+      operation: 'sync_invoices',
+      resourceId: customerId,
+    });
+  }
 
-  // Fetch payment methods for the customer
-  const paymentMethods = await stripe.paymentMethods.list({
-    customer: customerId,
-    type: 'card',
-  });
+  // Fetch payment methods for the customer (wrapped for error handling)
+  let paymentMethods: Stripe.ApiList<Stripe.PaymentMethod>;
+  try {
+    const stripe = stripeService.getClient();
+    paymentMethods = await stripe.paymentMethods.list({
+      customer: customerId,
+      type: 'card',
+    });
+  } catch (error) {
+    apiLogger.error('Failed to fetch payment methods from Stripe API', normalizeError(error));
+    throw createError.internal('Failed to sync payment method data from Stripe', {
+      errorType: 'external_service',
+      service: 'stripe',
+      operation: 'sync_payment_methods',
+      resourceId: customerId,
+    });
+  }
 
-  // Get customer details for updates
-  const stripeCustomer = await stripe.customers.retrieve(customerId);
+  // Get customer details for updates (wrapped for error handling)
+  let stripeCustomer: Stripe.Customer | Stripe.DeletedCustomer;
+  try {
+    const stripe = stripeService.getClient();
+    stripeCustomer = await stripe.customers.retrieve(customerId);
+  } catch (error) {
+    apiLogger.error('Failed to fetch customer from Stripe API', normalizeError(error));
+    throw createError.internal('Failed to sync customer data from Stripe', {
+      errorType: 'external_service',
+      service: 'stripe',
+      operation: 'sync_customer',
+      resourceId: customerId,
+    });
+  }
+
+  if ('deleted' in stripeCustomer && stripeCustomer.deleted) {
+    throw createError.notFound(`Customer ${customerId} has been deleted in Stripe`, {
+      errorType: 'external_service',
+      service: 'stripe',
+      operation: 'sync_customer',
+      resourceId: customerId,
+    });
+  }
+
   const customerData = stripeCustomer as Stripe.Customer;
 
   // Prepare customer update operation

@@ -16,19 +16,19 @@ import { createApiClient } from '@/api/client';
 // ============================================================================
 
 export type GetProductsRequest = InferRequestType<
-  ApiClientType['products']['$get']
+  ApiClientType['billing']['products']['$get']
 >;
 
 export type GetProductsResponse = InferResponseType<
-  ApiClientType['products']['$get']
+  ApiClientType['billing']['products']['$get']
 >;
 
 export type GetProductRequest = InferRequestType<
-  ApiClientType['products'][':id']['$get']
+  ApiClientType['billing']['products'][':id']['$get']
 >;
 
 export type GetProductResponse = InferResponseType<
-  ApiClientType['products'][':id']['$get']
+  ApiClientType['billing']['products'][':id']['$get']
 >;
 
 // ============================================================================
@@ -45,8 +45,8 @@ export type GetProductResponse = InferResponseType<
 export async function getProductsService(args?: GetProductsRequest) {
   const client = await createApiClient();
   return args
-    ? parseResponse(client.products.$get(args))
-    : parseResponse(client.products.$get());
+    ? parseResponse(client.billing.products.$get(args))
+    : parseResponse(client.billing.products.$get());
 }
 
 /**
@@ -58,7 +58,7 @@ export async function getProductsService(args?: GetProductsRequest) {
 export async function getProductService(productId: string) {
   const client = await createApiClient();
   return parseResponse(
-    client.products[':id'].$get({
+    client.billing.products[':id'].$get({
       param: { id: productId },
     }),
   );

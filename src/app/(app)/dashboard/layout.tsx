@@ -19,8 +19,10 @@ export async function generateMetadata(): Promise<Metadata> {
 
 export default async function DashboardLayout({
   children,
+  modal,
 }: {
   children: React.ReactNode;
+  modal?: React.ReactNode;
 }) {
   return (
     <>
@@ -41,6 +43,7 @@ export default async function DashboardLayout({
           </DashboardContentWrapper>
         </SidebarInset>
       </SidebarProvider>
+      {modal}
     </>
   );
 }

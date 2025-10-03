@@ -14,3 +14,8 @@ export {
   useCreateCheckoutSessionMutation,
   useSyncAfterCheckoutMutation,
 } from './checkout';
+
+// Customer Portal mutations (protected)
+export {
+  useCreateCustomerPortalSessionMutation,
+} from './customer-portal';

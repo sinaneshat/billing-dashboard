@@ -294,6 +294,8 @@
     "billingCycle": "Billing Cycle",
     "billingHistory": "Billing History",
     "billingSettingsDescription": "Configure your billing preferences",
+    "browseProducts": "Browse Products",
+    "canceledAtPeriodEnd": "This subscription will be canceled at the end of the billing period",
     "changePlanDescription": "Upgrade or downgrade your subscription",
     "choosePlan": "Choose Plan",
     "chooseplanDescription": "Select the perfect plan for your needs",
@@ -301,6 +303,15 @@
     "configured": "Configured",
     "currency": "Currency",
     "currentPlan": "Current Plan",
+    "modal": {
+      "title": "Billing & Subscriptions",
+      "description": "Manage your subscription and view available plans",
+      "viewProfile": "View Profile"
+    },
+    "currentSubscription": {
+      "description": "Manage your active subscription",
+      "title": "Current Subscription"
+    },
     "currentUsage": "Current Usage",
     "default": "Default",
     "description": "Description",
@@ -310,6 +321,7 @@
     "dueDate": "Due Date",
     "empty": "No billing information yet",
     "emptyDescription": "Set up your subscription to get started",
+    "expiresOn": "Expires On",
     "failedPaymentMessage": "There was an issue with your recent payment. Please check your payment method or contact support.",
     "invoiceDate": "Invoice Date",
     "manageBillingInfo": "Manage your billing information",
@@ -319,6 +331,10 @@
     "monthlyPrice": "Monthly Price",
     "nextBilling": "Next Billing Date",
     "noActiveSubscription": "You don't have an active subscription. Browse our plans to get started.",
+    "noDescription": "No description available",
+    "noPricing": "No pricing information available",
+    "noProducts": "No products available",
+    "noSubscription": "No active subscription",
     "noValidContract": "No valid payment contract found. Please set up your payment method first.",
     "alreadyOnThisPlan": "You are already on this plan",
     "alreadyHasActiveSubscription": "You already have an active subscription. Use the switch plan option to change your subscription.",
@@ -331,6 +347,10 @@
     "noPaymentMethods": "No payment methods added",
     "noPlan": "No Plan",
     "notScheduled": "Not scheduled",
+    "overview": {
+      "description": "View your billing summary and subscription status",
+      "title": "Billing Overview"
+    },
     "paymentHistory": "Payment History",
     "paymentHistoryEmpty": "No payment history",
     "paymentHistoryEmptyDescription": "Your payment transactions will appear here once you make your first purchase",
@@ -342,8 +362,21 @@
     "plansDescription": "Choose the perfect plan for your needs and upgrade or downgrade anytime.",
     "plansTitle": "Subscription Plans",
     "primaryDirectDebit": "Primary • Direct Debit",
+    "products": {
+      "description": "Browse and subscribe to available products",
+      "title": "Available Products"
+    },
     "quickActions": "Quick Actions",
     "recentTransactions": "Your recent billing transactions",
+    "renewsOn": "Renews On",
+    "status": "Status",
+    "subscribe": "Subscribe",
+    "subscription": "Subscription",
+    "subscriptionPlan": "Subscription Plan",
+    "subscriptions": {
+      "description": "Manage your active subscriptions",
+      "title": "My Subscriptions"
+    },
     "upcomingBilling": "Upcoming Billing",
     "setupDirectDebit": "Setup Direct Debit",
     "setupPayment": "Setup Payment",
@@ -365,6 +398,7 @@
     "updatePaymentDescription": "Manage your payment methods",
     "usageLimit": "Usage Limit",
     "viewInvoices": "View Invoices",
+    "viewOtherPlans": "View Other Plans",
     "viewPaymentHistory": "View Payment History",
     "viewPlans": "View Plans",
     "welcome": {
@@ -393,6 +427,8 @@
     "logoAlt": "Company Logo"
   },
   "common": {
+    "error": "An error occurred",
+    "loading": "Loading...",
     "optional": "(optional)",
     "or": "Or",
     "upTo": "Up to",
@@ -904,16 +940,20 @@
     "about": "About",
     "account": "Account",
     "billing": "Billing",
+    "billingPortal": "Billing Portal",
     "billingHistory": "Billing History",
     "contact": "Contact",
     "dashboard": "Dashboard",
     "navigation": "Navigation",
     "chats": "Chats",
     "newChat": "New Chat",
+    "notifications": "Notifications",
     "paymentHistory": "Payment History",
     "paymentMethods": "Payment Methods",
     "plans": "Plans",
+    "pricing": "Pricing",
     "profile": "Profile",
+    "security": "Security",
     "settings": "Settings",
     "signIn": "Sign In",
     "signOut": "Sign Out",
@@ -1348,6 +1388,10 @@
   },
   "pricing": {
     "currency": "USD",
+    "modal": {
+      "title": "Pricing & Plans",
+      "description": "Choose the perfect plan for your needs"
+    },
     "guarantees": {
       "cancelAnytime": "Easy cancellation anytime",
       "freeUpdates": "Free updates",
@@ -1390,6 +1434,15 @@
     "submenu": "Submenu",
     "tab": "Tab {current} of {total}"
   },
+  "profile": {
+    "title": "Profile",
+    "description": "View your account information",
+    "userId": "User ID",
+    "memberSince": "Member Since",
+    "fullName": "Full Name",
+    "email": "Email Address",
+    "image": "Profile Picture"
+  },
   "settings": {
     "accessibility": {
       "breadcrumb": "breadcrumb",
@@ -1417,7 +1470,93 @@
       "mode": "Theme mode",
       "title": "Theme"
     },
-    "title": "Settings"
+    "title": "Settings",
+    "password": {
+      "title": "Change Password",
+      "description": "Update your password to keep your account secure",
+      "currentPassword": "Current Password",
+      "newPassword": "New Password",
+      "confirmPassword": "Confirm New Password",
+      "updateButton": "Update Password",
+      "cancelButton": "Cancel",
+      "success": "Password updated successfully",
+      "error": "Failed to update password"
+    },
+    "twoFactor": {
+      "title": "Two-Factor Authentication",
+      "description": "Add an extra layer of security to your account",
+      "enabled": "Two-factor authentication is enabled",
+      "disabled": "Two-factor authentication is disabled",
+      "enableButton": "Enable 2FA",
+      "disableButton": "Disable 2FA",
+      "qrCode": "Scan this QR code with your authenticator app",
+      "backupCodes": "Backup Codes",
+      "saveBackupCodes": "Save these backup codes in a safe place"
+    },
+    "sessions": {
+      "title": "Active Sessions",
+      "description": "Manage your active sessions across devices",
+      "currentSession": "Current Session",
+      "device": "Device",
+      "location": "Location",
+      "lastActive": "Last Active",
+      "revokeButton": "Revoke",
+      "revokeAllButton": "Revoke All Other Sessions",
+      "revokeSuccess": "Session revoked successfully",
+      "revokeError": "Failed to revoke session"
+    },
+    "email": {
+      "title": "Email Notifications",
+      "description": "Manage your email notification preferences",
+      "marketing": {
+        "label": "Marketing emails",
+        "description": "Receive emails about new features, products, and offers"
+      },
+      "updates": {
+        "label": "Product updates",
+        "description": "Receive emails about product updates and new features"
+      },
+      "billing": {
+        "label": "Billing notifications",
+        "description": "Receive emails about billing, invoices, and payments"
+      },
+      "security": {
+        "label": "Security alerts",
+        "description": "Receive emails about security events and account activity"
+      }
+    },
+    "push": {
+      "title": "Push Notifications",
+      "description": "Manage your push notification preferences",
+      "enabled": "Push notifications enabled",
+      "disabled": "Push notifications disabled",
+      "enableButton": "Enable Push Notifications",
+      "disableButton": "Disable Push Notifications",
+      "mentions": {
+        "label": "Mentions",
+        "description": "Get notified when someone mentions you"
+      },
+      "messages": {
+        "label": "New messages",
+        "description": "Get notified about new messages"
+      },
+      "updates": {
+        "label": "System updates",
+        "description": "Get notified about important system updates"
+      }
+    },
+    "overview": {
+      "title": "Billing Overview",
+      "description": "View your billing summary and subscription status"
+    },
+    "subscription": {
+      "title": "Subscription Management",
+      "description": "Manage your active subscription"
+    },
+    "products": {
+      "title": "Products",
+      "description": "Browse available products and plans"
+    }
   },
   "states": {
     "empty": {

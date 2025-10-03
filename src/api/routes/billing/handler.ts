@@ -14,6 +14,7 @@ import * as tables from '@/db/schema';
 
 import type {
   createCheckoutSessionRoute,
+  createCustomerPortalSessionRoute,
   getProductRoute,
   getSubscriptionRoute,
   handleWebhookRoute,
@@ -23,6 +24,7 @@ import type {
 } from './route';
 import {
   CheckoutRequestSchema,
+  CustomerPortalRequestSchema,
   ProductIdParamSchema,
   SubscriptionIdParamSchema,
 } from './schema';
@@ -181,9 +183,27 @@ export const getProductHandler: RouteHandler<typeof getProductRoute, ApiEnv> = c
 );
 
 // ============================================================================
-// Checkout Handlers
+// Checkout Handlers (Theo's Pattern: Eager Sync After Checkout)
 // ============================================================================
 
+/**
+ * Create Checkout Session
+ *
+ * Following Theo's "Stay Sane with Stripe" pattern:
+ * - Creates Stripe Checkout session for subscription purchase
+ * - Success URL redirects to /dashboard/billing/success (WITHOUT session_id parameter)
+ * - Success page auto-triggers eager sync from Stripe API
+ * - This prevents race condition where UI loads before webhooks arrive
+ * - Webhooks still run in background but UI doesn't depend on them
+ *
+ * Flow:
+ * 1. User clicks "Subscribe" → This endpoint creates checkout session
+ * 2. User completes payment on Stripe
+ * 3. Stripe redirects to success URL
+ * 4. Success page calls /sync-after-checkout endpoint
+ * 5. Sync endpoint fetches fresh data from Stripe API
+ * 6. User sees updated subscription status immediately
+ */
 export const createCheckoutSessionHandler: RouteHandler<typeof createCheckoutSessionRoute, ApiEnv> = createHandlerWithBatch(
   {
     auth: 'session',
@@ -265,7 +285,9 @@ export const createCheckoutSessionHandler: RouteHandler<typeof createCheckoutSes
       }
 
       const appUrl = c.env.NEXT_PUBLIC_APP_URL;
-      const successUrl = body.successUrl || `${appUrl}/dashboard/billing/success?session_id={CHECKOUT_SESSION_ID}`;
+      // Theo's pattern: Do NOT use CHECKOUT_SESSION_ID (ignore it)
+      // Success page will eagerly sync fresh data from Stripe API
+      const successUrl = body.successUrl || `${appUrl}/dashboard/billing/success`;
       const cancelUrl = body.cancelUrl || `${appUrl}/dashboard/billing`;
 
       const session = await stripeService.createCheckoutSession({
@@ -308,6 +330,102 @@ export const createCheckoutSessionHandler: RouteHandler<typeof createCheckoutSes
         userId: user.id,
       };
       throw createError.internal('Failed to create checkout session', context);
+    }
+  },
+);
+
+// ============================================================================
+// Customer Portal Handlers
+// ============================================================================
+
+/**
+ * Create Stripe customer portal session handler
+ * Allows customers to manage their subscriptions and billing information
+ *
+ * Pattern: Returns portal URL for client-side redirect
+ */
+export const createCustomerPortalSessionHandler: RouteHandler<typeof createCustomerPortalSessionRoute, ApiEnv> = createHandler(
+  {
+    auth: 'session',
+    validateBody: CustomerPortalRequestSchema,
+    operationName: 'createCustomerPortalSession',
+  },
+  async (c) => {
+    const user = c.get('user');
+    const body = c.validated.body;
+
+    if (!user) {
+      const context: ErrorContext = {
+        errorType: 'authentication',
+        operation: 'session_required',
+      };
+      throw createError.unauthenticated('Valid session required for customer portal', context);
+    }
+
+    // Operation start logging
+    c.logger.info('Creating customer portal session', {
+      logType: 'operation',
+      operationName: 'createCustomerPortalSession',
+      userId: user.id,
+    });
+
+    try {
+      // Get customer ID from database
+      const customerId = await getCustomerIdByUserId(user.id);
+
+      if (!customerId) {
+        const context: ErrorContext = {
+          errorType: 'resource',
+          resource: 'customer',
+          userId: user.id,
+        };
+        throw createError.badRequest('No Stripe customer found for this user. Please create a subscription first.', context);
+      }
+
+      const appUrl = c.env.NEXT_PUBLIC_APP_URL;
+      const returnUrl = body.returnUrl || `${appUrl}/dashboard`;
+
+      const session = await stripeService.createCustomerPortalSession({
+        customerId,
+        returnUrl,
+      });
+
+      if (!session.url) {
+        const context: ErrorContext = {
+          errorType: 'external_service',
+          service: 'stripe',
+          operation: 'create_portal_session',
+          userId: user.id,
+        };
+        throw createError.internal('Portal session created but URL is missing', context);
+      }
+
+      // Success logging
+      c.logger.info('Customer portal session created successfully', {
+        logType: 'operation',
+        operationName: 'createCustomerPortalSession',
+        userId: user.id,
+        resource: customerId,
+      });
+
+      return Responses.ok(c, {
+        url: session.url,
+      });
+    } catch (error) {
+      // Re-throw if already an AppError
+      if (error instanceof AppError) {
+        throw error;
+      }
+
+      // Error logging with proper Error instance
+      c.logger.error('Failed to create customer portal session', normalizeError(error));
+      const context: ErrorContext = {
+        errorType: 'external_service',
+        service: 'stripe',
+        operation: 'create_portal_session',
+        userId: user.id,
+      };
+      throw createError.internal('Failed to create customer portal session', context);
     }
   },
 );
@@ -592,9 +710,34 @@ export const syncAfterCheckoutHandler: RouteHandler<typeof syncAfterCheckoutRout
 );
 
 // ============================================================================
-// Webhook Handler
+// Webhook Handler (Theo's Pattern: Always Return 200, Async Processing)
 // ============================================================================
 
+/**
+ * Stripe Webhook Handler
+ *
+ * Following Theo's "Stay Sane with Stripe" pattern:
+ * - Verifies webhook signature from Stripe
+ * - ALWAYS returns 200 OK (even on processing errors) to prevent retry storms
+ * - Extracts only customerId from webhook payload (never trust full payload data)
+ * - Fetches fresh data from Stripe API (single source of truth)
+ * - Processes asynchronously using Cloudflare Workers waitUntil (production)
+ * - Falls back to synchronous processing (local development)
+ * - Implements idempotency check to prevent duplicate processing
+ *
+ * Architecture:
+ * 1. Verify signature → Return 400 if invalid (Stripe will not retry)
+ * 2. Check idempotency → Return 200 if already processed
+ * 3. Insert webhook event record (processed: false)
+ * 4. Return 200 immediately
+ * 5. Process webhook in background (extract customerId, sync from Stripe API)
+ * 6. Update webhook event record (processed: true)
+ *
+ * Error Handling:
+ * - Signature errors → 400 Bad Request (not 401)
+ * - Processing errors → Log and return 200 (prevents Stripe retry storms)
+ * - Background errors → Logged for manual investigation/retry
+ */
 export const handleWebhookHandler: RouteHandler<typeof handleWebhookRoute, ApiEnv> = createHandlerWithBatch(
   {
     auth: 'public',
@@ -665,20 +808,40 @@ export const handleWebhookHandler: RouteHandler<typeof handleWebhookRoute, ApiEn
         createdAt: new Date(event.created * 1000),
       }).onConflictDoNothing();
 
-      // Process webhook event using batch.db
-      await processWebhookEvent(event, batch.db);
+      // Async webhook processing pattern for Cloudflare Workers
+      // Return 200 immediately, process webhook in background
+      const processAsync = async () => {
+        try {
+          // Process webhook event using batch.db
+          await processWebhookEvent(event, batch.db);
 
-      // Update webhook event as processed using batch.db
-      await batch.db.update(tables.stripeWebhookEvent)
-        .set({ processed: true })
-        .where(eq(tables.stripeWebhookEvent.id, event.id));
+          // Update webhook event as processed using batch.db
+          await batch.db.update(tables.stripeWebhookEvent)
+            .set({ processed: true })
+            .where(eq(tables.stripeWebhookEvent.id, event.id));
 
-      // Success logging with event type and ID
-      c.logger.info('Webhook processed successfully', {
-        logType: 'operation',
-        operationName: 'handleStripeWebhook',
-        resource: `${event.type}-${event.id}`,
-      });
+          // Success logging with event type and ID
+          c.logger.info('Webhook processed successfully', {
+            logType: 'operation',
+            operationName: 'handleStripeWebhook',
+            resource: `${event.type}-${event.id}`,
+          });
+        } catch (error) {
+          // Background processing error - log but don't fail the response
+          c.logger.error(
+            `Background webhook processing failed for event ${event.type} (${event.id})`,
+            normalizeError(error),
+          );
+        }
+      };
+
+      // Use Cloudflare Workers async processing if available (production)
+      // Otherwise process synchronously (local development)
+      if (c.executionCtx) {
+        c.executionCtx.waitUntil(processAsync());
+      } else {
+        await processAsync();
+      }
 
       return Responses.ok(c, {
         received: true,
@@ -691,12 +854,19 @@ export const handleWebhookHandler: RouteHandler<typeof handleWebhookRoute, ApiEn
     } catch (error) {
       // Error logging with proper Error instance
       c.logger.error('Webhook processing failed', normalizeError(error));
-      const context: ErrorContext = {
-        errorType: 'external_service',
-        service: 'stripe',
-        operation: 'webhook_processing',
-      };
-      throw createError.badRequest('Webhook processing failed', context);
+
+      // CRITICAL (Theo's Pattern): ALWAYS return 200 to Stripe even on errors
+      // This prevents webhook retry storms. Stripe will mark webhook as delivered.
+      // Failed processing is logged for investigation and manual retry if needed.
+      return Responses.ok(c, {
+        received: true,
+        event: {
+          id: 'unknown',
+          type: 'unknown',
+          processed: false,
+          error: 'Processing failed - logged for investigation',
+        },
+      });
     }
   },
 );
@@ -706,8 +876,55 @@ export const handleWebhookHandler: RouteHandler<typeof handleWebhookRoute, ApiEn
 // ============================================================================
 
 /**
- * List of webhook events to track (from Theo's guide + Customer Portal events)
- * All events trigger the SAME sync function - no need for event-specific logic
+ * Tracked Webhook Events
+ *
+ * Following Theo's "Stay Sane with Stripe" pattern:
+ * - ALL events trigger the SAME sync function (syncStripeDataFromStripe)
+ * - NO event-specific logic needed
+ * - Extract customerId → Fetch fresh data from Stripe API → Upsert to database
+ *
+ * Event Categories:
+ *
+ * 1. CHECKOUT EVENTS (Theo's base list):
+ *    - checkout.session.completed: User completes checkout
+ *
+ * 2. SUBSCRIPTION LIFECYCLE (Theo's base list):
+ *    - customer.subscription.created: New subscription
+ *    - customer.subscription.updated: Subscription changed
+ *    - customer.subscription.deleted: Subscription canceled
+ *
+ * 3. CUSTOMER PORTAL EVENTS (Added for portal support - not in Theo's minimal list):
+ *    These events fire when users manage subscriptions via Stripe Customer Portal:
+ *
+ *    Subscription Actions:
+ *    - customer.subscription.paused: User pauses subscription in portal
+ *    - customer.subscription.resumed: User resumes paused subscription
+ *    - customer.subscription.pending_update_applied: Scheduled plan change applied
+ *    - customer.subscription.pending_update_expired: Scheduled plan change expired
+ *    - customer.subscription.trial_will_end: Trial ending notification (3 days before)
+ *
+ *    Customer Profile:
+ *    - customer.updated: User updates email, name, or billing details in portal
+ *
+ *    Payment Methods:
+ *    - payment_method.attached: User adds new card in portal
+ *    - payment_method.detached: User removes card in portal
+ *    - payment_method.updated: Card details updated (exp date, etc.)
+ *
+ * 4. BILLING EVENTS (Theo's base list + extras):
+ *    - invoice.paid: Invoice successfully paid
+ *    - invoice.payment_failed: Payment failed (card declined, etc.)
+ *    - invoice.payment_action_required: 3D Secure or SCA required
+ *    - invoice.upcoming: Invoice will be charged soon (7 days before)
+ *    - invoice.marked_uncollectible: Invoice marked as uncollectible after retries
+ *    - invoice.payment_succeeded: Payment succeeded (duplicate of invoice.paid for safety)
+ *    - payment_intent.succeeded: Payment processing succeeded
+ *    - payment_intent.payment_failed: Payment processing failed
+ *    - payment_intent.canceled: Payment canceled
+ *
+ * Philosophy:
+ * By syncing on ALL events, we guarantee database is always up-to-date
+ * regardless of which Stripe feature or portal action the user uses.
  */
 const TRACKED_WEBHOOK_EVENTS: Stripe.Event.Type[] = [
   // Checkout events
@@ -746,6 +963,8 @@ const TRACKED_WEBHOOK_EVENTS: Stripe.Event.Type[] = [
 /**
  * Extract customer ID from webhook event
  * All tracked events have a customer property
+ *
+ * Theo's Pattern: Type-check customerId is string (throw if not)
  */
 function extractCustomerId(event: Stripe.Event): string | null {
   const obj = event.data.object as { customer?: string | { id: string } };
@@ -753,7 +972,26 @@ function extractCustomerId(event: Stripe.Event): string | null {
   if (!obj.customer)
     return null;
 
-  return typeof obj.customer === 'string' ? obj.customer : obj.customer.id;
+  // Type guard: string customer ID
+  if (typeof obj.customer === 'string') {
+    return obj.customer;
+  }
+
+  // Type guard: expanded customer object with id
+  if (typeof obj.customer === 'object' && typeof obj.customer.id === 'string') {
+    return obj.customer.id;
+  }
+
+  // Throw on invalid type (Theo's requirement: "Type-check customerId is string (throw if not)")
+  const context: ErrorContext = {
+    errorType: 'external_service',
+    service: 'stripe',
+    operation: 'webhook_processing',
+  };
+  throw createError.badRequest(
+    `Invalid customer type in webhook event: expected string or object with id, got ${typeof obj.customer}`,
+    context,
+  );
 }
 
 /**

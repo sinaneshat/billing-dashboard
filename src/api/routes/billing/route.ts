@@ -6,6 +6,8 @@ import { createApiResponseSchema } from '@/api/core/schemas';
 import {
   CheckoutRequestSchema,
   CheckoutResponseSchema,
+  CustomerPortalRequestSchema,
+  CustomerPortalResponseSchema,
   ProductDetailResponseSchema,
   ProductIdParamSchema,
   ProductListResponseSchema,
@@ -21,7 +23,7 @@ import {
 
 export const listProductsRoute = createRoute({
   method: 'get',
-  path: '/products',
+  path: '/billing/products',
   tags: ['billing'],
   summary: 'List all products',
   description: 'Get all active products with their pricing plans',
@@ -39,7 +41,7 @@ export const listProductsRoute = createRoute({
 
 export const getProductRoute = createRoute({
   method: 'get',
-  path: '/products/:id',
+  path: '/billing/products/:id',
   tags: ['billing'],
   summary: 'Get product details',
   description: 'Get a specific product with all its pricing plans',
@@ -65,7 +67,7 @@ export const getProductRoute = createRoute({
 
 export const createCheckoutSessionRoute = createRoute({
   method: 'post',
-  path: '/checkout',
+  path: '/billing/checkout',
   tags: ['billing'],
   summary: 'Create checkout session',
   description: 'Create a Stripe checkout session for subscription purchase',
@@ -92,12 +94,44 @@ export const createCheckoutSessionRoute = createRoute({
 });
 
 // ============================================================================
+// Customer Portal Routes
+// ============================================================================
+
+export const createCustomerPortalSessionRoute = createRoute({
+  method: 'post',
+  path: '/billing/portal',
+  tags: ['billing'],
+  summary: 'Create customer portal session',
+  description: 'Create a Stripe customer portal session for managing subscriptions and billing',
+  request: {
+    body: {
+      content: {
+        'application/json': {
+          schema: CustomerPortalRequestSchema,
+        },
+      },
+    },
+  },
+  responses: {
+    [HttpStatusCodes.OK]: {
+      description: 'Customer portal session created successfully',
+      content: {
+        'application/json': { schema: CustomerPortalResponseSchema },
+      },
+    },
+    [HttpStatusCodes.UNAUTHORIZED]: { description: 'Authentication required' },
+    [HttpStatusCodes.BAD_REQUEST]: { description: 'Invalid request data or no Stripe customer found' },
+    [HttpStatusCodes.INTERNAL_SERVER_ERROR]: { description: 'Internal Server Error' },
+  },
+});
+
+// ============================================================================
 // Subscription Routes
 // ============================================================================
 
 export const listSubscriptionsRoute = createRoute({
   method: 'get',
-  path: '/subscriptions',
+  path: '/billing/subscriptions',
   tags: ['billing'],
   summary: 'List user subscriptions',
   description: 'Get all subscriptions for the authenticated user',
@@ -116,7 +150,7 @@ export const listSubscriptionsRoute = createRoute({
 
 export const getSubscriptionRoute = createRoute({
   method: 'get',
-  path: '/subscriptions/:id',
+  path: '/billing/subscriptions/:id',
   tags: ['billing'],
   summary: 'Get subscription details',
   description: 'Get details of a specific subscription',
@@ -144,7 +178,7 @@ export const getSubscriptionRoute = createRoute({
 
 export const syncAfterCheckoutRoute = createRoute({
   method: 'post',
-  path: '/sync-after-checkout',
+  path: '/billing/sync-after-checkout',
   tags: ['billing'],
   summary: 'Sync Stripe data after checkout',
   description: 'Eagerly sync Stripe subscription data after successful checkout to prevent race conditions with webhooks',

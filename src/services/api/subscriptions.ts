@@ -16,19 +16,19 @@ import { createApiClient } from '@/api/client';
 // ============================================================================
 
 export type GetSubscriptionsRequest = InferRequestType<
-  ApiClientType['subscriptions']['$get']
+  ApiClientType['billing']['subscriptions']['$get']
 >;
 
 export type GetSubscriptionsResponse = InferResponseType<
-  ApiClientType['subscriptions']['$get']
+  ApiClientType['billing']['subscriptions']['$get']
 >;
 
 export type GetSubscriptionRequest = InferRequestType<
-  ApiClientType['subscriptions'][':id']['$get']
+  ApiClientType['billing']['subscriptions'][':id']['$get']
 >;
 
 export type GetSubscriptionResponse = InferResponseType<
-  ApiClientType['subscriptions'][':id']['$get']
+  ApiClientType['billing']['subscriptions'][':id']['$get']
 >;
 
 // ============================================================================
@@ -45,8 +45,8 @@ export type GetSubscriptionResponse = InferResponseType<
 export async function getSubscriptionsService(args?: GetSubscriptionsRequest) {
   const client = await createApiClient();
   return args
-    ? parseResponse(client.subscriptions.$get(args))
-    : parseResponse(client.subscriptions.$get());
+    ? parseResponse(client.billing.subscriptions.$get(args))
+    : parseResponse(client.billing.subscriptions.$get());
 }
 
 /**
@@ -58,7 +58,7 @@ export async function getSubscriptionsService(args?: GetSubscriptionsRequest) {
 export async function getSubscriptionService(subscriptionId: string) {
   const client = await createApiClient();
   return parseResponse(
-    client.subscriptions[':id'].$get({
+    client.billing.subscriptions[':id'].$get({
       param: { id: subscriptionId },
     }),
   );

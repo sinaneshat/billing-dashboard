@@ -36,6 +36,7 @@ import { secureMeRoute } from './routes/auth/route';
 // Billing routes
 import {
   createCheckoutSessionHandler,
+  createCustomerPortalSessionHandler,
   getProductHandler,
   getSubscriptionHandler,
   handleWebhookHandler,
@@ -45,6 +46,7 @@ import {
 } from './routes/billing/handler';
 import {
   createCheckoutSessionRoute,
+  createCustomerPortalSessionRoute,
   getProductRoute,
   getSubscriptionRoute,
   handleWebhookRoute,
@@ -164,8 +166,10 @@ app.use('*', etag());
 // Session attachment
 app.use('*', attachSession);
 
-// Stripe initialization for billing routes
+// Stripe initialization for all billing routes and webhooks
+// Using wildcard pattern to apply middleware to all /billing/* routes
 app.use('/billing/*', ensureStripeInitialized);
+app.use('/webhooks/stripe', ensureStripeInitialized);
 
 // Global rate limiting
 app.use('*', RateLimiterFactory.create('api'));
@@ -185,6 +189,7 @@ app.notFound(notFound);
 // Apply CSRF protection and authentication to protected routes
 // Following Hono best practices: apply CSRF only to authenticated routes
 app.use('/auth/me', csrfMiddleware, requireSession);
+// Protected billing endpoints (checkout, sync, subscriptions)
 app.use('/billing/checkout', csrfMiddleware, requireSession);
 app.use('/billing/sync-after-checkout', csrfMiddleware, requireSession);
 app.use('/billing/subscriptions', csrfMiddleware, requireSession);
@@ -202,6 +207,8 @@ const appRoutes = app
   .openapi(getProductRoute, getProductHandler)
   // Billing routes - Checkout (protected)
   .openapi(createCheckoutSessionRoute, createCheckoutSessionHandler)
+  // Billing routes - Customer Portal (protected)
+  .openapi(createCustomerPortalSessionRoute, createCustomerPortalSessionHandler)
   // Billing routes - Sync (protected)
   .openapi(syncAfterCheckoutRoute, syncAfterCheckoutHandler)
   // Billing routes - Subscriptions (protected)
@@ -236,6 +243,7 @@ appRoutes.doc('/doc', c => ({
   tags: [
     { name: 'system', description: 'System health and diagnostics' },
     { name: 'auth', description: 'Authentication and authorization' },
+    { name: 'billing', description: 'Stripe billing, subscriptions, and payments' },
   ],
   servers: [
     {
