@@ -1,6 +1,8 @@
 import { createRoute, z } from '@hono/zod-openapi';
 import * as HttpStatusCodes from 'stoker/http-status-codes';
 
+import { createApiResponseSchema } from '@/api/core/schemas';
+
 import {
   CancelSubscriptionRequestSchema,
   CheckoutRequestSchema,
@@ -189,6 +191,50 @@ export const cancelSubscriptionRoute = createRoute({
     [HttpStatusCodes.NOT_FOUND]: { description: 'Subscription not found' },
     [HttpStatusCodes.FORBIDDEN]: { description: 'Subscription does not belong to user' },
     [HttpStatusCodes.BAD_REQUEST]: { description: 'Bad Request' },
+    [HttpStatusCodes.INTERNAL_SERVER_ERROR]: { description: 'Internal Server Error' },
+  },
+});
+
+// ============================================================================
+// Sync Routes
+// ============================================================================
+
+export const syncAfterCheckoutRoute = createRoute({
+  method: 'post',
+  path: '/sync-after-checkout',
+  tags: ['billing'],
+  summary: 'Sync Stripe data after checkout',
+  description: 'Eagerly sync Stripe subscription data after successful checkout to prevent race conditions with webhooks',
+  responses: {
+    [HttpStatusCodes.OK]: {
+      description: 'Stripe data synced successfully',
+      content: {
+        'application/json': {
+          schema: createApiResponseSchema(
+            z.object({
+              synced: z.boolean().openapi({
+                description: 'Whether sync was successful',
+                example: true,
+              }),
+              subscription: z.object({
+                status: z.string().openapi({
+                  description: 'Subscription status',
+                  example: 'active',
+                }),
+                subscriptionId: z.string().openapi({
+                  description: 'Stripe subscription ID',
+                  example: 'sub_ABC123',
+                }),
+              }).nullable().openapi({
+                description: 'Synced subscription state',
+              }),
+            }),
+          ),
+        },
+      },
+    },
+    [HttpStatusCodes.UNAUTHORIZED]: { description: 'Authentication required' },
+    [HttpStatusCodes.NOT_FOUND]: { description: 'No Stripe customer found for user' },
     [HttpStatusCodes.INTERNAL_SERVER_ERROR]: { description: 'Internal Server Error' },
   },
 });

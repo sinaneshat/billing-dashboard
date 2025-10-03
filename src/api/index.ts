@@ -42,6 +42,7 @@ import {
   handleWebhookHandler,
   listProductsHandler,
   listSubscriptionsHandler,
+  syncAfterCheckoutHandler,
 } from './routes/billing/handler';
 import {
   cancelSubscriptionRoute,
@@ -51,6 +52,7 @@ import {
   handleWebhookRoute,
   listProductsRoute,
   listSubscriptionsRoute,
+  syncAfterCheckoutRoute,
 } from './routes/billing/route';
 // System/health routes
 import {
@@ -202,6 +204,8 @@ const appRoutes = app
   .openapi(getProductRoute, getProductHandler)
   // Billing routes - Checkout (protected)
   .openapi(createCheckoutSessionRoute, createCheckoutSessionHandler)
+  // Billing routes - Sync (protected)
+  .openapi(syncAfterCheckoutRoute, syncAfterCheckoutHandler)
   // Billing routes - Subscriptions (protected)
   .openapi(listSubscriptionsRoute, listSubscriptionsHandler)
   .openapi(getSubscriptionRoute, getSubscriptionHandler)

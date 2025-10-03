@@ -59,7 +59,7 @@ class StripeService {
    * Get initialized Stripe client
    * Throws if not initialized
    */
-  private getClient(): Stripe {
+  public getClient(): Stripe {
     if (!this.stripe) {
       throw createError.internal('Stripe service not initialized. Call initialize() first.');
     }

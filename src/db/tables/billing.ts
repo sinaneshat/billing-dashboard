@@ -112,7 +112,7 @@ export const stripeSubscription = sqliteTable(
     }).notNull(),
     priceId: text('price_id')
       .notNull()
-      .references(() => stripePrice.id),
+      .references(() => stripePrice.id, { onDelete: 'cascade' }),
     quantity: integer('quantity').default(1).notNull(),
     cancelAtPeriodEnd: integer('cancel_at_period_end', { mode: 'boolean' })
       .default(false)
@@ -243,6 +243,32 @@ export const stripeWebhookEvent = sqliteTable(
 // Relations
 // ============================================================================
 
+export const stripeProductRelations = relations(stripeProduct, ({ many, one }) => ({
+  prices: many(stripePrice),
+  defaultPrice: one(stripePrice, {
+    fields: [stripeProduct.defaultPriceId],
+    references: [stripePrice.id],
+  }),
+}));
+
+export const stripePriceRelations = relations(stripePrice, ({ one, many }) => ({
+  product: one(stripeProduct, {
+    fields: [stripePrice.productId],
+    references: [stripeProduct.id],
+  }),
+  subscriptions: many(stripeSubscription),
+}));
+
+export const stripeCustomerRelations = relations(stripeCustomer, ({ one, many }) => ({
+  user: one(user, {
+    fields: [stripeCustomer.userId],
+    references: [user.id],
+  }),
+  subscriptions: many(stripeSubscription),
+  paymentMethods: many(stripePaymentMethod),
+  invoices: many(stripeInvoice),
+}));
+
 export const stripeSubscriptionRelations = relations(stripeSubscription, ({ one }) => ({
   price: one(stripePrice, {
     fields: [stripeSubscription.priceId],
@@ -255,5 +281,23 @@ export const stripeSubscriptionRelations = relations(stripeSubscription, ({ one 
   user: one(user, {
     fields: [stripeSubscription.userId],
     references: [user.id],
+  }),
+}));
+
+export const stripePaymentMethodRelations = relations(stripePaymentMethod, ({ one }) => ({
+  customer: one(stripeCustomer, {
+    fields: [stripePaymentMethod.customerId],
+    references: [stripeCustomer.id],
+  }),
+}));
+
+export const stripeInvoiceRelations = relations(stripeInvoice, ({ one }) => ({
+  customer: one(stripeCustomer, {
+    fields: [stripeInvoice.customerId],
+    references: [stripeCustomer.id],
+  }),
+  subscription: one(stripeSubscription, {
+    fields: [stripeInvoice.subscriptionId],
+    references: [stripeSubscription.id],
   }),
 }));

@@ -1,11 +1,12 @@
 import type { RouteHandler } from '@hono/zod-openapi';
 import { eq } from 'drizzle-orm';
-import Stripe from 'stripe';
+import type Stripe from 'stripe';
 
 import { createError } from '@/api/common/error-handling';
 import { createHandler, createHandlerWithBatch, Responses } from '@/api/core';
 import { apiLogger } from '@/api/middleware/hono-logger';
 import { stripeService } from '@/api/services/stripe.service';
+import { getCustomerIdByUserId, syncStripeDataFromStripe } from '@/api/services/stripe-sync.service';
 import type { ApiEnv } from '@/api/types';
 import { getDbAsync } from '@/db';
 import * as tables from '@/db/schema';
@@ -18,6 +19,7 @@ import type {
   handleWebhookRoute,
   listProductsRoute,
   listSubscriptionsRoute,
+  syncAfterCheckoutRoute,
 } from './route';
 import {
   CancelSubscriptionRequestSchema,
@@ -43,41 +45,34 @@ export const listProductsHandler: RouteHandler<typeof listProductsRoute, ApiEnv>
     });
 
     try {
-      const stripeProducts = await stripeService.listProducts();
+      const db = await getDbAsync();
 
-      const products = await Promise.all(
-        stripeProducts.map(async (product) => {
-          const prices = await stripeService.listPrices(product.id);
+      // Use Drizzle relational query to get products with prices
+      const dbProducts = await db.query.stripeProduct.findMany({
+        where: eq(tables.stripeProduct.active, true),
+        with: {
+          prices: {
+            where: eq(tables.stripePrice.active, true),
+          },
+        },
+      });
 
-          // Parse features from metadata
-          let features: string[] | null = null;
-          if (product.metadata?.features) {
-            try {
-              const parsed = JSON.parse(product.metadata.features);
-              features = Array.isArray(parsed) ? parsed : null;
-            } catch {
-              features = null;
-            }
-          }
-
-          return {
-            id: product.id,
-            name: product.name,
-            description: product.description || null,
-            features,
-            active: product.active,
-            prices: prices.map(price => ({
-              id: price.id,
-              productId: typeof price.product === 'string' ? price.product : price.product.id,
-              unitAmount: price.unit_amount || 0,
-              currency: price.currency,
-              interval: (price.recurring?.interval || 'month') as 'month' | 'year',
-              trialPeriodDays: price.recurring?.trial_period_days || null,
-              active: price.active,
-            })),
-          };
-        }),
-      );
+      const products = dbProducts.map(product => ({
+        id: product.id,
+        name: product.name,
+        description: product.description,
+        features: product.features,
+        active: product.active,
+        prices: product.prices.map(price => ({
+          id: price.id,
+          productId: price.productId,
+          unitAmount: price.unitAmount || 0,
+          currency: price.currency,
+          interval: (price.interval || 'month') as 'month' | 'year',
+          trialPeriodDays: price.trialPeriodDays,
+          active: price.active,
+        })),
+      }));
 
       // Success logging with resource count
       c.logger.info('Products retrieved successfully', {
@@ -114,33 +109,40 @@ export const getProductHandler: RouteHandler<typeof getProductRoute, ApiEnv> = c
     });
 
     try {
-      const stripeProduct = await stripeService.getProduct(id);
-      const prices = await stripeService.listPrices(id);
+      const db = await getDbAsync();
 
-      // Parse features from metadata
-      let features: string[] | null = null;
-      if (stripeProduct.metadata?.features) {
-        try {
-          const parsed = JSON.parse(stripeProduct.metadata.features);
-          features = Array.isArray(parsed) ? parsed : null;
-        } catch {
-          features = null;
-        }
+      // Use Drizzle relational query
+      const dbProduct = await db.query.stripeProduct.findFirst({
+        where: eq(tables.stripeProduct.id, id),
+        with: {
+          prices: {
+            where: eq(tables.stripePrice.active, true),
+          },
+        },
+      });
+
+      if (!dbProduct) {
+        c.logger.warn('Product not found', {
+          logType: 'operation',
+          operationName: 'getProduct',
+          resource: id,
+        });
+        throw createError.notFound(`Product ${id} not found`);
       }
 
       const product = {
-        id: stripeProduct.id,
-        name: stripeProduct.name,
-        description: stripeProduct.description || null,
-        features,
-        active: stripeProduct.active,
-        prices: prices.map(price => ({
+        id: dbProduct.id,
+        name: dbProduct.name,
+        description: dbProduct.description,
+        features: dbProduct.features,
+        active: dbProduct.active,
+        prices: dbProduct.prices.map(price => ({
           id: price.id,
-          productId: typeof price.product === 'string' ? price.product : price.product.id,
-          unitAmount: price.unit_amount || 0,
+          productId: price.productId,
+          unitAmount: price.unitAmount || 0,
           currency: price.currency,
-          interval: (price.recurring?.interval || 'month') as 'month' | 'year',
-          trialPeriodDays: price.recurring?.trial_period_days || null,
+          interval: (price.interval || 'month') as 'month' | 'year',
+          trialPeriodDays: price.trialPeriodDays,
           active: price.active,
         })),
       };
@@ -153,8 +155,8 @@ export const getProductHandler: RouteHandler<typeof getProductRoute, ApiEnv> = c
 
       return Responses.ok(c, { product });
     } catch (error) {
-      if (error instanceof Stripe.errors.StripeError && error.type === 'StripeInvalidRequestError') {
-        throw createError.notFound(`Product ${id} not found`);
+      if (error && typeof error === 'object' && 'code' in error) {
+        throw error;
       }
       c.logger.error('Failed to get product', error instanceof Error ? error : new Error(String(error)));
       throw createError.internal('Failed to retrieve product');
@@ -306,18 +308,19 @@ export const listSubscriptionsHandler: RouteHandler<typeof listSubscriptionsRout
     try {
       const db = await getDbAsync();
 
+      // Use Drizzle relational query with nested relations
       const dbSubscriptions = await db.query.stripeSubscription.findMany({
         where: eq(tables.stripeSubscription.userId, user.id),
         with: {
           price: {
-            columns: {
-              productId: true,
+            with: {
+              product: true,
             },
           },
         },
       });
 
-      const subscriptions = dbSubscriptions.map((sub: typeof tables.stripeSubscription.$inferSelect & { price: { productId: string } }) => ({
+      const subscriptions = dbSubscriptions.map(sub => ({
         id: sub.id,
         status: sub.status as 'active' | 'past_due' | 'unpaid' | 'canceled' | 'incomplete' | 'incomplete_expired' | 'trialing' | 'paused',
         priceId: sub.priceId,
@@ -374,12 +377,13 @@ export const getSubscriptionHandler: RouteHandler<typeof getSubscriptionRoute, A
     const db = await getDbAsync();
 
     try {
+      // Use Drizzle relational query with nested relations
       const subscription = await db.query.stripeSubscription.findFirst({
         where: eq(tables.stripeSubscription.id, id),
         with: {
           price: {
-            columns: {
-              productId: true,
+            with: {
+              product: true,
             },
           },
         },
@@ -515,12 +519,13 @@ export const cancelSubscriptionHandler: RouteHandler<typeof cancelSubscriptionRo
         })
         .where(eq(tables.stripeSubscription.id, id));
 
+      // Fetch updated subscription using Drizzle relational query
       const updatedSubscription = await db.query.stripeSubscription.findFirst({
         where: eq(tables.stripeSubscription.id, id),
         with: {
           price: {
-            columns: {
-              productId: true,
+            with: {
+              product: true,
             },
           },
         },
@@ -558,6 +563,77 @@ export const cancelSubscriptionHandler: RouteHandler<typeof cancelSubscriptionRo
       }
       c.logger.error('Failed to cancel subscription', error instanceof Error ? error : new Error(String(error)));
       throw createError.internal('Failed to cancel subscription');
+    }
+  },
+);
+
+// ============================================================================
+// Sync Handler (Theo's Pattern: Eager Sync After Checkout)
+// ============================================================================
+
+/**
+ * Sync Stripe Data After Checkout
+ *
+ * Following Theo's "Stay Sane with Stripe" pattern:
+ * - Called immediately after user returns from Stripe Checkout
+ * - Prevents race condition where user sees page before webhooks arrive
+ * - Fetches fresh data from Stripe API (not webhook payload)
+ * - Returns synced subscription state
+ */
+export const syncAfterCheckoutHandler: RouteHandler<typeof syncAfterCheckoutRoute, ApiEnv> = createHandler(
+  {
+    auth: 'session',
+    operationName: 'syncAfterCheckout',
+  },
+  async (c) => {
+    const user = c.get('user');
+
+    if (!user) {
+      throw createError.unauthenticated('Valid session required for sync');
+    }
+
+    c.logger.info('Syncing Stripe data after checkout', {
+      logType: 'operation',
+      operationName: 'syncAfterCheckout',
+      userId: user.id,
+    });
+
+    try {
+      // Get customer ID from user ID
+      const customerId = await getCustomerIdByUserId(user.id);
+
+      if (!customerId) {
+        c.logger.warn('No Stripe customer found for user', {
+          logType: 'operation',
+          operationName: 'syncAfterCheckout',
+          userId: user.id,
+        });
+
+        throw createError.notFound('No Stripe customer found for user');
+      }
+
+      // Eagerly sync data from Stripe API (Theo's pattern)
+      const syncedState = await syncStripeDataFromStripe(customerId);
+
+      c.logger.info('Stripe data synced successfully', {
+        logType: 'operation',
+        operationName: 'syncAfterCheckout',
+        userId: user.id,
+        resource: syncedState.status !== 'none' ? syncedState.subscriptionId : 'none',
+      });
+
+      return Responses.ok(c, {
+        synced: true,
+        subscription: syncedState.status !== 'none'
+          ? {
+              status: syncedState.status,
+              subscriptionId: syncedState.subscriptionId,
+            }
+          : null,
+      });
+    } catch (error) {
+      c.logger.error('Failed to sync Stripe data', error instanceof Error ? error : new Error(String(error)));
+      throw createError.internal('Failed to sync Stripe data');
     }
   },
 );
@@ -665,290 +741,102 @@ export const handleWebhookHandler: RouteHandler<typeof handleWebhookRoute, ApiEn
 );
 
 // ============================================================================
-// Webhook Event Processing
+// Webhook Event Processing (Theo's Pattern)
 // ============================================================================
 
+/**
+ * List of webhook events to track (from Theo's guide)
+ * All events trigger the SAME sync function - no need for event-specific logic
+ */
+const TRACKED_WEBHOOK_EVENTS: Stripe.Event.Type[] = [
+  'checkout.session.completed',
+  'customer.subscription.created',
+  'customer.subscription.updated',
+  'customer.subscription.deleted',
+  'customer.subscription.paused',
+  'customer.subscription.resumed',
+  'customer.subscription.pending_update_applied',
+  'customer.subscription.pending_update_expired',
+  'customer.subscription.trial_will_end',
+  'invoice.paid',
+  'invoice.payment_failed',
+  'invoice.payment_action_required',
+  'invoice.upcoming',
+  'invoice.marked_uncollectible',
+  'invoice.payment_succeeded',
+  'payment_intent.succeeded',
+  'payment_intent.payment_failed',
+  'payment_intent.canceled',
+];
+
+/**
+ * Extract customer ID from webhook event
+ * All tracked events have a customer property
+ */
+function extractCustomerId(event: Stripe.Event): string | null {
+  const obj = event.data.object as { customer?: string | { id: string } };
+
+  if (!obj.customer)
+    return null;
+
+  return typeof obj.customer === 'string' ? obj.customer : obj.customer.id;
+}
+
+/**
+ * Process Webhook Event (Theo's Simplified Pattern)
+ *
+ * Philosophy:
+ * - Don't trust webhook payloads (can be stale or incomplete)
+ * - Extract customerId only
+ * - Call single sync function that fetches fresh data from Stripe API
+ * - No event-specific logic needed
+ */
 async function processWebhookEvent(
   event: Stripe.Event,
   db: Awaited<ReturnType<typeof getDbAsync>>,
 ): Promise<void> {
-  switch (event.type) {
-    case 'customer.subscription.created':
-    case 'customer.subscription.updated': {
-      const subscription = event.data.object as Stripe.Subscription;
-      await syncSubscription(subscription, db);
-      break;
-    }
-
-    case 'customer.subscription.deleted': {
-      const subscription = event.data.object as Stripe.Subscription;
-      // Use batch.db for atomic operation
-      await db.update(tables.stripeSubscription)
-        .set({
-          status: 'canceled',
-          canceledAt: new Date(),
-          updatedAt: new Date(),
-        })
-        .where(eq(tables.stripeSubscription.id, subscription.id));
-      break;
-    }
-
-    case 'invoice.paid':
-    case 'invoice.payment_failed': {
-      const invoice = event.data.object as Stripe.Invoice;
-      await syncInvoice(invoice, db);
-      break;
-    }
-
-    case 'customer.created':
-    case 'customer.updated': {
-      const customer = event.data.object as Stripe.Customer;
-      await syncCustomer(customer, db);
-      break;
-    }
-
-    case 'checkout.session.completed': {
-      const session = event.data.object as Stripe.Checkout.Session;
-      // When checkout is completed, the subscription is created automatically
-      // We'll sync it when we receive customer.subscription.created event
-      // Just log for now
-      apiLogger.info('Checkout session completed', {
-        logType: 'operation',
-        operationName: 'webhookCheckoutCompleted',
-        resource: session.id,
-      });
-      break;
-    }
-
-    case 'invoice.payment_action_required': {
-      const invoice = event.data.object as Stripe.Invoice;
-      // Sync invoice status - customer needs to take action
-      await syncInvoice(invoice, db);
-      apiLogger.warn('Invoice requires payment action', {
-        logType: 'operation',
-        operationName: 'webhookInvoiceActionRequired',
-        resource: invoice.id,
-      });
-      break;
-    }
-
-    case 'customer.subscription.trial_will_end': {
-      const subscription = event.data.object as Stripe.Subscription;
-      // Log trial ending - application can send notification emails
-      apiLogger.info('Subscription trial ending soon', {
-        logType: 'operation',
-        operationName: 'webhookTrialEnding',
-        resource: subscription.id,
-      });
-      break;
-    }
-
-    case 'payment_intent.succeeded': {
-      const paymentIntent = event.data.object as Stripe.PaymentIntent;
-      apiLogger.info('Payment intent succeeded', {
-        logType: 'operation',
-        operationName: 'webhookPaymentSucceeded',
-        resource: paymentIntent.id,
-      });
-      break;
-    }
-
-    case 'payment_intent.payment_failed': {
-      const paymentIntent = event.data.object as Stripe.PaymentIntent;
-      apiLogger.warn('Payment intent failed', {
-        logType: 'operation',
-        operationName: 'webhookPaymentFailed',
-        resource: paymentIntent.id,
-      });
-      break;
-    }
-
-    case 'customer.subscription.paused': {
-      const subscription = event.data.object as Stripe.Subscription;
-      await syncSubscription(subscription, db);
-      apiLogger.info('Subscription paused', {
-        logType: 'operation',
-        operationName: 'webhookSubscriptionPaused',
-        resource: subscription.id,
-      });
-      break;
-    }
-
-    case 'customer.subscription.resumed': {
-      const subscription = event.data.object as Stripe.Subscription;
-      await syncSubscription(subscription, db);
-      apiLogger.info('Subscription resumed', {
-        logType: 'operation',
-        operationName: 'webhookSubscriptionResumed',
-        resource: subscription.id,
-      });
-      break;
-    }
-
-    case 'customer.deleted': {
-      const customer = event.data.object as Stripe.Customer;
-      // Mark customer as deleted in database
-      await db.update(tables.stripeCustomer)
-        .set({ updatedAt: new Date() })
-        .where(eq(tables.stripeCustomer.id, customer.id));
-      apiLogger.info('Customer deleted', {
-        logType: 'operation',
-        operationName: 'webhookCustomerDeleted',
-        resource: customer.id,
-      });
-      break;
-    }
-
-    default:
-      // Log unhandled webhook events for monitoring
-      apiLogger.debug('Unhandled webhook event type', {
-        logType: 'operation',
-        operationName: 'webhookUnhandled',
-        resource: event.type,
-      });
-      break;
-  }
-}
-
-async function syncSubscription(
-  subscription: Stripe.Subscription,
-  db: Awaited<ReturnType<typeof getDbAsync>>,
-): Promise<void> {
-  const firstItem = subscription.items.data[0];
-  if (!firstItem) {
-    throw createError.badRequest('Subscription has no items', {
-      errorType: 'validation',
-      fieldErrors: [{
-        field: 'subscription.items',
-        message: 'Subscription must have at least one item',
-      }],
+  // Skip if event type not tracked
+  if (!TRACKED_WEBHOOK_EVENTS.includes(event.type)) {
+    apiLogger.info('Skipping untracked webhook event', {
+      logType: 'operation',
+      operationName: 'webhookSkipped',
+      resource: `${event.type}-${event.id}`,
     });
+    return;
   }
 
-  const price = firstItem.price;
-  const customerId = typeof subscription.customer === 'string'
-    ? subscription.customer
-    : subscription.customer.id;
+  // Extract customer ID
+  const customerId = extractCustomerId(event);
 
+  if (!customerId) {
+    apiLogger.warn('Webhook event missing customer ID', {
+      logType: 'operation',
+      operationName: 'webhookMissingCustomer',
+      resource: `${event.type}-${event.id}`,
+    });
+    return;
+  }
+
+  // Verify customer exists in our database
   const customer = await db.query.stripeCustomer.findFirst({
     where: eq(tables.stripeCustomer.id, customerId),
   });
 
   if (!customer) {
-    throw createError.notFound(`Customer ${customerId} not found in database`, {
-      errorType: 'database',
-      operation: 'select',
-      table: 'stripeCustomer',
+    apiLogger.warn('Webhook event for unknown customer', {
+      logType: 'operation',
+      operationName: 'webhookUnknownCustomer',
+      resource: `${event.type}-${customerId}`,
     });
-  }
-
-  await db.insert(tables.stripeSubscription).values({
-    id: subscription.id,
-    userId: customer.userId,
-    customerId: customer.id,
-    priceId: price.id,
-    status: subscription.status,
-    quantity: firstItem.quantity ?? 1,
-    currentPeriodStart: new Date((subscription as unknown as { current_period_start: number }).current_period_start * 1000),
-    currentPeriodEnd: new Date((subscription as unknown as { current_period_end: number }).current_period_end * 1000),
-    cancelAtPeriodEnd: subscription.cancel_at_period_end,
-    canceledAt: subscription.canceled_at ? new Date(subscription.canceled_at * 1000) : null,
-    trialStart: subscription.trial_start ? new Date(subscription.trial_start * 1000) : null,
-    trialEnd: subscription.trial_end ? new Date(subscription.trial_end * 1000) : null,
-    createdAt: new Date(subscription.created * 1000),
-    updatedAt: new Date(),
-  }).onConflictDoUpdate({
-    target: tables.stripeSubscription.id,
-    set: {
-      status: subscription.status,
-      quantity: firstItem.quantity ?? 1,
-      currentPeriodStart: new Date((subscription as unknown as { current_period_start: number }).current_period_start * 1000),
-      currentPeriodEnd: new Date((subscription as unknown as { current_period_end: number }).current_period_end * 1000),
-      cancelAtPeriodEnd: subscription.cancel_at_period_end,
-      canceledAt: subscription.canceled_at ? new Date(subscription.canceled_at * 1000) : null,
-      trialStart: subscription.trial_start ? new Date(subscription.trial_start * 1000) : null,
-      trialEnd: subscription.trial_end ? new Date(subscription.trial_end * 1000) : null,
-      updatedAt: new Date(),
-    },
-  });
-}
-
-async function syncInvoice(
-  invoice: Stripe.Invoice,
-  db: Awaited<ReturnType<typeof getDbAsync>>,
-): Promise<void> {
-  const customerId = typeof invoice.customer === 'string'
-    ? invoice.customer
-    : invoice.customer?.id;
-
-  if (!customerId) {
     return;
   }
 
-  const subscriptionId = (invoice as { subscription?: string | Stripe.Subscription }).subscription
-    ? typeof (invoice as { subscription?: string | Stripe.Subscription }).subscription === 'string'
-      ? (invoice as { subscription?: string | Stripe.Subscription }).subscription as string
-      : ((invoice as { subscription?: string | Stripe.Subscription }).subscription as Stripe.Subscription).id
-    : null;
+  // Single sync function - fetches fresh data from Stripe API (Theo's pattern)
+  await syncStripeDataFromStripe(customerId);
 
-  const isPaid = invoice.status === 'paid';
-
-  await db.insert(tables.stripeInvoice).values({
-    id: invoice.id,
-    customerId,
-    subscriptionId,
-    status: invoice.status || 'draft',
-    amountDue: invoice.amount_due,
-    amountPaid: invoice.amount_paid,
-    currency: invoice.currency,
-    periodStart: invoice.period_start ? new Date(invoice.period_start * 1000) : null,
-    periodEnd: invoice.period_end ? new Date(invoice.period_end * 1000) : null,
-    hostedInvoiceUrl: invoice.hosted_invoice_url ?? null,
-    invoicePdf: invoice.invoice_pdf ?? null,
-    paid: isPaid,
-    attemptCount: invoice.attempt_count,
-    createdAt: new Date(invoice.created * 1000),
-    updatedAt: new Date(),
-  }).onConflictDoUpdate({
-    target: tables.stripeInvoice.id,
-    set: {
-      status: invoice.status || 'draft',
-      amountDue: invoice.amount_due,
-      amountPaid: invoice.amount_paid,
-      periodStart: invoice.period_start ? new Date(invoice.period_start * 1000) : null,
-      periodEnd: invoice.period_end ? new Date(invoice.period_end * 1000) : null,
-      hostedInvoiceUrl: invoice.hosted_invoice_url ?? null,
-      invoicePdf: invoice.invoice_pdf ?? null,
-      paid: isPaid,
-      attemptCount: invoice.attempt_count,
-      updatedAt: new Date(),
-    },
-  });
-}
-
-async function syncCustomer(
-  customer: Stripe.Customer,
-  db: Awaited<ReturnType<typeof getDbAsync>>,
-): Promise<void> {
-  const userId = customer.metadata?.userId;
-
-  if (!userId || !customer.email) {
-    return;
-  }
-
-  await db.insert(tables.stripeCustomer).values({
-    id: customer.id,
-    userId,
-    email: customer.email,
-    name: customer.name ?? null,
-    createdAt: new Date(customer.created * 1000),
-    updatedAt: new Date(),
-  }).onConflictDoUpdate({
-    target: tables.stripeCustomer.id,
-    set: {
-      email: customer.email,
-      name: customer.name ?? null,
-      updatedAt: new Date(),
-    },
+  apiLogger.info('Webhook event processed via sync', {
+    logType: 'operation',
+    operationName: 'webhookSynced',
+    resource: `${event.type}-${customerId}`,
   });
 }

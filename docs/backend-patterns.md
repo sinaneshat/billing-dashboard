@@ -28,7 +28,7 @@ The Roundtable Platform implements a modern, type-safe API architecture built on
 
 - **Factory Pattern Handlers** with integrated validation and authentication
 - **Zero-Casting Type Safety** using Zod schemas and type guards
-- **Transactional Database Operations** for data consistency
+- **Batch-First Database Operations** for atomic consistency (Cloudflare D1)
 - **Middleware-Based Security** with rate limiting and CSRF protection
 - **OpenAPI Documentation** auto-generated from code
 
@@ -508,21 +508,175 @@ await db.delete(tables.user)
   .where(eq(tables.user.id, userId));
 ```
 
-### Transaction Pattern
+### 🚨 Batch Operations - Cloudflare D1 Pattern (REQUIRED)
+
+**⚠️ CRITICAL**: Traditional `db.transaction()` is **PROHIBITED** with Cloudflare D1. Use `db.batch()` instead.
+
+**Why Batch Operations?**
+- Cloudflare D1 is optimized for batch operations, not transactions
+- Batches provide atomic execution with better performance in serverless
+- Transactions have limitations and performance issues in D1
+- ESLint rules enforce batch-first architecture
+
+#### Pattern 1: Manual Batch Operations
 
 ```typescript
-await db.transaction(async (tx) => {
-  const user = await tx.insert(tables.user).values({
-    email,
-    name,
-  }).returning();
+// ✅ CORRECT: Using db.batch() for atomic operations
+const [insertResult, updateResult] = await db.batch([
+  db.insert(tables.user).values({ email, name }).returning(),
+  db.insert(tables.profile).values({ userId: newUserId, bio: '' })
+]);
 
-  await tx.insert(tables.profile).values({
-    userId: user[0].id,
-    bio: '',
-  });
+// Multiple operations in single atomic batch
+await db.batch([
+  db.insert(tables.stripeCustomer).values(customer),
+  db.update(tables.user).set({ hasCustomer: true }).where(eq(tables.user.id, userId)),
+  db.insert(tables.webhookEvent).values(eventLog)
+]);
+```
+
+#### Pattern 2: createHandlerWithBatch (RECOMMENDED)
+
+The `createHandlerWithBatch` factory provides automatic batch accumulation:
+
+```typescript
+// ✅ RECOMMENDED: Automatic batching in handlers
+export const createUserHandler = createHandlerWithBatch(
+  {
+    auth: 'session',
+    validateBody: CreateUserSchema,
+  },
+  async (c, batch) => {
+    const body = c.validated.body;
+
+    // Operations are automatically accumulated in batch
+    const [newUser] = await batch.db.insert(tables.user).values({
+      email: body.email,
+      name: body.name,
+    }).returning();
+
+    // This operation is added to the same batch
+    await batch.db.insert(tables.profile).values({
+      userId: newUser.id,
+      bio: body.bio || '',
+    });
+
+    // Batch executes atomically when handler completes
+    return Responses.ok(c, { user: newUser });
+  }
+);
+```
+
+**How it works:**
+1. All `batch.db.*` operations are collected during handler execution
+2. At handler completion, all operations execute in single atomic batch
+3. If any operation fails, all operations rollback automatically
+4. Zero boilerplate - just use `batch.db` instead of `db`
+
+#### Pattern 3: Conditional Batch Operations
+
+```typescript
+export const syncStripeHandler = createHandlerWithBatch(
+  { auth: 'session' },
+  async (c, batch) => {
+    // Conditional operations still batched atomically
+    await batch.db.insert(tables.stripeCustomer).values(customer);
+
+    if (hasSubscription) {
+      await batch.db.insert(tables.stripeSubscription).values(subscription);
+    }
+
+    if (hasInvoices) {
+      await batch.db.insert(tables.stripeInvoice).values(invoice);
+    }
+
+    // All operations execute atomically together
+  }
+);
+```
+
+#### Pattern 4: Upsert in Batches
+
+```typescript
+await db.batch([
+  db.insert(tables.stripeCustomer).values(customer).onConflictDoUpdate({
+    target: tables.stripeCustomer.id,
+    set: { email: customer.email, updatedAt: new Date() }
+  }),
+  db.insert(tables.stripeSubscription).values(subscription)
+]);
+```
+
+#### ❌ PROHIBITED Pattern: db.transaction()
+
+```typescript
+// ❌ WRONG: This will trigger ESLint error and TypeScript error
+await db.transaction(async (tx) => {
+  await tx.insert(tables.user).values(newUser);
+  await tx.update(tables.user).set({ verified: true });
+});
+
+// Error: local/no-db-transactions
+// Error: Property 'transaction' does not exist on type 'D1BatchDatabase'
+```
+
+#### Migration from Transactions to Batches
+
+**Before (Transaction):**
+```typescript
+await db.transaction(async (tx) => {
+  await tx.insert(users).values(newUser);
+  await tx.update(users).set({ verified: true }).where(eq(users.id, userId));
+  await tx.delete(users).where(eq(users.inactive, true));
 });
 ```
+
+**After (Batch):**
+```typescript
+await db.batch([
+  db.insert(users).values(newUser),
+  db.update(users).set({ verified: true }).where(eq(users.id, userId)),
+  db.delete(users).where(eq(users.inactive, true))
+]);
+```
+
+**After (Batch Handler - Recommended):**
+```typescript
+export const handler = createHandlerWithBatch({ auth: 'session' }, async (c, batch) => {
+  await batch.db.insert(users).values(newUser);
+  await batch.db.update(users).set({ verified: true }).where(eq(users.id, userId));
+  await batch.db.delete(users).where(eq(users.inactive, true));
+});
+```
+
+#### Type Safety
+
+The project enforces batch-first architecture through:
+
+**TypeScript Types:**
+```typescript
+import type { D1BatchDatabase } from '@/db/d1-types';
+
+const db = await getDbAsync(); // Returns D1BatchDatabase<Schema>
+// db.transaction() -> TypeScript error: Property 'transaction' does not exist
+// db.batch() -> ✅ Correct
+```
+
+**ESLint Rules:**
+- `local/no-db-transactions`: Blocks db.transaction() usage (ERROR)
+- `local/prefer-batch-handler`: Suggests createHandlerWithBatch (WARNING)
+- `local/batch-context-awareness`: Prefer batch.db over getDbAsync() (WARNING)
+
+**Reference Implementation:**
+- `src/api/routes/billing/handler.ts:171-283` - Stripe checkout with batch operations
+- `src/api/services/stripe-sync.service.ts:131-165` - Subscription upsert in batch
+- `src/api/core/handlers.ts:490-605` - createHandlerWithBatch implementation
+- `src/db/d1-types.ts` - Type definitions and patterns
+- `eslint-local-rules.js` - ESLint enforcement
+
+**Further Reading:**
+- [Cloudflare D1 Batch API](https://developers.cloudflare.com/d1/build-with-d1/d1-client-api/#batch-statements)
+- [Drizzle ORM Batch Operations](https://orm.drizzle.team/docs/batch-api)
 
 ---
 
