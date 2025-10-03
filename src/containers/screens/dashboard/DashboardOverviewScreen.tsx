@@ -17,8 +17,8 @@ export default function DashboardOverviewScreen() {
   ];
 
   return (
-    <div className="flex min-h-screen w-full flex-col items-center justify-center px-4">
-      {/* Main centered content block */}
+    <div className="flex min-h-screen w-full flex-col items-center justify-start px-4 pt-24">
+      {/* Main content block - positioned in upper portion */}
       <div className="flex flex-col items-center gap-12 text-center">
         {/* Logo */}
         <div className="flex items-center justify-center">
