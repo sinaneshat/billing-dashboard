@@ -35,7 +35,6 @@ import { secureMeHandler } from './routes/auth/handler';
 import { secureMeRoute } from './routes/auth/route';
 // Billing routes
 import {
-  cancelSubscriptionHandler,
   createCheckoutSessionHandler,
   getProductHandler,
   getSubscriptionHandler,
@@ -45,7 +44,6 @@ import {
   syncAfterCheckoutHandler,
 } from './routes/billing/handler';
 import {
-  cancelSubscriptionRoute,
   createCheckoutSessionRoute,
   getProductRoute,
   getSubscriptionRoute,
@@ -191,7 +189,6 @@ app.use('/billing/checkout', csrfMiddleware, requireSession);
 app.use('/billing/sync-after-checkout', csrfMiddleware, requireSession);
 app.use('/billing/subscriptions', csrfMiddleware, requireSession);
 app.use('/billing/subscriptions/:id', csrfMiddleware, requireSession);
-app.use('/billing/subscriptions/:id/cancel', csrfMiddleware, requireSession);
 
 // Register all routes directly on the app
 const appRoutes = app
@@ -210,7 +207,6 @@ const appRoutes = app
   // Billing routes - Subscriptions (protected)
   .openapi(listSubscriptionsRoute, listSubscriptionsHandler)
   .openapi(getSubscriptionRoute, getSubscriptionHandler)
-  .openapi(cancelSubscriptionRoute, cancelSubscriptionHandler)
   // Billing routes - Webhooks (public with signature verification)
   .openapi(handleWebhookRoute, handleWebhookHandler)
 ;
@@ -232,9 +228,9 @@ appRoutes.doc('/doc', c => ({
   openapi: '3.0.0',
   info: {
     version: '1.0.0',
-    title: 'Application API',
-    description: 'API for application management. Built with Hono, Zod, and OpenAPI.',
-    contact: { name: 'Application', url: 'https://app.example.com' },
+    title: 'Roundtable API',
+    description: 'roundtable.now API - Collaborative AI brainstorming platform. Built with Hono, Zod, and OpenAPI.',
+    contact: { name: 'Roundtable', url: 'https://roundtable.now' },
     license: { name: 'Proprietary' },
   },
   tags: [

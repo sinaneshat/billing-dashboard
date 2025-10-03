@@ -1,18 +1,23 @@
 'use client';
 
 import {
-  BarChart3,
-  ChevronRight,
+  CreditCard,
   LogOut,
+  MessageSquare,
+  MoreHorizontal,
+  Plus,
+  Settings,
+  Trash2,
+  User,
 } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
+import { useState } from 'react';
 
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Badge } from '@/components/ui/badge';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -30,41 +35,16 @@ import {
   SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
+  SidebarMenuAction,
   SidebarMenuButton,
   SidebarMenuItem,
-  SidebarMenuSub,
-  SidebarMenuSubButton,
-  SidebarMenuSubItem,
   SidebarRail,
   useSidebar,
 } from '@/components/ui/sidebar';
 import { BRAND } from '@/constants/brand';
 import { signOut, useSession } from '@/lib/auth/client';
-
-// Navigation item type with optional sub-items
-type NavItem = {
-  titleKey: string;
-  title: string;
-  url: string;
-  icon: React.ComponentType<React.SVGProps<SVGSVGElement>>;
-  items?: Array<{
-    title: string;
-    url: string;
-  }>;
-  forceExpanded?: boolean;
-};
-
-// Navigation structure function to enable translations
-function getNavigation(t: ReturnType<typeof useTranslations>): NavItem[] {
-  return [
-    {
-      titleKey: 'navigation.overview',
-      title: t('navigation.overview'),
-      url: '/dashboard',
-      icon: BarChart3,
-    },
-  ];
-}
+import type { Chat } from '@/lib/types/chat';
+import { groupChatsByPeriod, mockChats } from '@/lib/types/chat';
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const pathname = usePathname();
@@ -72,8 +52,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const { data: session } = useSession();
   const { isMobile } = useSidebar();
   const t = useTranslations();
-
-  const navigation = getNavigation(t);
+  const [chats] = useState<Chat[]>(mockChats);
 
   const user = session?.user;
   const userInitials = user?.name
@@ -90,6 +69,17 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     });
   };
 
+  const handleNewChat = () => {
+    router.push('/dashboard');
+  };
+
+  const handleDeleteChat = (chatId: string) => {
+    // TODO: Implement delete chat functionality
+    console.log('Delete chat:', chatId);
+  };
+
+  const chatGroups = groupChatsByPeriod(chats);
+
   return (
     <Sidebar collapsible="icon" side="start" {...props}>
       <SidebarHeader>
@@ -102,7 +92,6 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             >
               <Link href="/dashboard">
                 <div className="flex aspect-square size-8 items-center justify-center">
-                  {/* Roundtable Logo */}
                   <Image
                     src="/static/logo.png"
                     alt={t('brand.logoAlt')}
@@ -119,92 +108,89 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
+
+        {/* New Chat Button */}
+        <div className="px-2 py-2">
+          <Button
+            onClick={handleNewChat}
+            className="w-full justify-start gap-2"
+            variant="outline"
+          >
+            <Plus className="h-4 w-4" />
+            <span>{t('navigation.newChat')}</span>
+          </Button>
+        </div>
       </SidebarHeader>
 
       <SidebarContent>
-        <SidebarGroup>
-          <SidebarGroupLabel>{t('navigation.navigation')}</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {navigation.map((item) => {
-                const isExactMatch = pathname === item.url;
-                const hasActiveSubItem = item.items?.some(subItem => pathname === subItem.url);
-                const shouldExpand = item.forceExpanded || hasActiveSubItem || (pathname.startsWith(`${item.url}/`) && pathname !== item.url);
-                const showBadge = false;
-
-                if (item.items) {
+        {/* Chat History */}
+        {chatGroups.map(group => (
+          <SidebarGroup key={group.label}>
+            <SidebarGroupLabel className="text-xs text-sidebar-foreground/70">
+              {group.label}
+            </SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {group.chats.map((chat) => {
+                  const isActive = pathname === `/dashboard/chat/${chat.id}`;
                   return (
-                    <Collapsible
-                      key={item.title}
-                      asChild
-                      defaultOpen={shouldExpand || item.forceExpanded}
-                      className="group/collapsible"
-                    >
-                      <SidebarMenuItem>
-                        <CollapsibleTrigger asChild>
-                          <SidebarMenuButton tooltip={item.title}>
-                            <item.icon />
-                            <span>{item.title}</span>
-                            {showBadge && (
-                              <Badge variant="secondary" className="ms-2">
-                                {t('status.active')}
-                              </Badge>
-                            )}
-                            <ChevronRight className="ms-auto transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
-                          </SidebarMenuButton>
-                        </CollapsibleTrigger>
-                        <CollapsibleContent>
-                          <SidebarMenuSub>
-                            {item.items.map((subItem) => {
-                              const isSubActive = pathname === subItem.url;
-                              return (
-                                <SidebarMenuSubItem key={subItem.title}>
-                                  <SidebarMenuSubButton
-                                    asChild
-                                    isActive={isSubActive}
-                                  >
-                                    <Link href={subItem.url}>
-                                      <span>{subItem.title}</span>
-                                    </Link>
-                                  </SidebarMenuSubButton>
-                                </SidebarMenuSubItem>
-                              );
-                            })}
-                          </SidebarMenuSub>
-                        </CollapsibleContent>
-                      </SidebarMenuItem>
-                    </Collapsible>
+                    <SidebarMenuItem key={chat.id}>
+                      <SidebarMenuButton
+                        asChild
+                        isActive={isActive}
+                        tooltip={chat.title}
+                      >
+                        <Link href={`/dashboard/chat/${chat.id}`}>
+                          <MessageSquare className="h-4 w-4" />
+                          <span className="truncate">{chat.title}</span>
+                        </Link>
+                      </SidebarMenuButton>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <SidebarMenuAction showOnHover>
+                            <MoreHorizontal className="h-4 w-4" />
+                            <span className="sr-only">More</span>
+                          </SidebarMenuAction>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent
+                          className="w-48"
+                          side={isMobile ? 'bottom' : 'right'}
+                          align="end"
+                        >
+                          <DropdownMenuItem
+                            onClick={() => handleDeleteChat(chat.id)}
+                            className="text-destructive focus:text-destructive"
+                          >
+                            <Trash2 className="me-2 h-4 w-4" />
+                            {t('chat.deleteChat')}
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </SidebarMenuItem>
                   );
-                }
+                })}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        ))}
 
-                return (
-                  <SidebarMenuItem key={item.title}>
-                    <SidebarMenuButton
-                      asChild
-                      tooltip={item.title}
-                      isActive={isExactMatch}
-                    >
-                      <Link href={item.url}>
-                        <item.icon />
-                        <span>{item.title}</span>
-                        {showBadge && (
-                          <Badge variant="secondary" className="ms-auto">
-                            {t('status.active')}
-                          </Badge>
-                        )}
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                );
-              })}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+        {/* Empty State */}
+        {chatGroups.length === 0 && (
+          <div className="flex flex-col items-center justify-center gap-2 p-4 text-center">
+            <MessageSquare className="h-8 w-8 text-muted-foreground" />
+            <p className="text-sm text-muted-foreground">
+              {t('chat.noChats')}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              {t('chat.noChatsDescription')}
+            </p>
+          </div>
+        )}
       </SidebarContent>
 
       <SidebarFooter>
         <SidebarMenu>
-          {/* User Profile Dropdown */}
+          {/* User Profile Dropdown with Settings and Billing */}
           <SidebarMenuItem>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -240,6 +226,25 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                     </div>
                   </div>
                 </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem asChild>
+                  <Link href="/dashboard/profile">
+                    <User className="me-2 h-4 w-4" />
+                    {t('navigation.profile')}
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link href="/dashboard/settings">
+                    <Settings className="me-2 h-4 w-4" />
+                    {t('navigation.settings')}
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link href="/dashboard/billing">
+                    <CreditCard className="me-2 h-4 w-4" />
+                    {t('navigation.billing')}
+                  </Link>
+                </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
                   onClick={handleSignOut}

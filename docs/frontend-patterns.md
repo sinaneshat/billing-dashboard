@@ -1,8 +1,8 @@
 # Frontend Patterns & Architecture Guide
 
-**Roundtable Dashboard - Frontend Implementation Guide**
+**roundtable.now - Frontend Implementation Guide**
 
-This document outlines established frontend patterns, architectural decisions, and implementation guidelines for the Roundtable dashboard. These patterns ensure consistency, maintainability, and optimal developer experience across the entire frontend codebase.
+This document outlines established frontend patterns, architectural decisions, and implementation guidelines for roundtable.now. These patterns ensure consistency, maintainability, and optimal developer experience across the entire frontend codebase.
 
 ## Table of Contents
 
@@ -1173,7 +1173,7 @@ export function WelcomeEmail({
   return (
     <Html>
       <Head />
-      <Preview>Welcome to Roundtable Platform</Preview>
+      <Preview>Welcome to roundtable.now</Preview>
       <Body style={main}>
         <Container style={container}>
           <Img
@@ -1184,7 +1184,7 @@ export function WelcomeEmail({
             style={logo}
           />
 
-          <Heading style={h1}>Welcome to Roundtable!</Heading>
+          <Heading style={h1}>Welcome to roundtable.now!</Heading>
 
           <Text style={text}>
             Hi {userName},
@@ -1204,7 +1204,7 @@ export function WelcomeEmail({
           </Button>
 
           <Text style={footer}>
-            Thank you for joining Roundtable Platform!
+            Thank you for joining roundtable.now!
           </Text>
         </Container>
       </Body>
@@ -1294,7 +1294,7 @@ export class EmailService {
       },
       body: JSON.stringify({
         to: props.userEmail,
-        subject: 'Welcome to Roundtable Platform',
+        subject: 'Welcome to roundtable.now',
         html,
         text,
       }),
@@ -1941,7 +1941,7 @@ const DropdownMenuContent = React.forwardRef<
 
 ## Conclusion
 
-This frontend patterns guide establishes the architectural foundation for the Roundtable dashboard frontend. These patterns ensure:
+This frontend patterns guide establishes the architectural foundation for the roundtable.now frontend. These patterns ensure:
 
 - **Consistency**: Unified component architecture and styling approach
 - **Performance**: Optimized loading, caching, and code splitting strategies

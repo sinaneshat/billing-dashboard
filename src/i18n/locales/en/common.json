@@ -130,17 +130,17 @@
       "error": "Error",
       "fullName": "Full Name",
       "fullNamePlaceholder": "Jane Smith",
-      "getStarted": "Get started with Billing Dashboard",
+      "getStarted": "Get started with Roundtable",
       "signIn": "Sign In",
       "signInLink": "Sign in",
       "signUpLink": "Sign up",
       "signingIn": "Signing In...",
       "somethingWentWrong": "Something went wrong. Please try again.",
       "useDifferentEmail": "Use a different email",
-      "welcomeBack": "Welcome back to Billing Dashboard"
+      "welcomeBack": "Welcome back to Roundtable"
     },
     "layout": {
-      "subtitle": "Your billing dashboard",
+      "subtitle": "Your AI collaboration platform",
       "welcomeTo": "Welcome to {brand}"
     },
     "magicLink": {
@@ -168,7 +168,7 @@
       "signInButton": "Sign In",
       "signInWithGoogle": "Sign In with Google",
       "signUpLink": "Sign up here",
-      "subtitle": "Welcome back to Billing Dashboard",
+      "subtitle": "Welcome back to Roundtable",
       "title": "Sign In"
     },
     "signInWithGoogle": "Sign in with Google",
@@ -184,7 +184,7 @@
       "signInLink": "Sign in here",
       "signUpButton": "Sign Up",
       "signUpWithGoogle": "Sign Up with Google",
-      "subtitle": "Create your Billing Dashboard account",
+      "subtitle": "Create your Roundtable account",
       "termsOfService": "Terms of Service",
       "title": "Sign Up"
     },
@@ -369,7 +369,7 @@
     "viewPlans": "View Plans",
     "welcome": {
       "description": "Get started by choosing a subscription plan and setting up your payment method for seamless automated billing.",
-      "title": "Welcome to Your Billing Dashboard"
+      "title": "Welcome to Roundtable"
     },
     "date": "Date",
     "${itemType}Downloaded": "${ItemType}Downloaded",
@@ -874,12 +874,12 @@
   "meta": {
     "legal": {
       "privacy": {
-        "description": "Privacy Policy for Roundtable Billing Dashboard",
-        "title": "Privacy Policy - Billing Dashboard"
+        "description": "Privacy Policy for Roundtable",
+        "title": "Privacy Policy - Roundtable"
       },
       "terms": {
-        "description": "Terms of Service for Roundtable Billing Dashboard",
-        "title": "Terms of Service - Billing Dashboard"
+        "description": "Terms of Service for Roundtable",
+        "title": "Terms of Service - Roundtable"
       }
     },
     "signIn": {
@@ -908,15 +908,36 @@
     "contact": "Contact",
     "dashboard": "Dashboard",
     "navigation": "Navigation",
-    "overview": "Overview",
+    "chats": "Chats",
+    "newChat": "New Chat",
     "paymentHistory": "Payment History",
     "paymentMethods": "Payment Methods",
     "plans": "Plans",
+    "profile": "Profile",
     "settings": "Settings",
     "signIn": "Sign In",
     "signOut": "Sign Out",
     "signUp": "Sign Up",
     "subscriptions": "Subscriptions"
+  },
+  "chat": {
+    "title": "Chats",
+    "newChat": "New Chat",
+    "newChatDescription": "Start a new conversation",
+    "noChatSelected": "No chat selected",
+    "selectOrCreate": "Select a chat or create a new one",
+    "today": "Today",
+    "yesterday": "Yesterday",
+    "previous7Days": "Previous 7 Days",
+    "previous30Days": "Previous 30 Days",
+    "older": "Older",
+    "deleteChat": "Delete Chat",
+    "deleteChatConfirm": "Are you sure you want to delete this chat?",
+    "renameChat": "Rename Chat",
+    "searchChats": "Search chats...",
+    "noChats": "No chats yet",
+    "noChatsDescription": "Start a new chat to get started",
+    "chatHistory": "Chat History"
   },
   "networkStatus": {
     "connectionError": "Connection Error",
@@ -1044,7 +1065,7 @@
       "referenceId": "Reference ID:",
       "returnToDashboard": "Return to Dashboard",
       "setupNotCompleted": "Unfortunately the setup was not completed.",
-      "viewBillingDashboard": "View Billing Dashboard"
+      "viewBillingDashboard": "View Dashboard"
     },
     "paymentGateway": "Payment Gateway"
   },
@@ -1819,7 +1840,7 @@
   "correlationId": "CorrelationId",
   "@/lib/auth/server": "@/Lib/Auth/Server",
   "development": "Development",
-  "Roundtable Billing Dashboard": "Roundtable Billing Dashboard",
+  "Roundtable": "Roundtable",
   "/api": "/Api",
   "v1": "V1",
   "roundtable-session": "Roundtable-Session",

@@ -4,7 +4,6 @@ import * as HttpStatusCodes from 'stoker/http-status-codes';
 import { createApiResponseSchema } from '@/api/core/schemas';
 
 import {
-  CancelSubscriptionRequestSchema,
   CheckoutRequestSchema,
   CheckoutResponseSchema,
   ProductDetailResponseSchema,
@@ -127,37 +126,6 @@ export const getSubscriptionRoute = createRoute({
   responses: {
     [HttpStatusCodes.OK]: {
       description: 'Subscription retrieved successfully',
-      content: {
-        'application/json': { schema: SubscriptionDetailResponseSchema },
-      },
-    },
-    [HttpStatusCodes.UNAUTHORIZED]: { description: 'Authentication required' },
-    [HttpStatusCodes.NOT_FOUND]: { description: 'Subscription not found' },
-    [HttpStatusCodes.FORBIDDEN]: { description: 'Subscription does not belong to user' },
-    [HttpStatusCodes.BAD_REQUEST]: { description: 'Bad Request' },
-    [HttpStatusCodes.INTERNAL_SERVER_ERROR]: { description: 'Internal Server Error' },
-  },
-});
-
-export const cancelSubscriptionRoute = createRoute({
-  method: 'post',
-  path: '/subscriptions/:id/cancel',
-  tags: ['billing'],
-  summary: 'Cancel subscription',
-  description: 'Cancel a subscription (either immediately or at period end)',
-  request: {
-    params: SubscriptionIdParamSchema,
-    body: {
-      content: {
-        'application/json': {
-          schema: CancelSubscriptionRequestSchema,
-        },
-      },
-    },
-  },
-  responses: {
-    [HttpStatusCodes.OK]: {
-      description: 'Subscription canceled successfully',
       content: {
         'application/json': { schema: SubscriptionDetailResponseSchema },
       },

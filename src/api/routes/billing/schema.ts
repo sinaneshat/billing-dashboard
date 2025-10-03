@@ -192,13 +192,6 @@ const SubscriptionListPayloadSchema = z.object({
 
 export const SubscriptionListResponseSchema = createApiResponseSchema(SubscriptionListPayloadSchema).openapi('SubscriptionListResponse');
 
-export const CancelSubscriptionRequestSchema = z.object({
-  cancelAtPeriodEnd: z.boolean().default(true).openapi({
-    description: 'If true, subscription remains active until end of billing period. If false, cancels immediately.',
-    example: true,
-  }),
-}).openapi('CancelSubscriptionRequest');
-
 const SubscriptionDetailPayloadSchema = z.object({
   subscription: SubscriptionSchema.openapi({
     description: 'Subscription details with current status and billing information',
@@ -243,5 +236,4 @@ export const WebhookResponseSchema = createApiResponseSchema(WebhookPayloadSchem
 export type Product = z.infer<typeof ProductSchema>;
 export type Price = z.infer<typeof PriceSchema>;
 export type CheckoutRequest = z.infer<typeof CheckoutRequestSchema>;
-export type CancelSubscriptionRequest = z.infer<typeof CancelSubscriptionRequestSchema>;
 export type Subscription = z.infer<typeof SubscriptionSchema>;

@@ -13,7 +13,6 @@ import { getDbAsync } from '@/db';
 import * as tables from '@/db/schema';
 
 import type {
-  cancelSubscriptionRoute,
   createCheckoutSessionRoute,
   getProductRoute,
   getSubscriptionRoute,
@@ -23,7 +22,6 @@ import type {
   syncAfterCheckoutRoute,
 } from './route';
 import {
-  CancelSubscriptionRequestSchema,
   CheckoutRequestSchema,
   ProductIdParamSchema,
   SubscriptionIdParamSchema,
@@ -507,160 +505,6 @@ export const getSubscriptionHandler: RouteHandler<typeof getSubscriptionRoute, A
   },
 );
 
-export const cancelSubscriptionHandler: RouteHandler<typeof cancelSubscriptionRoute, ApiEnv> = createHandlerWithBatch(
-  {
-    auth: 'session',
-    validateParams: SubscriptionIdParamSchema,
-    validateBody: CancelSubscriptionRequestSchema,
-    operationName: 'cancelSubscription',
-  },
-  async (c, batch) => {
-    const user = c.get('user');
-    const { id } = c.validated.params;
-    const body = c.validated.body;
-
-    if (!user) {
-      const context: ErrorContext = {
-        errorType: 'authentication',
-        operation: 'session_required',
-      };
-      throw createError.unauthenticated('Valid session required to cancel subscription', context);
-    }
-
-    c.logger.info('Canceling subscription', {
-      logType: 'operation',
-      operationName: 'cancelSubscription',
-      userId: user.id,
-      resource: id,
-    });
-
-    try {
-      // Fetch subscription using batch.db for consistency
-      const subscription = await batch.db.query.stripeSubscription.findFirst({
-        where: eq(tables.stripeSubscription.id, id),
-      });
-
-      if (!subscription) {
-        // Warning log before throwing not found error
-        c.logger.warn('Subscription not found for cancellation', {
-          logType: 'operation',
-          operationName: 'cancelSubscription',
-          userId: user.id,
-          resource: id,
-        });
-        const context: ErrorContext = {
-          errorType: 'resource',
-          resource: 'subscription',
-          resourceId: id,
-          userId: user.id,
-        };
-        throw createError.notFound(`Subscription ${id} not found`, context);
-      }
-
-      if (subscription.userId !== user.id) {
-        // Warning log before throwing unauthorized error
-        c.logger.warn('Unauthorized subscription cancellation attempt', {
-          logType: 'operation',
-          operationName: 'cancelSubscription',
-          userId: user.id,
-          resource: id,
-        });
-        const context: ErrorContext = {
-          errorType: 'authorization',
-          resource: 'subscription',
-          resourceId: id,
-          userId: user.id,
-        };
-        throw createError.unauthorized('You do not have access to this subscription', context);
-      }
-
-      // Intermediate progress logging: canceling subscription in Stripe
-      c.logger.info('Canceling subscription in Stripe', {
-        logType: 'operation',
-        operationName: 'cancelSubscription',
-        userId: user.id,
-        resource: id,
-      });
-
-      const canceledSubscription = await stripeService.cancelSubscription(
-        id,
-        body.cancelAtPeriodEnd,
-      );
-
-      // Update using batch.db for atomic operation
-      await batch.db.update(tables.stripeSubscription)
-        .set({
-          status: canceledSubscription.status,
-          cancelAtPeriodEnd: canceledSubscription.cancel_at_period_end,
-          canceledAt: canceledSubscription.canceled_at
-            ? new Date(canceledSubscription.canceled_at * 1000)
-            : null,
-          updatedAt: new Date(),
-        })
-        .where(eq(tables.stripeSubscription.id, id));
-
-      // Fetch updated subscription using Drizzle relational query with batch.db
-      const updatedSubscription = await batch.db.query.stripeSubscription.findFirst({
-        where: eq(tables.stripeSubscription.id, id),
-        with: {
-          price: {
-            with: {
-              product: true,
-            },
-          },
-        },
-      });
-
-      if (!updatedSubscription) {
-        const context: ErrorContext = {
-          errorType: 'database',
-          operation: 'select',
-          table: 'stripeSubscription',
-          resourceId: id,
-          userId: user.id,
-        };
-        throw createError.internal('Failed to retrieve updated subscription', context);
-      }
-
-      // Success logging with cancellation details
-      c.logger.info(`Subscription canceled successfully (cancelAtPeriodEnd: ${updatedSubscription.cancelAtPeriodEnd}, status: ${updatedSubscription.status})`, {
-        logType: 'operation',
-        operationName: 'cancelSubscription',
-        userId: user.id,
-        resource: id,
-      });
-
-      return Responses.ok(c, {
-        subscription: {
-          id: updatedSubscription.id,
-          status: updatedSubscription.status as 'active' | 'past_due' | 'unpaid' | 'canceled' | 'incomplete' | 'incomplete_expired' | 'trialing' | 'paused',
-          priceId: updatedSubscription.priceId,
-          productId: updatedSubscription.price.productId,
-          currentPeriodStart: updatedSubscription.currentPeriodStart.toISOString(),
-          currentPeriodEnd: updatedSubscription.currentPeriodEnd.toISOString(),
-          cancelAtPeriodEnd: updatedSubscription.cancelAtPeriodEnd,
-          canceledAt: updatedSubscription.canceledAt?.toISOString() || null,
-          trialStart: updatedSubscription.trialStart?.toISOString() || null,
-          trialEnd: updatedSubscription.trialEnd?.toISOString() || null,
-        },
-      });
-    } catch (error) {
-      if (error instanceof AppError) {
-        throw error;
-      }
-      c.logger.error('Failed to cancel subscription', normalizeError(error));
-      const context: ErrorContext = {
-        errorType: 'external_service',
-        service: 'stripe',
-        operation: 'cancel_subscription',
-        resourceId: id,
-        userId: user.id,
-      };
-      throw createError.internal('Failed to cancel subscription', context);
-    }
-  },
-);
-
 // ============================================================================
 // Sync Handler (Theo's Pattern: Eager Sync After Checkout)
 // ============================================================================
@@ -862,11 +706,14 @@ export const handleWebhookHandler: RouteHandler<typeof handleWebhookRoute, ApiEn
 // ============================================================================
 
 /**
- * List of webhook events to track (from Theo's guide)
+ * List of webhook events to track (from Theo's guide + Customer Portal events)
  * All events trigger the SAME sync function - no need for event-specific logic
  */
 const TRACKED_WEBHOOK_EVENTS: Stripe.Event.Type[] = [
+  // Checkout events
   'checkout.session.completed',
+
+  // Subscription lifecycle (Portal actions: cancel, upgrade, downgrade, pause, resume)
   'customer.subscription.created',
   'customer.subscription.updated',
   'customer.subscription.deleted',
@@ -875,6 +722,16 @@ const TRACKED_WEBHOOK_EVENTS: Stripe.Event.Type[] = [
   'customer.subscription.pending_update_applied',
   'customer.subscription.pending_update_expired',
   'customer.subscription.trial_will_end',
+
+  // Customer updates (Portal actions: update billing info, email, name)
+  'customer.updated',
+
+  // Payment method updates (Portal actions: add/remove card)
+  'payment_method.attached',
+  'payment_method.detached',
+  'payment_method.updated',
+
+  // Invoice and payment events
   'invoice.paid',
   'invoice.payment_failed',
   'invoice.payment_action_required',

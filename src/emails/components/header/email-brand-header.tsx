@@ -54,7 +54,7 @@ export function EmailBrandHeader({
                 src={logoSrc}
                 width={logoWidth}
                 height={logoHeight}
-                alt="Billing Dashboard"
+                alt="Roundtable"
                 style={{ display: 'block', margin: '0 auto' }}
               />
             </div>

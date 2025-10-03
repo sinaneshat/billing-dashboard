@@ -1,6 +1,6 @@
-# 🚀 Deadpixel Dashboard - Complete Setup Guide
+# 🚀 Roundtable Dashboard - Complete Setup Guide
 
-Welcome to the Deadpixel Dashboard! This comprehensive guide will walk you through setting up the project from scratch.
+Welcome to Roundtable! This comprehensive guide will walk you through setting up roundtable.now - a collaborative AI brainstorming platform where multiple AI models work together.
 
 ## 📋 Table of Contents
 

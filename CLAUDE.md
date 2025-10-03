@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-Project guidance for Claude Code specialized agents working on Roundtable's dashboard - a white-labelable SaaS platform for businesses.
+Project guidance for Claude Code specialized agents working on roundtable.now - a collaborative AI brainstorming platform where multiple AI models work together to solve problems and generate ideas.
 
 ## 🚨 DOCUMENTATION HIERARCHY
 

@@ -140,11 +140,33 @@ export async function syncStripeDataFromStripe(
     current_period_end: number;
   };
 
-  // Fetch recent invoices first (needed for batch operation)
+  // Fetch recent invoices
   const invoices = await stripe.invoices.list({
     customer: customerId,
     limit: 10,
   });
+
+  // Fetch payment methods for the customer
+  const paymentMethods = await stripe.paymentMethods.list({
+    customer: customerId,
+    type: 'card',
+  });
+
+  // Get customer details for updates
+  const stripeCustomer = await stripe.customers.retrieve(customerId);
+  const customerData = stripeCustomer as Stripe.Customer;
+
+  // Prepare customer update operation
+  const customerUpdate = db.update(tables.stripeCustomer)
+    .set({
+      email: customerData.email || customer.email,
+      name: customerData.name || customer.name,
+      defaultPaymentMethodId: typeof customerData.invoice_settings?.default_payment_method === 'string'
+        ? customerData.invoice_settings.default_payment_method
+        : customerData.invoice_settings?.default_payment_method?.id || null,
+      updatedAt: new Date(),
+    })
+    .where(eq(tables.stripeCustomer.id, customerId));
 
   // Prepare subscription upsert operation
   const subscriptionUpsert = db.insert(tables.stripeSubscription).values({
@@ -230,16 +252,61 @@ export async function syncStripeDataFromStripe(
     });
   });
 
+  // Prepare payment method upsert operations
+  const defaultPaymentMethodId = typeof customerData.invoice_settings?.default_payment_method === 'string'
+    ? customerData.invoice_settings.default_payment_method
+    : customerData.invoice_settings?.default_payment_method?.id;
+
+  const paymentMethodUpserts = paymentMethods.data.map((pm) => {
+    const isDefault = pm.id === defaultPaymentMethodId;
+
+    return db.insert(tables.stripePaymentMethod).values({
+      id: pm.id,
+      customerId,
+      type: pm.type as 'card' | 'bank_account' | 'sepa_debit',
+      cardBrand: pm.card?.brand || null,
+      cardLast4: pm.card?.last4 || null,
+      cardExpMonth: pm.card?.exp_month || null,
+      cardExpYear: pm.card?.exp_year || null,
+      bankName: pm.us_bank_account?.bank_name || null,
+      bankLast4: pm.us_bank_account?.last4 || null,
+      isDefault,
+      createdAt: new Date(pm.created * 1000),
+      updatedAt: new Date(),
+    }).onConflictDoUpdate({
+      target: tables.stripePaymentMethod.id,
+      set: {
+        cardBrand: pm.card?.brand || null,
+        cardLast4: pm.card?.last4 || null,
+        cardExpMonth: pm.card?.exp_month || null,
+        cardExpYear: pm.card?.exp_year || null,
+        bankName: pm.us_bank_account?.bank_name || null,
+        bankLast4: pm.us_bank_account?.last4 || null,
+        isDefault,
+        updatedAt: new Date(),
+      },
+    });
+  });
+
   // Execute all operations atomically using batch (Cloudflare D1 batch-first architecture)
   // For local development with SQLite, operations execute sequentially (acceptable for dev)
   if ('batch' in db && typeof db.batch === 'function') {
     // Cloudflare D1 - atomic batch execution
-    await db.batch([subscriptionUpsert, ...invoiceUpserts]);
+    await db.batch([
+      customerUpdate,
+      subscriptionUpsert,
+      ...invoiceUpserts,
+      ...paymentMethodUpserts,
+    ]);
   } else {
     // Local SQLite fallback - execute sequentially
+    await customerUpdate;
     await subscriptionUpsert;
     for (const invoiceUpsert of invoiceUpserts) {
       await invoiceUpsert;
+    }
+    for (const paymentMethodUpsert of paymentMethodUpserts) {
+      await paymentMethodUpsert;
     }
   }
 

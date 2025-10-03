@@ -1,6 +1,6 @@
 # Backend Patterns - Implementation Guide
 
-> **Context Prime Document**: Essential reference for all backend development in the Roundtable Platform. This document serves as the single source of truth for backend implementation standards.
+> **Context Prime Document**: Essential reference for all backend development in roundtable.now. This document serves as the single source of truth for backend implementation standards.
 
 ## Table of Contents
 
@@ -17,7 +17,7 @@
 
 ## Architecture Overview
 
-The Roundtable Platform implements a modern, type-safe API architecture built on:
+roundtable.now implements a modern, type-safe API architecture built on:
 - **Hono.js** - Fast, lightweight web framework
 - **Cloudflare Workers** - Edge runtime for global performance
 - **Drizzle ORM** - Type-safe database operations
@@ -845,4 +845,4 @@ return Responses.ok(c, { product });
 
 ## Conclusion
 
-These patterns ensure consistency, type safety, and maintainability across the Roundtable Platform backend. Always reference existing implementations when adding new features, and maintain these established patterns for optimal developer experience.
+These patterns ensure consistency, type safety, and maintainability across the roundtable.now backend. Always reference existing implementations when adding new features, and maintain these established patterns for optimal developer experience.

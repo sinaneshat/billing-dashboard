@@ -317,7 +317,7 @@ export const APP_CONFIG = {
   DEFAULT_IMAGE_SIZE_LIMIT: 5 * 1024 * 1024, // 5MB
 
   // Session configuration
-  SESSION_COOKIE_NAME: 'deadpixel-session',
+  SESSION_COOKIE_NAME: 'roundtable-session',
   SESSION_MAX_AGE: 30 * 24 * 60 * 60, // 30 days
 
   // Rate limiting
