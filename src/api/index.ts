@@ -188,6 +188,7 @@ app.notFound(notFound);
 // Following Hono best practices: apply CSRF only to authenticated routes
 app.use('/auth/me', csrfMiddleware, requireSession);
 app.use('/billing/checkout', csrfMiddleware, requireSession);
+app.use('/billing/sync-after-checkout', csrfMiddleware, requireSession);
 app.use('/billing/subscriptions', csrfMiddleware, requireSession);
 app.use('/billing/subscriptions/:id', csrfMiddleware, requireSession);
 app.use('/billing/subscriptions/:id/cancel', csrfMiddleware, requireSession);

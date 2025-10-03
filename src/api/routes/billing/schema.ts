@@ -7,14 +7,14 @@ import { CoreSchemas, createApiResponseSchema } from '@/api/core/schemas';
 // ============================================================================
 
 export const ProductIdParamSchema = z.object({
-  id: z.string().min(1).openapi({
+  id: CoreSchemas.id().openapi({
     description: 'Stripe product ID',
     example: 'prod_ABC123',
   }),
 });
 
 export const SubscriptionIdParamSchema = z.object({
-  id: z.string().min(1).openapi({
+  id: CoreSchemas.id().openapi({
     description: 'Stripe subscription ID',
     example: 'sub_ABC123',
   }),

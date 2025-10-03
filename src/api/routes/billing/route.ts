@@ -8,8 +8,10 @@ import {
   CheckoutRequestSchema,
   CheckoutResponseSchema,
   ProductDetailResponseSchema,
+  ProductIdParamSchema,
   ProductListResponseSchema,
   SubscriptionDetailResponseSchema,
+  SubscriptionIdParamSchema,
   SubscriptionListResponseSchema,
   WebhookResponseSchema,
 } from './schema';
@@ -43,16 +45,7 @@ export const getProductRoute = createRoute({
   summary: 'Get product details',
   description: 'Get a specific product with all its pricing plans',
   request: {
-    params: z.object({
-      id: z.string().min(1).openapi({
-        param: {
-          name: 'id',
-          in: 'path',
-        },
-        example: 'prod_ABC123',
-        description: 'Stripe product ID',
-      }),
-    }),
+    params: ProductIdParamSchema,
   },
   responses: {
     [HttpStatusCodes.OK]: {
@@ -129,16 +122,7 @@ export const getSubscriptionRoute = createRoute({
   summary: 'Get subscription details',
   description: 'Get details of a specific subscription',
   request: {
-    params: z.object({
-      id: z.string().min(1).openapi({
-        param: {
-          name: 'id',
-          in: 'path',
-        },
-        example: 'sub_ABC123',
-        description: 'Stripe subscription ID',
-      }),
-    }),
+    params: SubscriptionIdParamSchema,
   },
   responses: {
     [HttpStatusCodes.OK]: {
@@ -162,16 +146,7 @@ export const cancelSubscriptionRoute = createRoute({
   summary: 'Cancel subscription',
   description: 'Cancel a subscription (either immediately or at period end)',
   request: {
-    params: z.object({
-      id: z.string().min(1).openapi({
-        param: {
-          name: 'id',
-          in: 'path',
-        },
-        example: 'sub_ABC123',
-        description: 'Stripe subscription ID',
-      }),
-    }),
+    params: SubscriptionIdParamSchema,
     body: {
       content: {
         'application/json': {
@@ -227,8 +202,8 @@ export const syncAfterCheckoutRoute = createRoute({
                 }),
               }).nullable().openapi({
                 description: 'Synced subscription state',
-              }),
-            }),
+              }).openapi('SyncedSubscriptionState'),
+            }).openapi('SyncAfterCheckoutPayload'),
           ),
         },
       },
@@ -248,7 +223,16 @@ export const handleWebhookRoute = createRoute({
   path: '/webhooks/stripe',
   tags: ['billing'],
   summary: 'Handle Stripe webhooks',
-  description: 'Receive and process Stripe webhook events',
+  description: `Process Stripe webhook events using Theo's "Stay Sane with Stripe" pattern.
+
+    This endpoint receives webhook events from Stripe and processes them by:
+    1. Verifying the webhook signature for security
+    2. Checking for duplicate events (idempotency)
+    3. Extracting customer ID from the event payload
+    4. Syncing fresh data from Stripe API (never trusting webhook payload)
+    5. Updating database with the latest subscription and invoice states
+
+    Tracked events: checkout.session.completed, customer.subscription.*, invoice.*, payment_intent.*`,
   request: {
     headers: z.object({
       'stripe-signature': z.string().min(1).openapi({

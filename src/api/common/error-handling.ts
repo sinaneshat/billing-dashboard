@@ -358,6 +358,36 @@ export const createError = {
 };
 
 // ============================================================================
+// ERROR UTILITY FUNCTIONS
+// ============================================================================
+
+/**
+ * Normalize an unknown error value to an Error instance
+ *
+ * This helper ensures consistent error handling by converting any thrown value
+ * into a proper Error instance. Useful in catch blocks where the error type is unknown.
+ *
+ * @param error - The error value to normalize (can be anything)
+ * @returns A proper Error instance
+ *
+ * @example
+ * ```typescript
+ * try {
+ *   await somethingDangerous();
+ * } catch (error) {
+ *   c.logger.error('Operation failed', normalizeError(error));
+ *   throw createError.internal('Operation failed', context);
+ * }
+ * ```
+ */
+export function normalizeError(error: unknown): Error {
+  if (error instanceof Error) {
+    return error;
+  }
+  return new Error(String(error));
+}
+
+// ============================================================================
 // EXPORTS
 // ============================================================================
 

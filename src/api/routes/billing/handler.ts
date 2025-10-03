@@ -2,7 +2,8 @@ import type { RouteHandler } from '@hono/zod-openapi';
 import { eq } from 'drizzle-orm';
 import type Stripe from 'stripe';
 
-import { createError } from '@/api/common/error-handling';
+import { AppError, createError, normalizeError } from '@/api/common/error-handling';
+import type { ErrorContext } from '@/api/core';
 import { createHandler, createHandlerWithBatch, Responses } from '@/api/core';
 import { apiLogger } from '@/api/middleware/hono-logger';
 import { stripeService } from '@/api/services/stripe.service';
@@ -87,8 +88,14 @@ export const listProductsHandler: RouteHandler<typeof listProductsRoute, ApiEnv>
       });
     } catch (error) {
       // Error logging with proper Error instance
-      c.logger.error('Failed to list products', error instanceof Error ? error : new Error(String(error)));
-      throw createError.internal('Failed to retrieve products');
+      c.logger.error('Failed to list products', normalizeError(error));
+
+      const context: ErrorContext = {
+        errorType: 'database',
+        operation: 'select',
+        table: 'stripeProduct',
+      };
+      throw createError.internal('Failed to retrieve products', context);
     }
   },
 );
@@ -127,25 +134,13 @@ export const getProductHandler: RouteHandler<typeof getProductRoute, ApiEnv> = c
           operationName: 'getProduct',
           resource: id,
         });
-        throw createError.notFound(`Product ${id} not found`);
+        const context: ErrorContext = {
+          errorType: 'resource',
+          resource: 'product',
+          resourceId: id,
+        };
+        throw createError.notFound(`Product ${id} not found`, context);
       }
-
-      const product = {
-        id: dbProduct.id,
-        name: dbProduct.name,
-        description: dbProduct.description,
-        features: dbProduct.features,
-        active: dbProduct.active,
-        prices: dbProduct.prices.map(price => ({
-          id: price.id,
-          productId: price.productId,
-          unitAmount: price.unitAmount || 0,
-          currency: price.currency,
-          interval: (price.interval || 'month') as 'month' | 'year',
-          trialPeriodDays: price.trialPeriodDays,
-          active: price.active,
-        })),
-      };
 
       c.logger.info('Product retrieved successfully', {
         logType: 'operation',
@@ -153,13 +148,36 @@ export const getProductHandler: RouteHandler<typeof getProductRoute, ApiEnv> = c
         resource: id,
       });
 
-      return Responses.ok(c, { product });
+      return Responses.ok(c, {
+        product: {
+          id: dbProduct.id,
+          name: dbProduct.name,
+          description: dbProduct.description,
+          features: dbProduct.features,
+          active: dbProduct.active,
+          prices: dbProduct.prices.map(price => ({
+            id: price.id,
+            productId: price.productId,
+            unitAmount: price.unitAmount || 0,
+            currency: price.currency,
+            interval: (price.interval || 'month') as 'month' | 'year',
+            trialPeriodDays: price.trialPeriodDays,
+            active: price.active,
+          })),
+        },
+      });
     } catch (error) {
-      if (error && typeof error === 'object' && 'code' in error) {
+      if (error instanceof AppError) {
         throw error;
       }
-      c.logger.error('Failed to get product', error instanceof Error ? error : new Error(String(error)));
-      throw createError.internal('Failed to retrieve product');
+      c.logger.error('Failed to get product', normalizeError(error));
+      const context: ErrorContext = {
+        errorType: 'database',
+        operation: 'select',
+        table: 'stripeProduct',
+        resourceId: id,
+      };
+      throw createError.internal('Failed to retrieve product', context);
     }
   },
 );
@@ -179,7 +197,11 @@ export const createCheckoutSessionHandler: RouteHandler<typeof createCheckoutSes
     const body = c.validated.body;
 
     if (!user) {
-      throw createError.unauthenticated('Valid session required for checkout');
+      const context: ErrorContext = {
+        errorType: 'authentication',
+        operation: 'session_required',
+      };
+      throw createError.unauthenticated('Valid session required for checkout', context);
     }
 
     // Operation start logging with user and resource
@@ -191,10 +213,8 @@ export const createCheckoutSessionHandler: RouteHandler<typeof createCheckoutSes
     });
 
     try {
-      const db = await getDbAsync();
-
-      // Get or create Stripe customer
-      const stripeCustomer = await db.query.stripeCustomer.findFirst({
+      // Get or create Stripe customer (using batch.db for consistency)
+      const stripeCustomer = await batch.db.query.stripeCustomer.findFirst({
         where: eq(tables.stripeCustomer.userId, user.id),
       });
 
@@ -259,7 +279,13 @@ export const createCheckoutSessionHandler: RouteHandler<typeof createCheckoutSes
       });
 
       if (!session.url) {
-        throw createError.internal('Checkout session created but URL is missing');
+        const context: ErrorContext = {
+          errorType: 'external_service',
+          service: 'stripe',
+          operation: 'create_checkout_session',
+          userId: user.id,
+        };
+        throw createError.internal('Checkout session created but URL is missing', context);
       }
 
       // Success logging with session ID
@@ -276,8 +302,14 @@ export const createCheckoutSessionHandler: RouteHandler<typeof createCheckoutSes
       });
     } catch (error) {
       // Error logging with proper Error instance
-      c.logger.error('Failed to create checkout session', error instanceof Error ? error : new Error(String(error)));
-      throw createError.internal('Failed to create checkout session');
+      c.logger.error('Failed to create checkout session', normalizeError(error));
+      const context: ErrorContext = {
+        errorType: 'external_service',
+        service: 'stripe',
+        operation: 'create_checkout_session',
+        userId: user.id,
+      };
+      throw createError.internal('Failed to create checkout session', context);
     }
   },
 );
@@ -295,7 +327,11 @@ export const listSubscriptionsHandler: RouteHandler<typeof listSubscriptionsRout
     const user = c.get('user');
 
     if (!user) {
-      throw createError.unauthenticated('Valid session required to list subscriptions');
+      const context: ErrorContext = {
+        errorType: 'authentication',
+        operation: 'session_required',
+      };
+      throw createError.unauthenticated('Valid session required to list subscriptions', context);
     }
 
     // Operation start logging
@@ -320,17 +356,17 @@ export const listSubscriptionsHandler: RouteHandler<typeof listSubscriptionsRout
         },
       });
 
-      const subscriptions = dbSubscriptions.map(sub => ({
-        id: sub.id,
-        status: sub.status as 'active' | 'past_due' | 'unpaid' | 'canceled' | 'incomplete' | 'incomplete_expired' | 'trialing' | 'paused',
-        priceId: sub.priceId,
-        productId: sub.price.productId,
-        currentPeriodStart: sub.currentPeriodStart.toISOString(),
-        currentPeriodEnd: sub.currentPeriodEnd.toISOString(),
-        cancelAtPeriodEnd: sub.cancelAtPeriodEnd,
-        canceledAt: sub.canceledAt?.toISOString() || null,
-        trialStart: sub.trialStart?.toISOString() || null,
-        trialEnd: sub.trialEnd?.toISOString() || null,
+      const subscriptions = dbSubscriptions.map(subscription => ({
+        id: subscription.id,
+        status: subscription.status as 'active' | 'past_due' | 'unpaid' | 'canceled' | 'incomplete' | 'incomplete_expired' | 'trialing' | 'paused',
+        priceId: subscription.priceId,
+        productId: subscription.price.productId,
+        currentPeriodStart: subscription.currentPeriodStart.toISOString(),
+        currentPeriodEnd: subscription.currentPeriodEnd.toISOString(),
+        cancelAtPeriodEnd: subscription.cancelAtPeriodEnd,
+        canceledAt: subscription.canceledAt?.toISOString() || null,
+        trialStart: subscription.trialStart?.toISOString() || null,
+        trialEnd: subscription.trialEnd?.toISOString() || null,
       }));
 
       // Success logging with resource count
@@ -347,8 +383,14 @@ export const listSubscriptionsHandler: RouteHandler<typeof listSubscriptionsRout
       });
     } catch (error) {
       // Error logging with proper Error instance
-      c.logger.error('Failed to list subscriptions', error instanceof Error ? error : new Error(String(error)));
-      throw createError.internal('Failed to retrieve subscriptions');
+      c.logger.error('Failed to list subscriptions', normalizeError(error));
+      const context: ErrorContext = {
+        errorType: 'database',
+        operation: 'select',
+        table: 'stripeSubscription',
+        userId: user.id,
+      };
+      throw createError.internal('Failed to retrieve subscriptions', context);
     }
   },
 );
@@ -364,7 +406,11 @@ export const getSubscriptionHandler: RouteHandler<typeof getSubscriptionRoute, A
     const { id } = c.validated.params;
 
     if (!user) {
-      throw createError.unauthenticated('Valid session required to view subscription');
+      const context: ErrorContext = {
+        errorType: 'authentication',
+        operation: 'session_required',
+      };
+      throw createError.unauthenticated('Valid session required to view subscription', context);
     }
 
     c.logger.info('Fetching subscription details', {
@@ -397,7 +443,13 @@ export const getSubscriptionHandler: RouteHandler<typeof getSubscriptionRoute, A
           userId: user.id,
           resource: id,
         });
-        throw createError.notFound(`Subscription ${id} not found`);
+        const context: ErrorContext = {
+          errorType: 'resource',
+          resource: 'subscription',
+          resourceId: id,
+          userId: user.id,
+        };
+        throw createError.notFound(`Subscription ${id} not found`, context);
       }
 
       if (subscription.userId !== user.id) {
@@ -408,7 +460,13 @@ export const getSubscriptionHandler: RouteHandler<typeof getSubscriptionRoute, A
           userId: user.id,
           resource: id,
         });
-        throw createError.unauthorized('You do not have access to this subscription');
+        const context: ErrorContext = {
+          errorType: 'authorization',
+          resource: 'subscription',
+          resourceId: id,
+          userId: user.id,
+        };
+        throw createError.unauthorized('You do not have access to this subscription', context);
       }
 
       c.logger.info('Subscription retrieved successfully', {
@@ -433,11 +491,18 @@ export const getSubscriptionHandler: RouteHandler<typeof getSubscriptionRoute, A
         },
       });
     } catch (error) {
-      if (error && typeof error === 'object' && 'code' in error) {
+      if (error instanceof AppError) {
         throw error;
       }
-      c.logger.error('Failed to get subscription', error instanceof Error ? error : new Error(String(error)));
-      throw createError.internal('Failed to retrieve subscription');
+      c.logger.error('Failed to get subscription', normalizeError(error));
+      const context: ErrorContext = {
+        errorType: 'database',
+        operation: 'select',
+        table: 'stripeSubscription',
+        resourceId: id,
+        userId: user.id,
+      };
+      throw createError.internal('Failed to retrieve subscription', context);
     }
   },
 );
@@ -455,7 +520,11 @@ export const cancelSubscriptionHandler: RouteHandler<typeof cancelSubscriptionRo
     const body = c.validated.body;
 
     if (!user) {
-      throw createError.unauthenticated('Valid session required to cancel subscription');
+      const context: ErrorContext = {
+        errorType: 'authentication',
+        operation: 'session_required',
+      };
+      throw createError.unauthenticated('Valid session required to cancel subscription', context);
     }
 
     c.logger.info('Canceling subscription', {
@@ -465,10 +534,9 @@ export const cancelSubscriptionHandler: RouteHandler<typeof cancelSubscriptionRo
       resource: id,
     });
 
-    const db = await getDbAsync();
-
     try {
-      const subscription = await db.query.stripeSubscription.findFirst({
+      // Fetch subscription using batch.db for consistency
+      const subscription = await batch.db.query.stripeSubscription.findFirst({
         where: eq(tables.stripeSubscription.id, id),
       });
 
@@ -480,7 +548,13 @@ export const cancelSubscriptionHandler: RouteHandler<typeof cancelSubscriptionRo
           userId: user.id,
           resource: id,
         });
-        throw createError.notFound(`Subscription ${id} not found`);
+        const context: ErrorContext = {
+          errorType: 'resource',
+          resource: 'subscription',
+          resourceId: id,
+          userId: user.id,
+        };
+        throw createError.notFound(`Subscription ${id} not found`, context);
       }
 
       if (subscription.userId !== user.id) {
@@ -491,7 +565,13 @@ export const cancelSubscriptionHandler: RouteHandler<typeof cancelSubscriptionRo
           userId: user.id,
           resource: id,
         });
-        throw createError.unauthorized('You do not have access to this subscription');
+        const context: ErrorContext = {
+          errorType: 'authorization',
+          resource: 'subscription',
+          resourceId: id,
+          userId: user.id,
+        };
+        throw createError.unauthorized('You do not have access to this subscription', context);
       }
 
       // Intermediate progress logging: canceling subscription in Stripe
@@ -519,8 +599,8 @@ export const cancelSubscriptionHandler: RouteHandler<typeof cancelSubscriptionRo
         })
         .where(eq(tables.stripeSubscription.id, id));
 
-      // Fetch updated subscription using Drizzle relational query
-      const updatedSubscription = await db.query.stripeSubscription.findFirst({
+      // Fetch updated subscription using Drizzle relational query with batch.db
+      const updatedSubscription = await batch.db.query.stripeSubscription.findFirst({
         where: eq(tables.stripeSubscription.id, id),
         with: {
           price: {
@@ -532,7 +612,14 @@ export const cancelSubscriptionHandler: RouteHandler<typeof cancelSubscriptionRo
       });
 
       if (!updatedSubscription) {
-        throw createError.internal('Failed to retrieve updated subscription');
+        const context: ErrorContext = {
+          errorType: 'database',
+          operation: 'select',
+          table: 'stripeSubscription',
+          resourceId: id,
+          userId: user.id,
+        };
+        throw createError.internal('Failed to retrieve updated subscription', context);
       }
 
       // Success logging with cancellation details
@@ -558,11 +645,18 @@ export const cancelSubscriptionHandler: RouteHandler<typeof cancelSubscriptionRo
         },
       });
     } catch (error) {
-      if (error && typeof error === 'object' && 'code' in error) {
+      if (error instanceof AppError) {
         throw error;
       }
-      c.logger.error('Failed to cancel subscription', error instanceof Error ? error : new Error(String(error)));
-      throw createError.internal('Failed to cancel subscription');
+      c.logger.error('Failed to cancel subscription', normalizeError(error));
+      const context: ErrorContext = {
+        errorType: 'external_service',
+        service: 'stripe',
+        operation: 'cancel_subscription',
+        resourceId: id,
+        userId: user.id,
+      };
+      throw createError.internal('Failed to cancel subscription', context);
     }
   },
 );
@@ -589,7 +683,11 @@ export const syncAfterCheckoutHandler: RouteHandler<typeof syncAfterCheckoutRout
     const user = c.get('user');
 
     if (!user) {
-      throw createError.unauthenticated('Valid session required for sync');
+      const context: ErrorContext = {
+        errorType: 'authentication',
+        operation: 'session_required',
+      };
+      throw createError.unauthenticated('Valid session required for sync', context);
     }
 
     c.logger.info('Syncing Stripe data after checkout', {
@@ -609,7 +707,12 @@ export const syncAfterCheckoutHandler: RouteHandler<typeof syncAfterCheckoutRout
           userId: user.id,
         });
 
-        throw createError.notFound('No Stripe customer found for user');
+        const context: ErrorContext = {
+          errorType: 'resource',
+          resource: 'customer',
+          userId: user.id,
+        };
+        throw createError.notFound('No Stripe customer found for user', context);
       }
 
       // Eagerly sync data from Stripe API (Theo's pattern)
@@ -632,8 +735,14 @@ export const syncAfterCheckoutHandler: RouteHandler<typeof syncAfterCheckoutRout
           : null,
       });
     } catch (error) {
-      c.logger.error('Failed to sync Stripe data', error instanceof Error ? error : new Error(String(error)));
-      throw createError.internal('Failed to sync Stripe data');
+      c.logger.error('Failed to sync Stripe data', normalizeError(error));
+      const context: ErrorContext = {
+        errorType: 'external_service',
+        service: 'stripe',
+        operation: 'sync_data',
+        userId: user.id,
+      };
+      throw createError.internal('Failed to sync Stripe data', context);
     }
   },
 );
@@ -656,7 +765,11 @@ export const handleWebhookHandler: RouteHandler<typeof handleWebhookRoute, ApiEn
         logType: 'operation',
         operationName: 'handleStripeWebhook',
       });
-      throw createError.badRequest('Missing stripe-signature header');
+      const context: ErrorContext = {
+        errorType: 'validation',
+        field: 'stripe-signature',
+      };
+      throw createError.badRequest('Missing stripe-signature header', context);
     }
 
     // Operation start logging
@@ -666,8 +779,6 @@ export const handleWebhookHandler: RouteHandler<typeof handleWebhookRoute, ApiEn
     });
 
     try {
-      const db = await getDbAsync();
-
       const rawBody = await c.req.text();
       const event = stripeService.constructWebhookEvent(rawBody, signature);
 
@@ -678,7 +789,8 @@ export const handleWebhookHandler: RouteHandler<typeof handleWebhookRoute, ApiEn
         resource: `${event.type}-${event.id}`,
       });
 
-      const existingEvent = await db.query.stripeWebhookEvent.findFirst({
+      // Check for existing event using batch.db for consistency
+      const existingEvent = await batch.db.query.stripeWebhookEvent.findFirst({
         where: eq(tables.stripeWebhookEvent.id, event.id),
       });
 
@@ -734,8 +846,13 @@ export const handleWebhookHandler: RouteHandler<typeof handleWebhookRoute, ApiEn
       });
     } catch (error) {
       // Error logging with proper Error instance
-      c.logger.error('Webhook processing failed', error instanceof Error ? error : new Error(String(error)));
-      throw createError.badRequest('Webhook processing failed');
+      c.logger.error('Webhook processing failed', normalizeError(error));
+      const context: ErrorContext = {
+        errorType: 'external_service',
+        service: 'stripe',
+        operation: 'webhook_processing',
+      };
+      throw createError.badRequest('Webhook processing failed', context);
     }
   },
 );

@@ -36,11 +36,12 @@ The Roundtable Platform implements a modern, type-safe API architecture built on
 
 ```
 src/api/
-├── routes/{domain}/           # Domain-specific routes (3-file pattern)
+├── routes/{domain}/           # Domain-specific routes (3-4 file pattern)
 │   ├── route.ts              # OpenAPI route definitions
 │   ├── handler.ts            # Business logic implementation
-│   └── schema.ts             # Zod validation schemas
-├── services/                 # Business logic services (currently empty - to be implemented)
+│   ├── schema.ts             # Zod validation schemas
+│   └── helpers.ts            # Domain-specific helpers (optional)
+├── services/                 # Business logic services
 ├── middleware/               # Cross-cutting concerns
 ├── core/                     # Framework foundations
 ├── common/                   # Shared utilities
@@ -682,25 +683,90 @@ const db = await getDbAsync(); // Returns D1BatchDatabase<Schema>
 
 ## Error Handling
 
-### Structured Errors
+### Structured Errors with Type-Safe Context
+
+All errors should include type-safe `ErrorContext` using discriminated unions:
 
 ```typescript
-// Create typed errors
-throw createError.notFound('Resource not found', {
-  resource: 'user',
-  id: userId,
-});
+import { AppError, createError, normalizeError } from '@/api/common/error-handling';
+import type { ErrorContext } from '@/api/core';
 
-throw createError.badRequest('Invalid input', {
-  field: 'email',
-  reason: 'Email already exists',
-});
+// Database errors
+const context: ErrorContext = {
+  errorType: 'database',
+  operation: 'select',
+  table: 'stripeProduct',
+  userId: user.id,          // optional
+  resourceId: productId,    // optional
+};
+throw createError.internal('Failed to retrieve product', context);
 
-throw createError.unauthenticated('Authentication required');
+// Resource errors
+const context: ErrorContext = {
+  errorType: 'resource',
+  resource: 'subscription',
+  resourceId: id,
+  userId: user.id,
+};
+throw createError.notFound(`Subscription ${id} not found`, context);
 
-throw createError.forbidden('Insufficient permissions');
+// Authentication errors
+const context: ErrorContext = {
+  errorType: 'authentication',
+  operation: 'session_required',
+};
+throw createError.unauthenticated('Valid session required', context);
 
-throw createError.internal('Internal server error');
+// Authorization errors
+const context: ErrorContext = {
+  errorType: 'authorization',
+  resource: 'subscription',
+  resourceId: id,
+  userId: user.id,
+};
+throw createError.unauthorized('You do not have access to this subscription', context);
+
+// External service errors
+const context: ErrorContext = {
+  errorType: 'external_service',
+  service: 'stripe',
+  operation: 'create_checkout_session',
+  userId: user.id,
+};
+throw createError.internal('Failed to create checkout session', context);
+
+// Validation errors
+const context: ErrorContext = {
+  errorType: 'validation',
+  field: 'stripe-signature',
+};
+throw createError.badRequest('Missing stripe-signature header', context);
+```
+
+### Error Normalization Helper
+
+Use `normalizeError()` to convert unknown errors to Error instances:
+
+```typescript
+try {
+  await someOperation();
+} catch (error) {
+  // Re-throw AppError instances without modification
+  if (error instanceof AppError) {
+    throw error;
+  }
+
+  // Log normalized error
+  c.logger.error('Operation failed', normalizeError(error));
+
+  // Create new structured error
+  const context: ErrorContext = {
+    errorType: 'database',
+    operation: 'select',
+    table: 'users',
+  };
+  throw createError.internal('Failed to retrieve user', context);
+}
 ```
 
 ### Response Helpers
@@ -710,9 +776,29 @@ throw createError.internal('Internal server error');
 return Responses.ok(c, data);
 return Responses.created(c, newResource);
 
-// Error responses  
+// Error responses
 return Responses.error(c, 'Error message', HttpStatusCodes.BAD_REQUEST);
 return Responses.notFound(c, 'Resource not found');
+```
+
+### Response Mapping Helpers
+
+For consistent API responses, use domain-specific mapping helpers:
+
+```typescript
+import { mapSubscriptionToResponse, mapProductToResponse } from './helpers';
+
+// Single subscription mapping
+const subscription = mapSubscriptionToResponse(dbSubscription);
+return Responses.ok(c, { subscription });
+
+// Multiple subscriptions
+const subscriptions = dbSubscriptions.map(mapSubscriptionToResponse);
+return Responses.ok(c, { subscriptions, count: subscriptions.length });
+
+// Product mapping with prices
+const product = mapProductToResponse(dbProduct);
+return Responses.ok(c, { product });
 ```
 
 ---

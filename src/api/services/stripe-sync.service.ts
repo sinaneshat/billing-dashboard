@@ -15,6 +15,7 @@ import { eq } from 'drizzle-orm';
 import type Stripe from 'stripe';
 
 import { createError } from '@/api/common/error-handling';
+import type { ErrorContext } from '@/api/core';
 import { stripeService } from '@/api/services/stripe.service';
 import { getDbAsync } from '@/db';
 import * as tables from '@/db/schema';
@@ -101,14 +102,26 @@ export async function syncStripeDataFromStripe(
   // Extract subscription data
   const firstItem = subscription.items.data[0];
   if (!firstItem) {
-    throw createError.internal('Subscription has no items');
+    const context: ErrorContext = {
+      errorType: 'external_service',
+      service: 'stripe',
+      operation: 'sync_subscription',
+      resourceId: subscription.id,
+    };
+    throw createError.internal('Subscription has no items', context);
   }
 
   const price = firstItem.price;
   const product = typeof price.product === 'string' ? price.product : price.product?.id;
 
   if (!product) {
-    throw createError.internal('Price has no associated product');
+    const context: ErrorContext = {
+      errorType: 'external_service',
+      service: 'stripe',
+      operation: 'sync_subscription',
+      resourceId: price.id,
+    };
+    throw createError.internal('Price has no associated product', context);
   }
 
   // Extract payment method details
@@ -127,8 +140,14 @@ export async function syncStripeDataFromStripe(
     current_period_end: number;
   };
 
-  // Upsert subscription to database
-  await db.insert(tables.stripeSubscription).values({
+  // Fetch recent invoices first (needed for batch operation)
+  const invoices = await stripe.invoices.list({
+    customer: customerId,
+    limit: 10,
+  });
+
+  // Prepare subscription upsert operation
+  const subscriptionUpsert = db.insert(tables.stripeSubscription).values({
     id: subscription.id,
     userId: customer.userId,
     customerId: customer.id,
@@ -164,13 +183,8 @@ export async function syncStripeDataFromStripe(
     },
   });
 
-  // Fetch and sync recent invoices (last 10)
-  const invoices = await stripe.invoices.list({
-    customer: customerId,
-    limit: 10,
-  });
-
-  for (const invoice of invoices.data) {
+  // Prepare invoice upsert operations
+  const invoiceUpserts = invoices.data.map((invoice) => {
     // Extract subscription ID (can be string or Stripe.Subscription object or null)
     const invoiceData = invoice as Stripe.Invoice & {
       subscription?: string | Stripe.Subscription | null;
@@ -183,7 +197,7 @@ export async function syncStripeDataFromStripe(
 
     const isPaid = invoice.status === 'paid';
 
-    await db.insert(tables.stripeInvoice).values({
+    return db.insert(tables.stripeInvoice).values({
       id: invoice.id,
       customerId,
       subscriptionId,
@@ -214,6 +228,19 @@ export async function syncStripeDataFromStripe(
         updatedAt: new Date(),
       },
     });
+  });
+
+  // Execute all operations atomically using batch (Cloudflare D1 batch-first architecture)
+  // For local development with SQLite, operations execute sequentially (acceptable for dev)
+  if ('batch' in db && typeof db.batch === 'function') {
+    // Cloudflare D1 - atomic batch execution
+    await db.batch([subscriptionUpsert, ...invoiceUpserts]);
+  } else {
+    // Local SQLite fallback - execute sequentially
+    await subscriptionUpsert;
+    for (const invoiceUpsert of invoiceUpserts) {
+      await invoiceUpsert;
+    }
   }
 
   // Return synced subscription state (Theo's pattern)

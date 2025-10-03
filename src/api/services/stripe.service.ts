@@ -12,7 +12,8 @@
 
 import Stripe from 'stripe';
 
-import { createError } from '@/api/common/error-handling';
+import { createError, normalizeError } from '@/api/common/error-handling';
+import type { ErrorContext } from '@/api/core';
 import { apiLogger } from '@/api/middleware/hono-logger';
 import type { ApiEnv } from '@/api/types';
 
@@ -61,7 +62,11 @@ class StripeService {
    */
   public getClient(): Stripe {
     if (!this.stripe) {
-      throw createError.internal('Stripe service not initialized. Call initialize() first.');
+      const context: ErrorContext = {
+        errorType: 'configuration',
+        service: 'stripe',
+      };
+      throw createError.internal('Stripe service not initialized. Call initialize() first.', context);
     }
     return this.stripe;
   }
@@ -72,7 +77,12 @@ class StripeService {
    */
   private getWebhookSecret(): string {
     if (!this.webhookSecret) {
-      throw createError.internal('Stripe webhook secret not configured. Call initialize() first.');
+      const context: ErrorContext = {
+        errorType: 'configuration',
+        service: 'stripe',
+        operation: 'webhook_secret',
+      };
+      throw createError.internal('Stripe webhook secret not configured. Call initialize() first.', context);
     }
     return this.webhookSecret;
   }
@@ -154,7 +164,13 @@ class StripeService {
     const customer = await stripe.customers.retrieve(customerId);
 
     if (customer.deleted) {
-      throw createError.notFound(`Customer ${customerId} has been deleted`);
+      const context: ErrorContext = {
+        errorType: 'resource',
+        resource: 'customer',
+        resourceId: customerId,
+        service: 'stripe',
+      };
+      throw createError.notFound(`Customer ${customerId} has been deleted`, context);
     }
 
     return customer;
@@ -348,8 +364,13 @@ class StripeService {
       );
       return event;
     } catch (error) {
-      apiLogger.error('Stripe webhook signature verification failed', error instanceof Error ? error : new Error(String(error)));
-      throw createError.unauthorized('Webhook signature verification failed');
+      apiLogger.error('Stripe webhook signature verification failed', normalizeError(error));
+      const context: ErrorContext = {
+        errorType: 'authentication',
+        service: 'stripe',
+        operation: 'webhook_verification',
+      };
+      throw createError.unauthorized('Webhook signature verification failed', context);
     }
   }
 
