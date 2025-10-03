@@ -6,8 +6,8 @@ import { useTranslations } from 'next-intl';
 
 import { cn } from '@/lib/ui/cn';
 
-import { Button } from './button';
 import { GlowingEffect } from './glowing-effect';
+import { HoverBorderGradient } from './hover-border-gradient';
 
 interface PricingCardProps {
   name: string;
@@ -246,22 +246,27 @@ export function PricingCard({
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: delay + 0.4, duration: 0.4 }}
             >
-              <Button
-                className={cn(
-                  'w-full transition-all duration-200',
-                  isMostPopular && 'bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70',
+              <HoverBorderGradient
+                as="button"
+                containerClassName={cn(
+                  'w-full rounded-md',
+                  isProcessing && 'cursor-not-allowed opacity-50',
                 )}
-                variant={isCurrentPlan ? 'outline' : 'default'}
-                size="lg"
+                className={cn(
+                  'w-full text-center text-sm font-medium transition-all duration-200',
+                  isMostPopular && 'bg-primary text-primary-foreground',
+                  isCurrentPlan && 'bg-muted/50 text-muted-foreground',
+                  !isMostPopular && !isCurrentPlan && 'bg-background text-foreground',
+                )}
                 onClick={handleAction}
                 disabled={isProcessing}
               >
                 {isProcessing
                   ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      <span className="flex items-center justify-center gap-2">
+                        <Loader2 className="h-4 w-4 animate-spin" />
                         {t('loading', { ns: 'common' })}
-                      </>
+                      </span>
                     )
                   : isCurrentPlan
                     ? (
@@ -270,7 +275,7 @@ export function PricingCard({
                     : (
                         t('subscribe')
                       )}
-              </Button>
+              </HoverBorderGradient>
             </motion.div>
           </div>
         </div>

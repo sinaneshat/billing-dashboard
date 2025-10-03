@@ -58,22 +58,31 @@ export const listProductsHandler: RouteHandler<typeof listProductsRoute, ApiEnv>
         },
       });
 
-      const products = dbProducts.map(product => ({
-        id: product.id,
-        name: product.name,
-        description: product.description,
-        features: product.features,
-        active: product.active,
-        prices: product.prices.map(price => ({
-          id: price.id,
-          productId: price.productId,
-          unitAmount: price.unitAmount || 0,
-          currency: price.currency,
-          interval: (price.interval || 'month') as 'month' | 'year',
-          trialPeriodDays: price.trialPeriodDays,
-          active: price.active,
-        })),
-      }));
+      const products = dbProducts
+        .map(product => ({
+          id: product.id,
+          name: product.name,
+          description: product.description,
+          features: product.features,
+          active: product.active,
+          prices: product.prices
+            .map(price => ({
+              id: price.id,
+              productId: price.productId,
+              unitAmount: price.unitAmount || 0,
+              currency: price.currency,
+              interval: (price.interval || 'month') as 'month' | 'year',
+              trialPeriodDays: price.trialPeriodDays,
+              active: price.active,
+            }))
+            .sort((a, b) => a.unitAmount - b.unitAmount), // Sort prices by amount (low to high)
+        }))
+        .sort((a, b) => {
+          // Sort products by their lowest price (low to high)
+          const lowestPriceA = a.prices[0]?.unitAmount ?? 0;
+          const lowestPriceB = b.prices[0]?.unitAmount ?? 0;
+          return lowestPriceA - lowestPriceB;
+        });
 
       // Success logging with resource count
       c.logger.info('Products retrieved successfully', {
@@ -155,15 +164,17 @@ export const getProductHandler: RouteHandler<typeof getProductRoute, ApiEnv> = c
           description: dbProduct.description,
           features: dbProduct.features,
           active: dbProduct.active,
-          prices: dbProduct.prices.map(price => ({
-            id: price.id,
-            productId: price.productId,
-            unitAmount: price.unitAmount || 0,
-            currency: price.currency,
-            interval: (price.interval || 'month') as 'month' | 'year',
-            trialPeriodDays: price.trialPeriodDays,
-            active: price.active,
-          })),
+          prices: dbProduct.prices
+            .map(price => ({
+              id: price.id,
+              productId: price.productId,
+              unitAmount: price.unitAmount || 0,
+              currency: price.currency,
+              interval: (price.interval || 'month') as 'month' | 'year',
+              trialPeriodDays: price.trialPeriodDays,
+              active: price.active,
+            }))
+            .sort((a, b) => a.unitAmount - b.unitAmount), // Sort prices by amount (low to high)
         },
       });
     } catch (error) {
