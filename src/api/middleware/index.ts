@@ -1,4 +1,5 @@
-export { attachSession, requireSession } from './auth';
+export { attachSession, protectMutations, requireOptionalSession, requireSession } from './auth';
+export { csrfProtection } from './csrf';
 export {
   createEnvironmentSummary,
   createEnvironmentValidationMiddleware,
