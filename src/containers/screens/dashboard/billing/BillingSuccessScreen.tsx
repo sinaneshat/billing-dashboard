@@ -1,6 +1,6 @@
 'use client';
 
-import { Check, Loader2, Sparkles } from 'lucide-react';
+import { Check, Loader2 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
@@ -69,76 +69,38 @@ export default function BillingSuccessScreen() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gradient-to-b from-background to-muted/20 p-4">
+    <div className="flex min-h-screen items-start justify-center bg-gradient-to-b from-background to-muted/20 p-4 pt-24">
       <motion.div
-        initial={{ opacity: 0, scale: 0.95 }}
-        animate={{ opacity: 1, scale: 1 }}
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+        className="w-full max-w-md"
       >
-        <Card className="w-full max-w-md border-2">
+        <Card className="border-2">
           <CardContent className="p-8">
             {!showSuccess
               ? (
                 // Loading State
-                  <div className="flex flex-col items-center gap-6 text-center">
+                  <div className="flex flex-col items-center gap-4 text-center">
                     <motion.div
-                      animate={{
-                        rotate: 360,
-                      }}
+                      animate={{ rotate: 360 }}
                       transition={{
                         duration: 1,
                         repeat: Number.POSITIVE_INFINITY,
                         ease: 'linear',
                       }}
-                      className="relative"
                     >
-                      <div className="absolute inset-0 rounded-full bg-primary/20 blur-xl" />
-                      <Loader2 className="relative size-16 text-primary" />
+                      <Loader2 className="size-12 text-primary" />
                     </motion.div>
 
-                    <div className="space-y-2">
-                      <motion.h1
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: 0.2 }}
-                        className="text-2xl font-bold tracking-tight"
-                      >
+                    <div className="space-y-1">
+                      <h1 className="text-xl font-semibold">
                         {t('billing.success.activatingSubscription')}
-                      </motion.h1>
-                      <motion.p
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: 0.3 }}
-                        className="text-sm text-muted-foreground"
-                      >
+                      </h1>
+                      <p className="text-sm text-muted-foreground">
                         {t('billing.success.confirmingPayment')}
-                      </motion.p>
+                      </p>
                     </div>
-
-                    <motion.div
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      transition={{ delay: 0.4 }}
-                      className="flex items-center gap-2 text-xs text-muted-foreground"
-                    >
-                      <div className="flex gap-1">
-                        {[0, 1, 2].map(i => (
-                          <motion.div
-                            key={i}
-                            animate={{
-                              y: [0, -8, 0],
-                            }}
-                            transition={{
-                              duration: 0.6,
-                              repeat: Number.POSITIVE_INFINITY,
-                              delay: i * 0.1,
-                            }}
-                            className="size-1.5 rounded-full bg-muted-foreground"
-                          />
-                        ))}
-                      </div>
-                      <span>Syncing with Stripe</span>
-                    </motion.div>
                   </div>
                 )
               : (
@@ -164,16 +126,16 @@ export default function BillingSuccessScreen() {
                         }}
                         className="absolute inset-0 rounded-full bg-green-500/20 blur-2xl"
                       />
-                      <div className="relative flex size-20 items-center justify-center rounded-full bg-green-500/10">
-                        <Check className="size-10 text-green-500" strokeWidth={3} />
+                      <div className="relative flex size-16 items-center justify-center rounded-full bg-green-500/10">
+                        <Check className="size-8 text-green-500" strokeWidth={3} />
                       </div>
                     </motion.div>
 
-                    <div className="space-y-2">
+                    <div className="space-y-1">
                       <motion.h1
                         initial={{ opacity: 0, y: 10 }}
                         animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: 0.3 }}
+                        transition={{ delay: 0.3, ease: [0.16, 1, 0.3, 1] }}
                         className="text-2xl font-bold tracking-tight"
                       >
                         Payment Successful!
@@ -181,7 +143,7 @@ export default function BillingSuccessScreen() {
                       <motion.p
                         initial={{ opacity: 0, y: 10 }}
                         animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: 0.4 }}
+                        transition={{ delay: 0.4, ease: [0.16, 1, 0.3, 1] }}
                         className="text-sm text-muted-foreground"
                       >
                         Your subscription has been activated
@@ -191,18 +153,15 @@ export default function BillingSuccessScreen() {
                     <motion.div
                       initial={{ opacity: 0, y: 10 }}
                       animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: 0.5 }}
+                      transition={{ delay: 0.5, ease: [0.16, 1, 0.3, 1] }}
                       className="w-full space-y-3"
                     >
-                      <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
-                        <Sparkles className="size-4" />
-                        <span>
-                          Redirecting in
-                          {' '}
-                          {redirectCountdown}
-                          s
-                        </span>
-                      </div>
+                      <p className="text-sm text-muted-foreground">
+                        Redirecting in
+                        {' '}
+                        {redirectCountdown}
+                        s
+                      </p>
 
                       <Button
                         onClick={() => router.push('/dashboard/pricing')}
