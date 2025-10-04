@@ -31,16 +31,16 @@
     {
       "binding": "DB",
       "database_name": "roundtable-dashboard-db-local",
-      "database_id": "b1472255-9a48-4821-a0b8-f88d8ab41753",
+      "database_id": "12ce87b8-9d6d-4c54-a9d4-7c59ceb3ef8e",
       "migrations_dir": "./src/db/migrations",
-      "preview_database_id": "b1472255-9a48-4821-a0b8-f88d8ab41753"
+      "preview_database_id": "12ce87b8-9d6d-4c54-a9d4-7c59ceb3ef8e"
     }
   ],
   "kv_namespaces": [
     {
       "binding": "KV",
-      "id": "0185d15d43964d87a3d00fcdd44d1da3",
-      "preview_id": "0185d15d43964d87a3d00fcdd44d1da3"
+      "id": "0ab8201d8a9d43b7ab8e4236026e4811",
+      "preview_id": "0ab8201d8a9d43b7ab8e4236026e4811"
     }
   ],
   "r2_buckets": [
@@ -97,16 +97,16 @@
         {
           "binding": "DB",
           "database_name": "roundtable-dashboard-db-preview",
-          "database_id": "3b992e46-03e2-4df8-aa0e-4a452836f636",
+          "database_id": "45ba3c83-ee28-4138-a4af-fed442b3ad05",
           "migrations_dir": "./src/db/migrations",
-          "preview_database_id": "3b992e46-03e2-4df8-aa0e-4a452836f636"
+          "preview_database_id": "45ba3c83-ee28-4138-a4af-fed442b3ad05"
         }
       ],
       "kv_namespaces": [
         {
           "binding": "KV",
-          "id": "0c509b9c921546c1b20c4bc907a8c0e5",
-          "preview_id": "0c509b9c921546c1b20c4bc907a8c0e5"
+          "id": "146b84bc30474873a73161b779c19b81",
+          "preview_id": "146b84bc30474873a73161b779c19b81"
         }
       ],
       "r2_buckets": [
@@ -163,28 +163,28 @@
         {
           "binding": "DB",
           "database_name": "roundtable-dashboard-db-prod",
-          "database_id": "b09dad8d-caa0-453a-96ad-7c857fbfd4a8",
+          "database_id": "8d7d88e0-7f78-4fa8-a70b-9aa32895ad6a",
           "migrations_dir": "./src/db/migrations",
-          "preview_database_id": "b09dad8d-caa0-453a-96ad-7c857fbfd4a8"
+          "preview_database_id": "8d7d88e0-7f78-4fa8-a70b-9aa32895ad6a"
         }
       ],
       "kv_namespaces": [
         {
           "binding": "KV",
-          "id": "5b65f8ced9b44bbfa856486bc722ef4b",
-          "preview_id": "5b65f8ced9b44bbfa856486bc722ef4b"
+          "id": "8c335928a67d4d5db3de6e52f685296f",
+          "preview_id": "8c335928a67d4d5db3de6e52f685296f"
         }
       ],
       "r2_buckets": [
         {
           "binding": "NEXT_INC_CACHE_R2_BUCKET",
           "bucket_name": "roundtable-dashboard-r2-cache-prod",
-          "preview_bucket_name": "roundtable-dashboard-r2-cache-preview"
+          "preview_bucket_name": "roundtable-dashboard-r2-cache-prod"
         },
         {
           "binding": "UPLOADS_R2_BUCKET",
           "bucket_name": "roundtable-dashboard-r2-uploads-prod",
-          "preview_bucket_name": "roundtable-dashboard-r2-uploads-preview"
+          "preview_bucket_name": "roundtable-dashboard-r2-uploads-prod"
         }
       ],
       "services": [
