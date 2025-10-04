@@ -53,6 +53,10 @@ async function ensureUserUsageRecord(userId: string): Promise<typeof tables.user
         threadsLimit: 2, // Free tier default
         messagesCreated: 0,
         messagesLimit: 20, // Free tier default
+        memoriesCreated: 0,
+        memoriesLimit: 0, // Free tier default - no memories
+        customRolesCreated: 0,
+        customRolesLimit: 0, // Free tier default - no custom roles
         subscriptionTier: 'free',
         isAnnual: false,
         createdAt: now,
@@ -121,6 +125,10 @@ async function rolloverBillingPeriod(
     threadsLimit: currentUsage.threadsLimit,
     messagesCreated: currentUsage.messagesCreated,
     messagesLimit: currentUsage.messagesLimit,
+    memoriesCreated: currentUsage.memoriesCreated,
+    memoriesLimit: currentUsage.memoriesLimit,
+    customRolesCreated: currentUsage.customRolesCreated,
+    customRolesLimit: currentUsage.customRolesLimit,
     subscriptionTier: currentUsage.subscriptionTier,
     isAnnual: currentUsage.isAnnual,
     createdAt: now,
@@ -138,6 +146,8 @@ async function rolloverBillingPeriod(
       currentPeriodEnd: periodEnd,
       threadsCreated: 0,
       messagesCreated: 0,
+      memoriesCreated: 0,
+      customRolesCreated: 0,
       updatedAt: now,
     })
     .where(eq(tables.userChatUsage.userId, userId));
@@ -183,6 +193,46 @@ export async function checkMessageQuota(userId: string): Promise<QuotaCheck> {
     canCreate,
     current: usage.messagesCreated,
     limit: usage.messagesLimit,
+    remaining,
+    resetDate: usage.currentPeriodEnd,
+    tier: usage.subscriptionTier,
+  };
+}
+
+/**
+ * Check memory creation quota
+ * Returns whether user can create a new memory and current usage stats
+ */
+export async function checkMemoryQuota(userId: string): Promise<QuotaCheck> {
+  const usage = await ensureUserUsageRecord(userId);
+
+  const canCreate = usage.memoriesCreated < usage.memoriesLimit;
+  const remaining = Math.max(0, usage.memoriesLimit - usage.memoriesCreated);
+
+  return {
+    canCreate,
+    current: usage.memoriesCreated,
+    limit: usage.memoriesLimit,
+    remaining,
+    resetDate: usage.currentPeriodEnd,
+    tier: usage.subscriptionTier,
+  };
+}
+
+/**
+ * Check custom role creation quota
+ * Returns whether user can create a new custom role and current usage stats
+ */
+export async function checkCustomRoleQuota(userId: string): Promise<QuotaCheck> {
+  const usage = await ensureUserUsageRecord(userId);
+
+  const canCreate = usage.customRolesCreated < usage.customRolesLimit;
+  const remaining = Math.max(0, usage.customRolesLimit - usage.customRolesCreated);
+
+  return {
+    canCreate,
+    current: usage.customRolesCreated,
+    limit: usage.customRolesLimit,
     remaining,
     resetDate: usage.currentPeriodEnd,
     tier: usage.subscriptionTier,
@@ -239,6 +289,56 @@ export async function incrementMessageUsage(userId: string, count = 1): Promise<
 }
 
 /**
+ * Increment memory creation counter
+ * Must be called AFTER successfully creating a memory
+ * Does NOT decrement when memories are deleted
+ */
+export async function incrementMemoryUsage(userId: string, count = 1): Promise<void> {
+  const db = await getDbAsync();
+  const usage = await ensureUserUsageRecord(userId);
+
+  await db
+    .update(tables.userChatUsage)
+    .set({
+      memoriesCreated: usage.memoriesCreated + count,
+      updatedAt: new Date(),
+    })
+    .where(eq(tables.userChatUsage.userId, userId));
+
+  apiLogger.info('Incremented memory usage for user', {
+    userId,
+    count,
+    newCount: usage.memoriesCreated + count,
+    limit: usage.memoriesLimit,
+  });
+}
+
+/**
+ * Increment custom role creation counter
+ * Must be called AFTER successfully creating a custom role
+ * Does NOT decrement when custom roles are deleted
+ */
+export async function incrementCustomRoleUsage(userId: string, count = 1): Promise<void> {
+  const db = await getDbAsync();
+  const usage = await ensureUserUsageRecord(userId);
+
+  await db
+    .update(tables.userChatUsage)
+    .set({
+      customRolesCreated: usage.customRolesCreated + count,
+      updatedAt: new Date(),
+    })
+    .where(eq(tables.userChatUsage.userId, userId));
+
+  apiLogger.info('Incremented custom role usage for user', {
+    userId,
+    count,
+    newCount: usage.customRolesCreated + count,
+    limit: usage.customRolesLimit,
+  });
+}
+
+/**
  * Get comprehensive usage statistics for a user
  * Used for displaying usage in the UI
  */
@@ -248,6 +348,8 @@ export async function getUserUsageStats(userId: string): Promise<UsageStats> {
 
   const threadsRemaining = Math.max(0, usage.threadsLimit - usage.threadsCreated);
   const messagesRemaining = Math.max(0, usage.messagesLimit - usage.messagesCreated);
+  const memoriesRemaining = Math.max(0, usage.memoriesLimit - usage.memoriesCreated);
+  const customRolesRemaining = Math.max(0, usage.customRolesLimit - usage.customRolesCreated);
 
   const threadsPercentage = usage.threadsLimit > 0
     ? Math.round((usage.threadsCreated / usage.threadsLimit) * 100)
@@ -255,6 +357,14 @@ export async function getUserUsageStats(userId: string): Promise<UsageStats> {
 
   const messagesPercentage = usage.messagesLimit > 0
     ? Math.round((usage.messagesCreated / usage.messagesLimit) * 100)
+    : 0;
+
+  const memoriesPercentage = usage.memoriesLimit > 0
+    ? Math.round((usage.memoriesCreated / usage.memoriesLimit) * 100)
+    : 0;
+
+  const customRolesPercentage = usage.customRolesLimit > 0
+    ? Math.round((usage.customRolesCreated / usage.customRolesLimit) * 100)
     : 0;
 
   const daysRemaining = Math.ceil(
@@ -273,6 +383,18 @@ export async function getUserUsageStats(userId: string): Promise<UsageStats> {
       limit: usage.messagesLimit,
       remaining: messagesRemaining,
       percentage: messagesPercentage,
+    },
+    memories: {
+      used: usage.memoriesCreated,
+      limit: usage.memoriesLimit,
+      remaining: memoriesRemaining,
+      percentage: memoriesPercentage,
+    },
+    customRoles: {
+      used: usage.customRolesCreated,
+      limit: usage.customRolesLimit,
+      remaining: customRolesRemaining,
+      percentage: customRolesPercentage,
     },
     period: {
       start: usage.currentPeriodStart,
@@ -375,6 +497,46 @@ export async function enforceMessageQuota(userId: string): Promise<void> {
     };
     throw createError.badRequest(
       `Message creation limit reached. You have used ${quota.current} of ${quota.limit} messages this month. Upgrade your plan for more messages.`,
+      context,
+    );
+  }
+}
+
+/**
+ * Enforce memory quota before creation
+ * Throws error if user has exceeded quota
+ */
+export async function enforceMemoryQuota(userId: string): Promise<void> {
+  const quota = await checkMemoryQuota(userId);
+
+  if (!quota.canCreate) {
+    const context: ErrorContext = {
+      errorType: 'resource',
+      resource: 'chat_memory',
+      userId,
+    };
+    throw createError.badRequest(
+      `Memory creation limit reached. You have used ${quota.current} of ${quota.limit} memories this month. Upgrade your plan for more memories.`,
+      context,
+    );
+  }
+}
+
+/**
+ * Enforce custom role quota before creation
+ * Throws error if user has exceeded quota
+ */
+export async function enforceCustomRoleQuota(userId: string): Promise<void> {
+  const quota = await checkCustomRoleQuota(userId);
+
+  if (!quota.canCreate) {
+    const context: ErrorContext = {
+      errorType: 'resource',
+      resource: 'chat_custom_role',
+      userId,
+    };
+    throw createError.badRequest(
+      `Custom role creation limit reached. You have used ${quota.current} of ${quota.limit} custom roles this month. Upgrade your plan for more custom roles.`,
       context,
     );
   }

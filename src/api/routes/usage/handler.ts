@@ -4,6 +4,8 @@ import { createError } from '@/api/common/error-handling';
 import type { ErrorContext } from '@/api/core';
 import { createHandler, Responses } from '@/api/core';
 import {
+  checkCustomRoleQuota,
+  checkMemoryQuota,
   checkMessageQuota,
   checkThreadQuota,
   getUserUsageStats,
@@ -11,6 +13,8 @@ import {
 import type { ApiEnv } from '@/api/types';
 
 import type {
+  checkCustomRoleQuotaRoute,
+  checkMemoryQuotaRoute,
   checkMessageQuotaRoute,
   checkThreadQuotaRoute,
   getUserUsageStatsRoute,
@@ -98,6 +102,54 @@ export const checkMessageQuotaHandler: RouteHandler<
     }
 
     const quota = await checkMessageQuota(user.id);
+
+    return Responses.ok(c, quota);
+  },
+);
+
+/**
+ * Check memory creation quota
+ * Used by UI to show whether "Create Memory" button should be enabled
+ */
+export const checkMemoryQuotaHandler: RouteHandler<
+  typeof checkMemoryQuotaRoute,
+  ApiEnv
+> = createHandler(
+  {
+    auth: 'session',
+    operationName: 'checkMemoryQuota',
+  },
+  async (c) => {
+    const user = c.var.user;
+    if (!user) {
+      throw createError.unauthenticated('Authentication required', createAuthErrorContext());
+    }
+
+    const quota = await checkMemoryQuota(user.id);
+
+    return Responses.ok(c, quota);
+  },
+);
+
+/**
+ * Check custom role creation quota
+ * Used by UI to show whether "Create Custom Role" button should be enabled
+ */
+export const checkCustomRoleQuotaHandler: RouteHandler<
+  typeof checkCustomRoleQuotaRoute,
+  ApiEnv
+> = createHandler(
+  {
+    auth: 'session',
+    operationName: 'checkCustomRoleQuota',
+  },
+  async (c) => {
+    const user = c.var.user;
+    if (!user) {
+      throw createError.unauthenticated('Authentication required', createAuthErrorContext());
+    }
+
+    const quota = await checkCustomRoleQuota(user.id);
 
     return Responses.ok(c, quota);
   },

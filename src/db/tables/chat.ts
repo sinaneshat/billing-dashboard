@@ -49,8 +49,40 @@ export const chatThread = sqliteTable('chat_thread', {
 ]);
 
 /**
+ * Custom Roles
+ * User-defined role templates with system prompts that can be reused
+ * Examples: "The Devil's Advocate", "The Fact Checker", "The Creative Ideator"
+ * Defined before chatParticipant to allow forward reference
+ */
+export const chatCustomRole = sqliteTable('chat_custom_role', {
+  id: text('id').primaryKey(),
+  userId: text('user_id')
+    .notNull()
+    .references(() => user.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(), // e.g., "The Devil's Advocate"
+  description: text('description'), // Brief description of the role
+  systemPrompt: text('system_prompt').notNull(), // The actual prompt that defines the role behavior
+  metadata: text('metadata', { mode: 'json' }).$type<{
+    tags?: string[];
+    category?: string;
+    [key: string]: unknown;
+  }>(),
+  createdAt: integer('created_at', { mode: 'timestamp' })
+    .defaultNow()
+    .notNull(),
+  updatedAt: integer('updated_at', { mode: 'timestamp' })
+    .defaultNow()
+    .$onUpdate(() => /* @__PURE__ */ new Date())
+    .notNull(),
+}, table => [
+  index('chat_custom_role_user_idx').on(table.userId),
+  index('chat_custom_role_name_idx').on(table.name),
+]);
+
+/**
  * Chat Participants
  * Models participating in a thread with their assigned roles
+ * Can use custom role templates or inline role definitions
  */
 export const chatParticipant = sqliteTable('chat_participant', {
   id: text('id').primaryKey(),
@@ -58,7 +90,9 @@ export const chatParticipant = sqliteTable('chat_participant', {
     .notNull()
     .references(() => chatThread.id, { onDelete: 'cascade' }),
   modelId: text('model_id').notNull(), // e.g., 'anthropic/claude-3.5-sonnet'
-  role: text('role').notNull(), // User-assigned role from screenshot (The Ideator, Devil's Advocate, etc.)
+  customRoleId: text('custom_role_id')
+    .references(() => chatCustomRole.id, { onDelete: 'set null' }), // Reference to saved custom role (optional)
+  role: text('role').notNull(), // Role name (from custom role or inline) - e.g., "The Ideator", "Devil's Advocate"
   priority: integer('priority').notNull().default(0), // Order in which models respond
   isEnabled: integer('is_enabled', { mode: 'boolean' })
     .notNull()
@@ -66,7 +100,7 @@ export const chatParticipant = sqliteTable('chat_participant', {
   settings: text('settings', { mode: 'json' }).$type<{
     temperature?: number;
     maxTokens?: number;
-    systemPrompt?: string;
+    systemPrompt?: string; // Inline system prompt (overrides custom role if both present)
     [key: string]: unknown;
   }>(),
   createdAt: integer('created_at', { mode: 'timestamp' })
@@ -79,6 +113,7 @@ export const chatParticipant = sqliteTable('chat_participant', {
 }, table => [
   index('chat_participant_thread_idx').on(table.threadId),
   index('chat_participant_priority_idx').on(table.priority),
+  index('chat_participant_custom_role_idx').on(table.customRoleId),
 ]);
 
 /**
@@ -132,6 +167,7 @@ export const chatMessage = sqliteTable('chat_message', {
 /**
  * Chat Memories
  * User-provided context, notes, and memories for threads
+ * Can be reused across multiple threads
  */
 export const chatMemory = sqliteTable('chat_memory', {
   id: text('id').primaryKey(),
@@ -139,15 +175,16 @@ export const chatMemory = sqliteTable('chat_memory', {
     .notNull()
     .references(() => user.id, { onDelete: 'cascade' }),
   threadId: text('thread_id')
-    .references(() => chatThread.id, { onDelete: 'cascade' }), // null = global memory
+    .references(() => chatThread.id, { onDelete: 'cascade' }), // null = reusable memory, non-null = thread-specific
   type: text('type', { enum: ['personal', 'topic', 'instruction', 'fact'] })
     .notNull()
     .default('topic'),
   title: text('title').notNull(),
+  description: text('description'), // Brief description of the memory
   content: text('content').notNull(),
   isGlobal: integer('is_global', { mode: 'boolean' })
     .notNull()
-    .default(false), // If true, applies to all threads
+    .default(false), // If true, auto-applies to all threads
   metadata: text('metadata', { mode: 'json' }).$type<{
     tags?: string[];
     relevance?: number;
@@ -164,6 +201,28 @@ export const chatMemory = sqliteTable('chat_memory', {
   index('chat_memory_user_idx').on(table.userId),
   index('chat_memory_thread_idx').on(table.threadId),
   index('chat_memory_global_idx').on(table.isGlobal),
+]);
+
+/**
+ * Chat Thread-Memory Junction Table
+ * Many-to-many relationship: allows attaching reusable memories to threads
+ */
+export const chatThreadMemory = sqliteTable('chat_thread_memory', {
+  id: text('id').primaryKey(),
+  threadId: text('thread_id')
+    .notNull()
+    .references(() => chatThread.id, { onDelete: 'cascade' }),
+  memoryId: text('memory_id')
+    .notNull()
+    .references(() => chatMemory.id, { onDelete: 'cascade' }),
+  attachedAt: integer('attached_at', { mode: 'timestamp' })
+    .defaultNow()
+    .notNull(),
+}, table => [
+  index('chat_thread_memory_thread_idx').on(table.threadId),
+  index('chat_thread_memory_memory_idx').on(table.memoryId),
+  // Prevent duplicate memory attachments to the same thread
+  index('chat_thread_memory_unique_idx').on(table.threadId, table.memoryId),
 ]);
 
 /**
@@ -221,13 +280,26 @@ export const chatThreadRelations = relations(chatThread, ({ one, many }) => ({
   }),
   participants: many(chatParticipant),
   messages: many(chatMessage),
-  memories: many(chatMemory),
+  memories: many(chatMemory), // Thread-specific memories (threadId is set)
+  threadMemories: many(chatThreadMemory), // Attached reusable memories via junction table
+}));
+
+export const chatCustomRoleRelations = relations(chatCustomRole, ({ one, many }) => ({
+  user: one(user, {
+    fields: [chatCustomRole.userId],
+    references: [user.id],
+  }),
+  participants: many(chatParticipant), // Participants using this custom role
 }));
 
 export const chatParticipantRelations = relations(chatParticipant, ({ one, many }) => ({
   thread: one(chatThread, {
     fields: [chatParticipant.threadId],
     references: [chatThread.id],
+  }),
+  customRole: one(chatCustomRole, {
+    fields: [chatParticipant.customRoleId],
+    references: [chatCustomRole.id],
   }),
   messages: many(chatMessage),
 }));
@@ -248,7 +320,7 @@ export const chatMessageRelations = relations(chatMessage, ({ one }) => ({
   }),
 }));
 
-export const chatMemoryRelations = relations(chatMemory, ({ one }) => ({
+export const chatMemoryRelations = relations(chatMemory, ({ one, many }) => ({
   user: one(user, {
     fields: [chatMemory.userId],
     references: [user.id],
@@ -256,5 +328,17 @@ export const chatMemoryRelations = relations(chatMemory, ({ one }) => ({
   thread: one(chatThread, {
     fields: [chatMemory.threadId],
     references: [chatThread.id],
+  }),
+  threadMemories: many(chatThreadMemory), // Threads this memory is attached to via junction table
+}));
+
+export const chatThreadMemoryRelations = relations(chatThreadMemory, ({ one }) => ({
+  thread: one(chatThread, {
+    fields: [chatThreadMemory.threadId],
+    references: [chatThread.id],
+  }),
+  memory: one(chatMemory, {
+    fields: [chatThreadMemory.memoryId],
+    references: [chatMemory.id],
   }),
 }));

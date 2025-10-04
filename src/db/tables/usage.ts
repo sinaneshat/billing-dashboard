@@ -1,9 +1,29 @@
 import { relations } from 'drizzle-orm';
 import { index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
 
-import { SUBSCRIPTION_TIERS } from '@/db/validation/usage';
-
 import { user } from './auth';
+
+// ============================================================================
+// Subscription Tier Constants
+// ============================================================================
+
+/**
+ * Subscription Tier Tuple - Const assertion for type safety
+ * Used by Drizzle ORM for database enum columns
+ *
+ * Supported Tiers:
+ * - free: Free tier with basic limits
+ * - starter: Entry-level paid tier ($20/mo or $200/yr)
+ * - pro: Professional tier ($59/mo or $600/yr) - MOST POPULAR
+ * - power: High-volume tier ($249/mo or $2500/yr)
+ */
+export const SUBSCRIPTION_TIERS = ['free', 'starter', 'pro', 'power'] as const;
+
+/**
+ * Subscription Tier Type - TypeScript Type
+ * Inferred from the const tuple to ensure type safety
+ */
+export type SubscriptionTier = typeof SUBSCRIPTION_TIERS[number];
 
 /**
  * User Chat Usage Tracking
@@ -30,6 +50,14 @@ export const userChatUsage = sqliteTable(
     // Message usage (cumulative - never decremented)
     messagesCreated: integer('messages_created').notNull().default(0),
     messagesLimit: integer('messages_limit').notNull(), // From subscription tier
+
+    // Memory usage (cumulative - never decremented)
+    memoriesCreated: integer('memories_created').notNull().default(0),
+    memoriesLimit: integer('memories_limit').notNull(), // From subscription tier
+
+    // Custom role usage (cumulative - never decremented)
+    customRolesCreated: integer('custom_roles_created').notNull().default(0),
+    customRolesLimit: integer('custom_roles_limit').notNull(), // From subscription tier
 
     // Subscription tier metadata
     subscriptionTier: text('subscription_tier', {
@@ -73,6 +101,10 @@ export const userChatUsageHistory = sqliteTable(
     threadsLimit: integer('threads_limit').notNull(),
     messagesCreated: integer('messages_created').notNull().default(0),
     messagesLimit: integer('messages_limit').notNull(),
+    memoriesCreated: integer('memories_created').notNull().default(0),
+    memoriesLimit: integer('memories_limit').notNull(),
+    customRolesCreated: integer('custom_roles_created').notNull().default(0),
+    customRolesLimit: integer('custom_roles_limit').notNull(),
 
     // Subscription info at time of period
     subscriptionTier: text('subscription_tier', {
@@ -109,9 +141,11 @@ export const subscriptionTierQuotas = sqliteTable(
     // Chat quotas
     threadsPerMonth: integer('threads_per_month').notNull(),
     messagesPerMonth: integer('messages_per_month').notNull(),
-    maxAiModels: integer('max_ai_models').notNull().default(5),
+    memoriesPerMonth: integer('memories_per_month').notNull().default(0), // Number of memories user can create
+    customRolesPerMonth: integer('custom_roles_per_month').notNull().default(0), // Number of custom roles user can create
+    maxAiModels: integer('max_ai_models').notNull().default(5), // Max AI models per thread
 
-    // Feature flags
+    // Feature flags (kept for backward compatibility)
     allowCustomRoles: integer('allow_custom_roles', { mode: 'boolean' })
       .notNull()
       .default(false),

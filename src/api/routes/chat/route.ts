@@ -5,17 +5,17 @@ import { createApiResponseSchema } from '@/api/core/schemas';
 
 import {
   AddParticipantRequestSchema,
+  CreateCustomRoleRequestSchema,
   CreateMemoryRequestSchema,
   CreateThreadRequestSchema,
+  CustomRoleDetailResponseSchema,
+  CustomRoleIdParamSchema,
+  CustomRoleListResponseSchema,
   MemoryDetailResponseSchema,
   MemoryIdParamSchema,
   MemoryListResponseSchema,
-  MessageDetailResponseSchema,
-  MessageIdParamSchema,
-  MessageListResponseSchema,
   ParticipantDetailResponseSchema,
   ParticipantIdParamSchema,
-  ParticipantListResponseSchema,
   SendMessageRequestSchema,
   SendMessageResponseSchema,
   ThreadDetailResponseSchema,
@@ -23,6 +23,7 @@ import {
   ThreadListQuerySchema,
   ThreadListResponseSchema,
   ThreadSlugParamSchema,
+  UpdateCustomRoleRequestSchema,
   UpdateMemoryRequestSchema,
   UpdateParticipantRequestSchema,
   UpdateThreadRequestSchema,
@@ -183,28 +184,7 @@ export const getPublicThreadRoute = createRoute({
 // ============================================================================
 // Participant Routes
 // ============================================================================
-
-export const listParticipantsRoute = createRoute({
-  method: 'get',
-  path: '/chat/threads/:id/participants',
-  tags: ['chat'],
-  summary: 'List thread participants',
-  description: 'Get all participants (AI models with roles) in a thread',
-  request: {
-    params: ThreadIdParamSchema,
-  },
-  responses: {
-    [HttpStatusCodes.OK]: {
-      description: 'Participants retrieved successfully',
-      content: {
-        'application/json': { schema: ParticipantListResponseSchema },
-      },
-    },
-    [HttpStatusCodes.UNAUTHORIZED]: { description: 'Authentication required' },
-    [HttpStatusCodes.NOT_FOUND]: { description: 'Thread not found' },
-    [HttpStatusCodes.INTERNAL_SERVER_ERROR]: { description: 'Internal Server Error' },
-  },
-});
+// Note: GET /chat/threads/:id/participants removed - use GET /chat/threads/:id instead
 
 export const addParticipantRoute = createRoute({
   method: 'post',
@@ -295,28 +275,8 @@ export const deleteParticipantRoute = createRoute({
 // ============================================================================
 // Message Routes
 // ============================================================================
-
-export const listMessagesRoute = createRoute({
-  method: 'get',
-  path: '/chat/threads/:id/messages',
-  tags: ['chat'],
-  summary: 'List thread messages',
-  description: 'Get all messages in a thread',
-  request: {
-    params: ThreadIdParamSchema,
-  },
-  responses: {
-    [HttpStatusCodes.OK]: {
-      description: 'Messages retrieved successfully',
-      content: {
-        'application/json': { schema: MessageListResponseSchema },
-      },
-    },
-    [HttpStatusCodes.UNAUTHORIZED]: { description: 'Authentication required' },
-    [HttpStatusCodes.NOT_FOUND]: { description: 'Thread not found' },
-    [HttpStatusCodes.INTERNAL_SERVER_ERROR]: { description: 'Internal Server Error' },
-  },
-});
+// Note: GET /chat/threads/:id/messages removed - use GET /chat/threads/:id instead
+// Note: GET /chat/messages/:id removed - no use case for viewing single message
 
 export const sendMessageRoute = createRoute({
   method: 'post',
@@ -344,28 +304,6 @@ export const sendMessageRoute = createRoute({
     [HttpStatusCodes.UNAUTHORIZED]: { description: 'Authentication required' },
     [HttpStatusCodes.NOT_FOUND]: { description: 'Thread not found' },
     [HttpStatusCodes.BAD_REQUEST]: { description: 'Invalid request data or no participants enabled' },
-    [HttpStatusCodes.INTERNAL_SERVER_ERROR]: { description: 'Internal Server Error' },
-  },
-});
-
-export const getMessageRoute = createRoute({
-  method: 'get',
-  path: '/chat/messages/:id',
-  tags: ['chat'],
-  summary: 'Get message details',
-  description: 'Get details of a specific message',
-  request: {
-    params: MessageIdParamSchema,
-  },
-  responses: {
-    [HttpStatusCodes.OK]: {
-      description: 'Message retrieved successfully',
-      content: {
-        'application/json': { schema: MessageDetailResponseSchema },
-      },
-    },
-    [HttpStatusCodes.UNAUTHORIZED]: { description: 'Authentication required' },
-    [HttpStatusCodes.NOT_FOUND]: { description: 'Message not found' },
     [HttpStatusCodes.INTERNAL_SERVER_ERROR]: { description: 'Internal Server Error' },
   },
 });
@@ -494,6 +432,134 @@ export const deleteMemoryRoute = createRoute({
     },
     [HttpStatusCodes.UNAUTHORIZED]: { description: 'Authentication required' },
     [HttpStatusCodes.NOT_FOUND]: { description: 'Memory not found' },
+    [HttpStatusCodes.INTERNAL_SERVER_ERROR]: { description: 'Internal Server Error' },
+  },
+});
+
+// ============================================================================
+// Custom Role Routes
+// ============================================================================
+
+export const listCustomRolesRoute = createRoute({
+  method: 'get',
+  path: '/chat/custom-roles',
+  tags: ['chat'],
+  summary: 'List custom roles',
+  description: 'Get all custom role templates for the authenticated user',
+  responses: {
+    [HttpStatusCodes.OK]: {
+      description: 'Custom roles retrieved successfully',
+      content: {
+        'application/json': { schema: CustomRoleListResponseSchema },
+      },
+    },
+    [HttpStatusCodes.UNAUTHORIZED]: { description: 'Authentication required' },
+    [HttpStatusCodes.INTERNAL_SERVER_ERROR]: { description: 'Internal Server Error' },
+  },
+});
+
+export const createCustomRoleRoute = createRoute({
+  method: 'post',
+  path: '/chat/custom-roles',
+  tags: ['chat'],
+  summary: 'Create custom role',
+  description: 'Create a new reusable custom role template with system prompt',
+  request: {
+    body: {
+      content: {
+        'application/json': {
+          schema: CreateCustomRoleRequestSchema,
+        },
+      },
+    },
+  },
+  responses: {
+    [HttpStatusCodes.OK]: {
+      description: 'Custom role created successfully',
+      content: {
+        'application/json': { schema: CustomRoleDetailResponseSchema },
+      },
+    },
+    [HttpStatusCodes.UNAUTHORIZED]: { description: 'Authentication required' },
+    [HttpStatusCodes.BAD_REQUEST]: { description: 'Invalid request data or quota exceeded' },
+    [HttpStatusCodes.INTERNAL_SERVER_ERROR]: { description: 'Internal Server Error' },
+  },
+});
+
+export const getCustomRoleRoute = createRoute({
+  method: 'get',
+  path: '/chat/custom-roles/:id',
+  tags: ['chat'],
+  summary: 'Get custom role details',
+  description: 'Get details of a specific custom role',
+  request: {
+    params: CustomRoleIdParamSchema,
+  },
+  responses: {
+    [HttpStatusCodes.OK]: {
+      description: 'Custom role retrieved successfully',
+      content: {
+        'application/json': { schema: CustomRoleDetailResponseSchema },
+      },
+    },
+    [HttpStatusCodes.UNAUTHORIZED]: { description: 'Authentication required' },
+    [HttpStatusCodes.NOT_FOUND]: { description: 'Custom role not found' },
+    [HttpStatusCodes.INTERNAL_SERVER_ERROR]: { description: 'Internal Server Error' },
+  },
+});
+
+export const updateCustomRoleRoute = createRoute({
+  method: 'patch',
+  path: '/chat/custom-roles/:id',
+  tags: ['chat'],
+  summary: 'Update custom role',
+  description: 'Update custom role name, description, system prompt, or metadata',
+  request: {
+    params: CustomRoleIdParamSchema,
+    body: {
+      content: {
+        'application/json': {
+          schema: UpdateCustomRoleRequestSchema,
+        },
+      },
+    },
+  },
+  responses: {
+    [HttpStatusCodes.OK]: {
+      description: 'Custom role updated successfully',
+      content: {
+        'application/json': { schema: CustomRoleDetailResponseSchema },
+      },
+    },
+    [HttpStatusCodes.UNAUTHORIZED]: { description: 'Authentication required' },
+    [HttpStatusCodes.NOT_FOUND]: { description: 'Custom role not found' },
+    [HttpStatusCodes.BAD_REQUEST]: { description: 'Invalid request data' },
+    [HttpStatusCodes.INTERNAL_SERVER_ERROR]: { description: 'Internal Server Error' },
+  },
+});
+
+export const deleteCustomRoleRoute = createRoute({
+  method: 'delete',
+  path: '/chat/custom-roles/:id',
+  tags: ['chat'],
+  summary: 'Delete custom role',
+  description: 'Delete a custom role template',
+  request: {
+    params: CustomRoleIdParamSchema,
+  },
+  responses: {
+    [HttpStatusCodes.OK]: {
+      description: 'Custom role deleted successfully',
+      content: {
+        'application/json': {
+          schema: createApiResponseSchema(z.object({
+            deleted: z.boolean().openapi({ example: true }),
+          })),
+        },
+      },
+    },
+    [HttpStatusCodes.UNAUTHORIZED]: { description: 'Authentication required' },
+    [HttpStatusCodes.NOT_FOUND]: { description: 'Custom role not found' },
     [HttpStatusCodes.INTERNAL_SERVER_ERROR]: { description: 'Internal Server Error' },
   },
 });

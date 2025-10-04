@@ -58,19 +58,47 @@ import {
 } from './routes/billing/route';
 // Chat routes - Core endpoints only (ChatGPT pattern)
 import {
+  addParticipantHandler,
+  createCustomRoleHandler,
+  createMemoryHandler,
   createThreadHandler,
+  deleteCustomRoleHandler,
+  deleteMemoryHandler,
+  deleteParticipantHandler,
   deleteThreadHandler,
+  getCustomRoleHandler,
+  getMemoryHandler,
+  getPublicThreadHandler,
   getThreadHandler,
+  listCustomRolesHandler,
+  listMemoriesHandler,
   listThreadsHandler,
   sendMessageHandler,
+  updateCustomRoleHandler,
+  updateMemoryHandler,
+  updateParticipantHandler,
   updateThreadHandler,
 } from './routes/chat/handler';
 import {
+  addParticipantRoute,
+  createCustomRoleRoute,
+  createMemoryRoute,
   createThreadRoute,
+  deleteCustomRoleRoute,
+  deleteMemoryRoute,
+  deleteParticipantRoute,
   deleteThreadRoute,
+  getCustomRoleRoute,
+  getMemoryRoute,
+  getPublicThreadRoute,
   getThreadRoute,
+  listCustomRolesRoute,
+  listMemoriesRoute,
   listThreadsRoute,
   sendMessageRoute,
+  updateCustomRoleRoute,
+  updateMemoryRoute,
+  updateParticipantRoute,
   updateThreadRoute,
 } from './routes/chat/route';
 // System/health routes
@@ -84,11 +112,15 @@ import {
 } from './routes/system/route';
 // Usage tracking routes
 import {
+  checkCustomRoleQuotaHandler,
+  checkMemoryQuotaHandler,
   checkMessageQuotaHandler,
   checkThreadQuotaHandler,
   getUserUsageStatsHandler,
 } from './routes/usage/handler';
 import {
+  checkCustomRoleQuotaRoute,
+  checkMemoryQuotaRoute,
   checkMessageQuotaRoute,
   checkThreadQuotaRoute,
   getUserUsageStatsRoute,
@@ -213,6 +245,18 @@ app.use('/chat/threads/:id', protectMutations);
 // POST /chat/threads/:id/messages - send message (requires auth + CSRF)
 app.use('/chat/threads/:id/messages', csrfProtection, requireSession);
 
+// Participant management routes (protected)
+app.use('/chat/threads/:id/participants', csrfProtection, requireSession);
+app.use('/chat/participants/:id', csrfProtection, requireSession);
+
+// Memory system routes (protected)
+app.use('/chat/memories', csrfProtection, requireSession);
+app.use('/chat/memories/:id', csrfProtection, requireSession);
+
+// Custom role routes (protected)
+app.use('/chat/custom-roles', csrfProtection, requireSession);
+app.use('/chat/custom-roles/:id', csrfProtection, requireSession);
+
 // Register all routes directly on the app
 const appRoutes = app
   // System/health routes
@@ -244,10 +288,29 @@ const appRoutes = app
   .openapi(updateThreadRoute, updateThreadHandler) // Update thread (title, favorite, public, etc.)
   .openapi(deleteThreadRoute, deleteThreadHandler) // Delete thread
   .openapi(sendMessageRoute, sendMessageHandler) // Send message to thread
+  .openapi(getPublicThreadRoute, getPublicThreadHandler) // Get public thread by slug (no auth)
+  // Chat routes - Participant management
+  .openapi(addParticipantRoute, addParticipantHandler) // Add model to thread
+  .openapi(updateParticipantRoute, updateParticipantHandler) // Update participant role/priority/settings
+  .openapi(deleteParticipantRoute, deleteParticipantHandler) // Remove participant from thread
+  // Chat routes - Memory system
+  .openapi(listMemoriesRoute, listMemoriesHandler) // List user memories
+  .openapi(createMemoryRoute, createMemoryHandler) // Create memory/preset
+  .openapi(getMemoryRoute, getMemoryHandler) // Get memory details
+  .openapi(updateMemoryRoute, updateMemoryHandler) // Update memory
+  .openapi(deleteMemoryRoute, deleteMemoryHandler) // Delete memory
+  // Chat routes - Custom Role system
+  .openapi(listCustomRolesRoute, listCustomRolesHandler) // List user custom roles
+  .openapi(createCustomRoleRoute, createCustomRoleHandler) // Create custom role template
+  .openapi(getCustomRoleRoute, getCustomRoleHandler) // Get custom role details
+  .openapi(updateCustomRoleRoute, updateCustomRoleHandler) // Update custom role
+  .openapi(deleteCustomRoleRoute, deleteCustomRoleHandler) // Delete custom role
   // Usage tracking routes (protected)
   .openapi(getUserUsageStatsRoute, getUserUsageStatsHandler)
   .openapi(checkThreadQuotaRoute, checkThreadQuotaHandler)
   .openapi(checkMessageQuotaRoute, checkMessageQuotaHandler)
+  .openapi(checkMemoryQuotaRoute, checkMemoryQuotaHandler)
+  .openapi(checkCustomRoleQuotaRoute, checkCustomRoleQuotaHandler)
 ;
 
 // ============================================================================

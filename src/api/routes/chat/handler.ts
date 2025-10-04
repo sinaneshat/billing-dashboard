@@ -11,8 +11,12 @@ import { initializeOpenRouter, openRouterService } from '@/api/services/openrout
 import { generateUniqueSlug } from '@/api/services/slug-generator.service';
 import { autoGenerateThreadTitle } from '@/api/services/title-generator.service';
 import {
+  enforceCustomRoleQuota,
+  enforceMemoryQuota,
   enforceMessageQuota,
   enforceThreadQuota,
+  incrementCustomRoleUsage,
+  incrementMemoryUsage,
   incrementMessageUsage,
   incrementThreadUsage,
 } from '@/api/services/usage-tracking.service';
@@ -22,34 +26,38 @@ import * as tables from '@/db/schema';
 
 import type {
   addParticipantRoute,
+  createCustomRoleRoute,
   createMemoryRoute,
   createThreadRoute,
+  deleteCustomRoleRoute,
   deleteMemoryRoute,
   deleteParticipantRoute,
   deleteThreadRoute,
+  getCustomRoleRoute,
   getMemoryRoute,
-  getMessageRoute,
   getPublicThreadRoute,
   getThreadRoute,
+  listCustomRolesRoute,
   listMemoriesRoute,
-  listMessagesRoute,
-  listParticipantsRoute,
   listThreadsRoute,
   sendMessageRoute,
+  updateCustomRoleRoute,
   updateMemoryRoute,
   updateParticipantRoute,
   updateThreadRoute,
 } from './route';
 import {
   AddParticipantRequestSchema,
+  CreateCustomRoleRequestSchema,
   CreateMemoryRequestSchema,
   CreateThreadRequestSchema,
+  CustomRoleIdParamSchema,
   MemoryIdParamSchema,
-  MessageIdParamSchema,
   ParticipantIdParamSchema,
   SendMessageRequestSchema,
   ThreadIdParamSchema,
   ThreadSlugParamSchema,
+  UpdateCustomRoleRequestSchema,
   UpdateMemoryRequestSchema,
   UpdateParticipantRequestSchema,
   UpdateThreadRequestSchema,
@@ -180,8 +188,29 @@ export const createThreadHandler: RouteHandler<typeof createThreadRoute, ApiEnv>
       .returning();
 
     // Create participants with priority based on array order (immutable)
+    // Load custom roles if specified
     const participants = await Promise.all(
       body.participants.map(async (p, index) => {
+        let systemPrompt = p.systemPrompt; // Request systemPrompt takes precedence
+
+        // If customRoleId is provided and no systemPrompt override, load custom role
+        if (p.customRoleId && !systemPrompt) {
+          const customRole = await db.query.chatCustomRole.findFirst({
+            where: eq(tables.chatCustomRole.id, p.customRoleId),
+          });
+
+          if (customRole) {
+            // Verify ownership
+            if (customRole.userId !== user.id) {
+              throw createError.unauthorized(
+                'Not authorized to use this custom role',
+                createAuthorizationErrorContext('custom_role', p.customRoleId),
+              );
+            }
+            systemPrompt = customRole.systemPrompt;
+          }
+        }
+
         const participantId = ulid();
         const [participant] = await db
           .insert(tables.chatParticipant)
@@ -189,11 +218,12 @@ export const createThreadHandler: RouteHandler<typeof createThreadRoute, ApiEnv>
             id: participantId,
             threadId,
             modelId: p.modelId,
+            customRoleId: p.customRoleId,
             role: p.role,
             priority: index, // Array order determines priority
             isEnabled: true,
             settings: {
-              systemPrompt: p.systemPrompt,
+              systemPrompt,
               temperature: p.temperature,
               maxTokens: p.maxTokens,
             },
@@ -280,6 +310,45 @@ export const createThreadHandler: RouteHandler<typeof createThreadRoute, ApiEnv>
     const totalMessagesCreated = 1 + assistantMessages.length;
     await incrementMessageUsage(user.id, totalMessagesCreated);
 
+    // Attach memories to thread via junction table if provided
+    if (body.memoryIds && body.memoryIds.length > 0) {
+      // Verify all memories exist and belong to user
+      const memories = await db.query.chatMemory.findMany({
+        where: (fields, { inArray }) => inArray(fields.id, body.memoryIds!),
+      });
+
+      // Check if all memories exist
+      if (memories.length !== body.memoryIds.length) {
+        const foundIds = memories.map(m => m.id);
+        const missingIds = body.memoryIds.filter(id => !foundIds.includes(id));
+        throw createError.notFound(
+          `Memories not found: ${missingIds.join(', ')}`,
+          createResourceNotFoundContext('memory', missingIds[0]),
+        );
+      }
+
+      // Check if all memories belong to the user
+      const unauthorizedMemory = memories.find(m => m.userId !== user.id);
+      if (unauthorizedMemory) {
+        throw createError.unauthorized(
+          'Not authorized to use this memory',
+          createAuthorizationErrorContext('memory', unauthorizedMemory.id),
+        );
+      }
+
+      // Create junction table entries
+      await Promise.all(
+        body.memoryIds.map(memoryId =>
+          db.insert(tables.chatThreadMemory).values({
+            id: ulid(),
+            threadId,
+            memoryId,
+            attachedAt: now,
+          }),
+        ),
+      );
+    }
+
     // Return thread with participants and messages
     return Responses.ok(c, {
       thread,
@@ -338,11 +407,23 @@ export const getThreadHandler: RouteHandler<typeof getThreadRoute, ApiEnv> = cre
       orderBy: [tables.chatMessage.createdAt],
     });
 
+    // Fetch attached memories via junction table
+    const threadMemories = await db.query.chatThreadMemory.findMany({
+      where: eq(tables.chatThreadMemory.threadId, id),
+      with: {
+        memory: true, // Include the full memory object
+      },
+    });
+
+    // Extract just the memory objects from the junction records
+    const memories = threadMemories.map(tm => tm.memory);
+
     // Return everything in one response (ChatGPT pattern)
     return Responses.ok(c, {
       thread,
       participants,
       messages,
+      memories,
     });
   },
 );
@@ -459,45 +540,7 @@ export const getPublicThreadHandler: RouteHandler<typeof getPublicThreadRoute, A
 // ============================================================================
 // Participant Handlers
 // ============================================================================
-
-export const listParticipantsHandler: RouteHandler<typeof listParticipantsRoute, ApiEnv> = createHandler(
-  {
-    auth: 'session',
-    operationName: 'listParticipants',
-  },
-  async (c) => {
-    const user = c.var.user;
-    if (!user) {
-      throw createError.unauthenticated('Authentication required', createAuthErrorContext());
-    }
-
-    const { id } = ThreadIdParamSchema.parse(c.req.param());
-    const db = await getDbAsync();
-
-    // Verify thread ownership
-    const thread = await db.query.chatThread.findFirst({
-      where: eq(tables.chatThread.id, id),
-    });
-
-    if (!thread) {
-      throw createError.notFound('Thread not found', createResourceNotFoundContext('thread', id));
-    }
-
-    if (thread.userId !== user.id) {
-      throw createError.unauthorized('Not authorized to access this thread', createAuthorizationErrorContext('thread', id));
-    }
-
-    const participants = await db.query.chatParticipant.findMany({
-      where: eq(tables.chatParticipant.threadId, id),
-      orderBy: [tables.chatParticipant.priority],
-    });
-
-    return Responses.ok(c, {
-      participants,
-      count: participants.length,
-    });
-  },
-);
+// Note: listParticipantsHandler removed - use getThreadHandler instead
 
 export const addParticipantHandler: RouteHandler<typeof addParticipantRoute, ApiEnv> = createHandler(
   {
@@ -638,57 +681,8 @@ export const deleteParticipantHandler: RouteHandler<typeof deleteParticipantRout
 // ============================================================================
 // Message Handlers
 // ============================================================================
-
-export const listMessagesHandler: RouteHandler<typeof listMessagesRoute, ApiEnv> = createHandler(
-  {
-    auth: 'session-optional', // Allow both authenticated and unauthenticated access
-    operationName: 'listMessages',
-  },
-  async (c) => {
-    const user = c.var.user; // May be undefined for unauthenticated requests
-
-    const { id } = ThreadIdParamSchema.parse(c.req.param());
-    const db = await getDbAsync();
-
-    // Get thread to check access permissions
-    const thread = await db.query.chatThread.findFirst({
-      where: eq(tables.chatThread.id, id),
-    });
-
-    if (!thread) {
-      throw createError.notFound('Thread not found', createResourceNotFoundContext('thread', id));
-    }
-
-    // Smart access control: Public threads are accessible to anyone, private threads require ownership
-    if (!thread.isPublic) {
-      // Private thread - requires authentication and ownership
-      if (!user) {
-        throw createError.unauthenticated(
-          'Authentication required to access private thread messages',
-          createAuthErrorContext(),
-        );
-      }
-
-      if (thread.userId !== user.id) {
-        throw createError.unauthorized(
-          'Not authorized to access this thread',
-          createAuthorizationErrorContext('thread', id),
-        );
-      }
-    }
-
-    // Fetch messages (accessible for public threads or authorized private threads)
-    const messages = await db.query.chatMessage.findMany({
-      where: eq(tables.chatMessage.threadId, id),
-      orderBy: [tables.chatMessage.createdAt],
-    });
-
-    return Responses.ok(c, {
-      messages,
-      count: messages.length,
-    });
-  },
-);
+// Note: listMessagesHandler removed - use getThreadHandler instead
+// Note: getMessageHandler removed - no use case for viewing single message
 
 export const sendMessageHandler: RouteHandler<typeof sendMessageRoute, ApiEnv> = createHandler(
   {
@@ -846,41 +840,6 @@ export const sendMessageHandler: RouteHandler<typeof sendMessageRoute, ApiEnv> =
   },
 );
 
-export const getMessageHandler: RouteHandler<typeof getMessageRoute, ApiEnv> = createHandler(
-  {
-    auth: 'session',
-    operationName: 'getMessage',
-  },
-  async (c) => {
-    const user = c.var.user;
-    if (!user) {
-      throw createError.unauthenticated('Authentication required', createAuthErrorContext());
-    }
-
-    const { id } = MessageIdParamSchema.parse(c.req.param());
-    const db = await getDbAsync();
-
-    const message = await db.query.chatMessage.findFirst({
-      where: eq(tables.chatMessage.id, id),
-      with: {
-        thread: true,
-      },
-    });
-
-    if (!message) {
-      throw createError.notFound('Message not found', createResourceNotFoundContext('message', id));
-    }
-
-    if (message.thread.userId !== user.id) {
-      throw createError.unauthorized('Not authorized to access this message', createAuthorizationErrorContext('message', id));
-    }
-
-    return Responses.ok(c, {
-      message,
-    });
-  },
-);
-
 // ============================================================================
 // Memory Handlers
 // ============================================================================
@@ -921,6 +880,9 @@ export const createMemoryHandler: RouteHandler<typeof createMemoryRoute, ApiEnv>
       throw createError.unauthenticated('Authentication required', createAuthErrorContext());
     }
 
+    // Enforce memory quota BEFORE creating
+    await enforceMemoryQuota(user.id);
+
     const body = CreateMemoryRequestSchema.parse(await c.req.json());
     const db = await getDbAsync();
 
@@ -935,6 +897,7 @@ export const createMemoryHandler: RouteHandler<typeof createMemoryRoute, ApiEnv>
         threadId: body.threadId,
         type: body.type || 'topic',
         title: body.title,
+        description: body.description,
         content: body.content,
         isGlobal: body.isGlobal || false,
         metadata: body.metadata,
@@ -942,6 +905,9 @@ export const createMemoryHandler: RouteHandler<typeof createMemoryRoute, ApiEnv>
         updatedAt: now,
       })
       .returning();
+
+    // Increment memory usage AFTER successful creation
+    await incrementMemoryUsage(user.id);
 
     return Responses.ok(c, {
       memory,
@@ -1050,6 +1016,186 @@ export const deleteMemoryHandler: RouteHandler<typeof deleteMemoryRoute, ApiEnv>
     }
 
     await db.delete(tables.chatMemory).where(eq(tables.chatMemory.id, id));
+
+    return Responses.ok(c, {
+      deleted: true,
+    });
+  },
+);
+
+// ============================================================================
+// Custom Role Handlers
+// ============================================================================
+
+export const listCustomRolesHandler: RouteHandler<typeof listCustomRolesRoute, ApiEnv> = createHandler(
+  {
+    auth: 'session',
+    operationName: 'listCustomRoles',
+  },
+  async (c) => {
+    const user = c.var.user;
+    if (!user) {
+      throw createError.unauthenticated('Authentication required', createAuthErrorContext());
+    }
+
+    const db = await getDbAsync();
+
+    const customRoles = await db.query.chatCustomRole.findMany({
+      where: eq(tables.chatCustomRole.userId, user.id),
+      orderBy: [desc(tables.chatCustomRole.updatedAt)],
+    });
+
+    return Responses.ok(c, {
+      customRoles,
+      count: customRoles.length,
+    });
+  },
+);
+
+export const createCustomRoleHandler: RouteHandler<typeof createCustomRoleRoute, ApiEnv> = createHandler(
+  {
+    auth: 'session',
+    operationName: 'createCustomRole',
+  },
+  async (c) => {
+    const user = c.var.user;
+    if (!user) {
+      throw createError.unauthenticated('Authentication required', createAuthErrorContext());
+    }
+
+    // Enforce custom role quota BEFORE creating
+    await enforceCustomRoleQuota(user.id);
+
+    const body = CreateCustomRoleRequestSchema.parse(await c.req.json());
+    const db = await getDbAsync();
+
+    const customRoleId = ulid();
+    const now = new Date();
+
+    const [customRole] = await db
+      .insert(tables.chatCustomRole)
+      .values({
+        id: customRoleId,
+        userId: user.id,
+        name: body.name,
+        description: body.description,
+        systemPrompt: body.systemPrompt,
+        metadata: body.metadata,
+        createdAt: now,
+        updatedAt: now,
+      })
+      .returning();
+
+    // Increment custom role usage AFTER successful creation
+    await incrementCustomRoleUsage(user.id);
+
+    return Responses.ok(c, {
+      customRole,
+    });
+  },
+);
+
+export const getCustomRoleHandler: RouteHandler<typeof getCustomRoleRoute, ApiEnv> = createHandler(
+  {
+    auth: 'session',
+    operationName: 'getCustomRole',
+  },
+  async (c) => {
+    const user = c.var.user;
+    if (!user) {
+      throw createError.unauthenticated('Authentication required', createAuthErrorContext());
+    }
+
+    const { id } = CustomRoleIdParamSchema.parse(c.req.param());
+    const db = await getDbAsync();
+
+    const customRole = await db.query.chatCustomRole.findFirst({
+      where: eq(tables.chatCustomRole.id, id),
+    });
+
+    if (!customRole) {
+      throw createError.notFound('Custom role not found', createResourceNotFoundContext('custom_role', id));
+    }
+
+    if (customRole.userId !== user.id) {
+      throw createError.unauthorized('Not authorized to access this custom role', createAuthorizationErrorContext('custom_role', id));
+    }
+
+    return Responses.ok(c, {
+      customRole,
+    });
+  },
+);
+
+export const updateCustomRoleHandler: RouteHandler<typeof updateCustomRoleRoute, ApiEnv> = createHandler(
+  {
+    auth: 'session',
+    operationName: 'updateCustomRole',
+  },
+  async (c) => {
+    const user = c.var.user;
+    if (!user) {
+      throw createError.unauthenticated('Authentication required', createAuthErrorContext());
+    }
+
+    const { id } = CustomRoleIdParamSchema.parse(c.req.param());
+    const body = UpdateCustomRoleRequestSchema.parse(await c.req.json());
+    const db = await getDbAsync();
+
+    const existingCustomRole = await db.query.chatCustomRole.findFirst({
+      where: eq(tables.chatCustomRole.id, id),
+    });
+
+    if (!existingCustomRole) {
+      throw createError.notFound('Custom role not found', createResourceNotFoundContext('custom_role', id));
+    }
+
+    if (existingCustomRole.userId !== user.id) {
+      throw createError.unauthorized('Not authorized to update this custom role', createAuthorizationErrorContext('custom_role', id));
+    }
+
+    const [updatedCustomRole] = await db
+      .update(tables.chatCustomRole)
+      .set({
+        ...body,
+        updatedAt: new Date(),
+      })
+      .where(eq(tables.chatCustomRole.id, id))
+      .returning();
+
+    return Responses.ok(c, {
+      customRole: updatedCustomRole,
+    });
+  },
+);
+
+export const deleteCustomRoleHandler: RouteHandler<typeof deleteCustomRoleRoute, ApiEnv> = createHandler(
+  {
+    auth: 'session',
+    operationName: 'deleteCustomRole',
+  },
+  async (c) => {
+    const user = c.var.user;
+    if (!user) {
+      throw createError.unauthenticated('Authentication required', createAuthErrorContext());
+    }
+
+    const { id } = CustomRoleIdParamSchema.parse(c.req.param());
+    const db = await getDbAsync();
+
+    const existingCustomRole = await db.query.chatCustomRole.findFirst({
+      where: eq(tables.chatCustomRole.id, id),
+    });
+
+    if (!existingCustomRole) {
+      throw createError.notFound('Custom role not found', createResourceNotFoundContext('custom_role', id));
+    }
+
+    if (existingCustomRole.userId !== user.id) {
+      throw createError.unauthorized('Not authorized to delete this custom role', createAuthorizationErrorContext('custom_role', id));
+    }
+
+    await db.delete(tables.chatCustomRole).where(eq(tables.chatCustomRole.id, id));
 
     return Responses.ok(c, {
       deleted: true,

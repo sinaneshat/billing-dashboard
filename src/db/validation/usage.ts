@@ -1,33 +1,17 @@
 import { createInsertSchema, createSelectSchema } from 'drizzle-zod';
 import { z } from 'zod';
 
+import type { SubscriptionTier } from '../tables/usage';
 import {
+  SUBSCRIPTION_TIERS,
   subscriptionTierQuotas,
   userChatUsage,
   userChatUsageHistory,
 } from '../tables/usage';
 
 // ============================================================================
-// Subscription Tier Schema - Single Source of Truth
+// Subscription Tier Validation
 // ============================================================================
-
-/**
- * Subscription Tier Tuple - Const assertion for type safety
- * Used by Drizzle ORM for database enum columns and Zod validation
- *
- * Supported Tiers:
- * - free: Free tier with basic limits
- * - starter: Entry-level paid tier ($20/mo or $200/yr)
- * - pro: Professional tier ($59/mo or $600/yr) - MOST POPULAR
- * - power: High-volume tier ($249/mo or $2500/yr)
- */
-export const SUBSCRIPTION_TIERS = ['free', 'starter', 'pro', 'power'] as const;
-
-/**
- * Subscription Tier Type - TypeScript Type
- * Inferred from the const tuple to ensure type safety
- */
-export type SubscriptionTier = typeof SUBSCRIPTION_TIERS[number];
 
 /**
  * Subscription Tier Enum - Zod Schema
@@ -59,6 +43,9 @@ export function isValidSubscriptionTier(tier: unknown): tier is SubscriptionTier
 export function getSubscriptionTierName(tier: SubscriptionTier): string {
   return SUBSCRIPTION_TIER_NAMES[tier];
 }
+
+// Re-export for convenience
+export { SUBSCRIPTION_TIERS, type SubscriptionTier };
 
 // ============================================================================
 // User Chat Usage Schemas
@@ -142,6 +129,18 @@ export const usageStatsSchema = z.object({
     percentage: z.number(),
   }),
   messages: z.object({
+    used: z.number(),
+    limit: z.number(),
+    remaining: z.number(),
+    percentage: z.number(),
+  }),
+  memories: z.object({
+    used: z.number(),
+    limit: z.number(),
+    remaining: z.number(),
+    percentage: z.number(),
+  }),
+  customRoles: z.object({
     used: z.number(),
     limit: z.number(),
     remaining: z.number(),

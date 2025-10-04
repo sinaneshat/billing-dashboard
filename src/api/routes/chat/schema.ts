@@ -207,8 +207,12 @@ export const CreateThreadRequestSchema = z.object({
       description: 'Assigned role for this model (immutable)',
       example: 'The Ideator',
     }),
+    customRoleId: z.string().optional().openapi({
+      description: 'Optional custom role ID to load system prompt from',
+      example: '01HXYZ123ABC',
+    }),
     systemPrompt: z.string().optional().openapi({
-      description: 'Optional system prompt override',
+      description: 'Optional system prompt override (takes precedence over customRoleId)',
     }),
     temperature: z.number().min(0).max(2).optional().openapi({
       description: 'Temperature setting',
@@ -222,6 +226,10 @@ export const CreateThreadRequestSchema = z.object({
   firstMessage: z.string().min(1).openapi({
     description: 'Initial user message to start the conversation',
     example: 'What are innovative product ideas for sustainability?',
+  }),
+  memoryIds: z.array(z.string()).optional().openapi({
+    description: 'Optional array of memory IDs to attach to this thread',
+    example: ['01HXYZ123ABC', '01HXYZ456DEF'],
   }),
   metadata: z.object({
     tags: z.array(z.string()).optional(),
@@ -442,6 +450,10 @@ const ChatMemorySchema = z.object({
     description: 'Memory title',
     example: 'Product development preferences',
   }),
+  description: z.string().nullable().openapi({
+    description: 'Brief description of the memory',
+    example: 'Key considerations for product development',
+  }),
   content: z.string().openapi({
     description: 'Memory content',
     example: 'Focus on sustainability and eco-friendly solutions',
@@ -477,6 +489,10 @@ export const CreateMemoryRequestSchema = z.object({
     description: 'Memory title',
     example: 'Product preferences',
   }),
+  description: z.string().max(500).optional().openapi({
+    description: 'Brief description of the memory',
+    example: 'Key considerations for product development',
+  }),
   content: z.string().min(1).openapi({
     description: 'Memory content',
     example: 'Focus on sustainability',
@@ -495,6 +511,9 @@ export const CreateMemoryRequestSchema = z.object({
 export const UpdateMemoryRequestSchema = z.object({
   title: z.string().min(1).max(200).optional().openapi({
     description: 'Updated memory title',
+  }),
+  description: z.string().max(500).optional().openapi({
+    description: 'Updated memory description',
   }),
   content: z.string().min(1).optional().openapi({
     description: 'Updated memory content',
@@ -530,6 +549,110 @@ const MemoryDetailPayloadSchema = z.object({
 
 export const MemoryListResponseSchema = createApiResponseSchema(MemoryListPayloadSchema).openapi('MemoryListResponse');
 export const MemoryDetailResponseSchema = createApiResponseSchema(MemoryDetailPayloadSchema).openapi('MemoryDetailResponse');
+
+// ============================================================================
+// Custom Role Schemas
+// ============================================================================
+
+export const CustomRoleIdParamSchema = z.object({
+  id: CoreSchemas.id().openapi({
+    description: 'Custom role ID',
+    example: 'role_abc123',
+  }),
+}).openapi('CustomRoleIdParam');
+
+const ChatCustomRoleSchema = z.object({
+  id: z.string().openapi({
+    description: 'Custom role ID',
+    example: 'role_abc123',
+  }),
+  userId: z.string().openapi({
+    description: 'User ID who owns the custom role',
+    example: 'user_123',
+  }),
+  name: z.string().openapi({
+    description: 'Role name',
+    example: 'The Devil\'s Advocate',
+  }),
+  description: z.string().nullable().openapi({
+    description: 'Brief description of the role',
+    example: 'Challenges ideas and identifies potential flaws',
+  }),
+  systemPrompt: z.string().openapi({
+    description: 'System prompt that defines role behavior',
+    example: 'You are a critical thinker who challenges ideas and identifies potential flaws...',
+  }),
+  metadata: z.object({
+    tags: z.array(z.string()).optional(),
+    category: z.string().optional(),
+  }).passthrough().nullable().openapi({
+    description: 'Custom role metadata',
+  }),
+  createdAt: CoreSchemas.timestamp().openapi({
+    description: 'Role creation timestamp',
+  }),
+  updatedAt: CoreSchemas.timestamp().openapi({
+    description: 'Role last update timestamp',
+  }),
+}).openapi('ChatCustomRole');
+
+export const CreateCustomRoleRequestSchema = z.object({
+  name: z.string().min(1).max(100).openapi({
+    description: 'Role name',
+    example: 'The Devil\'s Advocate',
+  }),
+  description: z.string().max(500).optional().openapi({
+    description: 'Brief description of the role',
+    example: 'Challenges ideas and identifies potential flaws',
+  }),
+  systemPrompt: z.string().min(1).openapi({
+    description: 'System prompt that defines role behavior',
+    example: 'You are a critical thinker who challenges ideas...',
+  }),
+  metadata: z.object({
+    tags: z.array(z.string()).optional(),
+    category: z.string().optional(),
+  }).passthrough().optional().openapi({
+    description: 'Custom role metadata',
+  }),
+}).openapi('CreateCustomRoleRequest');
+
+export const UpdateCustomRoleRequestSchema = z.object({
+  name: z.string().min(1).max(100).optional().openapi({
+    description: 'Updated role name',
+  }),
+  description: z.string().max(500).optional().openapi({
+    description: 'Updated role description',
+  }),
+  systemPrompt: z.string().min(1).optional().openapi({
+    description: 'Updated system prompt',
+  }),
+  metadata: z.object({
+    tags: z.array(z.string()).optional(),
+    category: z.string().optional(),
+  }).passthrough().optional().openapi({
+    description: 'Updated metadata',
+  }),
+}).openapi('UpdateCustomRoleRequest');
+
+const CustomRoleListPayloadSchema = z.object({
+  customRoles: z.array(ChatCustomRoleSchema).openapi({
+    description: 'List of custom roles',
+  }),
+  count: z.number().int().nonnegative().openapi({
+    description: 'Total number of custom roles',
+    example: 5,
+  }),
+}).openapi('CustomRoleListPayload');
+
+const CustomRoleDetailPayloadSchema = z.object({
+  customRole: ChatCustomRoleSchema.openapi({
+    description: 'Custom role details',
+  }),
+}).openapi('CustomRoleDetailPayload');
+
+export const CustomRoleListResponseSchema = createApiResponseSchema(CustomRoleListPayloadSchema).openapi('CustomRoleListResponse');
+export const CustomRoleDetailResponseSchema = createApiResponseSchema(CustomRoleDetailPayloadSchema).openapi('CustomRoleDetailResponse');
 
 // ============================================================================
 // TYPE EXPORTS FOR FRONTEND & BACKEND

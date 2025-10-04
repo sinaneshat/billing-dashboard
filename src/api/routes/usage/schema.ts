@@ -48,6 +48,42 @@ export const UsageStatsResponseSchema = createApiResponseSchema(
         example: 50,
       }),
     }),
+    memories: z.object({
+      used: z.number().openapi({
+        description: 'Number of memories created this period',
+        example: 0,
+      }),
+      limit: z.number().openapi({
+        description: 'Maximum memories allowed this period',
+        example: 0,
+      }),
+      remaining: z.number().openapi({
+        description: 'Number of memories remaining',
+        example: 0,
+      }),
+      percentage: z.number().openapi({
+        description: 'Percentage of limit used',
+        example: 0,
+      }),
+    }),
+    customRoles: z.object({
+      used: z.number().openapi({
+        description: 'Number of custom roles created this period',
+        example: 0,
+      }),
+      limit: z.number().openapi({
+        description: 'Maximum custom roles allowed this period',
+        example: 0,
+      }),
+      remaining: z.number().openapi({
+        description: 'Number of custom roles remaining',
+        example: 0,
+      }),
+      percentage: z.number().openapi({
+        description: 'Percentage of limit used',
+        example: 0,
+      }),
+    }),
     period: z.object({
       start: z.coerce.date().openapi({
         description: 'Billing period start date',

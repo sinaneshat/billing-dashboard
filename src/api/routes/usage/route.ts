@@ -121,3 +121,79 @@ export const checkMessageQuotaRoute = createRoute({
     },
   },
 });
+
+/**
+ * Check memory creation quota
+ * Returns whether user can create more memories
+ */
+export const checkMemoryQuotaRoute = createRoute({
+  method: 'get',
+  path: '/usage/quota/memories',
+  tags: ['usage'],
+  summary: 'Check memory creation quota',
+  description: 'Check if user can create more memories based on their subscription tier',
+  responses: {
+    [HttpStatusCodes.OK]: {
+      description: HttpStatusPhrases.OK,
+      content: {
+        'application/json': {
+          schema: QuotaCheckResponseSchema,
+        },
+      },
+    },
+    [HttpStatusCodes.UNAUTHORIZED]: {
+      description: HttpStatusPhrases.UNAUTHORIZED,
+      content: {
+        'application/json': {
+          schema: UsageErrorResponseSchema,
+        },
+      },
+    },
+    [HttpStatusCodes.INTERNAL_SERVER_ERROR]: {
+      description: HttpStatusPhrases.INTERNAL_SERVER_ERROR,
+      content: {
+        'application/json': {
+          schema: UsageErrorResponseSchema,
+        },
+      },
+    },
+  },
+});
+
+/**
+ * Check custom role creation quota
+ * Returns whether user can create more custom roles
+ */
+export const checkCustomRoleQuotaRoute = createRoute({
+  method: 'get',
+  path: '/usage/quota/custom-roles',
+  tags: ['usage'],
+  summary: 'Check custom role creation quota',
+  description: 'Check if user can create more custom role templates based on their subscription tier',
+  responses: {
+    [HttpStatusCodes.OK]: {
+      description: HttpStatusPhrases.OK,
+      content: {
+        'application/json': {
+          schema: QuotaCheckResponseSchema,
+        },
+      },
+    },
+    [HttpStatusCodes.UNAUTHORIZED]: {
+      description: HttpStatusPhrases.UNAUTHORIZED,
+      content: {
+        'application/json': {
+          schema: UsageErrorResponseSchema,
+        },
+      },
+    },
+    [HttpStatusCodes.INTERNAL_SERVER_ERROR]: {
+      description: HttpStatusPhrases.INTERNAL_SERVER_ERROR,
+      content: {
+        'application/json': {
+          schema: UsageErrorResponseSchema,
+        },
+      },
+    },
+  },
+});
