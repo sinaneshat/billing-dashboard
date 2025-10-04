@@ -1,54 +1,36 @@
-import { getCloudflareContext } from '@opennextjs/cloudflare';
 import { betterAuth } from 'better-auth';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { nextCookies } from 'better-auth/next-js';
 import { magicLink } from 'better-auth/plugins';
-import { drizzle as drizzleD1 } from 'drizzle-orm/d1';
 
 import { db } from '@/db';
 import * as authSchema from '@/db/tables/auth';
 import { getBaseUrl } from '@/utils/helpers';
 
 /**
- * Create Better Auth database adapter based on environment
+ * Create Better Auth database adapter
+ *
+ * IMPORTANT: Better Auth is initialized at module load time (not per-request),
+ * so we cannot use getCloudflareContext() here. Instead, we use the global `db`
+ * Proxy which creates a new database instance on each property access.
+ *
+ * This pattern follows OpenNext.js best practices by ensuring no connection reuse
+ * while working within Better Auth's initialization constraints.
+ *
+ * @see src/db/index.ts - The Proxy pattern implementation
  */
 function createAuthAdapter() {
   const isNextDev = process.env.NODE_ENV === 'development' && !process.env.CLOUDFLARE_ENV;
   const isLocal = process.env.NEXT_PUBLIC_WEBAPP_ENV === 'local';
 
-  // For Next.js development - use local SQLite which supports transactions
-  if (isNextDev || isLocal) {
-    return drizzleAdapter(db, {
-      provider: 'sqlite',
-      schema: authSchema,
-    });
-  }
-
-  // For Cloudflare Workers (production/preview) - use D1 with batch operations
-  try {
-    const { env } = getCloudflareContext();
-    if (env.DB) {
-      const d1Db = drizzleD1(env.DB, { schema: authSchema });
-
-      return drizzleAdapter(d1Db, {
-        provider: 'sqlite',
-        schema: authSchema,
-        // Disable transactions for D1 compatibility (D1 doesn't support BEGIN/COMMIT)
-        transaction: false,
-      });
-    }
-  } catch (error) {
-    // Fallback when Cloudflare context is not available
-    console.warn('[AUTH] Cloudflare context not available, falling back to regular db adapter', {
-      error: error instanceof Error ? error.message : String(error),
-      timestamp: new Date().toISOString(),
-    });
-  }
-
-  // Fallback to regular db proxy (keep transactions enabled for local SQLite)
+  // For local development: use the db proxy with transactions enabled
+  // For Cloudflare Workers: use the db proxy with transactions disabled (D1 limitation)
   return drizzleAdapter(db, {
     provider: 'sqlite',
     schema: authSchema,
+    // Disable transactions for Cloudflare Workers (D1 doesn't support BEGIN/COMMIT)
+    // Keep enabled for local SQLite development
+    transaction: isNextDev || isLocal,
   });
 }
 
