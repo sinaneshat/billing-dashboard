@@ -26,6 +26,8 @@ type Subscription = {
   priceId: string;
   productId: string;
   currentPeriodEnd?: string | null;
+  cancelAtPeriodEnd: boolean;
+  canceledAt?: string | null;
 };
 
 type PricingModalProps = {
@@ -35,6 +37,8 @@ type PricingModalProps = {
   subscriptions: Subscription[];
   isLoading?: boolean;
   processingPriceId: string | null;
+  cancelingSubscriptionId: string | null;
+  isManagingBilling: boolean;
   onSubscribe: (priceId: string) => Promise<void>;
   onCancel: (subscriptionId: string) => Promise<void>;
   onManageBilling: () => void;
@@ -64,6 +68,8 @@ export function PricingModal({
   subscriptions,
   isLoading,
   processingPriceId,
+  cancelingSubscriptionId,
+  isManagingBilling,
   onSubscribe,
   onCancel,
   onManageBilling,
@@ -84,10 +90,11 @@ export function PricingModal({
         isLoading={isLoading}
         error={null}
         processingPriceId={processingPriceId}
+        cancelingSubscriptionId={cancelingSubscriptionId}
+        isManagingBilling={isManagingBilling}
         onSubscribe={onSubscribe}
         onCancel={onCancel}
         onManageBilling={onManageBilling}
-        isProcessing={false}
         showSubscriptionBanner={false}
       />
     </BaseModal>

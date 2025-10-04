@@ -7,6 +7,7 @@ import { useState } from 'react';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { FreePricingCard } from '@/components/ui/free-pricing-card';
 import { PricingCard } from '@/components/ui/pricing-card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
@@ -32,6 +33,8 @@ type Subscription = {
   priceId: string;
   productId: string;
   currentPeriodEnd?: string | null;
+  cancelAtPeriodEnd: boolean;
+  canceledAt?: string | null;
 };
 
 type PricingContentProps = {
@@ -40,10 +43,11 @@ type PricingContentProps = {
   isLoading?: boolean;
   error?: Error | null;
   processingPriceId: string | null;
+  cancelingSubscriptionId?: string | null;
+  isManagingBilling?: boolean;
   onSubscribe: (priceId: string) => void | Promise<void>;
   onCancel: (subscriptionId: string) => void | Promise<void>;
   onManageBilling: () => void;
-  isProcessing?: boolean;
   showSubscriptionBanner?: boolean;
 };
 
@@ -59,33 +63,34 @@ export function PricingContent({
   isLoading = false,
   error = null,
   processingPriceId,
+  cancelingSubscriptionId = null,
+  isManagingBilling = false,
   onSubscribe,
   onCancel,
   onManageBilling,
-  isProcessing = false,
   showSubscriptionBanner = false,
 }: PricingContentProps) {
   const t = useTranslations();
   const [selectedInterval, setSelectedInterval] = useState<BillingInterval>('month');
 
-  // Get active subscription
+  // Get active subscription (excluding canceled or scheduled for cancellation)
   const activeSubscription = subscriptions.find(
-    sub => sub.status === 'active' || sub.status === 'trialing',
+    sub => (sub.status === 'active' || sub.status === 'trialing') && !sub.cancelAtPeriodEnd,
   );
 
-  // Check if user has ANY active subscription
+  // Check if user has ANY active subscription (excluding canceled or scheduled for cancellation)
   const hasAnyActiveSubscription = subscriptions.some(
-    sub => sub.status === 'active' || sub.status === 'trialing',
+    sub => (sub.status === 'active' || sub.status === 'trialing') && !sub.cancelAtPeriodEnd,
   );
 
-  // Get subscription for a specific price (differentiates monthly vs annual)
+  // Get subscription for a specific price (differentiates monthly vs annual, excluding canceled)
   const getSubscriptionForPrice = (priceId: string) => {
     return subscriptions.find(
-      sub => sub.priceId === priceId && (sub.status === 'active' || sub.status === 'trialing'),
+      sub => sub.priceId === priceId && (sub.status === 'active' || sub.status === 'trialing') && !sub.cancelAtPeriodEnd,
     );
   };
 
-  // Check if user has active subscription for a specific price
+  // Check if user has active subscription for a specific price (excluding canceled)
   const hasActiveSubscription = (priceId: string): boolean => {
     return !!getSubscriptionForPrice(priceId);
   };
@@ -205,10 +210,11 @@ export function PricingContent({
             getSubscriptionForPrice={getSubscriptionForPrice}
             hasAnyActiveSubscription={hasAnyActiveSubscription}
             processingPriceId={processingPriceId}
+            cancelingSubscriptionId={cancelingSubscriptionId}
+            isManagingBilling={isManagingBilling}
             onSubscribe={onSubscribe}
             onCancel={onCancel}
             onManageBilling={onManageBilling}
-            isProcessing={isProcessing}
             calculateAnnualSavings={calculateAnnualSavings}
             t={t}
           />
@@ -223,10 +229,11 @@ export function PricingContent({
             getSubscriptionForPrice={getSubscriptionForPrice}
             hasAnyActiveSubscription={hasAnyActiveSubscription}
             processingPriceId={processingPriceId}
+            cancelingSubscriptionId={cancelingSubscriptionId}
+            isManagingBilling={isManagingBilling}
             onSubscribe={onSubscribe}
             onCancel={onCancel}
             onManageBilling={onManageBilling}
-            isProcessing={isProcessing}
             calculateAnnualSavings={calculateAnnualSavings}
             t={t}
           />
@@ -244,10 +251,11 @@ type ProductGridProps = {
   getSubscriptionForPrice: (priceId: string) => Subscription | undefined;
   hasAnyActiveSubscription: boolean;
   processingPriceId: string | null;
+  cancelingSubscriptionId: string | null;
+  isManagingBilling: boolean;
   onSubscribe: (priceId: string) => void | Promise<void>;
   onCancel: (subscriptionId: string) => void | Promise<void>;
   onManageBilling: () => void;
-  isProcessing: boolean;
   calculateAnnualSavings: (productId: string) => number;
   t: (key: string) => string;
 };
@@ -259,10 +267,11 @@ function ProductGrid({
   getSubscriptionForPrice,
   hasAnyActiveSubscription,
   processingPriceId,
+  cancelingSubscriptionId,
+  isManagingBilling,
   onSubscribe,
   onCancel,
   onManageBilling,
-  isProcessing: _isProcessing,
   calculateAnnualSavings,
   t,
 }: ProductGridProps) {
@@ -280,46 +289,77 @@ function ProductGrid({
     );
   }
 
+  // Define the free tier product
+  const freeTierProduct = {
+    id: 'free-tier',
+    name: t('plans.pricing.free.name'),
+    description: t('plans.pricing.free.description'),
+    features: [
+      t('plans.pricing.free.features.messagesPerMonth'),
+      t('plans.pricing.free.features.conversationsPerMonth'),
+      t('plans.pricing.free.features.aiModels'),
+      t('plans.pricing.free.features.basicSupport'),
+    ],
+  };
+
   return (
-    <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-      {products.map((product, index) => {
-        const price = product.prices?.[0]; // Get first price for this interval
+    <div className="w-full">
+      <div className="grid grid-cols-1 gap-4 w-full min-w-0 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        {/* Free Tier Card - Always First */}
+        <FreePricingCard
+          name={freeTierProduct.name}
+          description={freeTierProduct.description}
+          price={{
+            amount: 0, // Free tier
+            currency: 'usd',
+            interval,
+          }}
+          features={freeTierProduct.features}
+          delay={0}
+        />
 
-        if (!price) {
-          return null; // Skip products without prices for this interval
-        }
+        {/* Paid Plans */}
+        {products.map((product, index) => {
+          const price = product.prices?.[0]; // Get first price for this interval
 
-        // Check subscription by specific price ID (differentiates monthly vs annual)
-        const subscription = getSubscriptionForPrice(price.id);
-        const hasSubscription = hasActiveSubscription(price.id);
+          if (!price) {
+            return null; // Skip products without prices for this interval
+          }
 
-        // Determine if this is the most popular plan (middle card for 3 plans)
-        const isMostPopular = products.length === 3 && index === 1;
+          // Check subscription by specific price ID (differentiates monthly vs annual)
+          const subscription = getSubscriptionForPrice(price.id);
+          const hasSubscription = hasActiveSubscription(price.id);
 
-        return (
-          <PricingCard
-            key={product.id}
-            name={product.name}
-            description={product.description}
-            price={{
-              amount: price.unitAmount,
-              currency: price.currency,
-              interval,
-              trialDays: price.trialPeriodDays,
-            }}
-            features={product.features}
-            isCurrentPlan={hasSubscription}
-            isMostPopular={isMostPopular}
-            isProcessing={processingPriceId === price.id}
-            hasOtherSubscription={hasAnyActiveSubscription && !hasSubscription}
-            onSubscribe={() => onSubscribe(price.id)}
-            onCancel={subscription ? () => onCancel(subscription.id) : undefined}
-            onManageBilling={hasSubscription ? onManageBilling : undefined}
-            delay={index * 0.1}
-            annualSavingsPercent={interval === 'year' ? calculateAnnualSavings(product.id) : undefined}
-          />
-        );
-      })}
+          // Adjust most popular logic: middle card of paid plans (index 1 of paid plans = index 2 overall with free tier)
+          const isMostPopular = products.length === 3 && index === 1;
+
+          return (
+            <PricingCard
+              key={product.id}
+              name={product.name}
+              description={product.description}
+              price={{
+                amount: price.unitAmount,
+                currency: price.currency,
+                interval,
+                trialDays: price.trialPeriodDays,
+              }}
+              features={product.features}
+              isCurrentPlan={hasSubscription}
+              isMostPopular={isMostPopular}
+              isProcessingSubscribe={processingPriceId === price.id}
+              isProcessingCancel={subscription ? cancelingSubscriptionId === subscription.id : false}
+              isProcessingManageBilling={hasSubscription ? isManagingBilling : false}
+              hasOtherSubscription={hasAnyActiveSubscription && !hasSubscription}
+              onSubscribe={() => onSubscribe(price.id)}
+              onCancel={subscription ? () => onCancel(subscription.id) : undefined}
+              onManageBilling={hasSubscription ? onManageBilling : undefined}
+              delay={(index + 1) * 0.1} // Add 1 to account for free tier being first
+              annualSavingsPercent={interval === 'year' ? calculateAnnualSavings(product.id) : undefined}
+            />
+          );
+        })}
+      </div>
     </div>
   );
 }

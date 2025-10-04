@@ -367,12 +367,15 @@ export const createCheckoutSessionHandler: RouteHandler<typeof createCheckoutSes
     try {
       // Theo's Pattern: "ENABLE 'Limit customers to one subscription'"
       // Prevent multiple subscriptions - check if user already has an active subscription
+      // Exclude subscriptions that are canceled at period end (cancelAtPeriodEnd: true)
+      // because those are effectively canceled even though status is still 'active'
       const existingSubscriptions = await batch.db.query.stripeSubscription.findMany({
         where: eq(tables.stripeSubscription.userId, user.id),
       });
 
       const activeSubscription = existingSubscriptions.find(sub =>
-        sub.status === 'active' || sub.status === 'trialing' || sub.status === 'past_due',
+        (sub.status === 'active' || sub.status === 'trialing' || sub.status === 'past_due')
+        && !sub.cancelAtPeriodEnd,
       );
 
       if (activeSubscription) {

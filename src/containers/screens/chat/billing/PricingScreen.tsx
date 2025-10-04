@@ -19,6 +19,8 @@ import {
 export default function PricingScreen() {
   const t = useTranslations();
   const [processingPriceId, setProcessingPriceId] = useState<string | null>(null);
+  const [cancelingSubscriptionId, setCancelingSubscriptionId] = useState<string | null>(null);
+  const [isManagingBilling, setIsManagingBilling] = useState(false);
 
   const { data: productsData, isLoading: isLoadingProducts, error: productsError } = useProductsQuery();
   const { data: subscriptionsData, isLoading: isLoadingSubscriptions } = useSubscriptionsQuery();
@@ -32,7 +34,7 @@ export default function PricingScreen() {
   const subscriptions = subscriptionsData?.success ? subscriptionsData.data?.subscriptions || [] : [];
 
   const activeSubscription = subscriptions.find(
-    sub => sub.status === 'active' || sub.status === 'trialing',
+    sub => (sub.status === 'active' || sub.status === 'trialing') && !sub.cancelAtPeriodEnd,
   );
 
   const handleSubscribe = async (priceId: string) => {
@@ -60,7 +62,7 @@ export default function PricingScreen() {
   };
 
   const handleCancel = async (subscriptionId: string) => {
-    setProcessingPriceId('canceling');
+    setCancelingSubscriptionId(subscriptionId);
     try {
       await cancelMutation.mutateAsync({
         param: { id: subscriptionId },
@@ -69,11 +71,12 @@ export default function PricingScreen() {
     } catch (err) {
       console.error('Cancel error:', err);
     } finally {
-      setProcessingPriceId(null);
+      setCancelingSubscriptionId(null);
     }
   };
 
   const handleManageBilling = async () => {
+    setIsManagingBilling(true);
     try {
       const result = await customerPortalMutation.mutateAsync({
         json: {
@@ -82,17 +85,16 @@ export default function PricingScreen() {
       });
 
       if (result.success && result.data?.url) {
-        window.location.href = result.data.url;
+        window.open(result.data.url, '_blank', 'noopener,noreferrer');
       }
     } catch (err) {
       console.error('Customer portal error:', err);
+    } finally {
+      setIsManagingBilling(false);
     }
   };
 
   const isLoading = isLoadingProducts || isLoadingSubscriptions;
-  const isProcessing = createCheckoutMutation.isPending
-    || cancelMutation.isPending
-    || switchMutation.isPending;
 
   return (
     <ChatPage>
@@ -108,10 +110,11 @@ export default function PricingScreen() {
           isLoading={isLoading}
           error={productsError}
           processingPriceId={processingPriceId}
+          cancelingSubscriptionId={cancelingSubscriptionId}
+          isManagingBilling={isManagingBilling}
           onSubscribe={handleSubscribe}
           onCancel={handleCancel}
           onManageBilling={handleManageBilling}
-          isProcessing={isProcessing}
           showSubscriptionBanner={false}
         />
       </ChatContainer>

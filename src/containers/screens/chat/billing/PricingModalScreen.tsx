@@ -17,13 +17,15 @@ import {
  * Pricing Modal Screen
  *
  * Intercepted modal route for pricing display
- * Shown when navigating from dashboard to /chat/pricing
+ * Shown when navigating to /chat/pricing as a modal
  * Uses Next.js intercepting routes pattern with (.) prefix
  * Displays available products and pricing options
  */
 export default function PricingModalScreen() {
   const router = useRouter();
   const [processingPriceId, setProcessingPriceId] = useState<string | null>(null);
+  const [cancelingSubscriptionId, setCancelingSubscriptionId] = useState<string | null>(null);
+  const [isManagingBilling, setIsManagingBilling] = useState(false);
 
   const { data: productsData, isLoading: productsLoading } = useProductsQuery();
   const { data: subscriptionsData } = useSubscriptionsQuery();
@@ -37,7 +39,7 @@ export default function PricingModalScreen() {
   const subscriptions = subscriptionsData?.success ? subscriptionsData.data?.subscriptions || [] : [];
 
   const activeSubscription = subscriptions.find(
-    sub => sub.status === 'active' || sub.status === 'trialing',
+    sub => (sub.status === 'active' || sub.status === 'trialing') && !sub.cancelAtPeriodEnd,
   );
 
   const handleSubscribe = async (priceId: string) => {
@@ -65,7 +67,7 @@ export default function PricingModalScreen() {
   };
 
   const handleCancel = async (subscriptionId: string) => {
-    setProcessingPriceId('canceling');
+    setCancelingSubscriptionId(subscriptionId);
     try {
       await cancelMutation.mutateAsync({
         param: { id: subscriptionId },
@@ -74,11 +76,12 @@ export default function PricingModalScreen() {
     } catch (err) {
       console.error('Cancel error:', err);
     } finally {
-      setProcessingPriceId(null);
+      setCancelingSubscriptionId(null);
     }
   };
 
   const handleManageBilling = async () => {
+    setIsManagingBilling(true);
     try {
       const result = await customerPortalMutation.mutateAsync({
         json: {
@@ -87,10 +90,12 @@ export default function PricingModalScreen() {
       });
 
       if (result.success && result.data?.url) {
-        window.location.href = result.data.url;
+        window.open(result.data.url, '_blank', 'noopener,noreferrer');
       }
     } catch (err) {
       console.error('Customer portal error:', err);
+    } finally {
+      setIsManagingBilling(false);
     }
   };
 
@@ -105,6 +110,8 @@ export default function PricingModalScreen() {
       subscriptions={subscriptions}
       isLoading={productsLoading}
       processingPriceId={processingPriceId}
+      cancelingSubscriptionId={cancelingSubscriptionId}
+      isManagingBilling={isManagingBilling}
       onSubscribe={handleSubscribe}
       onCancel={handleCancel}
       onManageBilling={handleManageBilling}

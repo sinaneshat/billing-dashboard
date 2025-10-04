@@ -15,13 +15,13 @@ import {
 import { cn } from '@/lib/ui/cn';
 
 // =============================================================================
-// UNIFIED DASHBOARD CARD SYSTEM
-// Consolidates dashboard-cards.tsx + dashboard-card.tsx + metric-card.tsx
+// UNIFIED CHAT CARD SYSTEM
+// Consolidates chat-cards.tsx + chat-card.tsx + metric-card.tsx
 // Eliminates ~400+ lines of duplicate code with consistent shadcn v4 API
 // =============================================================================
 
-// Base Dashboard Card - replaces all basic card implementations
-type DashboardCardProps = {
+// Base Chat Card - replaces all basic card implementations
+type ChatCardProps = {
   title?: string;
   description?: string;
   children: ReactNode;
@@ -33,7 +33,7 @@ type DashboardCardProps = {
   variant?: 'default' | 'elevated' | 'bordered';
 };
 
-export function DashboardCard({
+export function ChatCard({
   title,
   description,
   children,
@@ -43,7 +43,7 @@ export function DashboardCard({
   footer,
   icon,
   variant = 'default',
-}: DashboardCardProps) {
+}: ChatCardProps) {
   const finalAction = action || headerAction;
   return (
     <Card className={cn(
@@ -438,8 +438,8 @@ export function LoadingCard({
   );
 }
 
-// DashboardDataCard - backwards compatible component for data display
-type DashboardDataCardProps = {
+// ChatDataCard - backwards compatible component for data display
+type ChatDataCardProps = {
   title: string;
   subtitle?: string;
   status?: ReactNode;
@@ -450,7 +450,7 @@ type DashboardDataCardProps = {
   className?: string;
 };
 
-export function DashboardDataCard({
+export function ChatDataCard({
   title,
   subtitle,
   status,
@@ -459,7 +459,7 @@ export function DashboardDataCard({
   secondaryInfo,
   actions,
   className,
-}: DashboardDataCardProps) {
+}: ChatDataCardProps) {
   return (
     <Card className={cn('w-full hover:shadow-md transition-shadow', className)}>
       <CardContent className="p-4">

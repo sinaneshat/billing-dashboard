@@ -21,7 +21,9 @@ interface PricingCardProps {
   features?: string[] | null;
   isCurrentPlan?: boolean;
   isMostPopular?: boolean;
-  isProcessing?: boolean;
+  isProcessingSubscribe?: boolean;
+  isProcessingCancel?: boolean;
+  isProcessingManageBilling?: boolean;
   onSubscribe?: () => void;
   onCancel?: () => void;
   onManageBilling?: () => void;
@@ -38,7 +40,9 @@ export function PricingCard({
   features,
   isCurrentPlan = false,
   isMostPopular = false,
-  isProcessing = false,
+  isProcessingSubscribe = false,
+  isProcessingCancel = false,
+  isProcessingManageBilling = false,
   onSubscribe,
   onCancel,
   onManageBilling,
@@ -58,11 +62,8 @@ export function PricingCard({
     }
   };
 
-  // Determine button text based on state
+  // Determine button text and loading state based on state
   const getButtonText = () => {
-    if (isProcessing) {
-      return t('processing');
-    }
     if (isCurrentPlan) {
       return t('cancelSubscription');
     }
@@ -71,6 +72,8 @@ export function PricingCard({
     }
     return t('subscribe');
   };
+
+  const isActionButtonLoading = isCurrentPlan ? isProcessingCancel : isProcessingSubscribe;
 
   return (
     <motion.div
@@ -269,11 +272,24 @@ export function PricingCard({
               {isCurrentPlan && onManageBilling && (
                 <HoverBorderGradient
                   as="button"
-                  containerClassName="w-full rounded-md"
+                  containerClassName={cn(
+                    'w-full rounded-md',
+                    isProcessingManageBilling && 'cursor-not-allowed opacity-50',
+                  )}
                   className="w-full text-center text-sm font-medium transition-all duration-200 bg-background text-foreground"
                   onClick={onManageBilling}
+                  disabled={isProcessingManageBilling}
                 >
-                  {t('manageBilling')}
+                  {isProcessingManageBilling
+                    ? (
+                        <span className="flex items-center justify-center gap-2">
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          {t('processing')}
+                        </span>
+                      )
+                    : (
+                        t('manageBilling')
+                      )}
                 </HoverBorderGradient>
               )}
 
@@ -282,7 +298,7 @@ export function PricingCard({
                 as="button"
                 containerClassName={cn(
                   'w-full rounded-md',
-                  isProcessing && 'cursor-not-allowed opacity-50',
+                  isActionButtonLoading && 'cursor-not-allowed opacity-50',
                 )}
                 className={cn(
                   'w-full text-center text-sm font-medium transition-all duration-200',
@@ -291,9 +307,9 @@ export function PricingCard({
                   !isMostPopular && !isCurrentPlan && 'bg-background text-foreground',
                 )}
                 onClick={handleAction}
-                disabled={isProcessing}
+                disabled={isActionButtonLoading}
               >
-                {isProcessing
+                {isActionButtonLoading
                   ? (
                       <span className="flex items-center justify-center gap-2">
                         <Loader2 className="h-4 w-4 animate-spin" />

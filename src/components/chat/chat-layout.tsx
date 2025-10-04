@@ -66,7 +66,7 @@ type ChatGridProps = {
 const DEFAULT_GRID_COLUMNS = { default: 1, md: 2, lg: 3 };
 
 /**
- * Responsive dashboard grid following Tailwind best practices
+ * Responsive chat grid following Tailwind best practices
  * No minimum widths, proper responsive breakpoints, consistent spacing
  */
 export function ChatGrid({
@@ -112,7 +112,7 @@ type ChatCardSectionProps = {
 };
 
 /**
- * Standardized card section for dashboard content
+ * Standardized card section for chat content
  * Ensures consistent card heights and no minimum width constraints
  */
 export function ChatCardSection({
@@ -144,13 +144,13 @@ type ChatMetricGridProps = {
 };
 
 /**
- * Specialized grid for metric cards following shadcn/ui dashboard-01 block
+ * Specialized grid for metric cards following shadcn/ui chat-01 block
  * Implements the exact pattern from the official block
  */
 export function ChatMetricGrid({ children, className }: ChatMetricGridProps) {
   return (
     <div className={cn(
-      // Official shadcn/ui dashboard-01 metric grid pattern
+      // Official shadcn/ui chat-01 metric grid pattern
       'grid grid-cols-1 gap-4 w-full min-w-0',
       // Responsive columns following official pattern
       'sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-4',
@@ -173,7 +173,7 @@ type ChatContentGridProps = {
 };
 
 /**
- * Content grid for main dashboard layouts
+ * Content grid for main chat layouts
  * Provides common layout patterns without minimum widths
  */
 export function ChatContentGrid({
@@ -201,7 +201,7 @@ export function ChatContentGrid({
 }
 
 /**
- * Two-column layout with 2:1 ratio (following dashboard patterns)
+ * Two-column layout with 2:1 ratio (following chat patterns)
  */
 export function ChatTwoColumnGrid({ children, className }: { children: ReactNode; className?: string }) {
   return (

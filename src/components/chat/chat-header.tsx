@@ -30,7 +30,7 @@ const breadcrumbMap: Record<string, { titleKey: string; parent?: string }> = {
   '/chat/pricing': { titleKey: 'navigation.pricing', parent: '/chat' },
 };
 
-// Navigation Header - replaces dashboard-header.tsx
+// Navigation Header - consolidated navigation component
 type NavigationHeaderProps = {
   className?: string;
 };

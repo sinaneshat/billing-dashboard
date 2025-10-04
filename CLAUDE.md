@@ -57,7 +57,7 @@ pnpm i18n:check-unused     # Find unused translation keys
 ```
 src/
 ├── app/                    # Next.js App Router
-│   ├── (app)/chat/   # Protected dashboard
+│   ├── (app)/chat/   # Protected chat
 │   ├── auth/              # Authentication pages
 │   └── api/               # Next.js API routes (proxy)
 ├── api/                   # Hono API implementation
@@ -211,7 +211,7 @@ NEXT_PUBLIC_SES_VERIFIED_EMAIL=noreply@your-domain.com
   - `/src/components/auth/` - Authentication flow components
 
 - **Page Layouts**: `/src/app/` - Next.js App Router structure
-  - `/src/app/(app)/chat/` - Protected dashboard pages and layouts
+  - `/src/app/(app)/chat/` - Protected chat pages and layouts
   - `/src/app/auth/` - Authentication pages (login, register, callback)
 
 - **Data Fetching**: `/src/hooks/` - TanStack Query patterns for server state
@@ -311,7 +311,7 @@ When implementing or referencing code:
 ```bash
 1. READ CONTEXT PRIME: /docs/frontend-patterns.md - THE SINGLE SOURCE OF TRUTH for frontend implementation
 2. FOLLOW ALL PATTERNS: Every implementation MUST follow the patterns documented in frontend-patterns.md
-3. READ CONTEXT: /src/components/chat/ existing dashboard components
+3. READ CONTEXT: /src/components/chat/ existing chat components
 4. ANALYZE PATTERN: /src/components/ui/ shadcn component structure
 5. EXAMINE HOOKS: /src/hooks/ data fetching patterns
 6. STUDY LAYOUTS: /src/containers/screens/chat/ screen patterns

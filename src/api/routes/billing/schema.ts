@@ -140,8 +140,8 @@ export const CheckoutResponseSchema = createApiResponseSchema(CheckoutPayloadSch
 
 export const CustomerPortalRequestSchema = z.object({
   returnUrl: CoreSchemas.url().optional().openapi({
-    description: 'URL to redirect to after customer portal session (defaults to /dashboard)',
-    example: 'https://app.example.com/dashboard',
+    description: 'URL to redirect to after customer portal session (defaults to /chat)',
+    example: 'https://app.example.com/chat',
   }),
 }).openapi('CustomerPortalRequest');
 

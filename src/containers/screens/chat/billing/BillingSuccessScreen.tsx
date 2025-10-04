@@ -17,7 +17,7 @@ import { useSyncAfterCheckoutMutation } from '@/hooks/mutations/checkout';
  * - Eagerly syncs Stripe data IMMEDIATELY when user returns from checkout
  * - Prevents race condition where UI loads before webhooks arrive
  * - Does NOT use CHECKOUT_SESSION_ID (as Theo recommends)
- * - Redirects to billing dashboard after successful sync
+ * - Redirects to pricing page after successful sync
  *
  * Flow:
  * 1. User completes Stripe checkout

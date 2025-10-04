@@ -959,7 +959,6 @@
     "billingHistory": "Billing History",
     "contact": "Contact",
     "chat": "Chat",
-    "dashboard": "Dashboard",
     "navigation": "Navigation",
     "chats": "Chats",
     "newChat": "New Chat",
@@ -1137,9 +1136,9 @@
       "paymentSuccessful": "Payment Successful",
       "processingPayment": "Processing payment...",
       "referenceId": "Reference ID:",
-      "returnToDashboard": "Return to Dashboard",
+      "returnToChat": "Return to Chat",
       "setupNotCompleted": "Unfortunately the setup was not completed.",
-      "viewBillingDashboard": "View Dashboard"
+      "viewBilling": "View Billing"
     },
     "paymentGateway": "Payment Gateway"
   },
@@ -1326,7 +1325,7 @@
     "free": "Free",
     "getStarted": "Get Started",
     "getStartedFree": "Get Started Free",
-    "goToDashboard": "Go to Dashboard",
+    "goToChat": "Go to Chat",
     "limitedUsage": "Limited usage",
     "limits": "Limits:",
     "liveRatesNote": "All prices calculated with live exchange rates",
@@ -1447,6 +1446,11 @@
       "cancelSubscription": "Cancel Subscription",
       "switchPlan": "Switch to This Plan",
       "processing": "Processing..."
+    },
+    "free": {
+      "alwaysActive": "Always Active",
+      "luxuryTier": "Premium Gift - Included Free",
+      "activatedByDefault": "Activated by default for you"
     }
   },
   "product": {
