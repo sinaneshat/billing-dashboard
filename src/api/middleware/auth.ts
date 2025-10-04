@@ -31,7 +31,6 @@ async function authenticateSession(c: Context<ApiEnv>): Promise<{
         ...sessionData.session,
         ipAddress: sessionData.session.ipAddress ?? null,
         userAgent: sessionData.session.userAgent ?? null,
-        impersonatedBy: sessionData.session.impersonatedBy ?? null,
       } as SelectSession
     : null;
 
@@ -39,10 +38,6 @@ async function authenticateSession(c: Context<ApiEnv>): Promise<{
     ? {
         ...sessionData.user,
         image: sessionData.user.image ?? null,
-        role: sessionData.user.role ?? null,
-        banned: sessionData.user.banned ?? null,
-        banReason: sessionData.user.banReason ?? null,
-        banExpires: sessionData.user.banExpires ?? null,
       } as SelectUser
     : null;
 

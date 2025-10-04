@@ -38,7 +38,7 @@ type NavigationHeaderProps = {
 export function NavigationHeader({ className }: NavigationHeaderProps = {}) {
   const pathname = usePathname();
   const t = useTranslations();
-  const currentPage = breadcrumbMap[pathname];
+  const currentPage = pathname ? breadcrumbMap[pathname] : undefined;
   const parentPage = currentPage?.parent ? breadcrumbMap[currentPage.parent] : null;
 
   return (
