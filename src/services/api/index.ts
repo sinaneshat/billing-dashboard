@@ -20,6 +20,7 @@ export {
 
 // ============================================================================
 // Customer Portal Service Exports
+// Used for payment method management and invoice downloads
 // ============================================================================
 
 export {
@@ -29,7 +30,7 @@ export {
 } from './customer-portal';
 
 // ============================================================================
-// Subscriptions Service Exports
+// Products Service Exports
 // ============================================================================
 
 export {
@@ -42,7 +43,20 @@ export {
 } from './products';
 
 // ============================================================================
-// Checkout Service Exports
+// Subscription Management Service Exports (Switch/Cancel)
+// ============================================================================
+
+export {
+  type CancelSubscriptionRequest,
+  type CancelSubscriptionResponse,
+  cancelSubscriptionService,
+  type SwitchSubscriptionRequest,
+  type SwitchSubscriptionResponse,
+  switchSubscriptionService,
+} from './subscription-management';
+
+// ============================================================================
+// Subscriptions Service Exports
 // ============================================================================
 
 export {

@@ -4,6 +4,7 @@ import * as HttpStatusCodes from 'stoker/http-status-codes';
 import { createApiResponseSchema } from '@/api/core/schemas';
 
 import {
+  CancelSubscriptionRequestSchema,
   CheckoutRequestSchema,
   CheckoutResponseSchema,
   CustomerPortalRequestSchema,
@@ -11,9 +12,11 @@ import {
   ProductDetailResponseSchema,
   ProductIdParamSchema,
   ProductListResponseSchema,
+  SubscriptionChangeResponseSchema,
   SubscriptionDetailResponseSchema,
   SubscriptionIdParamSchema,
   SubscriptionListResponseSchema,
+  SwitchSubscriptionRequestSchema,
   WebhookResponseSchema,
 } from './schema';
 
@@ -168,6 +171,72 @@ export const getSubscriptionRoute = createRoute({
     [HttpStatusCodes.NOT_FOUND]: { description: 'Subscription not found' },
     [HttpStatusCodes.FORBIDDEN]: { description: 'Subscription does not belong to user' },
     [HttpStatusCodes.BAD_REQUEST]: { description: 'Bad Request' },
+    [HttpStatusCodes.INTERNAL_SERVER_ERROR]: { description: 'Internal Server Error' },
+  },
+});
+
+// ============================================================================
+// Subscription Management Routes (Switch/Cancel)
+// ============================================================================
+
+export const switchSubscriptionRoute = createRoute({
+  method: 'post',
+  path: '/billing/subscriptions/:id/switch',
+  tags: ['billing'],
+  summary: 'Switch subscription plan',
+  description: 'Switch the current subscription to a different price. Automatically handles upgrades (immediate with proration) and downgrades (at period end).',
+  request: {
+    params: SubscriptionIdParamSchema,
+    body: {
+      content: {
+        'application/json': {
+          schema: SwitchSubscriptionRequestSchema,
+        },
+      },
+    },
+  },
+  responses: {
+    [HttpStatusCodes.OK]: {
+      description: 'Subscription switched successfully',
+      content: {
+        'application/json': { schema: SubscriptionChangeResponseSchema },
+      },
+    },
+    [HttpStatusCodes.UNAUTHORIZED]: { description: 'Authentication required' },
+    [HttpStatusCodes.NOT_FOUND]: { description: 'Subscription not found' },
+    [HttpStatusCodes.FORBIDDEN]: { description: 'Subscription does not belong to user' },
+    [HttpStatusCodes.BAD_REQUEST]: { description: 'Invalid price ID or same as current plan' },
+    [HttpStatusCodes.INTERNAL_SERVER_ERROR]: { description: 'Internal Server Error' },
+  },
+});
+
+export const cancelSubscriptionRoute = createRoute({
+  method: 'post',
+  path: '/billing/subscriptions/:id/cancel',
+  tags: ['billing'],
+  summary: 'Cancel subscription',
+  description: 'Cancel the subscription either immediately or at the end of the current billing period (default).',
+  request: {
+    params: SubscriptionIdParamSchema,
+    body: {
+      content: {
+        'application/json': {
+          schema: CancelSubscriptionRequestSchema,
+        },
+      },
+    },
+  },
+  responses: {
+    [HttpStatusCodes.OK]: {
+      description: 'Subscription canceled successfully',
+      content: {
+        'application/json': { schema: SubscriptionChangeResponseSchema },
+      },
+    },
+    [HttpStatusCodes.UNAUTHORIZED]: { description: 'Authentication required' },
+    [HttpStatusCodes.NOT_FOUND]: { description: 'Subscription not found' },
+    [HttpStatusCodes.FORBIDDEN]: { description: 'Subscription does not belong to user' },
+    [HttpStatusCodes.BAD_REQUEST]: { description: 'Subscription already canceled or invalid request' },
     [HttpStatusCodes.INTERNAL_SERVER_ERROR]: { description: 'Internal Server Error' },
   },
 });

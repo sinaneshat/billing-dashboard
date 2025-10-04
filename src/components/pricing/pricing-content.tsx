@@ -40,6 +40,7 @@ type PricingContentProps = {
   error?: Error | null;
   processingPriceId: string | null;
   onSubscribe: (priceId: string) => void | Promise<void>;
+  onCancel: (subscriptionId: string) => void | Promise<void>;
   onManageBilling: () => void;
   isProcessing?: boolean;
   showSubscriptionBanner?: boolean;
@@ -58,6 +59,7 @@ export function PricingContent({
   error = null,
   processingPriceId,
   onSubscribe,
+  onCancel,
   onManageBilling,
   isProcessing = false,
   showSubscriptionBanner = false,
@@ -75,11 +77,16 @@ export function PricingContent({
     sub => sub.status === 'active' || sub.status === 'trialing',
   );
 
-  // Check if user has active subscription for a specific product
-  const hasActiveSubscription = (productId: string): boolean => {
-    return subscriptions.some(
+  // Get subscription for a specific product
+  const getSubscriptionForProduct = (productId: string) => {
+    return subscriptions.find(
       sub => sub.productId === productId && (sub.status === 'active' || sub.status === 'trialing'),
     );
+  };
+
+  // Check if user has active subscription for a specific product
+  const hasActiveSubscription = (productId: string): boolean => {
+    return !!getSubscriptionForProduct(productId);
   };
 
   // Filter products by interval
@@ -194,10 +201,11 @@ export function PricingContent({
             products={getProductsForInterval('month')}
             interval="month"
             hasActiveSubscription={hasActiveSubscription}
+            getSubscriptionForProduct={getSubscriptionForProduct}
             hasAnyActiveSubscription={hasAnyActiveSubscription}
             processingPriceId={processingPriceId}
             onSubscribe={onSubscribe}
-            onManageBilling={onManageBilling}
+            onCancel={onCancel}
             isProcessing={isProcessing}
             calculateAnnualSavings={calculateAnnualSavings}
             t={t}
@@ -210,10 +218,11 @@ export function PricingContent({
             products={getProductsForInterval('year')}
             interval="year"
             hasActiveSubscription={hasActiveSubscription}
+            getSubscriptionForProduct={getSubscriptionForProduct}
             hasAnyActiveSubscription={hasAnyActiveSubscription}
             processingPriceId={processingPriceId}
             onSubscribe={onSubscribe}
-            onManageBilling={onManageBilling}
+            onCancel={onCancel}
             isProcessing={isProcessing}
             calculateAnnualSavings={calculateAnnualSavings}
             t={t}
@@ -229,10 +238,11 @@ type ProductGridProps = {
   products: Product[];
   interval: BillingInterval;
   hasActiveSubscription: (productId: string) => boolean;
+  getSubscriptionForProduct: (productId: string) => Subscription | undefined;
   hasAnyActiveSubscription: boolean;
   processingPriceId: string | null;
   onSubscribe: (priceId: string) => void | Promise<void>;
-  onManageBilling: () => void;
+  onCancel: (subscriptionId: string) => void | Promise<void>;
   isProcessing: boolean;
   calculateAnnualSavings: (productId: string) => number;
   t: (key: string) => string;
@@ -242,10 +252,11 @@ function ProductGrid({
   products,
   interval,
   hasActiveSubscription,
+  getSubscriptionForProduct,
   hasAnyActiveSubscription,
   processingPriceId,
   onSubscribe,
-  onManageBilling,
+  onCancel,
   isProcessing: _isProcessing,
   calculateAnnualSavings,
   t,
@@ -267,6 +278,7 @@ function ProductGrid({
   return (
     <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
       {products.map((product, index) => {
+        const subscription = getSubscriptionForProduct(product.id);
         const hasSubscription = hasActiveSubscription(product.id);
         const price = product.prices?.[0]; // Get first price for this interval
 
@@ -292,8 +304,9 @@ function ProductGrid({
             isCurrentPlan={hasSubscription}
             isMostPopular={isMostPopular}
             isProcessing={processingPriceId === price.id}
-            onSubscribe={() => hasAnyActiveSubscription && !hasSubscription ? onManageBilling() : onSubscribe(price.id)}
-            onManageBilling={onManageBilling}
+            hasOtherSubscription={hasAnyActiveSubscription && !hasSubscription}
+            onSubscribe={() => onSubscribe(price.id)}
+            onCancel={subscription ? () => onCancel(subscription.id) : undefined}
             delay={index * 0.1}
             annualSavingsPercent={interval === 'year' ? calculateAnnualSavings(product.id) : undefined}
           />

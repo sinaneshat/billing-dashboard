@@ -1,11 +1,12 @@
-import { BillingSuccessScreen } from '@/containers/screens/dashboard/billing';
+import type { Metadata } from 'next';
 
-/**
- * Billing Success Page - Server Component
- *
- * Displays success confirmation after Stripe checkout
- * Implements Theo's "Stay Sane with Stripe" pattern for webhook sync
- */
-export default async function BillingSuccessPage() {
+import BillingSuccessScreen from '@/containers/screens/dashboard/billing/BillingSuccessScreen';
+
+export const metadata: Metadata = {
+  title: 'Payment Successful',
+  description: 'Your payment has been processed successfully',
+};
+
+export default function BillingSuccessPage() {
   return <BillingSuccessScreen />;
 }

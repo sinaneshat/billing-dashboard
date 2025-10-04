@@ -23,10 +23,11 @@ interface PricingCardProps {
   isMostPopular?: boolean;
   isProcessing?: boolean;
   onSubscribe?: () => void;
-  onManageBilling?: () => void;
+  onCancel?: () => void;
   className?: string;
   delay?: number;
   annualSavingsPercent?: number;
+  hasOtherSubscription?: boolean;
 }
 
 export function PricingCard({
@@ -38,20 +39,35 @@ export function PricingCard({
   isMostPopular = false,
   isProcessing = false,
   onSubscribe,
-  onManageBilling,
+  onCancel,
   className,
   delay = 0,
   annualSavingsPercent,
+  hasOtherSubscription = false,
 }: PricingCardProps) {
   const t = useTranslations('pricing.card');
 
   const handleAction = () => {
-    if (isCurrentPlan && onManageBilling) {
-      onManageBilling();
+    if (isCurrentPlan && onCancel) {
+      onCancel();
     }
-    else if (!isCurrentPlan && onSubscribe) {
+    else if (onSubscribe) {
       onSubscribe();
     }
+  };
+
+  // Determine button text based on state
+  const getButtonText = () => {
+    if (isProcessing) {
+      return t('processing');
+    }
+    if (isCurrentPlan) {
+      return t('cancelSubscription');
+    }
+    if (hasOtherSubscription) {
+      return t('switchPlan');
+    }
+    return t('subscribe');
   };
 
   return (
@@ -254,8 +270,8 @@ export function PricingCard({
                 )}
                 className={cn(
                   'w-full text-center text-sm font-medium transition-all duration-200',
-                  isMostPopular && 'bg-primary text-primary-foreground',
-                  isCurrentPlan && 'bg-primary/10 text-primary hover:bg-primary/20',
+                  isMostPopular && !isCurrentPlan && 'bg-primary text-primary-foreground',
+                  isCurrentPlan && 'bg-destructive/10 text-destructive hover:bg-destructive/20',
                   !isMostPopular && !isCurrentPlan && 'bg-background text-foreground',
                 )}
                 onClick={handleAction}
@@ -268,13 +284,9 @@ export function PricingCard({
                         {t('processing')}
                       </span>
                     )
-                  : isCurrentPlan
-                    ? (
-                        t('manageBilling')
-                      )
-                    : (
-                        t('subscribe')
-                      )}
+                  : (
+                      getButtonText()
+                    )}
               </HoverBorderGradient>
             </motion.div>
           </div>

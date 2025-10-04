@@ -1,7 +1,6 @@
 'use client';
 
 import { useTranslations } from 'next-intl';
-import { useState } from 'react';
 
 import { PricingContent } from '@/components/pricing/pricing-content';
 
@@ -34,7 +33,9 @@ type PricingModalProps = {
   products: Product[];
   subscriptions: Subscription[];
   isLoading?: boolean;
+  processingPriceId: string | null;
   onSubscribe: (priceId: string) => Promise<void>;
+  onCancel: (subscriptionId: string) => Promise<void>;
   onManageBilling: () => void;
 };
 
@@ -50,7 +51,9 @@ type PricingModalProps = {
  * @param props.products - Array of available products
  * @param props.subscriptions - Array of user subscriptions
  * @param props.isLoading - Loading state for products
+ * @param props.processingPriceId - Price ID being processed
  * @param props.onSubscribe - Callback when user subscribes to a product
+ * @param props.onCancel - Callback when user cancels a subscription
  * @param props.onManageBilling - Callback to open Stripe customer portal
  */
 export function PricingModal({
@@ -59,23 +62,12 @@ export function PricingModal({
   products,
   subscriptions,
   isLoading,
+  processingPriceId,
   onSubscribe,
+  onCancel,
   onManageBilling,
 }: PricingModalProps) {
   const t = useTranslations();
-  const [subscribingPriceId, setSubscribingPriceId] = useState<string | null>(null);
-
-  const handleSubscribe = async (priceId: string) => {
-    setSubscribingPriceId(priceId);
-
-    try {
-      await onSubscribe(priceId);
-    } catch (err) {
-      console.error('Subscription error:', err);
-    } finally {
-      setSubscribingPriceId(null);
-    }
-  };
 
   return (
     <BaseModal
@@ -90,8 +82,9 @@ export function PricingModal({
         subscriptions={subscriptions}
         isLoading={isLoading}
         error={null}
-        processingPriceId={subscribingPriceId}
-        onSubscribe={handleSubscribe}
+        processingPriceId={processingPriceId}
+        onSubscribe={onSubscribe}
+        onCancel={onCancel}
         onManageBilling={onManageBilling}
         isProcessing={false}
         showSubscriptionBanner={false}

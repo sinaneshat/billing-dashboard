@@ -8,58 +8,91 @@ import { DashboardContainer } from '@/components/dashboard/dashboard-layout';
 import { DashboardPage } from '@/components/dashboard/dashboard-states';
 import { PricingContent } from '@/components/pricing/pricing-content';
 import {
+  useCancelSubscriptionMutation,
   useCreateCheckoutSessionMutation,
   useCreateCustomerPortalSessionMutation,
   useProductsQuery,
   useSubscriptionsQuery,
+  useSwitchSubscriptionMutation,
 } from '@/hooks';
 
 export default function PricingScreen() {
   const t = useTranslations();
   const [processingPriceId, setProcessingPriceId] = useState<string | null>(null);
 
-  // Fetch products and user subscriptions
   const { data: productsData, isLoading: isLoadingProducts, error: productsError } = useProductsQuery();
   const { data: subscriptionsData, isLoading: isLoadingSubscriptions } = useSubscriptionsQuery();
 
   const createCheckoutMutation = useCreateCheckoutSessionMutation();
-  const createPortalMutation = useCreateCustomerPortalSessionMutation();
+  const cancelMutation = useCancelSubscriptionMutation();
+  const switchMutation = useSwitchSubscriptionMutation();
+  const customerPortalMutation = useCreateCustomerPortalSessionMutation();
 
   const products = productsData?.success ? productsData.data?.products || [] : [];
   const subscriptions = subscriptionsData?.success ? subscriptionsData.data?.subscriptions || [] : [];
 
-  // Handle subscription (new checkout)
+  const activeSubscription = subscriptions.find(
+    sub => sub.status === 'active' || sub.status === 'trialing',
+  );
+
   const handleSubscribe = async (priceId: string) => {
     setProcessingPriceId(priceId);
     try {
-      const result = await createCheckoutMutation.mutateAsync({
-        json: { priceId },
+      if (activeSubscription) {
+        await switchMutation.mutateAsync({
+          param: { id: activeSubscription.id },
+          json: { newPriceId: priceId },
+        });
+      } else {
+        const result = await createCheckoutMutation.mutateAsync({
+          json: { priceId },
+        });
+
+        if (result.success && result.data?.url) {
+          window.location.href = result.data.url;
+        }
+      }
+    } catch (err) {
+      console.error('Subscription error:', err);
+    } finally {
+      setProcessingPriceId(null);
+    }
+  };
+
+  const handleCancel = async (subscriptionId: string) => {
+    setProcessingPriceId('canceling');
+    try {
+      await cancelMutation.mutateAsync({
+        param: { id: subscriptionId },
+        json: { immediately: false },
+      });
+    } catch (err) {
+      console.error('Cancel error:', err);
+    } finally {
+      setProcessingPriceId(null);
+    }
+  };
+
+  const handleManageBilling = async () => {
+    try {
+      const result = await customerPortalMutation.mutateAsync({
+        json: {
+          returnUrl: window.location.href,
+        },
       });
 
       if (result.success && result.data?.url) {
         window.location.href = result.data.url;
       }
     } catch (err) {
-      console.error('Checkout error:', err);
-    } finally {
-      setProcessingPriceId(null);
-    }
-  };
-
-  // Handle manage billing (customer portal)
-  const handleManageBilling = async () => {
-    try {
-      const result = await createPortalMutation.mutateAsync({ json: {} });
-
-      if (result.success && result.data?.url) {
-        window.location.href = result.data.url;
-      }
-    } catch (err) {
-      console.error('Portal error:', err);
+      console.error('Customer portal error:', err);
     }
   };
 
   const isLoading = isLoadingProducts || isLoadingSubscriptions;
+  const isProcessing = createCheckoutMutation.isPending
+    || cancelMutation.isPending
+    || switchMutation.isPending;
 
   return (
     <DashboardPage>
@@ -76,8 +109,9 @@ export default function PricingScreen() {
           error={productsError}
           processingPriceId={processingPriceId}
           onSubscribe={handleSubscribe}
+          onCancel={handleCancel}
           onManageBilling={handleManageBilling}
-          isProcessing={createCheckoutMutation.isPending || createPortalMutation.isPending}
+          isProcessing={isProcessing}
           showSubscriptionBanner={false}
         />
       </DashboardContainer>

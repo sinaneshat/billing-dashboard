@@ -308,6 +308,16 @@
       "description": "Manage your subscription and view available plans",
       "viewProfile": "View Profile"
     },
+    "changePlan": "Change Plan",
+    "cancelSubscription": "Cancel Subscription",
+    "renewsOn": "Renews On",
+    "cancelScheduled": "Cancellation Scheduled",
+    "cancelScheduledDescription": "Your subscription will be canceled on {date}. You will retain access until then.",
+    "cancelDialog": {
+      "title": "Cancel Subscription",
+      "description": "Are you sure you want to cancel your subscription? You will retain access until the end of your billing period.",
+      "confirm": "Yes, Cancel Subscription"
+    },
     "currentSubscription": {
       "description": "Manage your active subscription",
       "title": "Current Subscription"
@@ -383,7 +393,6 @@
     },
     "quickActions": "Quick Actions",
     "recentTransactions": "Your recent billing transactions",
-    "renewsOn": "Renews On",
     "status": "Status",
     "subscribe": "Subscribe",
     "subscription": "Subscription",
@@ -447,7 +456,8 @@
     "optional": "(optional)",
     "or": "Or",
     "upTo": "Up to",
-    "errorOccurred": "ErrorOccurred"
+    "errorOccurred": "ErrorOccurred",
+    "cancel": "Cancel"
   },
   "confirmDialog": {
     "cancelAction": "Cancel",
@@ -1442,6 +1452,8 @@
       "saveAnnually": "Save {percent}% annually",
       "manageBilling": "Manage Billing",
       "subscribe": "Subscribe",
+      "cancelSubscription": "Cancel Subscription",
+      "switchPlan": "Switch to This Plan",
       "processing": "Processing..."
     }
   },

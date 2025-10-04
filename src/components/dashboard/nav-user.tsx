@@ -1,6 +1,6 @@
 'use client';
 
-import { ChevronsUpDown, CreditCard, LogOut, Receipt } from 'lucide-react';
+import { ChevronsUpDown, CreditCard, LogOut } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
@@ -21,7 +21,6 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from '@/components/ui/sidebar';
-import { useCreateCustomerPortalSessionMutation, useCurrentSubscriptionQuery } from '@/hooks';
 import { signOut, useSession } from '@/lib/auth/client';
 
 export function NavUser() {
@@ -29,8 +28,6 @@ export function NavUser() {
   const { isMobile } = useSidebar();
   const router = useRouter();
   const t = useTranslations();
-  const { data: subscription } = useCurrentSubscriptionQuery();
-  const createPortalMutation = useCreateCustomerPortalSessionMutation();
 
   const user = session?.user;
   const userInitials = user?.name
@@ -40,14 +37,6 @@ export function NavUser() {
         .join('')
         .toUpperCase()
     : user?.email?.[0]?.toUpperCase() || 'U';
-
-  const handleBillingPortal = async () => {
-    const result = await createPortalMutation.mutateAsync({ json: {} });
-
-    if (result.success && result.data?.url) {
-      window.location.href = result.data.url;
-    }
-  };
 
   const handleSignOut = async () => {
     await signOut({
@@ -113,12 +102,6 @@ export function NavUser() {
                   {t('navigation.pricing')}
                 </Link>
               </DropdownMenuItem>
-              {subscription && (
-                <DropdownMenuItem onClick={handleBillingPortal}>
-                  <Receipt />
-                  {t('navigation.billingPortal')}
-                </DropdownMenuItem>
-              )}
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={handleSignOut}>

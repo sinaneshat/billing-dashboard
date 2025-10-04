@@ -35,6 +35,7 @@ import { secureMeHandler } from './routes/auth/handler';
 import { secureMeRoute } from './routes/auth/route';
 // Billing routes
 import {
+  cancelSubscriptionHandler,
   createCheckoutSessionHandler,
   createCustomerPortalSessionHandler,
   getProductHandler,
@@ -42,9 +43,11 @@ import {
   handleWebhookHandler,
   listProductsHandler,
   listSubscriptionsHandler,
+  switchSubscriptionHandler,
   syncAfterCheckoutHandler,
 } from './routes/billing/handler';
 import {
+  cancelSubscriptionRoute,
   createCheckoutSessionRoute,
   createCustomerPortalSessionRoute,
   getProductRoute,
@@ -52,6 +55,7 @@ import {
   handleWebhookRoute,
   listProductsRoute,
   listSubscriptionsRoute,
+  switchSubscriptionRoute,
   syncAfterCheckoutRoute,
 } from './routes/billing/route';
 // System/health routes
@@ -189,11 +193,14 @@ app.notFound(notFound);
 // Apply CSRF protection and authentication to protected routes
 // Following Hono best practices: apply CSRF only to authenticated routes
 app.use('/auth/me', csrfMiddleware, requireSession);
-// Protected billing endpoints (checkout, sync, subscriptions)
+// Protected billing endpoints (checkout, portal, sync, subscriptions)
 app.use('/billing/checkout', csrfMiddleware, requireSession);
+app.use('/billing/portal', csrfMiddleware, requireSession);
 app.use('/billing/sync-after-checkout', csrfMiddleware, requireSession);
 app.use('/billing/subscriptions', csrfMiddleware, requireSession);
 app.use('/billing/subscriptions/:id', csrfMiddleware, requireSession);
+app.use('/billing/subscriptions/:id/switch', csrfMiddleware, requireSession);
+app.use('/billing/subscriptions/:id/cancel', csrfMiddleware, requireSession);
 
 // Register all routes directly on the app
 const appRoutes = app
@@ -214,6 +221,9 @@ const appRoutes = app
   // Billing routes - Subscriptions (protected)
   .openapi(listSubscriptionsRoute, listSubscriptionsHandler)
   .openapi(getSubscriptionRoute, getSubscriptionHandler)
+  // Billing routes - Subscription Management (protected)
+  .openapi(switchSubscriptionRoute, switchSubscriptionHandler)
+  .openapi(cancelSubscriptionRoute, cancelSubscriptionHandler)
   // Billing routes - Webhooks (public with signature verification)
   .openapi(handleWebhookRoute, handleWebhookHandler)
 ;

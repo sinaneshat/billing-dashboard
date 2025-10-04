@@ -1,13 +1,16 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
+import { useState } from 'react';
 
 import { PricingModal } from '@/components/modals/pricing-modal';
 import {
+  useCancelSubscriptionMutation,
   useCreateCheckoutSessionMutation,
   useCreateCustomerPortalSessionMutation,
   useProductsQuery,
   useSubscriptionsQuery,
+  useSwitchSubscriptionMutation,
 } from '@/hooks';
 
 /**
@@ -20,34 +23,74 @@ import {
  */
 export default function PricingModalScreen() {
   const router = useRouter();
+  const [processingPriceId, setProcessingPriceId] = useState<string | null>(null);
 
   const { data: productsData, isLoading: productsLoading } = useProductsQuery();
   const { data: subscriptionsData } = useSubscriptionsQuery();
+
   const createCheckoutMutation = useCreateCheckoutSessionMutation();
-  const createPortalMutation = useCreateCustomerPortalSessionMutation();
+  const cancelMutation = useCancelSubscriptionMutation();
+  const switchMutation = useSwitchSubscriptionMutation();
+  const customerPortalMutation = useCreateCustomerPortalSessionMutation();
 
   const products = productsData?.success ? productsData.data?.products || [] : [];
   const subscriptions = subscriptionsData?.success ? subscriptionsData.data?.subscriptions || [] : [];
 
-  const handleSubscribe = async (priceId: string) => {
-    const result = await createCheckoutMutation.mutateAsync({
-      json: { priceId },
-    });
+  const activeSubscription = subscriptions.find(
+    sub => sub.status === 'active' || sub.status === 'trialing',
+  );
 
-    if (result.success && result.data?.url) {
-      window.location.href = result.data.url;
+  const handleSubscribe = async (priceId: string) => {
+    setProcessingPriceId(priceId);
+    try {
+      if (activeSubscription) {
+        await switchMutation.mutateAsync({
+          param: { id: activeSubscription.id },
+          json: { newPriceId: priceId },
+        });
+      } else {
+        const result = await createCheckoutMutation.mutateAsync({
+          json: { priceId },
+        });
+
+        if (result.success && result.data?.url) {
+          window.location.href = result.data.url;
+        }
+      }
+    } catch (err) {
+      console.error('Subscription error:', err);
+    } finally {
+      setProcessingPriceId(null);
+    }
+  };
+
+  const handleCancel = async (subscriptionId: string) => {
+    setProcessingPriceId('canceling');
+    try {
+      await cancelMutation.mutateAsync({
+        param: { id: subscriptionId },
+        json: { immediately: false },
+      });
+    } catch (err) {
+      console.error('Cancel error:', err);
+    } finally {
+      setProcessingPriceId(null);
     }
   };
 
   const handleManageBilling = async () => {
     try {
-      const result = await createPortalMutation.mutateAsync({ json: {} });
+      const result = await customerPortalMutation.mutateAsync({
+        json: {
+          returnUrl: window.location.href,
+        },
+      });
 
       if (result.success && result.data?.url) {
         window.location.href = result.data.url;
       }
     } catch (err) {
-      console.error('Portal error:', err);
+      console.error('Customer portal error:', err);
     }
   };
 
@@ -61,7 +104,9 @@ export default function PricingModalScreen() {
       products={products}
       subscriptions={subscriptions}
       isLoading={productsLoading}
+      processingPriceId={processingPriceId}
       onSubscribe={handleSubscribe}
+      onCancel={handleCancel}
       onManageBilling={handleManageBilling}
     />
   );
