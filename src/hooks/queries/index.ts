@@ -9,6 +9,25 @@
 // QUERY HOOKS BY DOMAIN
 // ============================================================================
 
+// Chat memory queries (protected)
+export {
+  useMemoriesQuery,
+  useMemoryQuery,
+} from './chat-memories';
+
+// Chat custom role queries (protected)
+export {
+  useCustomRoleQuery,
+  useCustomRolesQuery,
+} from './chat-roles';
+
+// Chat thread queries (protected)
+export {
+  usePublicThreadQuery,
+  useThreadQuery,
+  useThreadsQuery,
+} from './chat-threads';
+
 // Product queries (public)
 export { useProductQuery, useProductsQuery } from './products';
 
@@ -18,3 +37,10 @@ export {
   useSubscriptionQuery,
   useSubscriptionsQuery,
 } from './subscriptions';
+
+// Usage queries (protected)
+export {
+  useMessageQuotaQuery,
+  useThreadQuotaQuery,
+  useUsageStatsQuery,
+} from './usage';

@@ -1,4 +1,5 @@
-export { attachSession, requireSession } from './auth';
+export { attachSession, protectMutations, requireOptionalSession, requireSession } from './auth';
+export { csrfProtection } from './csrf';
 export {
   createEnvironmentSummary,
   createEnvironmentValidationMiddleware,
@@ -6,6 +7,7 @@ export {
   validateEnvironmentConfiguration,
   validateServiceEnvironment,
 } from './environment-validation';
+export { ensureOpenRouterInitialized } from './openrouter';
 export { RateLimiterFactory as createRateLimitMiddleware } from './rate-limiter-factory';
 export {
   createApiSizeLimitMiddleware,
@@ -20,3 +22,4 @@ export {
   validateRequestSize,
   validateResponseSize,
 } from './size-limits';
+export { ensureStripeInitialized } from './stripe';

@@ -10,7 +10,9 @@ import { useEffect, useMemo, useState } from 'react';
 import { ChatList } from '@/components/chat/chat-list';
 import { CommandSearch } from '@/components/chat/command-search';
 import { NavUser } from '@/components/chat/nav-user';
+import { UsageMetrics } from '@/components/chat/usage-metrics';
 import { Button } from '@/components/ui/button';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   Sidebar,
   SidebarContent,
@@ -124,17 +126,22 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             </SidebarGroup>
           </SidebarHeader>
 
-          <SidebarContent>
-            <ChatList
-              chatGroups={chatGroups}
-              favorites={favorites}
-              onDeleteChat={handleDeleteChat}
-              onToggleFavorite={handleToggleFavorite}
-              searchTerm=""
-            />
+          <SidebarContent className="p-0">
+            <ScrollArea className="h-full w-full">
+              <div className="px-2 py-2">
+                <ChatList
+                  chatGroups={chatGroups}
+                  favorites={favorites}
+                  onDeleteChat={handleDeleteChat}
+                  onToggleFavorite={handleToggleFavorite}
+                  searchTerm=""
+                />
+              </div>
+            </ScrollArea>
           </SidebarContent>
 
           <SidebarFooter>
+            <UsageMetrics />
             <NavUser />
           </SidebarFooter>
 

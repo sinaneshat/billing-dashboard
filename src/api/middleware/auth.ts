@@ -10,6 +10,8 @@ import type { ApiEnv } from '@/api/types';
 import type { sessionSelectSchema, userSelectSchema } from '@/db/validation/auth';
 import { auth } from '@/lib/auth/server';
 
+import { csrfProtection } from './csrf';
+
 type SelectSession = z.infer<typeof sessionSelectSchema>;
 type SelectUser = z.infer<typeof userSelectSchema>;
 
@@ -113,4 +115,53 @@ export const requireSession = createMiddleware<ApiEnv>(async (c, next) => {
     });
     throw new HTTPException(mapStatusCode(HttpStatusCodes.UNAUTHORIZED), { res, cause: e });
   }
+});
+
+/**
+ * Optional session middleware - attaches session if present, continues if not
+ * Use this for routes that support both authenticated and unauthenticated access
+ * Handler logic can then check c.var.user to determine access level
+ *
+ * Example: Public threads (anyone can view if public, only owner can view if private)
+ */
+export const requireOptionalSession = createMiddleware<ApiEnv>(async (c, next) => {
+  try {
+    // Use shared helper to authenticate session (same as attachSession)
+    await authenticateSession(c);
+  } catch (error) {
+    // Log error but don't throw - allow unauthenticated requests to proceed
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    if (errorMessage.includes('Invalid Base64') || errorMessage.includes('JWT')) {
+      apiLogger.warn('Session cookie format issue - likely expired or malformed session', { sessionError: errorMessage });
+    } else {
+      apiLogger.apiError(c, 'Error retrieving Better Auth session', error);
+    }
+    c.set('session', null);
+    c.set('user', null);
+  }
+  return next();
+});
+
+/**
+ * Combined middleware for routes with mixed access patterns:
+ * - Safe methods (GET, HEAD, OPTIONS): Optional session, no CSRF
+ * - Mutation methods (POST, PATCH, PUT, DELETE): Required session + CSRF
+ *
+ * Use this for routes like /chat/threads/:id where:
+ * - GET allows public access (handler checks if thread is public)
+ * - PATCH/DELETE require authentication and CSRF protection
+ */
+export const protectMutations = createMiddleware<ApiEnv>(async (c, next) => {
+  const method = c.req.method.toUpperCase();
+  const safeMethods = ['GET', 'HEAD', 'OPTIONS'];
+
+  if (safeMethods.includes(method)) {
+    // Safe methods: optional session, no CSRF
+    return requireOptionalSession(c, next);
+  }
+
+  // Mutation methods: CSRF + required session (chain middlewares properly)
+  return csrfProtection(c, async () => {
+    await requireSession(c, next);
+  });
 });

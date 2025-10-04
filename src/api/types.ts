@@ -19,3 +19,18 @@ export type ApiEnv = {
     fileSize?: number;
   };
 };
+
+/**
+ * Auth mode types for handler configuration
+ */
+export type AuthMode = 'session' | 'session-optional' | 'public' | 'api-key';
+
+/**
+ * Authenticated context with guaranteed user and session
+ * Use this when you know auth middleware has run and user exists
+ */
+export type AuthenticatedContext = {
+  user: User;
+  session: Session;
+  requestId: string;
+};

@@ -10,6 +10,105 @@
 // ============================================================================
 
 export {
+  type CreateMemoryRequest,
+  type CreateMemoryResponse,
+  createMemoryService,
+  type DeleteMemoryRequest,
+  type DeleteMemoryResponse,
+  deleteMemoryService,
+  type GetMemoryRequest,
+  type GetMemoryResponse,
+  getMemoryService,
+  type ListMemoriesRequest,
+  type ListMemoriesResponse,
+  listMemoriesService,
+  type UpdateMemoryRequest,
+  type UpdateMemoryResponse,
+  updateMemoryService,
+} from './chat-memories';
+
+// ============================================================================
+// Customer Portal Service Exports
+// Used for payment method management and invoice downloads
+// ============================================================================
+
+export {
+  type SendMessageRequest,
+  type SendMessageResponse,
+  sendMessageService,
+  type StreamChatRequest,
+  type StreamChatResponse,
+  streamChatService,
+} from './chat-messages';
+
+// ============================================================================
+// Products Service Exports
+// ============================================================================
+
+export {
+  type AddParticipantRequest,
+  type AddParticipantResponse,
+  addParticipantService,
+  type DeleteParticipantRequest,
+  type DeleteParticipantResponse,
+  deleteParticipantService,
+  type UpdateParticipantRequest,
+  type UpdateParticipantResponse,
+  updateParticipantService,
+} from './chat-participants';
+
+// ============================================================================
+// Subscription Management Service Exports (Switch/Cancel)
+// ============================================================================
+
+export {
+  type CreateCustomRoleRequest,
+  type CreateCustomRoleResponse,
+  createCustomRoleService,
+  type DeleteCustomRoleRequest,
+  type DeleteCustomRoleResponse,
+  deleteCustomRoleService,
+  type GetCustomRoleRequest,
+  type GetCustomRoleResponse,
+  getCustomRoleService,
+  type ListCustomRolesRequest,
+  type ListCustomRolesResponse,
+  listCustomRolesService,
+  type UpdateCustomRoleRequest,
+  type UpdateCustomRoleResponse,
+  updateCustomRoleService,
+} from './chat-roles';
+
+// ============================================================================
+// Subscriptions Service Exports
+// ============================================================================
+
+export {
+  type CreateThreadRequest,
+  type CreateThreadResponse,
+  createThreadService,
+  type DeleteThreadRequest,
+  type DeleteThreadResponse,
+  deleteThreadService,
+  type GetPublicThreadRequest,
+  type GetPublicThreadResponse,
+  getPublicThreadService,
+  type GetThreadRequest,
+  type GetThreadResponse,
+  getThreadService,
+  type ListThreadsRequest,
+  type ListThreadsResponse,
+  listThreadsService,
+  type UpdateThreadRequest,
+  type UpdateThreadResponse,
+  updateThreadService,
+} from './chat-threads';
+
+// ============================================================================
+// Usage Service Exports
+// ============================================================================
+
+export {
   type CreateCheckoutSessionRequest,
   type CreateCheckoutSessionResponse,
   createCheckoutSessionService,
@@ -19,8 +118,7 @@ export {
 } from './checkout';
 
 // ============================================================================
-// Customer Portal Service Exports
-// Used for payment method management and invoice downloads
+// Chat Threads Service Exports
 // ============================================================================
 
 export {
@@ -30,7 +128,7 @@ export {
 } from './customer-portal';
 
 // ============================================================================
-// Products Service Exports
+// Chat Messages Service Exports
 // ============================================================================
 
 export {
@@ -43,7 +141,7 @@ export {
 } from './products';
 
 // ============================================================================
-// Subscription Management Service Exports (Switch/Cancel)
+// Chat Participants Service Exports
 // ============================================================================
 
 export {
@@ -56,7 +154,7 @@ export {
 } from './subscription-management';
 
 // ============================================================================
-// Subscriptions Service Exports
+// Chat Memories Service Exports
 // ============================================================================
 
 export {
@@ -67,3 +165,19 @@ export {
   type GetSubscriptionsResponse,
   getSubscriptionsService,
 } from './subscriptions';
+
+// ============================================================================
+// Chat Custom Roles Service Exports
+// ============================================================================
+
+export {
+  type CheckMessageQuotaRequest,
+  type CheckMessageQuotaResponse,
+  checkMessageQuotaService,
+  type CheckThreadQuotaRequest,
+  type CheckThreadQuotaResponse,
+  checkThreadQuotaService,
+  type GetUsageStatsRequest,
+  type GetUsageStatsResponse,
+  getUserUsageStatsService,
+} from './usage';

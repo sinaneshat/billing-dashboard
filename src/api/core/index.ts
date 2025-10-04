@@ -39,7 +39,6 @@ import {
 
 export {
   // Type exports
-  type AuthMode,
   type BatchContext,
   type BatchHandler,
   // Handler factories
@@ -93,11 +92,6 @@ export {
   // Error responses
   validationError,
 } from './responses';
-
-// ============================================================================
-// RESPONSES
-// ============================================================================
-
 export {
   type ApiErrorResponse,
   ApiErrorResponseSchema,
@@ -126,6 +120,42 @@ export {
   type SortingQuery,
   SortingQuerySchema,
 } from './schemas';
+
+// ============================================================================
+// RESPONSES
+// ============================================================================
+
+export {
+  // Conditional validators
+  createConditionalValidator,
+  // File upload validators
+  createFileUploadValidator,
+  createMultiFormatValidator,
+  // Schema composition
+  createPartialSchema,
+  createPickSchema,
+  createSearchSchema,
+  createUpdateSchema,
+  createValidationErrorContext,
+  createValidator,
+  documentUploadValidator,
+  formatValidationErrors,
+  validateErrorContext,
+  validatePathParams,
+  validateQueryParams,
+  // Request validation helpers
+  validateRequestBody,
+  // Validation utilities
+  validateWithSchema,
+  type ValidationError,
+  type ValidationFailure,
+  type ValidationResult,
+  // Type exports
+  type ValidationSuccess,
+  ValidationUtils,
+  // Specialized validators
+  Validators,
+} from './validation';
 
 // ============================================================================
 // HANDLERS
@@ -175,34 +205,5 @@ export const CommonResponses = {
   internalError: internalServerError,
 } as const;
 
-export {
-  // Conditional validators
-  createConditionalValidator,
-  // File upload validators
-  createFileUploadValidator,
-  createMultiFormatValidator,
-  // Schema composition
-  createPartialSchema,
-  createPickSchema,
-  createSearchSchema,
-  createUpdateSchema,
-  createValidationErrorContext,
-  createValidator,
-  documentUploadValidator,
-  formatValidationErrors,
-  validateErrorContext,
-  validatePathParams,
-  validateQueryParams,
-  // Request validation helpers
-  validateRequestBody,
-  // Validation utilities
-  validateWithSchema,
-  type ValidationError,
-  type ValidationFailure,
-  type ValidationResult,
-  // Type exports
-  type ValidationSuccess,
-  ValidationUtils,
-  // Specialized validators
-  Validators,
-} from './validation';
+// Export auth types from types module
+export type { AuthenticatedContext, AuthMode } from '@/api/types';

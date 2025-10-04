@@ -8,6 +8,9 @@
 
 import { z } from 'zod';
 
+import type { SubscriptionTier } from '@/db/validation/usage';
+import { subscriptionTierSchema } from '@/db/validation/usage';
+
 /**
  * Discriminated union for metadata types (Context7 Pattern)
  * Maximum type safety for different metadata contexts
@@ -36,7 +39,7 @@ const MetadataSchema = z.discriminatedUnion('type', [
     features: z.array(z.string()).optional(),
     category: z.string().optional(),
     tags: z.array(z.string()).optional(),
-    tier: z.enum(['free', 'starter', 'pro', 'power', 'enterprise']).optional(),
+    tier: subscriptionTierSchema.optional(),
     popular: z.boolean().optional(),
     seoTitle: z.string().optional(),
     seoDescription: z.string().optional(),
@@ -135,7 +138,7 @@ export function createProductMetadata(data: {
   features?: string[];
   category?: string;
   tags?: string[];
-  tier?: 'free' | 'starter' | 'pro' | 'power' | 'enterprise';
+  tier?: SubscriptionTier;
   popular?: boolean;
   seoTitle?: string;
   seoDescription?: string;

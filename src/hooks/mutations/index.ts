@@ -9,6 +9,23 @@
 // MUTATION HOOKS BY DOMAIN
 // ============================================================================
 
+// Chat mutations (protected) - All chat-related operations
+export {
+  useAddParticipantMutation,
+  useCreateCustomRoleMutation,
+  useCreateMemoryMutation,
+  useCreateThreadMutation,
+  useDeleteCustomRoleMutation,
+  useDeleteMemoryMutation,
+  useDeleteParticipantMutation,
+  useDeleteThreadMutation,
+  useSendMessageMutation,
+  useUpdateCustomRoleMutation,
+  useUpdateMemoryMutation,
+  useUpdateParticipantMutation,
+  useUpdateThreadMutation,
+} from './chat-mutations';
+
 // Checkout mutations (protected)
 export {
   useCreateCheckoutSessionMutation,

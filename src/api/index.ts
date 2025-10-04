@@ -10,11 +10,9 @@
 
 import { Scalar } from '@scalar/hono-api-reference';
 import { createMarkdownFromOpenApi } from '@scalar/openapi-to-markdown';
-import type { Context, Next } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
 import { contextStorage } from 'hono/context-storage';
 import { cors } from 'hono/cors';
-import { csrf } from 'hono/csrf';
 import { etag } from 'hono/etag';
 import { prettyJSON } from 'hono/pretty-json';
 import { requestId } from 'hono/request-id';
@@ -26,8 +24,9 @@ import notFound from 'stoker/middlewares/not-found';
 import onError from 'stoker/middlewares/on-error';
 
 import { createOpenApiApp } from './factory';
-import { attachSession, requireSession } from './middleware';
+import { attachSession, csrfProtection, protectMutations, requireSession } from './middleware';
 import { errorLoggerMiddleware, honoLoggerMiddleware } from './middleware/hono-logger';
+import { ensureOpenRouterInitialized } from './middleware/openrouter';
 import { RateLimiterFactory } from './middleware/rate-limiter-factory';
 import { ensureStripeInitialized } from './middleware/stripe';
 // Import routes and handlers directly for proper RPC type inference
@@ -58,6 +57,53 @@ import {
   switchSubscriptionRoute,
   syncAfterCheckoutRoute,
 } from './routes/billing/route';
+// Chat routes - Core endpoints only (ChatGPT pattern)
+import {
+  addParticipantHandler,
+  createCustomRoleHandler,
+  createMemoryHandler,
+  createThreadHandler,
+  deleteCustomRoleHandler,
+  deleteMemoryHandler,
+  deleteParticipantHandler,
+  deleteThreadHandler,
+  getCustomRoleHandler,
+  getMemoryHandler,
+  getPublicThreadHandler,
+  getThreadHandler,
+  listCustomRolesHandler,
+  listMemoriesHandler,
+  listThreadsHandler,
+  sendMessageHandler,
+  streamChatHandler,
+  updateCustomRoleHandler,
+  updateMemoryHandler,
+  updateParticipantHandler,
+  updateThreadHandler,
+} from './routes/chat/handler';
+import {
+  addParticipantRoute,
+  createCustomRoleRoute,
+  createMemoryRoute,
+  createThreadRoute,
+  deleteCustomRoleRoute,
+  deleteMemoryRoute,
+  deleteParticipantRoute,
+  deleteThreadRoute,
+  getCustomRoleRoute,
+  getMemoryRoute,
+  getPublicThreadRoute,
+  getThreadRoute,
+  listCustomRolesRoute,
+  listMemoriesRoute,
+  listThreadsRoute,
+  sendMessageRoute,
+  streamChatRoute,
+  updateCustomRoleRoute,
+  updateMemoryRoute,
+  updateParticipantRoute,
+  updateThreadRoute,
+} from './routes/chat/route';
 // System/health routes
 import {
   detailedHealthHandler,
@@ -67,7 +113,21 @@ import {
   detailedHealthRoute,
   healthRoute,
 } from './routes/system/route';
-import type { ApiEnv } from './types';
+// Usage tracking routes
+import {
+  checkCustomRoleQuotaHandler,
+  checkMemoryQuotaHandler,
+  checkMessageQuotaHandler,
+  checkThreadQuotaHandler,
+  getUserUsageStatsHandler,
+} from './routes/usage/handler';
+import {
+  checkCustomRoleQuotaRoute,
+  checkMemoryQuotaRoute,
+  checkMessageQuotaRoute,
+  checkThreadQuotaRoute,
+  getUserUsageStatsRoute,
+} from './routes/usage/route';
 
 // ============================================================================
 // Step 1: Create the main OpenAPIHono app with defaultHook (following docs)
@@ -137,33 +197,6 @@ app.use('*', (c, next) => {
   return middleware(c, next);
 });
 
-// CSRF protection - Applied selectively to protected routes only
-// Following Hono best practices: exclude public endpoints from CSRF protection
-function csrfMiddleware(c: Context<ApiEnv>, next: Next) {
-  // Get the current environment's allowed origin from NEXT_PUBLIC_APP_URL
-  const appUrl = c.env.NEXT_PUBLIC_APP_URL;
-  const webappEnv = c.env.NEXT_PUBLIC_WEBAPP_ENV || 'local';
-  const isDevelopment = webappEnv === 'local' || c.env.NODE_ENV === 'development';
-
-  // Build allowed origins dynamically based on environment
-  const allowedOrigins: string[] = [];
-
-  // Only allow localhost in development environment
-  if (isDevelopment) {
-    allowedOrigins.push('http://localhost:3000', 'http://127.0.0.1:3000');
-  }
-
-  // Add current environment URL if available and not localhost
-  if (appUrl && !appUrl.includes('localhost') && !appUrl.includes('127.0.0.1')) {
-    allowedOrigins.push(appUrl);
-  }
-
-  const middleware = csrf({
-    origin: allowedOrigins,
-  });
-  return middleware(c, next);
-}
-
 // ETag support
 app.use('*', etag());
 
@@ -174,6 +207,10 @@ app.use('*', attachSession);
 // Using wildcard pattern to apply middleware to all /billing/* routes
 app.use('/billing/*', ensureStripeInitialized);
 app.use('/webhooks/stripe', ensureStripeInitialized);
+
+// OpenRouter initialization for all chat routes
+// Using wildcard pattern to apply middleware to all /chat/* routes
+app.use('/chat/*', ensureOpenRouterInitialized);
 
 // Global rate limiting
 app.use('*', RateLimiterFactory.create('api'));
@@ -192,15 +229,43 @@ app.notFound(notFound);
 
 // Apply CSRF protection and authentication to protected routes
 // Following Hono best practices: apply CSRF only to authenticated routes
-app.use('/auth/me', csrfMiddleware, requireSession);
+app.use('/auth/me', csrfProtection, requireSession);
+
 // Protected billing endpoints (checkout, portal, sync, subscriptions)
-app.use('/billing/checkout', csrfMiddleware, requireSession);
-app.use('/billing/portal', csrfMiddleware, requireSession);
-app.use('/billing/sync-after-checkout', csrfMiddleware, requireSession);
-app.use('/billing/subscriptions', csrfMiddleware, requireSession);
-app.use('/billing/subscriptions/:id', csrfMiddleware, requireSession);
-app.use('/billing/subscriptions/:id/switch', csrfMiddleware, requireSession);
-app.use('/billing/subscriptions/:id/cancel', csrfMiddleware, requireSession);
+app.use('/billing/checkout', csrfProtection, requireSession);
+app.use('/billing/portal', csrfProtection, requireSession);
+app.use('/billing/sync-after-checkout', csrfProtection, requireSession);
+app.use('/billing/subscriptions', csrfProtection, requireSession);
+app.use('/billing/subscriptions/:id', csrfProtection, requireSession);
+app.use('/billing/subscriptions/:id/switch', csrfProtection, requireSession);
+app.use('/billing/subscriptions/:id/cancel', csrfProtection, requireSession);
+
+// Protected chat endpoints (ChatGPT pattern with smart access control)
+// POST /chat/threads - create thread (requires auth + CSRF)
+app.use('/chat/threads', csrfProtection, requireSession);
+
+// /chat/threads/:id - mixed access pattern
+// GET: public access for public threads (handler checks ownership/public status)
+// PATCH/DELETE: protected mutations (requires auth + CSRF)
+app.use('/chat/threads/:id', protectMutations);
+
+// POST /chat/threads/:id/messages - send message (requires auth + CSRF)
+app.use('/chat/threads/:id/messages', csrfProtection, requireSession);
+
+// POST /chat/threads/:id/stream - stream AI response (requires auth + CSRF)
+app.use('/chat/threads/:id/stream', csrfProtection, requireSession);
+
+// Participant management routes (protected)
+app.use('/chat/threads/:id/participants', csrfProtection, requireSession);
+app.use('/chat/participants/:id', csrfProtection, requireSession);
+
+// Memory system routes (protected)
+app.use('/chat/memories', csrfProtection, requireSession);
+app.use('/chat/memories/:id', csrfProtection, requireSession);
+
+// Custom role routes (protected)
+app.use('/chat/custom-roles', csrfProtection, requireSession);
+app.use('/chat/custom-roles/:id', csrfProtection, requireSession);
 
 // Register all routes directly on the app
 const appRoutes = app
@@ -226,6 +291,37 @@ const appRoutes = app
   .openapi(cancelSubscriptionRoute, cancelSubscriptionHandler)
   // Billing routes - Webhooks (public with signature verification)
   .openapi(handleWebhookRoute, handleWebhookHandler)
+  // Chat routes - Core endpoints only (ChatGPT pattern)
+  .openapi(listThreadsRoute, listThreadsHandler) // List threads with pagination
+  .openapi(createThreadRoute, createThreadHandler) // Create thread with participants + first message
+  .openapi(getThreadRoute, getThreadHandler) // Get thread with participants + messages
+  .openapi(updateThreadRoute, updateThreadHandler) // Update thread (title, favorite, public, etc.)
+  .openapi(deleteThreadRoute, deleteThreadHandler) // Delete thread
+  .openapi(sendMessageRoute, sendMessageHandler) // Send message to thread
+  .openapi(streamChatRoute, streamChatHandler) // Stream AI response via SSE
+  .openapi(getPublicThreadRoute, getPublicThreadHandler) // Get public thread by slug (no auth)
+  // Chat routes - Participant management
+  .openapi(addParticipantRoute, addParticipantHandler) // Add model to thread
+  .openapi(updateParticipantRoute, updateParticipantHandler) // Update participant role/priority/settings
+  .openapi(deleteParticipantRoute, deleteParticipantHandler) // Remove participant from thread
+  // Chat routes - Memory system
+  .openapi(listMemoriesRoute, listMemoriesHandler) // List user memories
+  .openapi(createMemoryRoute, createMemoryHandler) // Create memory/preset
+  .openapi(getMemoryRoute, getMemoryHandler) // Get memory details
+  .openapi(updateMemoryRoute, updateMemoryHandler) // Update memory
+  .openapi(deleteMemoryRoute, deleteMemoryHandler) // Delete memory
+  // Chat routes - Custom Role system
+  .openapi(listCustomRolesRoute, listCustomRolesHandler) // List user custom roles
+  .openapi(createCustomRoleRoute, createCustomRoleHandler) // Create custom role template
+  .openapi(getCustomRoleRoute, getCustomRoleHandler) // Get custom role details
+  .openapi(updateCustomRoleRoute, updateCustomRoleHandler) // Update custom role
+  .openapi(deleteCustomRoleRoute, deleteCustomRoleHandler) // Delete custom role
+  // Usage tracking routes (protected)
+  .openapi(getUserUsageStatsRoute, getUserUsageStatsHandler)
+  .openapi(checkThreadQuotaRoute, checkThreadQuotaHandler)
+  .openapi(checkMessageQuotaRoute, checkMessageQuotaHandler)
+  .openapi(checkMemoryQuotaRoute, checkMemoryQuotaHandler)
+  .openapi(checkCustomRoleQuotaRoute, checkCustomRoleQuotaHandler)
 ;
 
 // ============================================================================
@@ -254,6 +350,8 @@ appRoutes.doc('/doc', c => ({
     { name: 'system', description: 'System health and diagnostics' },
     { name: 'auth', description: 'Authentication and authorization' },
     { name: 'billing', description: 'Stripe billing, subscriptions, and payments' },
+    { name: 'chat', description: 'Multi-model AI chat threads, messages, and memories' },
+    { name: 'usage', description: 'Usage tracking and quota management' },
   ],
   servers: [
     {

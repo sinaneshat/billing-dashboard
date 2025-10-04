@@ -7,6 +7,8 @@
 
 import { z } from 'zod';
 
+import { subscriptionTierSchema } from '@/db/validation/usage';
+
 // ============================================================================
 // Base Metadata Schema
 // ============================================================================
@@ -30,7 +32,7 @@ export const BaseMetadataSchema = z.object({
  */
 export const ProductMetadataSchema = BaseMetadataSchema.extend({
   features: z.array(z.string()).optional(),
-  tier: z.enum(['free', 'starter', 'pro', 'power', 'enterprise']).optional(),
+  tier: subscriptionTierSchema.optional(),
   popular: z.boolean().optional(),
   messagesPerMonth: z.number().int().positive().optional(),
   aiModelsLimit: z.number().int().positive().optional(),

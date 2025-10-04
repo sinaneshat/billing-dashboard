@@ -457,6 +457,241 @@ export const SecureMePayloadSchema = z.object({
 export type User = z.infer<typeof SecureMePayloadSchema>;
 ```
 
+### Cursor-Based Pagination Pattern
+
+For list endpoints with infinite scroll support, use cursor-based pagination instead of offset pagination.
+
+**Benefits**:
+- Consistent results even when data changes
+- Better performance for large datasets
+- Supports infinite scroll UX patterns
+- Type-safe cursors with Zod validation
+
+**Implementation Pattern**:
+
+**1. Request Schema (CursorPaginationQuerySchema)**:
+```typescript
+// From src/api/core/schemas.ts
+export const CursorPaginationQuerySchema = z.object({
+  cursor: z.string().optional(),
+  limit: z.number().int().positive().max(100).default(20),
+});
+```
+
+**2. Handler Implementation**:
+```typescript
+// Example: src/api/routes/chat/handler.ts:252-260
+export const listThreadsHandler = createHandler(
+  {
+    auth: 'session',
+    validateQuery: CursorPaginationQuerySchema,
+    operationName: 'listThreads',
+  },
+  async (c) => {
+    const { user } = c.auth();
+    const query = c.validated.query;
+    const db = await getDbAsync();
+
+    // Build cursor-based where clause
+    const threads = await db.query.chatThread.findMany({
+      where: buildCursorWhereWithFilters(
+        tables.chatThread.updatedAt,
+        query.cursor,
+        'desc',
+        [eq(tables.chatThread.userId, user.id)],
+      ),
+      orderBy: getCursorOrderBy(tables.chatThread.updatedAt, 'desc'),
+      limit: query.limit + 1, // Fetch one extra to check hasMore
+    });
+
+    // Apply cursor pagination and format response
+    return Responses.ok(c, applyCursorPagination(
+      threads,
+      query.limit,
+      (thread) => createTimestampCursor(thread.updatedAt),
+    ));
+  },
+);
+```
+
+**3. Response Format**:
+```typescript
+{
+  "data": [...items],
+  "pagination": {
+    "nextCursor": "2024-01-15T10:30:00.000Z",
+    "hasMore": true,
+    "count": 20
+  }
+}
+```
+
+**4. Pagination Utilities** (`src/api/common/pagination.ts`):
+- `buildCursorWhereWithFilters()` - Builds WHERE clause with cursor and filters
+- `getCursorOrderBy()` - Creates ORDER BY clause
+- `createTimestampCursor()` - Generates cursor from timestamp
+- `applyCursorPagination()` - Formats response with pagination metadata
+
+**Frontend Integration** (React Query):
+```typescript
+const { data, fetchNextPage, hasNextPage } = useInfiniteQuery({
+  queryKey: ['threads'],
+  queryFn: ({ pageParam }) => fetchThreads({ cursor: pageParam }),
+  getNextPageParam: (lastPage) => lastPage.pagination.nextCursor,
+});
+```
+
+### Server-Sent Events (SSE) Streaming Pattern
+
+For real-time AI responses and token-by-token streaming, use Server-Sent Events with the Vercel AI SDK.
+
+**Benefits**:
+- Real-time token streaming for better UX
+- Built-in error handling and recovery
+- Type-safe streaming events
+- Lifecycle callbacks for database operations
+
+**Implementation Pattern**:
+
+**1. Request Schema**:
+```typescript
+// From src/api/routes/chat/schema.ts
+export const StreamChatRequestSchema = z.object({
+  content: z.string().min(1),
+  parentMessageId: z.string().optional(),
+}).openapi('StreamChatRequest');
+```
+
+**2. Route Definition**:
+```typescript
+export const streamChatRoute = createRoute({
+  method: 'post',
+  path: '/chat/threads/:id/stream',
+  tags: ['chat'],
+  summary: 'Stream AI chat response',
+  request: {
+    params: ThreadIdParamSchema,
+    body: {
+      content: {
+        'application/json': {
+          schema: StreamChatRequestSchema,
+        },
+      },
+    },
+  },
+  responses: {
+    [HttpStatusCodes.OK]: {
+      description: 'Streaming response (Server-Sent Events)',
+      content: {
+        'text/event-stream': {
+          schema: StreamingEventSchema, // Discriminated union
+        },
+      },
+    },
+  },
+});
+```
+
+**3. Handler with Streaming**:
+```typescript
+// Example: src/api/routes/chat/handler.ts:907-1006
+export const streamChatHandler = createHandler(
+  {
+    auth: 'session',
+    validateParams: ThreadIdParamSchema,
+    validateBody: StreamChatRequestSchema,
+    operationName: 'streamChat',
+  },
+  async (c) => {
+    const { user } = c.auth();
+    const { id } = c.validated.params;
+    const body = c.validated.body;
+
+    // Setup OpenRouter provider
+    const openrouter = createOpenRouterProvider({
+      apiKey: c.env.OPENROUTER_API_KEY,
+      appName: 'roundtable',
+      siteUrl: c.env.NEXT_PUBLIC_APP_URL,
+    });
+
+    const model = openrouter(participant.modelId);
+
+    // Stream with lifecycle callbacks
+    return streamAIResponse(c, {
+      threadId: id,
+      userMessage: body.content,
+      systemPrompt: participant.settings?.systemPrompt,
+      previousMessages: coreMessages,
+      model,
+      temperature: 0.7,
+      callbacks: {
+        onStart: async (threadId) => {
+          // Create user message in database
+          await db.insert(tables.chatMessage).values({
+            id: ulid(),
+            threadId,
+            role: 'user',
+            content: body.content,
+            createdAt: new Date(),
+          });
+        },
+        onComplete: async (fullText, messageId) => {
+          // Save assistant message
+          await db.insert(tables.chatMessage).values({
+            id: messageId,
+            threadId: id,
+            role: 'assistant',
+            content: fullText,
+            createdAt: new Date(),
+          });
+        },
+        onError: async (error) => {
+          apiLogger.error('Streaming error', { threadId: id, error });
+        },
+      },
+    });
+  },
+);
+```
+
+**4. Streaming Event Types** (Zod discriminated union):
+```typescript
+// From src/api/core/schemas.ts
+export const StreamingEventSchema = z.discriminatedUnion('type', [
+  z.object({ type: z.literal('start'), threadId: z.string(), timestamp: z.number() }),
+  z.object({ type: z.literal('chunk'), content: z.string(), messageId: z.string().nullable(), timestamp: z.number() }),
+  z.object({ type: z.literal('complete'), messageId: z.string(), timestamp: z.number() }),
+  z.object({ type: z.literal('error'), error: z.string(), code: z.string(), timestamp: z.number() }),
+]);
+```
+
+**5. Streaming Utilities** (`src/api/common/streaming.ts`):
+- `createOpenRouterProvider()` - Initialize OpenRouter with AI SDK
+- `streamAIResponse()` - Main SSE streaming function with callbacks
+- `buildCoreMessages()` - Convert DB messages to AI SDK format
+- `parseSSEEvent()` - Zod-based event parsing (client-side)
+
+**Frontend Integration** (EventSource):
+```typescript
+const eventSource = new EventSource('/api/v1/chat/threads/123/stream');
+
+eventSource.onmessage = (event) => {
+  const streamEvent = parseSSEEvent(event.data);
+
+  switch (streamEvent.type) {
+    case 'chunk':
+      appendToUI(streamEvent.content);
+      break;
+    case 'complete':
+      finalize(streamEvent.messageId);
+      break;
+    case 'error':
+      handleError(streamEvent.error);
+      break;
+  }
+};
+```
+
 ---
 
 ## Service Layer Patterns

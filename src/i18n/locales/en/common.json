@@ -1318,7 +1318,6 @@
     "downgrade": "Downgrade",
     "empty": "No plans available",
     "emptyDescription": "No subscription plans are currently available. Please check back later.",
-    "enterprise": "Enterprise",
     "errorDescription": "There was an error loading subscription plans. Please try again.",
     "failedToLoad": "Failed to load plans",
     "features": "Features",
@@ -1722,6 +1721,16 @@
   "title": "Title",
   "toast": {
     "genericError": "An error occurred"
+  },
+  "usage": {
+    "threads": "Threads",
+    "messages": "Messages",
+    "threadsRemaining": "threads remaining",
+    "messagesRemaining": "messages remaining",
+    "plan": "Plan",
+    "daysLeft": "days left",
+    "errorLoading": "Unable to load usage data",
+    "upgradeHint": "Upgrade for more"
   },
   "user": {
     "defaultName": "User"
