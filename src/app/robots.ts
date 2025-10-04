@@ -26,7 +26,6 @@ export default function robots(): MetadataRoute.Robots {
           '/chat/',
           '/auth/',
           '/_next/',
-          '/admin/',
           '/private/',
           '/temp/',
           '*.json',

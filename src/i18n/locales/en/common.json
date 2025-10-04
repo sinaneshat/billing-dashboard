@@ -78,7 +78,7 @@
     "emailPlaceholder": "Enter your email",
     "errors": {
       "accessDenied": "Access Denied",
-      "accessDeniedDesc": "You do not have permission to sign in. Please check your credentials or contact your administrator.",
+      "accessDeniedDesc": "You do not have permission to sign in. Please check your credentials or contact support.",
       "backToSignIn": "Back to Sign In",
       "callback": "Callback Error",
       "callbackDesc": "There was a problem during the authentication callback. Please try again.",
@@ -191,7 +191,7 @@
     "signUpWithGoogle": "Sign up with Google",
     "sso": {
       "authenticationRequired": "SSO Authentication Required",
-      "contactAdministrator": "Contact your administrator to configure SSO access for this application.",
+      "contactAdministrator": "Contact support to configure SSO access for this application.",
       "continueWithRoundtableSSO": "Continue with Roundtable SSO",
       "continueWithSSO": "Continue with SSO",
       "onlySupportsSSO": "This application only supports SSO login",

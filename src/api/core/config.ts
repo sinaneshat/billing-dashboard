@@ -339,12 +339,6 @@ export const FEATURE_FLAGS = {
   ENABLE_PASSWORD_RESET: true,
   ENABLE_PROFILE_PICTURES: true,
 
-  // Admin features
-  ENABLE_ADMIN_DASHBOARD: true,
-  ENABLE_USER_MANAGEMENT: true,
-  ENABLE_ANALYTICS: true,
-  ENABLE_SYSTEM_LOGS: true,
-
   // Development features
   ENABLE_DEBUG_LOGS: false,
   // All mock functionality removed for production readiness
