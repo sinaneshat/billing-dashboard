@@ -24,6 +24,7 @@ interface PricingCardProps {
   isProcessing?: boolean;
   onSubscribe?: () => void;
   onCancel?: () => void;
+  onManageBilling?: () => void;
   className?: string;
   delay?: number;
   annualSavingsPercent?: number;
@@ -40,6 +41,7 @@ export function PricingCard({
   isProcessing = false,
   onSubscribe,
   onCancel,
+  onManageBilling,
   className,
   delay = 0,
   annualSavingsPercent,
@@ -256,12 +258,26 @@ export function PricingCard({
               </motion.ul>
             )}
 
-            {/* CTA Button */}
+            {/* CTA Buttons */}
             <motion.div
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: delay + 0.4, duration: 0.4 }}
+              className="space-y-3"
             >
+              {/* Manage Billing Button - shown above cancel for active subscriptions */}
+              {isCurrentPlan && onManageBilling && (
+                <HoverBorderGradient
+                  as="button"
+                  containerClassName="w-full rounded-md"
+                  className="w-full text-center text-sm font-medium transition-all duration-200 bg-background text-foreground"
+                  onClick={onManageBilling}
+                >
+                  {t('manageBilling')}
+                </HoverBorderGradient>
+              )}
+
+              {/* Primary Action Button (Subscribe/Switch/Cancel) */}
               <HoverBorderGradient
                 as="button"
                 containerClassName={cn(

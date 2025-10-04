@@ -1,13 +1,13 @@
 'use client';
 
-import { Check, Loader2 } from 'lucide-react';
-import { motion } from 'motion/react';
+import { CheckCircle } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { useEffect, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
+import { LoadingSpinner } from '@/components/ui/loading-spinner';
+import { ScaleIn, StaggerContainer, StaggerItem } from '@/components/ui/motion';
 import { useSyncAfterCheckoutMutation } from '@/hooks/mutations/checkout';
 
 /**
@@ -69,113 +69,72 @@ export default function BillingSuccessScreen() {
   }
 
   return (
-    <div className="flex min-h-screen items-start justify-center bg-gradient-to-b from-background to-muted/20 p-4 pt-24">
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-        className="w-full max-w-md"
-      >
-        <Card className="border-2">
-          <CardContent className="p-8">
-            {!showSuccess
-              ? (
-                // Loading State
-                  <div className="flex flex-col items-center gap-4 text-center">
-                    <motion.div
-                      animate={{ rotate: 360 }}
-                      transition={{
-                        duration: 1,
-                        repeat: Number.POSITIVE_INFINITY,
-                        ease: 'linear',
-                      }}
-                    >
-                      <Loader2 className="size-12 text-primary" />
-                    </motion.div>
+    <div className="flex min-h-screen w-full flex-col items-center justify-start px-4 pt-16 md:pt-20">
+      {!showSuccess
+        ? (
+          // Loading State
+            <StaggerContainer
+              className="flex flex-col items-center gap-5 text-center"
+              staggerDelay={0.1}
+              delayChildren={0.1}
+            >
+              <StaggerItem>
+                <LoadingSpinner size="lg" />
+              </StaggerItem>
 
-                    <div className="space-y-1">
-                      <h1 className="text-xl font-semibold">
-                        {t('billing.success.activatingSubscription')}
-                      </h1>
-                      <p className="text-sm text-muted-foreground">
-                        {t('billing.success.confirmingPayment')}
-                      </p>
-                    </div>
+              <StaggerItem className="space-y-2">
+                <h1 className="text-xl font-semibold tracking-tight md:text-2xl">
+                  {t('billing.success.activatingSubscription')}
+                </h1>
+                <p className="text-sm text-muted-foreground md:text-base">
+                  {t('billing.success.confirmingPayment')}
+                </p>
+              </StaggerItem>
+            </StaggerContainer>
+          )
+        : (
+          // Success State
+            <StaggerContainer
+              className="flex flex-col items-center gap-6 text-center"
+              staggerDelay={0.15}
+              delayChildren={0.1}
+            >
+              <StaggerItem>
+                <ScaleIn duration={0.3} delay={0}>
+                  <div className="flex size-20 items-center justify-center rounded-full bg-green-500/10 ring-4 ring-green-500/20 md:size-24">
+                    <CheckCircle className="size-10 text-green-500 md:size-12" strokeWidth={2} />
                   </div>
-                )
-              : (
-                // Success State
-                  <div className="flex flex-col items-center gap-6 text-center">
-                    <motion.div
-                      initial={{ scale: 0 }}
-                      animate={{ scale: 1 }}
-                      transition={{
-                        type: 'spring',
-                        stiffness: 200,
-                        damping: 15,
-                      }}
-                      className="relative"
-                    >
-                      <motion.div
-                        initial={{ scale: 0 }}
-                        animate={{ scale: [1, 1.2, 1] }}
-                        transition={{
-                          duration: 0.6,
-                          times: [0, 0.5, 1],
-                          delay: 0.2,
-                        }}
-                        className="absolute inset-0 rounded-full bg-green-500/20 blur-2xl"
-                      />
-                      <div className="relative flex size-16 items-center justify-center rounded-full bg-green-500/10">
-                        <Check className="size-8 text-green-500" strokeWidth={3} />
-                      </div>
-                    </motion.div>
+                </ScaleIn>
+              </StaggerItem>
 
-                    <div className="space-y-1">
-                      <motion.h1
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: 0.3, ease: [0.16, 1, 0.3, 1] }}
-                        className="text-2xl font-bold tracking-tight"
-                      >
-                        Payment Successful!
-                      </motion.h1>
-                      <motion.p
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: 0.4, ease: [0.16, 1, 0.3, 1] }}
-                        className="text-sm text-muted-foreground"
-                      >
-                        Your subscription has been activated
-                      </motion.p>
-                    </div>
+              <StaggerItem className="space-y-2">
+                <h1 className="text-2xl font-bold tracking-tight md:text-3xl">
+                  Payment Successful!
+                </h1>
+                <p className="text-sm text-muted-foreground md:text-base">
+                  Your subscription has been activated
+                </p>
+              </StaggerItem>
 
-                    <motion.div
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: 0.5, ease: [0.16, 1, 0.3, 1] }}
-                      className="w-full space-y-3"
-                    >
-                      <p className="text-sm text-muted-foreground">
-                        Redirecting in
-                        {' '}
-                        {redirectCountdown}
-                        s
-                      </p>
+              <StaggerItem className="flex flex-col items-center gap-4">
+                <p className="text-xs text-muted-foreground md:text-sm">
+                  Redirecting in
+                  {' '}
+                  {redirectCountdown}
+                  {' '}
+                  seconds
+                </p>
 
-                      <Button
-                        onClick={() => router.push('/dashboard/pricing')}
-                        className="w-full"
-                        size="lg"
-                      >
-                        View My Plan
-                      </Button>
-                    </motion.div>
-                  </div>
-                )}
-          </CardContent>
-        </Card>
-      </motion.div>
+                <Button
+                  onClick={() => router.push('/dashboard/pricing')}
+                  size="lg"
+                  className="min-w-[200px]"
+                >
+                  View My Plan
+                </Button>
+              </StaggerItem>
+            </StaggerContainer>
+          )}
     </div>
   );
 }

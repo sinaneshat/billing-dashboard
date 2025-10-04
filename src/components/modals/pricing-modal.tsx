@@ -23,6 +23,7 @@ type Product = {
 type Subscription = {
   id: string;
   status: string;
+  priceId: string;
   productId: string;
   currentPeriodEnd?: string | null;
 };

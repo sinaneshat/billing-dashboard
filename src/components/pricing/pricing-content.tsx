@@ -29,6 +29,7 @@ type Product = {
 type Subscription = {
   id: string;
   status: string;
+  priceId: string;
   productId: string;
   currentPeriodEnd?: string | null;
 };
@@ -77,16 +78,16 @@ export function PricingContent({
     sub => sub.status === 'active' || sub.status === 'trialing',
   );
 
-  // Get subscription for a specific product
-  const getSubscriptionForProduct = (productId: string) => {
+  // Get subscription for a specific price (differentiates monthly vs annual)
+  const getSubscriptionForPrice = (priceId: string) => {
     return subscriptions.find(
-      sub => sub.productId === productId && (sub.status === 'active' || sub.status === 'trialing'),
+      sub => sub.priceId === priceId && (sub.status === 'active' || sub.status === 'trialing'),
     );
   };
 
-  // Check if user has active subscription for a specific product
-  const hasActiveSubscription = (productId: string): boolean => {
-    return !!getSubscriptionForProduct(productId);
+  // Check if user has active subscription for a specific price
+  const hasActiveSubscription = (priceId: string): boolean => {
+    return !!getSubscriptionForPrice(priceId);
   };
 
   // Filter products by interval
@@ -201,11 +202,12 @@ export function PricingContent({
             products={getProductsForInterval('month')}
             interval="month"
             hasActiveSubscription={hasActiveSubscription}
-            getSubscriptionForProduct={getSubscriptionForProduct}
+            getSubscriptionForPrice={getSubscriptionForPrice}
             hasAnyActiveSubscription={hasAnyActiveSubscription}
             processingPriceId={processingPriceId}
             onSubscribe={onSubscribe}
             onCancel={onCancel}
+            onManageBilling={onManageBilling}
             isProcessing={isProcessing}
             calculateAnnualSavings={calculateAnnualSavings}
             t={t}
@@ -218,11 +220,12 @@ export function PricingContent({
             products={getProductsForInterval('year')}
             interval="year"
             hasActiveSubscription={hasActiveSubscription}
-            getSubscriptionForProduct={getSubscriptionForProduct}
+            getSubscriptionForPrice={getSubscriptionForPrice}
             hasAnyActiveSubscription={hasAnyActiveSubscription}
             processingPriceId={processingPriceId}
             onSubscribe={onSubscribe}
             onCancel={onCancel}
+            onManageBilling={onManageBilling}
             isProcessing={isProcessing}
             calculateAnnualSavings={calculateAnnualSavings}
             t={t}
@@ -237,12 +240,13 @@ export function PricingContent({
 type ProductGridProps = {
   products: Product[];
   interval: BillingInterval;
-  hasActiveSubscription: (productId: string) => boolean;
-  getSubscriptionForProduct: (productId: string) => Subscription | undefined;
+  hasActiveSubscription: (priceId: string) => boolean;
+  getSubscriptionForPrice: (priceId: string) => Subscription | undefined;
   hasAnyActiveSubscription: boolean;
   processingPriceId: string | null;
   onSubscribe: (priceId: string) => void | Promise<void>;
   onCancel: (subscriptionId: string) => void | Promise<void>;
+  onManageBilling: () => void;
   isProcessing: boolean;
   calculateAnnualSavings: (productId: string) => number;
   t: (key: string) => string;
@@ -252,11 +256,12 @@ function ProductGrid({
   products,
   interval,
   hasActiveSubscription,
-  getSubscriptionForProduct,
+  getSubscriptionForPrice,
   hasAnyActiveSubscription,
   processingPriceId,
   onSubscribe,
   onCancel,
+  onManageBilling,
   isProcessing: _isProcessing,
   calculateAnnualSavings,
   t,
@@ -278,13 +283,15 @@ function ProductGrid({
   return (
     <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
       {products.map((product, index) => {
-        const subscription = getSubscriptionForProduct(product.id);
-        const hasSubscription = hasActiveSubscription(product.id);
         const price = product.prices?.[0]; // Get first price for this interval
 
         if (!price) {
           return null; // Skip products without prices for this interval
         }
+
+        // Check subscription by specific price ID (differentiates monthly vs annual)
+        const subscription = getSubscriptionForPrice(price.id);
+        const hasSubscription = hasActiveSubscription(price.id);
 
         // Determine if this is the most popular plan (middle card for 3 plans)
         const isMostPopular = products.length === 3 && index === 1;
@@ -307,6 +314,7 @@ function ProductGrid({
             hasOtherSubscription={hasAnyActiveSubscription && !hasSubscription}
             onSubscribe={() => onSubscribe(price.id)}
             onCancel={subscription ? () => onCancel(subscription.id) : undefined}
+            onManageBilling={hasSubscription ? onManageBilling : undefined}
             delay={index * 0.1}
             annualSavingsPercent={interval === 'year' ? calculateAnnualSavings(product.id) : undefined}
           />
