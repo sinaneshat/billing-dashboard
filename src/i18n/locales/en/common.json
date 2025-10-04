@@ -324,7 +324,11 @@
     },
     "success": {
       "activatingSubscription": "Activating your subscription...",
-      "confirmingPayment": "Please wait while we confirm your payment"
+      "confirmingPayment": "Please wait while we confirm your payment",
+      "title": "Payment Successful!",
+      "description": "Your subscription has been activated",
+      "redirecting": "Redirecting in {count} seconds",
+      "viewPlan": "View My Plan"
     },
     "interval": {
       "monthly": "Monthly",

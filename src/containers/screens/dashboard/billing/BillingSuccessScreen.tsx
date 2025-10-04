@@ -109,20 +109,16 @@ export default function BillingSuccessScreen() {
 
               <StaggerItem className="space-y-2">
                 <h1 className="text-2xl font-bold tracking-tight md:text-3xl">
-                  Payment Successful!
+                  {t('billing.success.title')}
                 </h1>
                 <p className="text-sm text-muted-foreground md:text-base">
-                  Your subscription has been activated
+                  {t('billing.success.description')}
                 </p>
               </StaggerItem>
 
               <StaggerItem className="flex flex-col items-center gap-4">
                 <p className="text-xs text-muted-foreground md:text-sm">
-                  Redirecting in
-                  {' '}
-                  {redirectCountdown}
-                  {' '}
-                  seconds
+                  {t('billing.success.redirecting', { count: redirectCountdown })}
                 </p>
 
                 <Button
@@ -130,7 +126,7 @@ export default function BillingSuccessScreen() {
                   size="lg"
                   className="min-w-[200px]"
                 >
-                  View My Plan
+                  {t('billing.success.viewPlan')}
                 </Button>
               </StaggerItem>
             </StaggerContainer>
