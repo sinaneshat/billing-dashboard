@@ -58,7 +58,7 @@ export function CommandSearch({ chats, isOpen, onClose }: CommandSearchProps) {
         case 'Enter':
           e.preventDefault();
           if (filteredChats[selectedIndex]) {
-            router.push(`/dashboard/chat/${filteredChats[selectedIndex].id}`);
+            router.push(`/chat/chat/${filteredChats[selectedIndex].id}`);
             onClose();
           }
           break;
@@ -155,7 +155,7 @@ export function CommandSearch({ chats, isOpen, onClose }: CommandSearchProps) {
                               }}
                             >
                               <Link
-                                href={`/dashboard/chat/${chat.id}`}
+                                href={`/chat/chat/${chat.id}`}
                                 onClick={onClose}
                                 className={cn(
                                   'flex items-center gap-3 px-4 py-3 hover:bg-accent/50 transition-colors cursor-pointer',

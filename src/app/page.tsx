@@ -19,8 +19,8 @@ export default async function Home() {
   const session = await auth.api.getSession({ headers: headersList });
 
   if (session?.user) {
-    // User is authenticated, redirect to dashboard
-    redirect('/dashboard');
+    // User is authenticated, redirect to chat
+    redirect('/chat');
   } else {
     // User is not authenticated, redirect to sign-in
     redirect('/auth/sign-in');

@@ -112,12 +112,12 @@ export const CheckoutRequestSchema = z.object({
     example: 'price_1ABC123',
   }),
   successUrl: CoreSchemas.url().optional().openapi({
-    description: 'URL to redirect to after successful checkout (defaults to /dashboard/billing/success). Do NOT include session_id parameter - success page will eagerly sync fresh data from Stripe API.',
-    example: 'https://app.example.com/dashboard/billing/success',
+    description: 'URL to redirect to after successful checkout (defaults to /chat/billing/success). Do NOT include session_id parameter - success page will eagerly sync fresh data from Stripe API.',
+    example: 'https://app.example.com/chat/billing/success',
   }),
   cancelUrl: CoreSchemas.url().optional().openapi({
-    description: 'URL to redirect to if checkout is canceled (defaults to /dashboard/billing)',
-    example: 'https://app.example.com/dashboard/billing',
+    description: 'URL to redirect to if checkout is canceled (defaults to /chat/billing)',
+    example: 'https://app.example.com/chat/billing',
   }),
 }).openapi('CheckoutRequest');
 

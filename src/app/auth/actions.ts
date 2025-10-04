@@ -18,8 +18,8 @@ export async function handlePostAuthRedirect(returnUrl?: string) {
     redirect(returnUrl);
   }
 
-  // 3. Redirect to dashboard
-  redirect('/dashboard');
+  // 3. Redirect to chat
+  redirect('/chat');
 }
 
 /**
@@ -54,6 +54,6 @@ export async function redirectIfAuthenticated() {
   const session = await auth.api.getSession({ headers: headersList });
 
   if (session?.user) {
-    redirect('/dashboard');
+    redirect('/chat');
   }
 }

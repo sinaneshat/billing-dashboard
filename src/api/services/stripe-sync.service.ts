@@ -321,6 +321,7 @@ export async function syncStripeDataFromStripe(
   }).onConflictDoUpdate({
     target: tables.stripeSubscription.id,
     set: {
+      priceId: price.id, // CRITICAL: Update priceId when subscription plan changes
       status: subscription.status,
       quantity: firstItem.quantity ?? 1,
       currentPeriodStart: new Date(currentPeriodStart * 1000),

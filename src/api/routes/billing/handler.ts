@@ -325,7 +325,7 @@ export const getProductHandler: RouteHandler<typeof getProductRoute, ApiEnv> = c
  *
  * Following Theo's "Stay Sane with Stripe" pattern:
  * - Creates Stripe Checkout session for subscription purchase
- * - Success URL redirects to /dashboard/billing/success (WITHOUT session_id parameter)
+ * - Success URL redirects to /chat/billing/success (WITHOUT session_id parameter)
  * - Success page auto-triggers eager sync from Stripe API
  * - This prevents race condition where UI loads before webhooks arrive
  * - Webhooks still run in background but UI doesn't depend on them
@@ -448,8 +448,8 @@ export const createCheckoutSessionHandler: RouteHandler<typeof createCheckoutSes
       const appUrl = c.env.NEXT_PUBLIC_APP_URL;
       // Theo's pattern: Do NOT use CHECKOUT_SESSION_ID (ignore it)
       // Success page will eagerly sync fresh data from Stripe API
-      const successUrl = body.successUrl || `${appUrl}/dashboard/billing/success`;
-      const cancelUrl = body.cancelUrl || `${appUrl}/dashboard/billing`;
+      const successUrl = body.successUrl || `${appUrl}/chat/billing/success`;
+      const cancelUrl = body.cancelUrl || `${appUrl}/chat/billing`;
 
       const session = await stripeService.createCheckoutSession({
         priceId: body.priceId,
@@ -544,7 +544,7 @@ export const createCustomerPortalSessionHandler: RouteHandler<typeof createCusto
       }
 
       const appUrl = c.env.NEXT_PUBLIC_APP_URL;
-      const returnUrl = body.returnUrl || `${appUrl}/dashboard`;
+      const returnUrl = body.returnUrl || `${appUrl}/chat`;
 
       const session = await stripeService.createCustomerPortalSession({
         customerId,

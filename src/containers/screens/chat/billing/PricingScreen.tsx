@@ -3,9 +3,9 @@
 import { useTranslations } from 'next-intl';
 import { useState } from 'react';
 
-import { DashboardPageHeader } from '@/components/dashboard/dashboard-header';
-import { DashboardContainer } from '@/components/dashboard/dashboard-layout';
-import { DashboardPage } from '@/components/dashboard/dashboard-states';
+import { ChatPageHeader } from '@/components/chat/chat-header';
+import { ChatContainer } from '@/components/chat/chat-layout';
+import { ChatPage } from '@/components/chat/chat-states';
 import { PricingContent } from '@/components/pricing/pricing-content';
 import {
   useCancelSubscriptionMutation,
@@ -95,13 +95,13 @@ export default function PricingScreen() {
     || switchMutation.isPending;
 
   return (
-    <DashboardPage>
-      <DashboardPageHeader
+    <ChatPage>
+      <ChatPageHeader
         title={t('billing.products.title')}
         description={t('billing.products.description')}
       />
 
-      <DashboardContainer>
+      <ChatContainer>
         <PricingContent
           products={products}
           subscriptions={subscriptions}
@@ -114,7 +114,7 @@ export default function PricingScreen() {
           isProcessing={isProcessing}
           showSubscriptionBanner={false}
         />
-      </DashboardContainer>
-    </DashboardPage>
+      </ChatContainer>
+    </ChatPage>
   );
 }

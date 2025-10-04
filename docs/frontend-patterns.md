@@ -93,7 +93,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 }
 
 // Pattern: (app) route group isolates dashboard layout
-// src/app/(app)/dashboard/page.tsx ✓
+// src/app/(app)/chat/page.tsx ✓
 // src/app/(app)/settings/page.tsx ✓
 ```
 
@@ -134,7 +134,7 @@ export default function SetupModal() {
 
 **Standard Page Structure:**
 ```typescript
-// File: src/app/(app)/dashboard/page.tsx
+// File: src/app/(app)/chat/page.tsx
 import { Metadata } from 'next'
 import { getTranslations } from 'next-intl/server'
 import { DashboardContainer } from '@/containers/dashboard-container'
@@ -158,14 +158,14 @@ export default function DashboardPage() {
 
 **Loading and Error Boundaries:**
 ```typescript
-// File: src/app/(app)/dashboard/loading.tsx
+// File: src/app/(app)/chat/loading.tsx
 import { DashboardSkeleton } from '@/components/skeletons'
 
 export default function Loading() {
   return <DashboardSkeleton />
 }
 
-// File: src/app/(app)/dashboard/error.tsx
+// File: src/app/(app)/chat/error.tsx
 'use client'
 
 import { ErrorBoundary } from '@/components/ui/error-boundary'
@@ -250,7 +250,7 @@ export { Button, buttonVariants }
 
 **Domain-Specific Component Extension:**
 ```typescript
-// File: src/components/dashboard/user-card.tsx
+// File: src/components/chat/user-card.tsx
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -874,9 +874,9 @@ export function PaymentMethodCard({ paymentMethod }: PaymentMethodCardProps) {
 
 import { useTranslations } from 'next-intl'
 import { useQuery } from '@tanstack/react-query'
-import { DashboardHeader } from '@/components/dashboard/dashboard-header'
-import { OverviewCards } from '@/components/dashboard/overview-cards'
-import { RecentActivity } from '@/components/dashboard/recent-activity'
+import { DashboardHeader } from '@/components/chat/dashboard-header'
+import { OverviewCards } from '@/components/chat/overview-cards'
+import { RecentActivity } from '@/components/chat/recent-activity'
 import { LoadingSkeleton } from '@/components/ui/loading-skeleton'
 import { ErrorState } from '@/components/ui/error-state'
 
@@ -1108,7 +1108,7 @@ const Card = React.forwardRef<HTMLDivElement, CardProps>(
 
 **Mobile-First Responsive Components:**
 ```typescript
-// File: src/components/dashboard/user-grid.tsx
+// File: src/components/chat/user-grid.tsx
 import { UserCard } from './user-card'
 import { User } from '@/lib/types'
 
@@ -1622,7 +1622,7 @@ export async function requireAuth() {
 
 **Component Lazy Loading:**
 ```typescript
-// File: src/components/dashboard/analytics-overview.tsx
+// File: src/components/chat/analytics-overview.tsx
 import { lazy, Suspense } from 'react'
 import { LoadingSkeleton } from '@/components/ui/loading-skeleton'
 
@@ -1787,7 +1787,7 @@ export type TeamId = string & { readonly brand: unique symbol }
 ```typescript
 // File: src/components/__tests__/user-card.test.tsx
 import { render, screen } from '@testing-library/react'
-import { UserCard } from '../dashboard/user-card'
+import { UserCard } from '../chat/user-card'
 import { mockUser } from '@/lib/test-utils'
 
 describe('UserCard', () => {

@@ -17,17 +17,17 @@ import { Separator } from '@/components/ui/separator';
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import { cn } from '@/lib/ui/cn';
 
-import { DashboardSection } from './dashboard-states';
+import { ChatSection } from './chat-states';
 
 // =============================================================================
-// UNIFIED HEADER SYSTEM FOR DASHBOARD
-// Consolidates: dashboard-header.tsx + page-header.tsx + dashboard/dashboard-header.tsx
+// UNIFIED HEADER SYSTEM FOR CHAT
+// Consolidates: chat-header.tsx + page-header.tsx + chat/chat-header.tsx
 // Eliminates ~128 lines of duplicate code with consistent API
 // =============================================================================
 
 const breadcrumbMap: Record<string, { titleKey: string; parent?: string }> = {
-  '/dashboard': { titleKey: 'navigation.dashboard' },
-  '/dashboard/pricing': { titleKey: 'navigation.pricing', parent: '/dashboard' },
+  '/chat': { titleKey: 'navigation.chat' },
+  '/chat/pricing': { titleKey: 'navigation.pricing', parent: '/chat' },
 };
 
 // Navigation Header - replaces dashboard-header.tsx
@@ -135,8 +135,8 @@ export function PageHeader({
   );
 }
 
-// Dashboard Page Header - replaces ui/dashboard-header.tsx
-type DashboardPageHeaderProps = {
+// Chat Page Header - replaces ui/chat-header.tsx
+type ChatPageHeaderProps = {
   title: string;
   description: string;
   action?: ReactNode;
@@ -144,15 +144,15 @@ type DashboardPageHeaderProps = {
   className?: string;
 };
 
-export function DashboardPageHeader({
+export function ChatPageHeader({
   title,
   description,
   action,
   size = 'md',
   className,
-}: DashboardPageHeaderProps) {
+}: ChatPageHeaderProps) {
   return (
-    <DashboardSection className={className}>
+    <ChatSection className={className}>
       <div className="flex items-center justify-between">
         <PageHeader
           title={title}
@@ -166,7 +166,7 @@ export function DashboardPageHeader({
           </div>
         )}
       </div>
-    </DashboardSection>
+    </ChatSection>
   );
 }
 

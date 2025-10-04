@@ -20,9 +20,9 @@ type GoogleButtonProps = {
  * Uses Better Auth's social provider to authenticate with Google
  */
 export function GoogleButton({
-  callbackURL = '/dashboard',
+  callbackURL = '/chat',
   errorCallbackURL = '/auth/error',
-  newUserCallbackURL = '/dashboard',
+  newUserCallbackURL = '/chat',
   children,
   className,
   disabled = false,

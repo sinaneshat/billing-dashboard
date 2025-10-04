@@ -7,9 +7,9 @@ import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { useEffect, useMemo, useState } from 'react';
 
-import { ChatList } from '@/components/dashboard/chat-list';
-import { CommandSearch } from '@/components/dashboard/command-search';
-import { NavUser } from '@/components/dashboard/nav-user';
+import { ChatList } from '@/components/chat/chat-list';
+import { CommandSearch } from '@/components/chat/command-search';
+import { NavUser } from '@/components/chat/nav-user';
 import { Button } from '@/components/ui/button';
 import {
   Sidebar,
@@ -47,7 +47,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   }, []);
 
   const handleNewChat = () => {
-    router.push('/dashboard');
+    router.push('/chat');
   };
 
   const handleDeleteChat = (chatId: string) => {
@@ -80,7 +80,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             <SidebarMenu>
               <SidebarMenuItem>
                 <SidebarMenuButton size="lg" asChild>
-                  <Link href="/dashboard">
+                  <Link href="/chat">
                     <div className="flex aspect-square size-8 items-center justify-center rounded-lg">
                       <Image
                         src="/static/logo.png"

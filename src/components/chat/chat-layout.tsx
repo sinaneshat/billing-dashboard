@@ -4,17 +4,17 @@ import type { ReactNode } from 'react';
 
 import { cn } from '@/lib/ui/cn';
 
-// Following shadcn/ui dashboard-01 block official spacing patterns
-type DashboardContainerProps = {
+// Following shadcn/ui chat-01 block official spacing patterns
+type ChatContainerProps = {
   children: ReactNode;
   className?: string;
 };
 
 /**
- * Main dashboard container following shadcn/ui dashboard-01 block pattern
+ * Main chat container following shadcn/ui chat-01 block pattern
  * Provides consistent spacing and responsive layout structure
  */
-export function DashboardContainer({ children, className }: DashboardContainerProps) {
+export function ChatContainer({ children, className }: ChatContainerProps) {
   return (
     <div className={cn('@container/main flex flex-1 flex-col w-full min-w-0', className)}>
       {children}
@@ -22,21 +22,21 @@ export function DashboardContainer({ children, className }: DashboardContainerPr
   );
 }
 
-type DashboardSectionProps = {
+type ChatSectionProps = {
   children: ReactNode;
   className?: string;
   spacing?: 'compact' | 'default' | 'spacious';
 };
 
 /**
- * Dashboard section with consistent spacing following official patterns
- * Provides standardized spacing between dashboard sections
+ * Chat section with consistent spacing following official patterns
+ * Provides standardized spacing between chat sections
  */
-export function DashboardSection({
+export function ChatSection({
   children,
   className,
   spacing = 'default',
-}: DashboardSectionProps) {
+}: ChatSectionProps) {
   const spacingClasses = {
     compact: 'space-y-3 md:space-y-4',
     default: 'space-y-4 md:space-y-6',
@@ -50,7 +50,7 @@ export function DashboardSection({
   );
 }
 
-type DashboardGridProps = {
+type ChatGridProps = {
   children: ReactNode;
   columns?: {
     default?: number;
@@ -69,12 +69,12 @@ const DEFAULT_GRID_COLUMNS = { default: 1, md: 2, lg: 3 };
  * Responsive dashboard grid following Tailwind best practices
  * No minimum widths, proper responsive breakpoints, consistent spacing
  */
-export function DashboardGrid({
+export function ChatGrid({
   children,
   columns = DEFAULT_GRID_COLUMNS,
   gap = 'default',
   className,
-}: DashboardGridProps) {
+}: ChatGridProps) {
   const gapClasses = {
     compact: 'gap-3 md:gap-4',
     default: 'gap-4 md:gap-6',
@@ -104,7 +104,7 @@ export function DashboardGrid({
   );
 }
 
-type DashboardCardSectionProps = {
+type ChatCardSectionProps = {
   children: ReactNode;
   title?: string;
   description?: string;
@@ -115,12 +115,12 @@ type DashboardCardSectionProps = {
  * Standardized card section for dashboard content
  * Ensures consistent card heights and no minimum width constraints
  */
-export function DashboardCardSection({
+export function ChatCardSection({
   children,
   title,
   description,
   className,
-}: DashboardCardSectionProps) {
+}: ChatCardSectionProps) {
   return (
     <div className={cn('space-y-4 md:space-y-6', className)}>
       {(title || description) && (
@@ -138,7 +138,7 @@ export function DashboardCardSection({
   );
 }
 
-type DashboardMetricGridProps = {
+type ChatMetricGridProps = {
   children: ReactNode;
   className?: string;
 };
@@ -147,7 +147,7 @@ type DashboardMetricGridProps = {
  * Specialized grid for metric cards following shadcn/ui dashboard-01 block
  * Implements the exact pattern from the official block
  */
-export function DashboardMetricGrid({ children, className }: DashboardMetricGridProps) {
+export function ChatMetricGrid({ children, className }: ChatMetricGridProps) {
   return (
     <div className={cn(
       // Official shadcn/ui dashboard-01 metric grid pattern
@@ -166,7 +166,7 @@ export function DashboardMetricGrid({ children, className }: DashboardMetricGrid
   );
 }
 
-type DashboardContentGridProps = {
+type ChatContentGridProps = {
   children: ReactNode;
   layout?: 'equal' | 'sidebar' | 'main-sidebar' | 'three-column';
   className?: string;
@@ -176,11 +176,11 @@ type DashboardContentGridProps = {
  * Content grid for main dashboard layouts
  * Provides common layout patterns without minimum widths
  */
-export function DashboardContentGrid({
+export function ChatContentGrid({
   children,
   layout = 'equal',
   className,
-}: DashboardContentGridProps) {
+}: ChatContentGridProps) {
   const layoutClasses = {
     'equal': 'grid-cols-1 md:grid-cols-2',
     'sidebar': 'grid-cols-1 lg:grid-cols-[250px_1fr]',
@@ -203,21 +203,21 @@ export function DashboardContentGrid({
 /**
  * Two-column layout with 2:1 ratio (following dashboard patterns)
  */
-export function DashboardTwoColumnGrid({ children, className }: { children: ReactNode; className?: string }) {
+export function ChatTwoColumnGrid({ children, className }: { children: ReactNode; className?: string }) {
   return (
-    <DashboardContentGrid layout="equal" className={className}>
+    <ChatContentGrid layout="equal" className={className}>
       {children}
-    </DashboardContentGrid>
+    </ChatContentGrid>
   );
 }
 
 /**
  * Three-column equal layout
  */
-export function DashboardThreeColumnGrid({ children, className }: { children: ReactNode; className?: string }) {
+export function ChatThreeColumnGrid({ children, className }: { children: ReactNode; className?: string }) {
   return (
-    <DashboardContentGrid layout="three-column" className={className}>
+    <ChatContentGrid layout="three-column" className={className}>
       {children}
-    </DashboardContentGrid>
+    </ChatContentGrid>
   );
 }

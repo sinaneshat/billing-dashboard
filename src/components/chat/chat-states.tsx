@@ -25,12 +25,12 @@ import { FadeIn, PageTransition } from '@/components/ui/motion';
 import { cn } from '@/lib/ui/cn';
 
 // =============================================================================
-// UNIFIED STATE SYSTEM FOR DASHBOARD
-// Consolidates: dashboard-empty-states.tsx + error-states.tsx + dashboard-states.tsx
+// UNIFIED STATE SYSTEM FOR CHAT
+// Consolidates: chat-empty-states.tsx + error-states.tsx + chat-states.tsx
 // Eliminates ~567 lines of duplicate code with consistent API
 // =============================================================================
 
-// Loading States - unified loading component with enhanced dashboard styling
+// Loading States - unified loading component with enhanced chat styling
 type LoadingStateProps = {
   title?: string;
   message?: string;
@@ -513,12 +513,12 @@ export function SuccessState({
 }
 
 // Page Wrapper Components
-type DashboardPageProps = {
+type ChatPageProps = {
   children: ReactNode;
   className?: string;
 };
 
-export function DashboardPage({ children, className }: DashboardPageProps) {
+export function ChatPage({ children, className }: ChatPageProps) {
   return (
     <PageTransition>
       <div className={cn('space-y-6', className)}>
@@ -528,19 +528,19 @@ export function DashboardPage({ children, className }: DashboardPageProps) {
   );
 }
 
-type DashboardSectionProps = {
+type ChatSectionProps = {
   children: ReactNode;
   delay?: number;
   spacing?: 'tight' | 'default' | 'loose';
   className?: string;
 };
 
-export function DashboardSection({
+export function ChatSection({
   children,
   delay = 0.05,
   spacing = 'default',
   className,
-}: DashboardSectionProps) {
+}: ChatSectionProps) {
   const spacingConfig = {
     tight: 'space-y-4',
     default: 'space-y-6',

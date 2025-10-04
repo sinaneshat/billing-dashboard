@@ -97,7 +97,7 @@ export function NavUser() {
             <DropdownMenuSeparator />
             <DropdownMenuGroup>
               <DropdownMenuItem asChild>
-                <Link href="/dashboard/pricing">
+                <Link href="/chat/pricing">
                   <CreditCard />
                   {t('navigation.pricing')}
                 </Link>

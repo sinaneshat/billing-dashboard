@@ -177,7 +177,7 @@ export default function BlogPost() {
 Add breadcrumbs for better navigation and SEO:
 
 ```tsx
-// src/app/(app)/dashboard/settings/page.tsx
+// src/app/(app)/chat/settings/page.tsx
 import { BreadcrumbStructuredData } from '@/components/seo';
 
 export default function SettingsPage() {
@@ -187,7 +187,7 @@ export default function SettingsPage() {
         items={[
           { name: 'Home', url: '/' },
           { name: 'Dashboard', url: '/dashboard' },
-          { name: 'Settings', url: '/dashboard/settings' },
+          { name: 'Settings', url: '/chat/settings' },
         ]}
       />
       {/* Page content */}
@@ -430,7 +430,7 @@ export default async function Layout({ children }) {
 }
 ```
 
-### Dashboard Layout (src/app/(app)/dashboard/layout.tsx)
+### Dashboard Layout (src/app/(app)/chat/layout.tsx)
 
 ```tsx
 export async function generateMetadata(): Promise<Metadata> {

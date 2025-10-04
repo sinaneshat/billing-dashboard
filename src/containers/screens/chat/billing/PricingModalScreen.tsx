@@ -17,7 +17,7 @@ import {
  * Pricing Modal Screen
  *
  * Intercepted modal route for pricing display
- * Shown when navigating from dashboard to /dashboard/pricing
+ * Shown when navigating from dashboard to /chat/pricing
  * Uses Next.js intercepting routes pattern with (.) prefix
  * Displays available products and pricing options
  */

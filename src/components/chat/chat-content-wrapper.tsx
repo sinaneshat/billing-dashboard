@@ -3,11 +3,11 @@
 import { motion } from 'motion/react';
 import type { ReactNode } from 'react';
 
-type DashboardContentWrapperProps = {
+type ChatContentWrapperProps = {
   children: ReactNode;
 };
 
-export function DashboardContentWrapper({ children }: DashboardContentWrapperProps) {
+export function ChatContentWrapper({ children }: ChatContentWrapperProps) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}

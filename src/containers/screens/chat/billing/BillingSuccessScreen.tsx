@@ -57,14 +57,14 @@ export default function BillingSuccessScreen() {
       return () => clearTimeout(timer);
     }
     if (showSuccess && redirectCountdown === 0) {
-      router.push('/dashboard/pricing');
+      router.push('/chat/pricing');
     }
     return undefined;
   }, [showSuccess, redirectCountdown, router]);
 
   // Handle error case - still redirect but show error state
   if (syncMutation.isError) {
-    router.push('/dashboard/pricing?sync=failed');
+    router.push('/chat/pricing?sync=failed');
     return null;
   }
 
@@ -122,7 +122,7 @@ export default function BillingSuccessScreen() {
                 </p>
 
                 <Button
-                  onClick={() => router.push('/dashboard/pricing')}
+                  onClick={() => router.push('/chat/pricing')}
                   size="lg"
                   className="min-w-[200px]"
                 >

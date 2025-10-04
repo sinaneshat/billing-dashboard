@@ -485,30 +485,6 @@
     "usd": "USD",
     "dollar": "Dollar"
   },
-  "dashboard": {
-    "description": "Manage your billing and subscriptions from your comprehensive dashboard overview",
-    "hero": {
-      "staticText": "Collaborate with",
-      "rotatingWords": {
-        "multipleAI": "Multiple AI Models",
-        "expertSystems": "Expert Systems",
-        "smartAssistants": "Smart Assistants",
-        "aiThinkTanks": "AI Think Tanks"
-      },
-      "subtitle": "Where multiple AI models brainstorm together to solve complex problems"
-    },
-    "overview": {
-      "activeSubscriptions": "Active Subscriptions",
-      "monthlySpend": "Monthly Spend",
-      "nextBilling": "Next Billing",
-      "paymentMethods": "Payment Methods",
-      "recentActivity": "Recent Activity",
-      "title": "Overview",
-      "totalSpend": "Total Spend"
-    },
-    "title": "Dashboard",
-    "welcome": "Welcome back"
-  },
   "dataFilters": {
     "advancedFilters": "Advanced filters",
     "amount": "Amount",
@@ -982,6 +958,7 @@
     "billingPortal": "Billing Portal",
     "billingHistory": "Billing History",
     "contact": "Contact",
+    "chat": "Chat",
     "dashboard": "Dashboard",
     "navigation": "Navigation",
     "chats": "Chats",
@@ -1001,6 +978,17 @@
   },
   "chat": {
     "title": "Chats",
+    "description": "Manage your conversations and chat history",
+    "hero": {
+      "staticText": "Collaborate with",
+      "rotatingWords": {
+        "multipleAI": "Multiple AI Models",
+        "expertSystems": "Expert Systems",
+        "smartAssistants": "Smart Assistants",
+        "aiThinkTanks": "AI Think Tanks"
+      },
+      "subtitle": "Where multiple AI models brainstorm together to solve complex problems"
+    },
     "newChat": "New Chat",
     "newChatDescription": "Start a new conversation",
     "noChatSelected": "No chat selected",

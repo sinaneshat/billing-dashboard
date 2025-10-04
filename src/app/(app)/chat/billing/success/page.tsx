@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 
-import BillingSuccessScreen from '@/containers/screens/dashboard/billing/BillingSuccessScreen';
+import BillingSuccessScreen from '@/containers/screens/chat/billing/BillingSuccessScreen';
 
 export const metadata: Metadata = {
   title: 'Payment Successful',

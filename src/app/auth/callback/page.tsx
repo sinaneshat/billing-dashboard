@@ -26,6 +26,6 @@ export default async function AuthCallbackPage({
     redirect(params.returnUrl);
   }
 
-  // 3. Redirect to dashboard
-  redirect('/dashboard');
+  // 3. Redirect to chat
+  redirect('/chat');
 }

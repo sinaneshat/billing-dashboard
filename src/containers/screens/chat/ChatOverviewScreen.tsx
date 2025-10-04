@@ -6,15 +6,15 @@ import { Logo } from '@/components/logo';
 import { LayoutTextFlip } from '@/components/ui/layout-text-flip';
 import { ScaleIn, StaggerContainer, StaggerItem } from '@/components/ui/motion';
 
-export default function DashboardOverviewScreen() {
+export default function ChatOverviewScreen() {
   const t = useTranslations();
 
   // Prepare rotating words from translations
   const rotatingWords = [
-    t('dashboard.hero.rotatingWords.multipleAI'),
-    t('dashboard.hero.rotatingWords.expertSystems'),
-    t('dashboard.hero.rotatingWords.smartAssistants'),
-    t('dashboard.hero.rotatingWords.aiThinkTanks'),
+    t('chat.hero.rotatingWords.multipleAI'),
+    t('chat.hero.rotatingWords.expertSystems'),
+    t('chat.hero.rotatingWords.smartAssistants'),
+    t('chat.hero.rotatingWords.aiThinkTanks'),
   ];
 
   return (
@@ -37,13 +37,13 @@ export default function DashboardOverviewScreen() {
         {/* Hero Section with Animated Text */}
         <StaggerItem className="flex flex-col items-center gap-5">
           <LayoutTextFlip
-            text={t('dashboard.hero.staticText')}
+            text={t('chat.hero.staticText')}
             words={rotatingWords}
             duration={3000}
           />
 
           <p className="text-base md:text-lg text-muted-foreground max-w-xl md:max-w-2xl px-4 leading-relaxed">
-            {t('dashboard.hero.subtitle')}
+            {t('chat.hero.subtitle')}
           </p>
         </StaggerItem>
 

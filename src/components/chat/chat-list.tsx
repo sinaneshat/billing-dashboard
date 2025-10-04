@@ -38,7 +38,7 @@ export function ChatList({ chatGroups, favorites = [], onDeleteChat, onToggleFav
   const t = useTranslations('chat');
 
   const renderChatItem = (chat: Chat, index: number) => {
-    const isActive = pathname === `/dashboard/chat/${chat.id}`;
+    const isActive = pathname === `/chat/chat/${chat.id}`;
     return (
       <motion.div
         key={chat.id}
@@ -58,7 +58,7 @@ export function ChatList({ chatGroups, favorites = [], onDeleteChat, onToggleFav
             tooltip={chat.title}
             className="group-has-[[data-state=open]]/menu-item:bg-sidebar-accent"
           >
-            <Link href={`/dashboard/chat/${chat.id}`}>
+            <Link href={`/chat/chat/${chat.id}`}>
               <span className="truncate">{chat.title}</span>
             </Link>
           </SidebarMenuButton>

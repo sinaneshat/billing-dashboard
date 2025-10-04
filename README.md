@@ -382,7 +382,7 @@ pnpm email:preview
 ```
 src/
 ├── app/                    # Next.js App Router
-│   ├── (app)/dashboard/   # Protected dashboard routes
+│   ├── (app)/chat/   # Protected dashboard routes
 │   ├── auth/              # Authentication pages
 │   ├── api/               # Next.js API routes (proxy)
 │   ├── privacy/           # Privacy policy page
