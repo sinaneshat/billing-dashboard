@@ -119,6 +119,61 @@ const rules = {
   },
 
   /**
+   * Prohibit importing the global db export in favor of getDb()/getDbAsync()
+   *
+   * @type {import('eslint').Rule.RuleModule}
+   */
+  'no-global-db-import': {
+    meta: {
+      type: 'problem',
+      docs: {
+        description:
+          'Prohibit importing the global db export. Use getDb() or getDbAsync() instead for Cloudflare Workers compatibility',
+        category: 'Best Practices',
+        recommended: true,
+        url: 'https://opennext.js.org/cloudflare/howtos/database#drizzle-orm',
+      },
+      messages: {
+        noGlobalDb:
+          'Do not import the global db export. Use getDb() for dynamic routes or getDbAsync() for static routes instead. The global db export is only for Better Auth compatibility.',
+      },
+      schema: [],
+      fixable: null,
+    },
+
+    create(context) {
+      const filename = context.getFilename();
+      // Allow global db import only in Better Auth configuration and test scripts
+      const allowedFiles = [
+        'src/lib/auth/server/index.ts',
+        'scripts/create-test-session.ts',
+      ];
+
+      if (allowedFiles.some(allowed => filename.endsWith(allowed))) {
+        return {}; // Skip checking for allowed files
+      }
+
+      return {
+        ImportDeclaration(node) {
+          if (node.source.value === '@/db' || node.source.value === '../db' || node.source.value.endsWith('/db')) {
+            node.specifiers.forEach((specifier) => {
+              if (
+                specifier.type === 'ImportSpecifier'
+                && specifier.imported.name === 'db'
+              ) {
+                context.report({
+                  node: specifier,
+                  messageId: 'noGlobalDb',
+                });
+              }
+            });
+          }
+        },
+      };
+    },
+  },
+
+  /**
    * Warn about using getDbAsync without proper batch context
    *
    * @type {import('eslint').Rule.RuleModule}

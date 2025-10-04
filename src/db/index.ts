@@ -135,8 +135,16 @@ export const getDbAsync = cache(async () => {
 });
 
 /**
- * Legacy database instance for backward compatibility
- * Uses automatic environment detection
+ * Create database instance for the global db Proxy
+ *
+ * This function is called on each database property access via the Proxy pattern.
+ * It creates a new instance per access, preventing connection reuse issues.
+ *
+ * Environment Detection Priority:
+ * 1. Next.js development (npm run dev) → Local SQLite with transactions
+ * 2. NEXT_PUBLIC_WEBAPP_ENV=local → Local SQLite with transactions
+ * 3. Cloudflare Workers (production/preview) → D1 with batch operations
+ * 4. Fallback → Local SQLite
  */
 function createDbInstance(): ReturnType<typeof drizzleD1<typeof schema>> | ReturnType<typeof drizzleBetter<typeof schema>> {
   // Check if running in Next.js development mode (npm run dev)
@@ -163,8 +171,28 @@ function createDbInstance(): ReturnType<typeof drizzleD1<typeof schema>> | Retur
 }
 
 /**
- * Default database instance for backward compatibility
- * Note: In production, prefer using getDb() or getDbAsync()
+ * Global database Proxy for Better Auth compatibility
+ *
+ * ⚠️ IMPORTANT: This global export is ONLY for Better Auth initialization.
+ * DO NOT import this in new code - use getDb() or getDbAsync() instead.
+ *
+ * Why this pattern exists:
+ * - Better Auth is initialized at module load time (before requests exist)
+ * - Cannot use getCloudflareContext() at module load time
+ * - Proxy creates a new database instance on each property access
+ * - Prevents connection reuse while satisfying Better Auth's API requirements
+ *
+ * OpenNext.js Compliance:
+ * - ✅ No connection reuse (new instance per access)
+ * - ✅ Works with Cloudflare Workers execution model
+ * - ⚠️ Workaround for Better Auth's initialization constraints
+ *
+ * For all other use cases, use:
+ * - getDb() for dynamic routes and server components
+ * - getDbAsync() for static routes (ISR/SSG)
+ *
+ * @see src/lib/auth/server/index.ts - Better Auth configuration
+ * @see https://www.better-auth.com/docs/adapters/drizzle
  */
 export const db = new Proxy({} as ReturnType<typeof createDbInstance>, {
   get(_, prop) {

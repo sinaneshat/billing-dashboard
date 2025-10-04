@@ -93,6 +93,10 @@ export default antfu(
       'local/no-db-transactions': 'error', // Block db.transaction() usage
       'local/prefer-batch-handler': 'warn', // Suggest using createHandlerWithBatch
       'local/batch-context-awareness': 'warn', // Prefer batch.db over getDbAsync() in batch handlers
+
+      // 🚨 CRITICAL: OpenNext.js Database Pattern Enforcement
+      // Prevent global db imports to ensure per-request database instances
+      'local/no-global-db-import': 'error', // Block import { db } from '@/db' (use getDb/getDbAsync instead)
     },
   },
 );
