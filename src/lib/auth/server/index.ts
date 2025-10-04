@@ -2,7 +2,7 @@ import { getCloudflareContext } from '@opennextjs/cloudflare';
 import { betterAuth } from 'better-auth';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { nextCookies } from 'better-auth/next-js';
-import { admin, magicLink } from 'better-auth/plugins';
+import { magicLink } from 'better-auth/plugins';
 import { drizzle as drizzleD1 } from 'drizzle-orm/d1';
 
 import { db } from '@/db';
@@ -108,7 +108,6 @@ export const auth = betterAuth({
 
   plugins: [
     nextCookies(),
-    admin(), // Enable admin plugin for SSO impersonateUser functionality
     magicLink({
       sendMagicLink: async ({ email, url }) => {
         const { emailService } = await import('@/lib/email/ses-service');

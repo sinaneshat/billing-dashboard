@@ -13,6 +13,7 @@ import { getDbAsync } from '@/db';
 import * as tables from '@/db/schema';
 
 import type {
+  cancelSubscriptionRoute,
   createCheckoutSessionRoute,
   createCustomerPortalSessionRoute,
   getProductRoute,
@@ -20,14 +21,136 @@ import type {
   handleWebhookRoute,
   listProductsRoute,
   listSubscriptionsRoute,
+  switchSubscriptionRoute,
   syncAfterCheckoutRoute,
 } from './route';
+import type { SubscriptionResponsePayload } from './schema';
 import {
+  CancelSubscriptionRequestSchema,
   CheckoutRequestSchema,
   CustomerPortalRequestSchema,
   ProductIdParamSchema,
   SubscriptionIdParamSchema,
+  SwitchSubscriptionRequestSchema,
 } from './schema';
+
+// ============================================================================
+// Internal Helper Functions (Following 3-file pattern: handler, route, schema)
+// ============================================================================
+
+/**
+ * Error Context Builders - Following src/api/core/responses.ts patterns
+ */
+function createAuthErrorContext(operation?: string): ErrorContext {
+  return {
+    errorType: 'authentication',
+    operation: operation || 'session_required',
+  };
+}
+
+function createResourceNotFoundContext(
+  resource: string,
+  resourceId?: string,
+  _userId?: string,
+): ErrorContext {
+  return {
+    errorType: 'resource',
+    resource,
+    resourceId,
+  };
+}
+
+function createAuthorizationErrorContext(
+  resource: string,
+  resourceId?: string,
+  _userId?: string,
+): ErrorContext {
+  return {
+    errorType: 'authorization',
+    resource,
+    resourceId,
+  };
+}
+
+function createValidationErrorContext(field?: string): ErrorContext {
+  return {
+    errorType: 'validation',
+    field,
+  };
+}
+
+function createStripeErrorContext(
+  operation?: string,
+  resourceId?: string,
+): ErrorContext {
+  return {
+    errorType: 'external_service',
+    service: 'stripe',
+    operation,
+    resourceId,
+  };
+}
+
+function createDatabaseErrorContext(
+  operation: 'select' | 'insert' | 'update' | 'delete' | 'batch',
+  table?: string,
+): ErrorContext {
+  return {
+    errorType: 'database',
+    operation,
+    table,
+  };
+}
+
+/**
+ * Subscription Response Builder - Type-Safe Transformation
+ * Uses official Stripe.Subscription.Status type from SDK
+ */
+type DatabaseSubscription = {
+  id: string;
+  status: string; // Will be validated as Stripe.Subscription.Status
+  priceId: string;
+  price: {
+    productId: string;
+  };
+  currentPeriodStart: Date;
+  currentPeriodEnd: Date;
+  cancelAtPeriodEnd: boolean;
+  canceledAt: Date | null;
+  trialStart: Date | null;
+  trialEnd: Date | null;
+};
+
+/**
+ * Build subscription response using official Stripe SDK types
+ * Status is typed as Stripe.Subscription.Status - no hardcoded validation needed
+ */
+function buildSubscriptionResponse(
+  subscription: DatabaseSubscription,
+): SubscriptionResponsePayload {
+  return {
+    id: subscription.id,
+    status: subscription.status as Stripe.Subscription.Status,
+    priceId: subscription.priceId,
+    productId: subscription.price.productId,
+    currentPeriodStart: subscription.currentPeriodStart.toISOString(),
+    currentPeriodEnd: subscription.currentPeriodEnd.toISOString(),
+    cancelAtPeriodEnd: subscription.cancelAtPeriodEnd,
+    canceledAt: subscription.canceledAt?.toISOString() || null,
+    trialStart: subscription.trialStart?.toISOString() || null,
+    trialEnd: subscription.trialEnd?.toISOString() || null,
+  };
+}
+
+/**
+ * Subscription Validation Utilities
+ */
+function validateSubscriptionOwnership(
+  subscription: { userId: string },
+  user: { id: string },
+): boolean {
+  return subscription.userId === user.id;
+}
 
 // ============================================================================
 // Product Handlers
@@ -202,7 +325,7 @@ export const getProductHandler: RouteHandler<typeof getProductRoute, ApiEnv> = c
  *
  * Following Theo's "Stay Sane with Stripe" pattern:
  * - Creates Stripe Checkout session for subscription purchase
- * - Success URL redirects to /dashboard/billing/success (WITHOUT session_id parameter)
+ * - Success URL redirects to /chat/billing/success (WITHOUT session_id parameter)
  * - Success page auto-triggers eager sync from Stripe API
  * - This prevents race condition where UI loads before webhooks arrive
  * - Webhooks still run in background but UI doesn't depend on them
@@ -242,6 +365,36 @@ export const createCheckoutSessionHandler: RouteHandler<typeof createCheckoutSes
     });
 
     try {
+      // Theo's Pattern: "ENABLE 'Limit customers to one subscription'"
+      // Prevent multiple subscriptions - check if user already has an active subscription
+      // Exclude subscriptions that are canceled at period end (cancelAtPeriodEnd: true)
+      // because those are effectively canceled even though status is still 'active'
+      const existingSubscriptions = await batch.db.query.stripeSubscription.findMany({
+        where: eq(tables.stripeSubscription.userId, user.id),
+      });
+
+      const activeSubscription = existingSubscriptions.find(sub =>
+        (sub.status === 'active' || sub.status === 'trialing' || sub.status === 'past_due')
+        && !sub.cancelAtPeriodEnd,
+      );
+
+      if (activeSubscription) {
+        c.logger.warn('User already has an active subscription', {
+          logType: 'operation',
+          operationName: 'createCheckoutSession',
+          userId: user.id,
+          resource: activeSubscription.id,
+        });
+        const context: ErrorContext = {
+          errorType: 'validation',
+          field: 'subscription',
+        };
+        throw createError.badRequest(
+          'You already have an active subscription. Please cancel or modify your existing subscription instead of creating a new one.',
+          context,
+        );
+      }
+
       // Get or create Stripe customer (using batch.db for consistency)
       const stripeCustomer = await batch.db.query.stripeCustomer.findFirst({
         where: eq(tables.stripeCustomer.userId, user.id),
@@ -298,8 +451,8 @@ export const createCheckoutSessionHandler: RouteHandler<typeof createCheckoutSes
       const appUrl = c.env.NEXT_PUBLIC_APP_URL;
       // Theo's pattern: Do NOT use CHECKOUT_SESSION_ID (ignore it)
       // Success page will eagerly sync fresh data from Stripe API
-      const successUrl = body.successUrl || `${appUrl}/dashboard/billing/success`;
-      const cancelUrl = body.cancelUrl || `${appUrl}/dashboard/billing`;
+      const successUrl = body.successUrl || `${appUrl}/chat/billing/success`;
+      const cancelUrl = body.cancelUrl || `${appUrl}/chat/billing`;
 
       const session = await stripeService.createCheckoutSession({
         priceId: body.priceId,
@@ -394,7 +547,7 @@ export const createCustomerPortalSessionHandler: RouteHandler<typeof createCusto
       }
 
       const appUrl = c.env.NEXT_PUBLIC_APP_URL;
-      const returnUrl = body.returnUrl || `${appUrl}/dashboard`;
+      const returnUrl = body.returnUrl || `${appUrl}/chat`;
 
       const session = await stripeService.createCustomerPortalSession({
         customerId,
@@ -716,6 +869,257 @@ export const syncAfterCheckoutHandler: RouteHandler<typeof syncAfterCheckoutRout
         userId: user.id,
       };
       throw createError.internal('Failed to sync Stripe data', context);
+    }
+  },
+);
+
+// ============================================================================
+// Subscription Management Handlers (Upgrade/Downgrade/Cancel)
+// ============================================================================
+
+/**
+ * Switch Subscription Handler
+ *
+ * Switches the user to a different price plan.
+ * - Updates subscription to new price using Stripe API
+ * - Uses 'create_prorations' - Stripe handles billing automatically
+ * - Syncs fresh data from Stripe API after update
+ */
+export const switchSubscriptionHandler: RouteHandler<typeof switchSubscriptionRoute, ApiEnv> = createHandler(
+  {
+    auth: 'session',
+    validateParams: SubscriptionIdParamSchema,
+    validateBody: SwitchSubscriptionRequestSchema,
+    operationName: 'switchSubscription',
+  },
+  async (c) => {
+    const user = c.get('user');
+    const { id: subscriptionId } = c.validated.params;
+    const { newPriceId } = c.validated.body;
+
+    if (!user) {
+      throw createError.unauthenticated('Valid session required to switch subscription', createAuthErrorContext());
+    }
+
+    c.logger.info('Switching subscription', {
+      logType: 'operation',
+      operationName: 'switchSubscription',
+      userId: user.id,
+      resource: subscriptionId,
+    });
+
+    try {
+      const db = await getDbAsync();
+
+      // Verify subscription exists and belongs to user
+      const subscription = await db.query.stripeSubscription.findFirst({
+        where: eq(tables.stripeSubscription.id, subscriptionId),
+      });
+
+      if (!subscription) {
+        throw createError.notFound(
+          `Subscription ${subscriptionId} not found`,
+          createResourceNotFoundContext('subscription', subscriptionId, user.id),
+        );
+      }
+
+      if (!validateSubscriptionOwnership(subscription, user)) {
+        throw createError.unauthorized(
+          'You do not have access to this subscription',
+          createAuthorizationErrorContext('subscription', subscriptionId, user.id),
+        );
+      }
+
+      // Verify new price exists
+      const newPrice = await db.query.stripePrice.findFirst({
+        where: eq(tables.stripePrice.id, newPriceId),
+      });
+
+      if (!newPrice) {
+        throw createError.badRequest(
+          `Price ${newPriceId} not found`,
+          createResourceNotFoundContext('price', newPriceId),
+        );
+      }
+
+      // Update subscription in Stripe
+      const stripe = stripeService.getClient();
+      const stripeSubscription = await stripe.subscriptions.retrieve(subscriptionId);
+      const subscriptionItemId = stripeSubscription.items.data[0]?.id;
+
+      if (!subscriptionItemId) {
+        throw createError.internal(
+          'Subscription has no items',
+          createStripeErrorContext('retrieve_subscription', subscriptionId),
+        );
+      }
+
+      // Update subscription with automatic proration
+      await stripeService.updateSubscription(subscriptionId, {
+        items: [
+          {
+            id: subscriptionItemId,
+            price: newPriceId,
+          },
+        ],
+        proration_behavior: 'create_prorations', // Let Stripe handle billing automatically
+      });
+
+      // Sync fresh data from Stripe API
+      await syncStripeDataFromStripe(subscription.customerId);
+
+      // Fetch updated subscription from database
+      const refreshedSubscription = await db.query.stripeSubscription.findFirst({
+        where: eq(tables.stripeSubscription.id, subscriptionId),
+        with: {
+          price: {
+            with: {
+              product: true,
+            },
+          },
+        },
+      });
+
+      if (!refreshedSubscription) {
+        throw createError.internal(
+          'Failed to fetch updated subscription',
+          createDatabaseErrorContext('select', 'stripeSubscription'),
+        );
+      }
+
+      c.logger.info('Subscription updated successfully', {
+        logType: 'operation',
+        operationName: 'switchSubscription',
+        userId: user.id,
+        resource: subscriptionId,
+      });
+
+      return Responses.ok(c, {
+        subscription: buildSubscriptionResponse(refreshedSubscription),
+        message: 'Subscription updated successfully',
+      });
+    } catch (error) {
+      if (error instanceof AppError) {
+        throw error;
+      }
+      c.logger.error('Failed to switch subscription', normalizeError(error));
+      throw createError.internal(
+        'Failed to switch subscription',
+        createStripeErrorContext('update_subscription', subscriptionId),
+      );
+    }
+  },
+);
+
+/**
+ * Cancel Subscription Handler
+ *
+ * Cancels the user's subscription.
+ * - Default: Cancel at period end (user retains access until then)
+ * - Optional: Cancel immediately (user loses access now)
+ */
+export const cancelSubscriptionHandler: RouteHandler<typeof cancelSubscriptionRoute, ApiEnv> = createHandler(
+  {
+    auth: 'session',
+    validateParams: SubscriptionIdParamSchema,
+    validateBody: CancelSubscriptionRequestSchema,
+    operationName: 'cancelSubscription',
+  },
+  async (c) => {
+    const user = c.get('user');
+    const { id: subscriptionId } = c.validated.params;
+    const { immediately = false } = c.validated.body;
+
+    if (!user) {
+      throw createError.unauthenticated('Valid session required to cancel subscription', createAuthErrorContext());
+    }
+
+    c.logger.info(`Canceling subscription${immediately ? ' immediately' : ' at period end'}`, {
+      logType: 'operation',
+      operationName: 'cancelSubscription',
+      userId: user.id,
+      resource: subscriptionId,
+    });
+
+    try {
+      const db = await getDbAsync();
+
+      // Verify subscription exists and belongs to user
+      const subscription = await db.query.stripeSubscription.findFirst({
+        where: eq(tables.stripeSubscription.id, subscriptionId),
+      });
+
+      if (!subscription) {
+        throw createError.notFound(
+          `Subscription ${subscriptionId} not found`,
+          createResourceNotFoundContext('subscription', subscriptionId, user.id),
+        );
+      }
+
+      if (!validateSubscriptionOwnership(subscription, user)) {
+        throw createError.unauthorized(
+          'You do not have access to this subscription',
+          createAuthorizationErrorContext('subscription', subscriptionId, user.id),
+        );
+      }
+
+      // Check if subscription is already canceled
+      if (subscription.status === 'canceled') {
+        throw createError.badRequest(
+          'Subscription is already canceled',
+          createValidationErrorContext('subscription'),
+        );
+      }
+
+      // Cancel subscription in Stripe
+      await stripeService.cancelSubscription(subscriptionId, !immediately);
+
+      // Sync fresh data from Stripe API
+      await syncStripeDataFromStripe(subscription.customerId);
+
+      // Fetch updated subscription from database
+      const refreshedSubscription = await db.query.stripeSubscription.findFirst({
+        where: eq(tables.stripeSubscription.id, subscriptionId),
+        with: {
+          price: {
+            with: {
+              product: true,
+            },
+          },
+        },
+      });
+
+      if (!refreshedSubscription) {
+        throw createError.internal(
+          'Failed to fetch updated subscription',
+          createDatabaseErrorContext('select', 'stripeSubscription'),
+        );
+      }
+
+      const message = immediately
+        ? 'Subscription canceled immediately. You no longer have access.'
+        : `Subscription will be canceled at the end of the current billing period (${refreshedSubscription.currentPeriodEnd.toLocaleDateString()}). You retain access until then.`;
+
+      c.logger.info(`Subscription canceled successfully${immediately ? ' immediately' : ' at period end'}`, {
+        logType: 'operation',
+        operationName: 'cancelSubscription',
+        userId: user.id,
+        resource: subscriptionId,
+      });
+
+      return Responses.ok(c, {
+        subscription: buildSubscriptionResponse(refreshedSubscription),
+        message,
+      });
+    } catch (error) {
+      if (error instanceof AppError) {
+        throw error;
+      }
+      c.logger.error('Failed to cancel subscription', normalizeError(error));
+      throw createError.internal(
+        'Failed to cancel subscription',
+        createStripeErrorContext('cancel_subscription', subscriptionId),
+      );
     }
   },
 );

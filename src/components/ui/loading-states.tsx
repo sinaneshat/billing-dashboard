@@ -328,18 +328,18 @@ export function ChartSkeleton({
   );
 }
 
-// Dashboard skeleton
-interface DashboardSkeletonProps {
+// Chat skeleton
+interface ChatSkeletonProps {
   showSidebar?: boolean;
   showHeader?: boolean;
   className?: string;
 }
 
-export function DashboardSkeleton({ 
+export function ChatSkeleton({
   showSidebar = true,
   showHeader = true,
   className,
-}: DashboardSkeletonProps) {
+}: ChatSkeletonProps) {
   return (
     <div className={cn('min-h-screen bg-background', className)}>
       {/* Header */}

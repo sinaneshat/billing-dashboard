@@ -21,12 +21,16 @@ interface PricingCardProps {
   features?: string[] | null;
   isCurrentPlan?: boolean;
   isMostPopular?: boolean;
-  isProcessing?: boolean;
+  isProcessingSubscribe?: boolean;
+  isProcessingCancel?: boolean;
+  isProcessingManageBilling?: boolean;
   onSubscribe?: () => void;
+  onCancel?: () => void;
   onManageBilling?: () => void;
   className?: string;
   delay?: number;
   annualSavingsPercent?: number;
+  hasOtherSubscription?: boolean;
 }
 
 export function PricingCard({
@@ -36,23 +40,40 @@ export function PricingCard({
   features,
   isCurrentPlan = false,
   isMostPopular = false,
-  isProcessing = false,
+  isProcessingSubscribe = false,
+  isProcessingCancel = false,
+  isProcessingManageBilling = false,
   onSubscribe,
+  onCancel,
   onManageBilling,
   className,
   delay = 0,
   annualSavingsPercent,
+  hasOtherSubscription = false,
 }: PricingCardProps) {
   const t = useTranslations('pricing.card');
 
   const handleAction = () => {
-    if (isCurrentPlan && onManageBilling) {
-      onManageBilling();
+    if (isCurrentPlan && onCancel) {
+      onCancel();
     }
-    else if (!isCurrentPlan && onSubscribe) {
+    else if (onSubscribe) {
       onSubscribe();
     }
   };
+
+  // Determine button text and loading state based on state
+  const getButtonText = () => {
+    if (isCurrentPlan) {
+      return t('cancelSubscription');
+    }
+    if (hasOtherSubscription) {
+      return t('switchPlan');
+    }
+    return t('subscribe');
+  };
+
+  const isActionButtonLoading = isCurrentPlan ? isProcessingCancel : isProcessingSubscribe;
 
   return (
     <motion.div
@@ -240,41 +261,64 @@ export function PricingCard({
               </motion.ul>
             )}
 
-            {/* CTA Button */}
+            {/* CTA Buttons */}
             <motion.div
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: delay + 0.4, duration: 0.4 }}
+              className="space-y-3"
             >
+              {/* Manage Billing Button - shown above cancel for active subscriptions */}
+              {isCurrentPlan && onManageBilling && (
+                <HoverBorderGradient
+                  as="button"
+                  containerClassName={cn(
+                    'w-full rounded-md',
+                    isProcessingManageBilling && 'cursor-not-allowed opacity-50',
+                  )}
+                  className="w-full text-center text-sm font-medium transition-all duration-200 bg-background text-foreground"
+                  onClick={onManageBilling}
+                  disabled={isProcessingManageBilling}
+                >
+                  {isProcessingManageBilling
+                    ? (
+                        <span className="flex items-center justify-center gap-2">
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          {t('processing')}
+                        </span>
+                      )
+                    : (
+                        t('manageBilling')
+                      )}
+                </HoverBorderGradient>
+              )}
+
+              {/* Primary Action Button (Subscribe/Switch/Cancel) */}
               <HoverBorderGradient
                 as="button"
                 containerClassName={cn(
                   'w-full rounded-md',
-                  isProcessing && 'cursor-not-allowed opacity-50',
+                  isActionButtonLoading && 'cursor-not-allowed opacity-50',
                 )}
                 className={cn(
                   'w-full text-center text-sm font-medium transition-all duration-200',
-                  isMostPopular && 'bg-primary text-primary-foreground',
-                  isCurrentPlan && 'bg-primary/10 text-primary hover:bg-primary/20',
+                  isMostPopular && !isCurrentPlan && 'bg-primary text-primary-foreground',
+                  isCurrentPlan && 'bg-destructive/10 text-destructive hover:bg-destructive/20',
                   !isMostPopular && !isCurrentPlan && 'bg-background text-foreground',
                 )}
                 onClick={handleAction}
-                disabled={isProcessing}
+                disabled={isActionButtonLoading}
               >
-                {isProcessing
+                {isActionButtonLoading
                   ? (
                       <span className="flex items-center justify-center gap-2">
                         <Loader2 className="h-4 w-4 animate-spin" />
                         {t('processing')}
                       </span>
                     )
-                  : isCurrentPlan
-                    ? (
-                        t('manageBilling')
-                      )
-                    : (
-                        t('subscribe')
-                      )}
+                  : (
+                      getButtonText()
+                    )}
               </HoverBorderGradient>
             </motion.div>
           </div>

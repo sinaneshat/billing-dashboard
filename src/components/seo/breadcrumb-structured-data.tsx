@@ -22,8 +22,8 @@ type BreadcrumbStructuredDataProps = {
  * <BreadcrumbStructuredData
  *   items={[
  *     { name: 'Home', url: '/' },
- *     { name: 'Dashboard', url: '/dashboard' },
- *     { name: 'Settings', url: '/dashboard/settings' },
+ *     { name: 'Chat', url: '/chat' },
+ *     { name: 'Settings', url: '/chat/settings' },
  *   ]}
  * />
  * ```

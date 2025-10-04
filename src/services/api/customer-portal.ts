@@ -28,12 +28,15 @@ export type CreateCustomerPortalSessionResponse = InferResponseType<
 // ============================================================================
 
 /**
- * Create Stripe customer portal session for subscription management
- * Protected endpoint - requires authentication and existing Stripe customer
+ * Create Stripe customer portal session
+ * Protected endpoint - requires authentication
  *
- * @param data - Optional returnUrl for after portal session
+ * Returns a URL to redirect the user to Stripe's customer portal
+ * where they can manage payment methods and download invoices
+ *
+ * @param data - Customer portal configuration (returnUrl)
  */
-export async function createCustomerPortalSessionService(data?: CreateCustomerPortalSessionRequest) {
+export async function createCustomerPortalSessionService(data: CreateCustomerPortalSessionRequest) {
   const client = await createApiClient();
-  return parseResponse(client.billing.portal.$post(data || { json: {} }));
+  return parseResponse(client.billing.portal.$post(data));
 }

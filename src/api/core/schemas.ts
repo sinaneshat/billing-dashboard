@@ -123,7 +123,7 @@ export const RequestMetadataSchema = z.discriminatedUnion('type', [
     type: z.literal('auth_context'),
     sessionId: z.string().uuid(),
     userId: z.string().uuid(),
-    role: z.enum(['user', 'admin', 'moderator']),
+    role: z.enum(['user']),
     permissions: z.array(z.string()),
     lastActivity: z.iso.datetime(),
     ipAddress: z.string().regex(/^(?:(?:25[0-5]|2[0-4]\d|[01]?\d{1,2})\.){3}(?:25[0-5]|2[0-4]\d|[01]?\d{1,2})$|^(?:[\da-f]{1,4}:){7}[\da-f]{1,4}$/i, 'Invalid IP address').optional(),

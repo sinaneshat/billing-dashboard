@@ -78,7 +78,7 @@
     "emailPlaceholder": "Enter your email",
     "errors": {
       "accessDenied": "Access Denied",
-      "accessDeniedDesc": "You do not have permission to sign in. Please check your credentials or contact your administrator.",
+      "accessDeniedDesc": "You do not have permission to sign in. Please check your credentials or contact support.",
       "backToSignIn": "Back to Sign In",
       "callback": "Callback Error",
       "callbackDesc": "There was a problem during the authentication callback. Please try again.",
@@ -191,7 +191,7 @@
     "signUpWithGoogle": "Sign up with Google",
     "sso": {
       "authenticationRequired": "SSO Authentication Required",
-      "contactAdministrator": "Contact your administrator to configure SSO access for this application.",
+      "contactAdministrator": "Contact support to configure SSO access for this application.",
       "continueWithRoundtableSSO": "Continue with Roundtable SSO",
       "continueWithSSO": "Continue with SSO",
       "onlySupportsSSO": "This application only supports SSO login",
@@ -308,13 +308,27 @@
       "description": "Manage your subscription and view available plans",
       "viewProfile": "View Profile"
     },
+    "changePlan": "Change Plan",
+    "cancelSubscription": "Cancel Subscription",
+    "renewsOn": "Renews On",
+    "cancelScheduled": "Cancellation Scheduled",
+    "cancelScheduledDescription": "Your subscription will be canceled on {date}. You will retain access until then.",
+    "cancelDialog": {
+      "title": "Cancel Subscription",
+      "description": "Are you sure you want to cancel your subscription? You will retain access until the end of your billing period.",
+      "confirm": "Yes, Cancel Subscription"
+    },
     "currentSubscription": {
       "description": "Manage your active subscription",
       "title": "Current Subscription"
     },
     "success": {
       "activatingSubscription": "Activating your subscription...",
-      "confirmingPayment": "Please wait while we confirm your payment"
+      "confirmingPayment": "Please wait while we confirm your payment",
+      "title": "Payment Successful!",
+      "description": "Your subscription has been activated",
+      "redirecting": "Redirecting in {count} seconds",
+      "viewPlan": "View My Plan"
     },
     "interval": {
       "monthly": "Monthly",
@@ -383,7 +397,6 @@
     },
     "quickActions": "Quick Actions",
     "recentTransactions": "Your recent billing transactions",
-    "renewsOn": "Renews On",
     "status": "Status",
     "subscribe": "Subscribe",
     "subscription": "Subscription",
@@ -447,7 +460,8 @@
     "optional": "(optional)",
     "or": "Or",
     "upTo": "Up to",
-    "errorOccurred": "ErrorOccurred"
+    "errorOccurred": "ErrorOccurred",
+    "cancel": "Cancel"
   },
   "confirmDialog": {
     "cancelAction": "Cancel",
@@ -470,30 +484,6 @@
   "currency": {
     "usd": "USD",
     "dollar": "Dollar"
-  },
-  "dashboard": {
-    "description": "Manage your billing and subscriptions from your comprehensive dashboard overview",
-    "hero": {
-      "staticText": "Collaborate with",
-      "rotatingWords": {
-        "multipleAI": "Multiple AI Models",
-        "expertSystems": "Expert Systems",
-        "smartAssistants": "Smart Assistants",
-        "aiThinkTanks": "AI Think Tanks"
-      },
-      "subtitle": "Where multiple AI models brainstorm together to solve complex problems"
-    },
-    "overview": {
-      "activeSubscriptions": "Active Subscriptions",
-      "monthlySpend": "Monthly Spend",
-      "nextBilling": "Next Billing",
-      "paymentMethods": "Payment Methods",
-      "recentActivity": "Recent Activity",
-      "title": "Overview",
-      "totalSpend": "Total Spend"
-    },
-    "title": "Dashboard",
-    "welcome": "Welcome back"
   },
   "dataFilters": {
     "advancedFilters": "Advanced filters",
@@ -968,7 +958,7 @@
     "billingPortal": "Billing Portal",
     "billingHistory": "Billing History",
     "contact": "Contact",
-    "dashboard": "Dashboard",
+    "chat": "Chat",
     "navigation": "Navigation",
     "chats": "Chats",
     "newChat": "New Chat",
@@ -987,6 +977,17 @@
   },
   "chat": {
     "title": "Chats",
+    "description": "Manage your conversations and chat history",
+    "hero": {
+      "staticText": "Collaborate with",
+      "rotatingWords": {
+        "multipleAI": "Multiple AI Models",
+        "expertSystems": "Expert Systems",
+        "smartAssistants": "Smart Assistants",
+        "aiThinkTanks": "AI Think Tanks"
+      },
+      "subtitle": "Where multiple AI models brainstorm together to solve complex problems"
+    },
     "newChat": "New Chat",
     "newChatDescription": "Start a new conversation",
     "noChatSelected": "No chat selected",
@@ -1135,9 +1136,9 @@
       "paymentSuccessful": "Payment Successful",
       "processingPayment": "Processing payment...",
       "referenceId": "Reference ID:",
-      "returnToDashboard": "Return to Dashboard",
+      "returnToChat": "Return to Chat",
       "setupNotCompleted": "Unfortunately the setup was not completed.",
-      "viewBillingDashboard": "View Dashboard"
+      "viewBilling": "View Billing"
     },
     "paymentGateway": "Payment Gateway"
   },
@@ -1324,7 +1325,7 @@
     "free": "Free",
     "getStarted": "Get Started",
     "getStartedFree": "Get Started Free",
-    "goToDashboard": "Go to Dashboard",
+    "goToChat": "Go to Chat",
     "limitedUsage": "Limited usage",
     "limits": "Limits:",
     "liveRatesNote": "All prices calculated with live exchange rates",
@@ -1442,7 +1443,14 @@
       "saveAnnually": "Save {percent}% annually",
       "manageBilling": "Manage Billing",
       "subscribe": "Subscribe",
+      "cancelSubscription": "Cancel Subscription",
+      "switchPlan": "Switch to This Plan",
       "processing": "Processing..."
+    },
+    "free": {
+      "alwaysActive": "Always Active",
+      "luxuryTier": "Premium Gift - Included Free",
+      "activatedByDefault": "Activated by default for you"
     }
   },
   "product": {

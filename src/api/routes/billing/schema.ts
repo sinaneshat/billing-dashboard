@@ -1,4 +1,5 @@
 import { z } from '@hono/zod-openapi';
+import type Stripe from 'stripe';
 
 import { CoreSchemas, createApiResponseSchema } from '@/api/core/schemas';
 
@@ -111,12 +112,12 @@ export const CheckoutRequestSchema = z.object({
     example: 'price_1ABC123',
   }),
   successUrl: CoreSchemas.url().optional().openapi({
-    description: 'URL to redirect to after successful checkout (defaults to /dashboard/billing/success). Do NOT include session_id parameter - success page will eagerly sync fresh data from Stripe API.',
-    example: 'https://app.example.com/dashboard/billing/success',
+    description: 'URL to redirect to after successful checkout (defaults to /chat/billing/success). Do NOT include session_id parameter - success page will eagerly sync fresh data from Stripe API.',
+    example: 'https://app.example.com/chat/billing/success',
   }),
   cancelUrl: CoreSchemas.url().optional().openapi({
-    description: 'URL to redirect to if checkout is canceled (defaults to /dashboard/billing)',
-    example: 'https://app.example.com/dashboard/billing',
+    description: 'URL to redirect to if checkout is canceled (defaults to /chat/billing)',
+    example: 'https://app.example.com/chat/billing',
   }),
 }).openapi('CheckoutRequest');
 
@@ -139,8 +140,8 @@ export const CheckoutResponseSchema = createApiResponseSchema(CheckoutPayloadSch
 
 export const CustomerPortalRequestSchema = z.object({
   returnUrl: CoreSchemas.url().optional().openapi({
-    description: 'URL to redirect to after customer portal session (defaults to /dashboard)',
-    example: 'https://app.example.com/dashboard',
+    description: 'URL to redirect to after customer portal session (defaults to /chat)',
+    example: 'https://app.example.com/chat',
   }),
 }).openapi('CustomerPortalRequest');
 
@@ -162,8 +163,17 @@ const SubscriptionSchema = z.object({
     description: 'Stripe subscription ID',
     example: 'sub_ABC123',
   }),
-  status: z.enum(['active', 'past_due', 'unpaid', 'canceled', 'incomplete', 'incomplete_expired', 'trialing', 'paused']).openapi({
-    description: 'Subscription status',
+  status: z.enum([
+    'active',
+    'past_due',
+    'unpaid',
+    'canceled',
+    'incomplete',
+    'incomplete_expired',
+    'trialing',
+    'paused',
+  ] as const).openapi({
+    description: 'Subscription status (matches Stripe.Subscription.Status)',
     example: 'active',
   }),
   priceId: z.string().openapi({
@@ -250,10 +260,67 @@ const WebhookPayloadSchema = z.object({
 export const WebhookResponseSchema = createApiResponseSchema(WebhookPayloadSchema).openapi('WebhookResponse');
 
 // ============================================================================
-// TYPE EXPORTS FOR FRONTEND
+// Subscription Management Schemas (Switch/Cancel)
+// ============================================================================
+
+export const SwitchSubscriptionRequestSchema = z.object({
+  newPriceId: z.string().min(1).openapi({
+    description: 'New Stripe price ID to switch to (handles both upgrades and downgrades automatically)',
+    example: 'price_1ABC456',
+  }),
+}).openapi('SwitchSubscriptionRequest');
+
+export const CancelSubscriptionRequestSchema = z.object({
+  immediately: z.boolean().optional().default(false).openapi({
+    description: 'Cancel immediately (true) or at period end (false, default)',
+    example: false,
+  }),
+}).openapi('CancelSubscriptionRequest');
+
+const SubscriptionChangePayloadSchema = z.object({
+  subscription: SubscriptionSchema.openapi({
+    description: 'Updated subscription details',
+  }),
+  message: z.string().openapi({
+    description: 'Success message describing the change',
+    example: 'Subscription upgraded successfully',
+  }),
+}).openapi('SubscriptionChangePayload');
+
+export const SubscriptionChangeResponseSchema = createApiResponseSchema(SubscriptionChangePayloadSchema).openapi('SubscriptionChangeResponse');
+
+// ============================================================================
+// TYPE EXPORTS FOR FRONTEND & BACKEND
+// ============================================================================
+
+// ============================================================================
+// TYPE EXPORTS - Using Official Stripe SDK Types
 // ============================================================================
 
 export type Product = z.infer<typeof ProductSchema>;
 export type Price = z.infer<typeof PriceSchema>;
 export type CheckoutRequest = z.infer<typeof CheckoutRequestSchema>;
 export type Subscription = z.infer<typeof SubscriptionSchema>;
+
+// Use official Stripe SDK type for subscription status
+export type SubscriptionStatus = Stripe.Subscription.Status;
+
+export type SwitchSubscriptionRequest = z.infer<typeof SwitchSubscriptionRequestSchema>;
+export type CancelSubscriptionRequest = z.infer<typeof CancelSubscriptionRequestSchema>;
+
+/**
+ * Type-safe subscription response payload
+ * Uses official Stripe.Subscription.Status type
+ */
+export type SubscriptionResponsePayload = {
+  id: string;
+  status: SubscriptionStatus; // Stripe.Subscription.Status
+  priceId: string;
+  productId: string;
+  currentPeriodStart: string;
+  currentPeriodEnd: string;
+  cancelAtPeriodEnd: boolean;
+  canceledAt: string | null;
+  trialStart: string | null;
+  trialEnd: string | null;
+};

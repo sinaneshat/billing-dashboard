@@ -15,7 +15,13 @@ export {
   useSyncAfterCheckoutMutation,
 } from './checkout';
 
-// Customer Portal mutations (protected)
+// Customer Portal mutations (protected) - For payment method management and invoices
 export {
   useCreateCustomerPortalSessionMutation,
 } from './customer-portal';
+
+// Subscription Management mutations (protected) - In-app subscription changes
+export {
+  useCancelSubscriptionMutation,
+  useSwitchSubscriptionMutation,
+} from './subscription-management';

@@ -8,7 +8,7 @@ import { Card, CardContent } from '@/components/ui/card';
 const loadingMessages = [
   'Setting up your account...',
   'Organizing your workspace...',
-  'Preparing your dashboard...',
+  'Getting everything ready...',
   'Almost there...',
 ];
 
