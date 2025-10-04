@@ -1,13 +1,20 @@
 import type { RouteHandler } from '@hono/zod-openapi';
-import { desc, eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { ulid } from 'ulid';
 
 import { createError } from '@/api/common/error-handling';
+import {
+  applyCursorPagination,
+  buildCursorWhereWithFilters,
+  createTimestampCursor,
+  getCursorOrderBy,
+} from '@/api/common/pagination';
+import { buildUIMessages } from '@/api/common/streaming';
 import type { ErrorContext } from '@/api/core';
 import { createHandler, Responses } from '@/api/core';
+import { CursorPaginationQuerySchema } from '@/api/core/schemas';
 import { apiLogger } from '@/api/middleware/hono-logger';
-import type { AIMessage } from '@/api/services/openrouter.service';
-import { initializeOpenRouter, openRouterService } from '@/api/services/openrouter.service';
+import { openRouterService } from '@/api/services/openrouter.service';
 import { generateUniqueSlug } from '@/api/services/slug-generator.service';
 import { autoGenerateThreadTitle } from '@/api/services/title-generator.service';
 import {
@@ -41,6 +48,7 @@ import type {
   listMemoriesRoute,
   listThreadsRoute,
   sendMessageRoute,
+  streamChatRoute,
   updateCustomRoleRoute,
   updateMemoryRoute,
   updateParticipantRoute,
@@ -55,6 +63,7 @@ import {
   MemoryIdParamSchema,
   ParticipantIdParamSchema,
   SendMessageRequestSchema,
+  StreamChatRequestSchema,
   ThreadIdParamSchema,
   ThreadSlugParamSchema,
   UpdateCustomRoleRequestSchema,
@@ -64,9 +73,12 @@ import {
 } from './schema';
 
 // ============================================================================
-// Internal Helper Functions
+// Internal Helper Functions (Following 3-file pattern: handler, route, schema)
 // ============================================================================
 
+/**
+ * Error Context Builders - Following src/api/routes/billing/handler.ts pattern
+ */
 function createAuthErrorContext(operation?: string): ErrorContext {
   return {
     errorType: 'authentication',
@@ -96,6 +108,68 @@ function createAuthorizationErrorContext(
   };
 }
 
+/**
+ * Verify thread exists and user owns it
+ * Reusable validation pattern used across multiple handlers
+ *
+ * Overload 1: Without participants
+ */
+async function verifyThreadOwnership(
+  threadId: string,
+  userId: string,
+  db: Awaited<ReturnType<typeof getDbAsync>>
+): Promise<typeof tables.chatThread.$inferSelect>;
+
+/**
+ * Overload 2: With participants
+ */
+async function verifyThreadOwnership(
+  threadId: string,
+  userId: string,
+  db: Awaited<ReturnType<typeof getDbAsync>>,
+  options: { includeParticipants: true }
+): Promise<typeof tables.chatThread.$inferSelect & {
+  participants: Array<typeof tables.chatParticipant.$inferSelect>;
+}>;
+
+/**
+ * Implementation
+ */
+async function verifyThreadOwnership(
+  threadId: string,
+  userId: string,
+  db: Awaited<ReturnType<typeof getDbAsync>>,
+  options?: { includeParticipants?: boolean },
+) {
+  const thread = await db.query.chatThread.findFirst({
+    where: eq(tables.chatThread.id, threadId),
+    with: options?.includeParticipants
+      ? {
+          participants: {
+            where: eq(tables.chatParticipant.isEnabled, true),
+            orderBy: [tables.chatParticipant.priority],
+          },
+        }
+      : undefined,
+  });
+
+  if (!thread) {
+    throw createError.notFound('Thread not found', createResourceNotFoundContext('thread', threadId));
+  }
+
+  if (thread.userId !== userId) {
+    throw createError.unauthorized(
+      'Not authorized to access this thread',
+      createAuthorizationErrorContext('thread', threadId),
+    );
+  }
+
+  return thread;
+}
+
+// Removed verifyMemoryOwnership() and verifyCustomRoleOwnership()
+// These resources are ALWAYS user-scoped - just query with userId in WHERE clause
+
 // ============================================================================
 // Thread Handlers
 // ============================================================================
@@ -106,57 +180,48 @@ export const listThreadsHandler: RouteHandler<typeof listThreadsRoute, ApiEnv> =
     operationName: 'listThreads',
   },
   async (c) => {
-    const user = c.var.user;
-    if (!user) {
-      throw createError.unauthenticated('Authentication required', createAuthErrorContext());
-    }
+    // With auth: 'session', c.auth() provides type-safe access to user and session
+    const { user } = c.auth();
 
-    // Parse query parameters for cursor pagination
-    const query = c.req.query();
-    const cursor = query.cursor;
-    const limit = query.limit ? Number.parseInt(query.limit, 10) : 20;
+    // Parse cursor pagination query parameters
+    const query = CursorPaginationQuerySchema.parse(c.req.query());
     const db = await getDbAsync();
 
-    // Fetch threads with limit + 1 to determine if there's a next page
+    // Fetch threads with cursor-based pagination (limit + 1 to check hasMore)
     const threads = await db.query.chatThread.findMany({
-      where: (fields, { eq, and, lt }) => cursor
-        ? and(
-            eq(fields.userId, user.id),
-            lt(fields.id, cursor),
-          )
-        : eq(fields.userId, user.id),
-      orderBy: [desc(tables.chatThread.updatedAt)],
-      limit: limit! + 1, // Fetch one extra to check if there's a next page
+      where: buildCursorWhereWithFilters(
+        tables.chatThread.updatedAt,
+        query.cursor,
+        'desc',
+        [eq(tables.chatThread.userId, user.id)],
+      ),
+      orderBy: getCursorOrderBy(tables.chatThread.updatedAt, 'desc'),
+      limit: query.limit + 1,
     });
 
-    // Check if there's a next page
-    const hasNextPage = threads.length > limit!;
-    const threadsToReturn = hasNextPage ? threads.slice(0, limit) : threads;
-    const nextCursor = hasNextPage ? threadsToReturn[threadsToReturn.length - 1]?.id : null;
-
-    return Responses.ok(c, {
-      threads: threadsToReturn,
-      nextCursor,
-    });
+    // Apply cursor pagination and format response
+    return Responses.ok(c, applyCursorPagination(
+      threads,
+      query.limit,
+      thread => createTimestampCursor(thread.updatedAt),
+    ));
   },
 );
 
 export const createThreadHandler: RouteHandler<typeof createThreadRoute, ApiEnv> = createHandler(
   {
     auth: 'session',
+    validateBody: CreateThreadRequestSchema,
     operationName: 'createThread',
   },
   async (c) => {
-    const user = c.var.user;
-    if (!user) {
-      throw createError.unauthenticated('Authentication required', createAuthErrorContext());
-    }
+    const { user } = c.auth();
 
     // Enforce thread and message quotas BEFORE creating anything
     await enforceThreadQuota(user.id);
     await enforceMessageQuota(user.id); // First message will be created
 
-    const body = CreateThreadRequestSchema.parse(await c.req.json());
+    const body = c.validated.body;
     const db = await getDbAsync();
 
     // Default title to "New Chat" (will be auto-generated from first message)
@@ -257,16 +322,16 @@ export const createThreadHandler: RouteHandler<typeof createThreadRoute, ApiEnv>
       });
     });
 
-    // Build conversation context for AI responses
-    const conversationMessages: AIMessage[] = [
+    // Build conversation context for AI responses using UIMessage format
+    const conversationMessages = buildUIMessages([
       {
-        role: 'user',
+        id: `msg-${ulid()}`,
+        role: 'user' as const,
         content: body.firstMessage,
       },
-    ];
+    ]);
 
-    // Initialize OpenRouter and orchestrate multi-model responses
-    initializeOpenRouter(c.env);
+    // Orchestrate multi-model responses using initialized OpenRouter service
     const orchestrationResults = await openRouterService.orchestrateMultiModel(
       participants.map(p => ({
         participantId: p!.id,
@@ -361,12 +426,12 @@ export const createThreadHandler: RouteHandler<typeof createThreadRoute, ApiEnv>
 export const getThreadHandler: RouteHandler<typeof getThreadRoute, ApiEnv> = createHandler(
   {
     auth: 'session-optional', // Allow both authenticated and unauthenticated access
+    validateParams: ThreadIdParamSchema,
     operationName: 'getThread',
   },
   async (c) => {
     const user = c.var.user; // May be undefined for unauthenticated requests
-
-    const { id } = ThreadIdParamSchema.parse(c.req.param());
+    const { id } = c.validated.params;
     const db = await getDbAsync();
 
     const thread = await db.query.chatThread.findFirst({
@@ -431,29 +496,18 @@ export const getThreadHandler: RouteHandler<typeof getThreadRoute, ApiEnv> = cre
 export const updateThreadHandler: RouteHandler<typeof updateThreadRoute, ApiEnv> = createHandler(
   {
     auth: 'session',
+    validateParams: ThreadIdParamSchema,
+    validateBody: UpdateThreadRequestSchema,
     operationName: 'updateThread',
   },
   async (c) => {
-    const user = c.var.user;
-    if (!user) {
-      throw createError.unauthenticated('Authentication required', createAuthErrorContext());
-    }
-
-    const { id } = ThreadIdParamSchema.parse(c.req.param());
-    const body = UpdateThreadRequestSchema.parse(await c.req.json());
+    const { user } = c.auth();
+    const { id } = c.validated.params;
+    const body = c.validated.body;
     const db = await getDbAsync();
 
-    const existingThread = await db.query.chatThread.findFirst({
-      where: eq(tables.chatThread.id, id),
-    });
-
-    if (!existingThread) {
-      throw createError.notFound('Thread not found', createResourceNotFoundContext('thread', id));
-    }
-
-    if (existingThread.userId !== user.id) {
-      throw createError.unauthorized('Not authorized to update this thread', createAuthorizationErrorContext('thread', id));
-    }
+    // Verify thread ownership
+    await verifyThreadOwnership(id, user.id, db);
 
     const [updatedThread] = await db
       .update(tables.chatThread)
@@ -473,28 +527,16 @@ export const updateThreadHandler: RouteHandler<typeof updateThreadRoute, ApiEnv>
 export const deleteThreadHandler: RouteHandler<typeof deleteThreadRoute, ApiEnv> = createHandler(
   {
     auth: 'session',
+    validateParams: ThreadIdParamSchema,
     operationName: 'deleteThread',
   },
   async (c) => {
-    const user = c.var.user;
-    if (!user) {
-      throw createError.unauthenticated('Authentication required', createAuthErrorContext());
-    }
-
-    const { id } = ThreadIdParamSchema.parse(c.req.param());
+    const { user } = c.auth();
+    const { id } = c.validated.params;
     const db = await getDbAsync();
 
-    const existingThread = await db.query.chatThread.findFirst({
-      where: eq(tables.chatThread.id, id),
-    });
-
-    if (!existingThread) {
-      throw createError.notFound('Thread not found', createResourceNotFoundContext('thread', id));
-    }
-
-    if (existingThread.userId !== user.id) {
-      throw createError.unauthorized('Not authorized to delete this thread', createAuthorizationErrorContext('thread', id));
-    }
+    // Verify thread ownership
+    await verifyThreadOwnership(id, user.id, db);
 
     // Soft delete - set status to deleted
     await db
@@ -514,10 +556,11 @@ export const deleteThreadHandler: RouteHandler<typeof deleteThreadRoute, ApiEnv>
 export const getPublicThreadHandler: RouteHandler<typeof getPublicThreadRoute, ApiEnv> = createHandler(
   {
     auth: 'public', // No authentication required for public threads
+    validateParams: ThreadSlugParamSchema,
     operationName: 'getPublicThread',
   },
   async (c) => {
-    const { slug } = ThreadSlugParamSchema.parse(c.req.param());
+    const { slug } = c.validated.params;
     const db = await getDbAsync();
 
     const thread = await db.query.chatThread.findFirst({
@@ -545,30 +588,18 @@ export const getPublicThreadHandler: RouteHandler<typeof getPublicThreadRoute, A
 export const addParticipantHandler: RouteHandler<typeof addParticipantRoute, ApiEnv> = createHandler(
   {
     auth: 'session',
+    validateParams: ThreadIdParamSchema,
+    validateBody: AddParticipantRequestSchema,
     operationName: 'addParticipant',
   },
   async (c) => {
-    const user = c.var.user;
-    if (!user) {
-      throw createError.unauthenticated('Authentication required', createAuthErrorContext());
-    }
-
-    const { id } = ThreadIdParamSchema.parse(c.req.param());
-    const body = AddParticipantRequestSchema.parse(await c.req.json());
+    const { user } = c.auth();
+    const { id } = c.validated.params;
+    const body = c.validated.body;
     const db = await getDbAsync();
 
     // Verify thread ownership
-    const thread = await db.query.chatThread.findFirst({
-      where: eq(tables.chatThread.id, id),
-    });
-
-    if (!thread) {
-      throw createError.notFound('Thread not found', createResourceNotFoundContext('thread', id));
-    }
-
-    if (thread.userId !== user.id) {
-      throw createError.unauthorized('Not authorized to modify this thread', createAuthorizationErrorContext('thread', id));
-    }
+    await verifyThreadOwnership(id, user.id, db);
 
     const participantId = ulid();
     const now = new Date();
@@ -597,16 +628,14 @@ export const addParticipantHandler: RouteHandler<typeof addParticipantRoute, Api
 export const updateParticipantHandler: RouteHandler<typeof updateParticipantRoute, ApiEnv> = createHandler(
   {
     auth: 'session',
+    validateParams: ParticipantIdParamSchema,
+    validateBody: UpdateParticipantRequestSchema,
     operationName: 'updateParticipant',
   },
   async (c) => {
-    const user = c.var.user;
-    if (!user) {
-      throw createError.unauthenticated('Authentication required', createAuthErrorContext());
-    }
-
-    const { id } = ParticipantIdParamSchema.parse(c.req.param());
-    const body = UpdateParticipantRequestSchema.parse(await c.req.json());
+    const { user } = c.auth();
+    const { id } = c.validated.params;
+    const body = c.validated.body;
     const db = await getDbAsync();
 
     // Get participant and verify thread ownership
@@ -643,15 +672,12 @@ export const updateParticipantHandler: RouteHandler<typeof updateParticipantRout
 export const deleteParticipantHandler: RouteHandler<typeof deleteParticipantRoute, ApiEnv> = createHandler(
   {
     auth: 'session',
+    validateParams: ParticipantIdParamSchema,
     operationName: 'deleteParticipant',
   },
   async (c) => {
-    const user = c.var.user;
-    if (!user) {
-      throw createError.unauthenticated('Authentication required', createAuthErrorContext());
-    }
-
-    const { id } = ParticipantIdParamSchema.parse(c.req.param());
+    const { user } = c.auth();
+    const { id } = c.validated.params;
     const db = await getDbAsync();
 
     // Get participant and verify thread ownership
@@ -687,36 +713,18 @@ export const deleteParticipantHandler: RouteHandler<typeof deleteParticipantRout
 export const sendMessageHandler: RouteHandler<typeof sendMessageRoute, ApiEnv> = createHandler(
   {
     auth: 'session',
+    validateParams: ThreadIdParamSchema,
+    validateBody: SendMessageRequestSchema,
     operationName: 'sendMessage',
   },
   async (c) => {
-    const user = c.var.user;
-    if (!user) {
-      throw createError.unauthenticated('Authentication required', createAuthErrorContext());
-    }
-
-    const { id } = ThreadIdParamSchema.parse(c.req.param());
-    const body = SendMessageRequestSchema.parse(await c.req.json());
+    const { user } = c.auth();
+    const { id } = c.validated.params;
+    const body = c.validated.body;
     const db = await getDbAsync();
 
-    // Verify thread ownership and get thread details
-    const thread = await db.query.chatThread.findFirst({
-      where: eq(tables.chatThread.id, id),
-      with: {
-        participants: {
-          where: eq(tables.chatParticipant.isEnabled, true),
-          orderBy: [tables.chatParticipant.priority],
-        },
-      },
-    });
-
-    if (!thread) {
-      throw createError.notFound('Thread not found', createResourceNotFoundContext('thread', id));
-    }
-
-    if (thread.userId !== user.id) {
-      throw createError.unauthorized('Not authorized to send messages to this thread', createAuthorizationErrorContext('thread', id));
-    }
+    // Verify thread ownership and get thread details with participants
+    const thread = await verifyThreadOwnership(id, user.id, db, { includeParticipants: true });
 
     if (thread.participants.length === 0) {
       throw createError.badRequest('No enabled participants in this thread');
@@ -764,22 +772,21 @@ export const sendMessageHandler: RouteHandler<typeof sendMessageRoute, ApiEnv> =
       });
     }
 
-    // Build conversation context
-    const conversationMessages: AIMessage[] = previousMessages.map(msg => ({
-      role: msg.role as 'user' | 'assistant',
-      content: msg.content,
-    }));
+    // Build conversation context using UIMessage format
+    const conversationMessages = buildUIMessages([
+      ...previousMessages.map(msg => ({
+        id: msg.id,
+        role: msg.role as 'user' | 'assistant',
+        content: msg.content,
+      })),
+      {
+        id: userMessageId,
+        role: 'user' as const,
+        content: body.content,
+      },
+    ]);
 
-    // Add the new user message to context
-    conversationMessages.push({
-      role: 'user',
-      content: body.content,
-    });
-
-    // Initialize OpenRouter service with API key
-    initializeOpenRouter(c.env);
-
-    // Orchestrate multi-model responses
+    // Orchestrate multi-model responses using initialized OpenRouter service
     const orchestrationResults = await openRouterService.orchestrateMultiModel(
       thread.participants.map((p: typeof thread.participants[number]) => ({
         participantId: p.id,
@@ -840,6 +847,107 @@ export const sendMessageHandler: RouteHandler<typeof sendMessageRoute, ApiEnv> =
   },
 );
 
+/**
+ * Stream chat handler using AI SDK v5
+ * Streams AI responses token-by-token for real-time UX using built-in streaming
+ */
+export const streamChatHandler: RouteHandler<typeof streamChatRoute, ApiEnv> = createHandler(
+  {
+    auth: 'session',
+    validateParams: ThreadIdParamSchema,
+    validateBody: StreamChatRequestSchema,
+    operationName: 'streamChat',
+  },
+  async (c) => {
+    const { user } = c.auth();
+    const { id } = c.validated.params;
+    const body = c.validated.body;
+    const db = await getDbAsync();
+
+    // Verify thread ownership and get thread details with participants
+    const thread = await verifyThreadOwnership(id, user.id, db, { includeParticipants: true });
+
+    if (thread.participants.length === 0) {
+      throw createError.badRequest('No enabled participants in this thread');
+    }
+
+    // Enforce message quota
+    await enforceMessageQuota(user.id);
+
+    // Get previous messages for context (last 10 messages)
+    const previousMessages = await db.query.chatMessage.findMany({
+      where: eq(tables.chatMessage.threadId, id),
+      orderBy: [tables.chatMessage.createdAt],
+      limit: 10,
+    });
+
+    // Create user message ID upfront
+    const userMessageId = ulid();
+
+    // Save user message to database immediately
+    await db.insert(tables.chatMessage).values({
+      id: userMessageId,
+      threadId: id,
+      participantId: null,
+      role: 'user',
+      content: body.content,
+      parentMessageId: body.parentMessageId,
+      createdAt: new Date(),
+    });
+
+    // Auto-generate thread title if first message
+    if (previousMessages.length === 0 && thread.title === 'New Chat') {
+      autoGenerateThreadTitle(id, body.content, c.env).catch((error) => {
+        apiLogger.error('Failed to auto-generate thread title', {
+          threadId: id,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      });
+    }
+
+    // Build UI messages from database messages + new user message
+    const uiMessages = buildUIMessages([
+      ...previousMessages.map(msg => ({
+        id: msg.id,
+        role: msg.role as 'user' | 'assistant',
+        content: msg.content,
+      })),
+      {
+        id: userMessageId,
+        role: 'user' as const,
+        content: body.content,
+      },
+    ]);
+
+    // Use first enabled participant for streaming
+    const participant = thread.participants[0]!;
+
+    // Stream the response using OpenRouter service singleton (AI SDK v5)
+    return openRouterService.streamUIMessages({
+      modelId: participant.modelId,
+      messages: uiMessages,
+      system: participant.settings?.systemPrompt,
+      temperature: participant.settings?.temperature || 0.7,
+      onFinish: async ({ text }) => {
+        // Save assistant message to database
+        const assistantMessageId = ulid();
+        await db.insert(tables.chatMessage).values({
+          id: assistantMessageId,
+          threadId: id,
+          participantId: participant.id,
+          role: 'assistant',
+          content: text,
+          parentMessageId: null,
+          createdAt: new Date(),
+        });
+
+        // Increment usage tracking (1 user message already saved + 1 assistant)
+        await incrementMessageUsage(user.id, 1); // Only count assistant message (user already counted)
+      },
+    });
+  },
+);
+
 // ============================================================================
 // Memory Handlers
 // ============================================================================
@@ -850,40 +958,46 @@ export const listMemoriesHandler: RouteHandler<typeof listMemoriesRoute, ApiEnv>
     operationName: 'listMemories',
   },
   async (c) => {
-    const user = c.var.user;
-    if (!user) {
-      throw createError.unauthenticated('Authentication required', createAuthErrorContext());
-    }
+    const { user } = c.auth();
 
+    // Parse cursor pagination query parameters
+    const query = CursorPaginationQuerySchema.parse(c.req.query());
     const db = await getDbAsync();
 
+    // Fetch memories with cursor-based pagination (limit + 1 to check hasMore)
     const memories = await db.query.chatMemory.findMany({
-      where: eq(tables.chatMemory.userId, user.id),
-      orderBy: [desc(tables.chatMemory.updatedAt)],
+      where: buildCursorWhereWithFilters(
+        tables.chatMemory.updatedAt,
+        query.cursor,
+        'desc',
+        [eq(tables.chatMemory.userId, user.id)],
+      ),
+      orderBy: getCursorOrderBy(tables.chatMemory.updatedAt, 'desc'),
+      limit: query.limit + 1,
     });
 
-    return Responses.ok(c, {
+    // Apply cursor pagination and format response
+    return Responses.ok(c, applyCursorPagination(
       memories,
-      count: memories.length,
-    });
+      query.limit,
+      memory => createTimestampCursor(memory.updatedAt),
+    ));
   },
 );
 
 export const createMemoryHandler: RouteHandler<typeof createMemoryRoute, ApiEnv> = createHandler(
   {
     auth: 'session',
+    validateBody: CreateMemoryRequestSchema,
     operationName: 'createMemory',
   },
   async (c) => {
-    const user = c.var.user;
-    if (!user) {
-      throw createError.unauthenticated('Authentication required', createAuthErrorContext());
-    }
+    const { user } = c.auth();
 
     // Enforce memory quota BEFORE creating
     await enforceMemoryQuota(user.id);
 
-    const body = CreateMemoryRequestSchema.parse(await c.req.json());
+    const body = c.validated.body;
     const db = await getDbAsync();
 
     const memoryId = ulid();
@@ -918,27 +1032,24 @@ export const createMemoryHandler: RouteHandler<typeof createMemoryRoute, ApiEnv>
 export const getMemoryHandler: RouteHandler<typeof getMemoryRoute, ApiEnv> = createHandler(
   {
     auth: 'session',
+    validateParams: MemoryIdParamSchema,
     operationName: 'getMemory',
   },
   async (c) => {
-    const user = c.var.user;
-    if (!user) {
-      throw createError.unauthenticated('Authentication required', createAuthErrorContext());
-    }
-
-    const { id } = MemoryIdParamSchema.parse(c.req.param());
+    const { user } = c.auth();
+    const { id } = c.validated.params;
     const db = await getDbAsync();
 
+    // Query with userId - memories are always user-scoped
     const memory = await db.query.chatMemory.findFirst({
-      where: eq(tables.chatMemory.id, id),
+      where: and(
+        eq(tables.chatMemory.id, id),
+        eq(tables.chatMemory.userId, user.id),
+      ),
     });
 
     if (!memory) {
       throw createError.notFound('Memory not found', createResourceNotFoundContext('memory', id));
-    }
-
-    if (memory.userId !== user.id) {
-      throw createError.unauthorized('Not authorized to access this memory', createAuthorizationErrorContext('memory', id));
     }
 
     return Responses.ok(c, {
@@ -950,38 +1061,32 @@ export const getMemoryHandler: RouteHandler<typeof getMemoryRoute, ApiEnv> = cre
 export const updateMemoryHandler: RouteHandler<typeof updateMemoryRoute, ApiEnv> = createHandler(
   {
     auth: 'session',
+    validateParams: MemoryIdParamSchema,
+    validateBody: UpdateMemoryRequestSchema,
     operationName: 'updateMemory',
   },
   async (c) => {
-    const user = c.var.user;
-    if (!user) {
-      throw createError.unauthenticated('Authentication required', createAuthErrorContext());
-    }
-
-    const { id } = MemoryIdParamSchema.parse(c.req.param());
-    const body = UpdateMemoryRequestSchema.parse(await c.req.json());
+    const { user } = c.auth();
+    const { id } = c.validated.params;
+    const body = c.validated.body;
     const db = await getDbAsync();
 
-    const existingMemory = await db.query.chatMemory.findFirst({
-      where: eq(tables.chatMemory.id, id),
-    });
-
-    if (!existingMemory) {
-      throw createError.notFound('Memory not found', createResourceNotFoundContext('memory', id));
-    }
-
-    if (existingMemory.userId !== user.id) {
-      throw createError.unauthorized('Not authorized to update this memory', createAuthorizationErrorContext('memory', id));
-    }
-
+    // Update with userId filter - memories are always user-scoped
     const [updatedMemory] = await db
       .update(tables.chatMemory)
       .set({
         ...body,
         updatedAt: new Date(),
       })
-      .where(eq(tables.chatMemory.id, id))
+      .where(and(
+        eq(tables.chatMemory.id, id),
+        eq(tables.chatMemory.userId, user.id),
+      ))
       .returning();
+
+    if (!updatedMemory) {
+      throw createError.notFound('Memory not found', createResourceNotFoundContext('memory', id));
+    }
 
     return Responses.ok(c, {
       memory: updatedMemory,
@@ -992,30 +1097,26 @@ export const updateMemoryHandler: RouteHandler<typeof updateMemoryRoute, ApiEnv>
 export const deleteMemoryHandler: RouteHandler<typeof deleteMemoryRoute, ApiEnv> = createHandler(
   {
     auth: 'session',
+    validateParams: MemoryIdParamSchema,
     operationName: 'deleteMemory',
   },
   async (c) => {
-    const user = c.var.user;
-    if (!user) {
-      throw createError.unauthenticated('Authentication required', createAuthErrorContext());
-    }
-
-    const { id } = MemoryIdParamSchema.parse(c.req.param());
+    const { user } = c.auth();
+    const { id } = c.validated.params;
     const db = await getDbAsync();
 
-    const existingMemory = await db.query.chatMemory.findFirst({
-      where: eq(tables.chatMemory.id, id),
-    });
+    // Delete with userId filter - memories are always user-scoped
+    const result = await db
+      .delete(tables.chatMemory)
+      .where(and(
+        eq(tables.chatMemory.id, id),
+        eq(tables.chatMemory.userId, user.id),
+      ))
+      .returning();
 
-    if (!existingMemory) {
+    if (result.length === 0) {
       throw createError.notFound('Memory not found', createResourceNotFoundContext('memory', id));
     }
-
-    if (existingMemory.userId !== user.id) {
-      throw createError.unauthorized('Not authorized to delete this memory', createAuthorizationErrorContext('memory', id));
-    }
-
-    await db.delete(tables.chatMemory).where(eq(tables.chatMemory.id, id));
 
     return Responses.ok(c, {
       deleted: true,
@@ -1033,40 +1134,46 @@ export const listCustomRolesHandler: RouteHandler<typeof listCustomRolesRoute, A
     operationName: 'listCustomRoles',
   },
   async (c) => {
-    const user = c.var.user;
-    if (!user) {
-      throw createError.unauthenticated('Authentication required', createAuthErrorContext());
-    }
+    const { user } = c.auth();
 
+    // Parse cursor pagination query parameters
+    const query = CursorPaginationQuerySchema.parse(c.req.query());
     const db = await getDbAsync();
 
+    // Fetch custom roles with cursor-based pagination (limit + 1 to check hasMore)
     const customRoles = await db.query.chatCustomRole.findMany({
-      where: eq(tables.chatCustomRole.userId, user.id),
-      orderBy: [desc(tables.chatCustomRole.updatedAt)],
+      where: buildCursorWhereWithFilters(
+        tables.chatCustomRole.updatedAt,
+        query.cursor,
+        'desc',
+        [eq(tables.chatCustomRole.userId, user.id)],
+      ),
+      orderBy: getCursorOrderBy(tables.chatCustomRole.updatedAt, 'desc'),
+      limit: query.limit + 1,
     });
 
-    return Responses.ok(c, {
+    // Apply cursor pagination and format response
+    return Responses.ok(c, applyCursorPagination(
       customRoles,
-      count: customRoles.length,
-    });
+      query.limit,
+      customRole => createTimestampCursor(customRole.updatedAt),
+    ));
   },
 );
 
 export const createCustomRoleHandler: RouteHandler<typeof createCustomRoleRoute, ApiEnv> = createHandler(
   {
     auth: 'session',
+    validateBody: CreateCustomRoleRequestSchema,
     operationName: 'createCustomRole',
   },
   async (c) => {
-    const user = c.var.user;
-    if (!user) {
-      throw createError.unauthenticated('Authentication required', createAuthErrorContext());
-    }
+    const { user } = c.auth();
 
     // Enforce custom role quota BEFORE creating
     await enforceCustomRoleQuota(user.id);
 
-    const body = CreateCustomRoleRequestSchema.parse(await c.req.json());
+    const body = c.validated.body;
     const db = await getDbAsync();
 
     const customRoleId = ulid();
@@ -1098,27 +1205,24 @@ export const createCustomRoleHandler: RouteHandler<typeof createCustomRoleRoute,
 export const getCustomRoleHandler: RouteHandler<typeof getCustomRoleRoute, ApiEnv> = createHandler(
   {
     auth: 'session',
+    validateParams: CustomRoleIdParamSchema,
     operationName: 'getCustomRole',
   },
   async (c) => {
-    const user = c.var.user;
-    if (!user) {
-      throw createError.unauthenticated('Authentication required', createAuthErrorContext());
-    }
-
-    const { id } = CustomRoleIdParamSchema.parse(c.req.param());
+    const { user } = c.auth();
+    const { id } = c.validated.params;
     const db = await getDbAsync();
 
+    // Query with userId - custom roles are always user-scoped
     const customRole = await db.query.chatCustomRole.findFirst({
-      where: eq(tables.chatCustomRole.id, id),
+      where: and(
+        eq(tables.chatCustomRole.id, id),
+        eq(tables.chatCustomRole.userId, user.id),
+      ),
     });
 
     if (!customRole) {
       throw createError.notFound('Custom role not found', createResourceNotFoundContext('custom_role', id));
-    }
-
-    if (customRole.userId !== user.id) {
-      throw createError.unauthorized('Not authorized to access this custom role', createAuthorizationErrorContext('custom_role', id));
     }
 
     return Responses.ok(c, {
@@ -1130,38 +1234,32 @@ export const getCustomRoleHandler: RouteHandler<typeof getCustomRoleRoute, ApiEn
 export const updateCustomRoleHandler: RouteHandler<typeof updateCustomRoleRoute, ApiEnv> = createHandler(
   {
     auth: 'session',
+    validateParams: CustomRoleIdParamSchema,
+    validateBody: UpdateCustomRoleRequestSchema,
     operationName: 'updateCustomRole',
   },
   async (c) => {
-    const user = c.var.user;
-    if (!user) {
-      throw createError.unauthenticated('Authentication required', createAuthErrorContext());
-    }
-
-    const { id } = CustomRoleIdParamSchema.parse(c.req.param());
-    const body = UpdateCustomRoleRequestSchema.parse(await c.req.json());
+    const { user } = c.auth();
+    const { id } = c.validated.params;
+    const body = c.validated.body;
     const db = await getDbAsync();
 
-    const existingCustomRole = await db.query.chatCustomRole.findFirst({
-      where: eq(tables.chatCustomRole.id, id),
-    });
-
-    if (!existingCustomRole) {
-      throw createError.notFound('Custom role not found', createResourceNotFoundContext('custom_role', id));
-    }
-
-    if (existingCustomRole.userId !== user.id) {
-      throw createError.unauthorized('Not authorized to update this custom role', createAuthorizationErrorContext('custom_role', id));
-    }
-
+    // Update with userId filter - custom roles are always user-scoped
     const [updatedCustomRole] = await db
       .update(tables.chatCustomRole)
       .set({
         ...body,
         updatedAt: new Date(),
       })
-      .where(eq(tables.chatCustomRole.id, id))
+      .where(and(
+        eq(tables.chatCustomRole.id, id),
+        eq(tables.chatCustomRole.userId, user.id),
+      ))
       .returning();
+
+    if (!updatedCustomRole) {
+      throw createError.notFound('Custom role not found', createResourceNotFoundContext('custom_role', id));
+    }
 
     return Responses.ok(c, {
       customRole: updatedCustomRole,
@@ -1172,30 +1270,26 @@ export const updateCustomRoleHandler: RouteHandler<typeof updateCustomRoleRoute,
 export const deleteCustomRoleHandler: RouteHandler<typeof deleteCustomRoleRoute, ApiEnv> = createHandler(
   {
     auth: 'session',
+    validateParams: CustomRoleIdParamSchema,
     operationName: 'deleteCustomRole',
   },
   async (c) => {
-    const user = c.var.user;
-    if (!user) {
-      throw createError.unauthenticated('Authentication required', createAuthErrorContext());
-    }
-
-    const { id } = CustomRoleIdParamSchema.parse(c.req.param());
+    const { user } = c.auth();
+    const { id } = c.validated.params;
     const db = await getDbAsync();
 
-    const existingCustomRole = await db.query.chatCustomRole.findFirst({
-      where: eq(tables.chatCustomRole.id, id),
-    });
+    // Delete with userId filter - custom roles are always user-scoped
+    const result = await db
+      .delete(tables.chatCustomRole)
+      .where(and(
+        eq(tables.chatCustomRole.id, id),
+        eq(tables.chatCustomRole.userId, user.id),
+      ))
+      .returning();
 
-    if (!existingCustomRole) {
+    if (result.length === 0) {
       throw createError.notFound('Custom role not found', createResourceNotFoundContext('custom_role', id));
     }
-
-    if (existingCustomRole.userId !== user.id) {
-      throw createError.unauthorized('Not authorized to delete this custom role', createAuthorizationErrorContext('custom_role', id));
-    }
-
-    await db.delete(tables.chatCustomRole).where(eq(tables.chatCustomRole.id, id));
 
     return Responses.ok(c, {
       deleted: true,

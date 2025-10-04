@@ -7,6 +7,7 @@ export {
   validateEnvironmentConfiguration,
   validateServiceEnvironment,
 } from './environment-validation';
+export { ensureOpenRouterInitialized } from './openrouter';
 export { RateLimiterFactory as createRateLimitMiddleware } from './rate-limiter-factory';
 export {
   createApiSizeLimitMiddleware,
@@ -21,3 +22,4 @@ export {
   validateRequestSize,
   validateResponseSize,
 } from './size-limits';
+export { ensureStripeInitialized } from './stripe';

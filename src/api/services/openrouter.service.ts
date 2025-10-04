@@ -11,7 +11,8 @@
  */
 
 import { createOpenRouter } from '@openrouter/ai-sdk-provider';
-import { generateText, streamText } from 'ai';
+import type { UIMessage } from 'ai';
+import { convertToModelMessages, generateText, streamText } from 'ai';
 
 import { createError } from '@/api/common/error-handling';
 import type { ErrorContext } from '@/api/core';
@@ -30,20 +31,12 @@ type OpenRouterServiceConfig = {
 };
 
 /**
- * Message format for AI SDK v5
- */
-export type AIMessage = {
-  role: 'user' | 'assistant' | 'system';
-  content: string;
-};
-
-/**
- * Text generation parameters
+ * Text generation parameters using AI SDK v5 UIMessage format
  */
 export type GenerateTextParams = {
   modelId: string;
-  messages: AIMessage[];
-  systemPrompt?: string;
+  messages: UIMessage[];
+  system?: string;
   temperature?: number;
   maxTokens?: number;
   topP?: number;
@@ -134,7 +127,7 @@ class OpenRouterService {
 
   /**
    * Generate text completion from a single model (non-streaming)
-   * Following AI SDK v5 patterns
+   * Following AI SDK v5 patterns - uses UIMessage format and convertToModelMessages()
    */
   async generateText(params: GenerateTextParams): Promise<{
     text: string;
@@ -149,17 +142,10 @@ class OpenRouterService {
     const modelConfig = this.getModelConfig(params.modelId);
 
     try {
-      // Build messages array with optional system message
-      const messages: AIMessage[] = params.systemPrompt
-        ? [{ role: 'system' as const, content: params.systemPrompt }, ...params.messages]
-        : params.messages;
-
       const result = await generateText({
         model: client.chat(modelConfig.modelId),
-        messages: messages.map(msg => ({
-          role: msg.role,
-          content: msg.content,
-        })),
+        messages: convertToModelMessages(params.messages),
+        system: params.system,
         temperature: params.temperature ?? modelConfig.defaultSettings.temperature,
         maxOutputTokens: params.maxTokens ?? modelConfig.defaultSettings.maxTokens,
         topP: params.topP ?? modelConfig.defaultSettings.topP,
@@ -192,24 +178,17 @@ class OpenRouterService {
 
   /**
    * Generate streaming text completion from a single model
-   * Following AI SDK v5 patterns - streamText returns immediately (not async)
+   * Following AI SDK v5 patterns - uses UIMessage format and convertToModelMessages()
    */
   streamText(params: StreamTextParams): ReadableStream {
     const client = this.getClient();
     const modelConfig = this.getModelConfig(params.modelId);
 
     try {
-      // Build messages array with optional system message
-      const messages: AIMessage[] = params.systemPrompt
-        ? [{ role: 'system' as const, content: params.systemPrompt }, ...params.messages]
-        : params.messages;
-
       const result = streamText({
         model: client.chat(modelConfig.modelId),
-        messages: messages.map(msg => ({
-          role: msg.role,
-          content: msg.content,
-        })),
+        messages: convertToModelMessages(params.messages),
+        system: params.system,
         temperature: params.temperature ?? modelConfig.defaultSettings.temperature,
         maxOutputTokens: params.maxTokens ?? modelConfig.defaultSettings.maxTokens,
         topP: params.topP ?? modelConfig.defaultSettings.topP,
@@ -237,6 +216,70 @@ class OpenRouterService {
     }
   }
 
+  /**
+   * Stream UI messages using AI SDK v5
+   * Returns Response suitable for Hono route handlers with automatic SSE streaming
+   *
+   * This method follows AI SDK v5 patterns:
+   * - Accepts UIMessage[] format for seamless integration with useChat
+   * - Uses convertToModelMessages() for type-safe conversion
+   * - Returns Response with .toUIMessageStreamResponse() for automatic SSE handling
+   *
+   * @example
+   * ```typescript
+   * return openRouterService.streamUIMessages({
+   *   modelId: 'anthropic/claude-3-5-sonnet',
+   *   messages: uiMessages,
+   *   system: 'You are a helpful assistant',
+   *   temperature: 0.7,
+   *   onFinish: async ({ text }) => {
+   *     await saveToDatabase(text);
+   *   },
+   * });
+   * ```
+   */
+  streamUIMessages(params: {
+    modelId: string;
+    messages: UIMessage[];
+    system?: string;
+    temperature?: number;
+    topP?: number;
+    onFinish?: (result: { text: string; usage?: { totalTokens: number } }) => Promise<void> | void;
+  }): Response {
+    const client = this.getClient();
+    const modelConfig = this.getModelConfig(params.modelId);
+
+    try {
+      const result = streamText({
+        model: client.chat(modelConfig.modelId),
+        messages: convertToModelMessages(params.messages),
+        system: params.system,
+        temperature: params.temperature ?? modelConfig.defaultSettings.temperature,
+        topP: params.topP ?? modelConfig.defaultSettings.topP,
+        onFinish: params.onFinish
+          ? ({ text, usage }) => {
+              params.onFinish?.({ text, usage: { totalTokens: usage.totalTokens ?? 0 } });
+            }
+          : undefined,
+      });
+
+      return result.toUIMessageStreamResponse();
+    } catch (error) {
+      apiLogger.error('OpenRouter UI message streaming failed', {
+        modelId: params.modelId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+
+      const context: ErrorContext = {
+        errorType: 'external_service',
+        service: 'openrouter',
+        operation: 'stream_ui_messages',
+        resourceId: params.modelId,
+      };
+      throw createError.internal('Failed to stream UI messages from OpenRouter', context);
+    }
+  }
+
   // ============================================================================
   // Multi-Model Orchestration
   // ============================================================================
@@ -244,6 +287,7 @@ class OpenRouterService {
   /**
    * Orchestrate multiple models in a conversation
    * Each participant responds in priority order
+   * Uses AI SDK v5 UIMessage format
    */
   async orchestrateMultiModel(
     participants: Array<{
@@ -255,7 +299,7 @@ class OpenRouterService {
       temperature?: number;
       maxTokens?: number;
     }>,
-    messages: AIMessage[],
+    messages: UIMessage[],
     mode: 'analyzing' | 'brainstorming' | 'debating' | 'solving',
   ): Promise<Array<{
       participantId: string;
@@ -288,12 +332,12 @@ class OpenRouterService {
       };
     }> = [];
 
-    // Accumulate messages for context
-    const conversationMessages: AIMessage[] = [...messages];
+    // Accumulate messages for context (using UIMessage format)
+    const conversationMessages: UIMessage[] = [...messages];
 
     // Execute each participant in priority order
     for (const participant of sortedParticipants) {
-      const systemPrompt = this.buildSystemPrompt({
+      const system = this.buildSystemPrompt({
         role: participant.role,
         mode,
         modeContext,
@@ -304,7 +348,7 @@ class OpenRouterService {
         const result = await this.generateText({
           modelId: participant.modelId,
           messages: conversationMessages,
-          systemPrompt,
+          system,
           temperature: participant.temperature,
           maxTokens: participant.maxTokens,
         });
@@ -318,10 +362,16 @@ class OpenRouterService {
           usage: result.usage,
         });
 
-        // Add this model's response to conversation context for next participant
+        // Add this model's response to conversation context for next participant (UIMessage format)
         conversationMessages.push({
+          id: `msg-${Date.now()}-${participant.participantId}`,
           role: 'assistant',
-          content: `[${participant.role}]: ${result.text}`,
+          parts: [
+            {
+              type: 'text',
+              text: `[${participant.role}]: ${result.text}`,
+            },
+          ],
         });
       } catch (error) {
         apiLogger.error('Multi-model orchestration failed for participant', {

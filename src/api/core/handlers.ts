@@ -21,7 +21,7 @@ import type { z } from 'zod';
 import type { ErrorCode } from '@/api/common/error-handling';
 import { AppError } from '@/api/common/error-handling';
 import { apiLogger } from '@/api/middleware/hono-logger';
-import type { ApiEnv } from '@/api/types';
+import type { ApiEnv, AuthenticatedContext, AuthMode } from '@/api/types';
 // Database access should be handled by individual handlers
 import { getDbAsync } from '@/db';
 
@@ -67,8 +67,6 @@ function createPerformanceTracker() {
 // TYPE DEFINITIONS
 // ============================================================================
 
-export type AuthMode = 'session' | 'session-optional' | 'public' | 'api-key';
-
 export type HandlerConfig<
   _TRoute extends RouteConfig,
   TBody extends z.ZodSchema = never,
@@ -92,7 +90,9 @@ export type HandlerConfig<
 
 };
 
-// Enhanced context with validated data and logger
+/**
+ * Enhanced context with validated data and logger
+ */
 export type HandlerContext<
   TEnv extends Env = ApiEnv,
   TBody extends z.ZodSchema = never,
@@ -110,6 +110,11 @@ export type HandlerContext<
     warn: (message: string, data?: LoggerData) => void;
     error: (message: string, error?: Error, data?: LoggerData) => void;
   };
+  /**
+   * Get authenticated user and session (use when auth: 'session')
+   * @throws Error if user or session is null
+   */
+  auth: () => AuthenticatedContext;
 };
 
 // Handler function types
@@ -356,6 +361,18 @@ async function validateRequest<
 
 /**
  * Create a route handler without database transactions
+ *
+ * @example
+ * ```typescript
+ * // With session authentication
+ * export const handler = createHandler(
+ *   { auth: 'session' },
+ *   async (c) => {
+ *     const { user, session } = c.auth(); // Type-safe: guaranteed non-null
+ *     return Responses.ok(c, { userId: user.id });
+ *   }
+ * );
+ * ```
  */
 export function createHandler<
   TRoute extends RouteConfig,
@@ -388,10 +405,28 @@ export function createHandler<
       logger.debug('Validating request');
       const validated = await validateRequest<TBody, TQuery, TParams>(c, config);
 
+      // Create authenticated context helper
+      const authFn = () => {
+        const user = c.var.user;
+        const session = c.var.session;
+        const requestId = c.var.requestId;
+
+        if (!user || !session) {
+          throw new Error('Authentication required - call c.auth() only when auth: "session"');
+        }
+
+        return {
+          user,
+          session,
+          requestId: requestId || '',
+        } as AuthenticatedContext;
+      };
+
       // Create enhanced context
       const enhancedContext = Object.assign(c, {
         validated,
         logger,
+        auth: authFn,
       }) as HandlerContext<TEnv, TBody, TQuery, TParams>;
 
       // Execute handler implementation
@@ -471,6 +506,19 @@ export function createHandler<
  * - Single network round-trip: Optimized for edge environments
  * - Implicit transactions: No explicit BEGIN/COMMIT needed
  *
+ * @example
+ * ```typescript
+ * export const handler = createHandlerWithBatch(
+ *   { auth: 'session' },
+ *   async (c, batch) => {
+ *     const { user } = c.auth(); // Type-safe: guaranteed non-null
+ *     batch.add(db.insert(...).prepare());
+ *     await batch.execute();
+ *     return Responses.created(c, { userId: user.id });
+ *   }
+ * );
+ * ```
+ *
  * @see /docs/d1-batch-operations.md for comprehensive patterns
  */
 export function createHandlerWithBatch<
@@ -508,10 +556,28 @@ export function createHandlerWithBatch<
       logger.debug('Validating request');
       const validated = await validateRequest<TBody, TQuery, TParams>(c, config);
 
+      // Create authenticated context helper
+      const authFn = () => {
+        const user = c.var.user;
+        const session = c.var.session;
+        const requestId = c.var.requestId;
+
+        if (!user || !session) {
+          throw new Error('Authentication required - call c.auth() only when auth: "session"');
+        }
+
+        return {
+          user,
+          session,
+          requestId: requestId || '',
+        } as AuthenticatedContext;
+      };
+
       // Create enhanced context
       const enhancedContext = Object.assign(c, {
         validated,
         logger,
+        auth: authFn,
       }) as HandlerContext<TEnv, TBody, TQuery, TParams>;
 
       // Execute implementation with D1 batch operations

@@ -439,7 +439,7 @@ export const ApiErrorResponseSchema = z.object({
 });
 
 /**
- * Paginated response schema
+ * Paginated response schema (page-based)
  */
 export function createPaginatedResponseSchema<T extends z.ZodTypeAny>(itemSchema: T) {
   return createApiResponseSchema(z.object({
@@ -457,17 +457,58 @@ export function createPaginatedResponseSchema<T extends z.ZodTypeAny>(itemSchema
   });
 }
 
+/**
+ * Cursor-based paginated response schema
+ * Optimized for infinite scroll and React Query
+ */
+export function createCursorPaginatedResponseSchema<T extends z.ZodTypeAny>(itemSchema: T) {
+  return createApiResponseSchema(z.object({
+    items: z.array(itemSchema),
+    pagination: z.object({
+      nextCursor: z.string().nullable().openapi({
+        description: 'Cursor for next page (null if no more items)',
+        example: '2024-01-15T10:30:00Z',
+      }),
+      hasMore: z.boolean().openapi({
+        description: 'Whether more items exist',
+        example: true,
+      }),
+      count: z.number().int().nonnegative().openapi({
+        description: 'Number of items in current response',
+        example: 20,
+      }),
+    }),
+  })).openapi({
+    description: 'Cursor-based paginated response optimized for infinite scroll',
+  });
+}
+
 // ============================================================================
 // COMMON REQUEST SCHEMAS
 // ============================================================================
 
 /**
- * Pagination query parameters
+ * Pagination query parameters (page-based)
  */
 export const PaginationQuerySchema = z.object({
   page: CoreSchemas.page(),
   limit: CoreSchemas.limit(),
 }).openapi('PaginationQuery');
+
+/**
+ * Cursor-based pagination query parameters
+ * Optimized for infinite scroll and React Query
+ */
+export const CursorPaginationQuerySchema = z.object({
+  cursor: z.string().optional().openapi({
+    description: 'Cursor for pagination (ISO timestamp or ID)',
+    example: '2024-01-15T10:30:00Z',
+  }),
+  limit: z.coerce.number().int().min(1).max(100).default(20).openapi({
+    description: 'Maximum number of items to return',
+    example: 20,
+  }),
+}).openapi('CursorPaginationQuery');
 
 /**
  * Sorting parameters
@@ -522,6 +563,71 @@ export const UuidParamSchema = z.object({
 // TYPE INFERENCE AND EXPORTS
 // ============================================================================
 
+// ============================================================================
+// STREAMING SCHEMAS
+// ============================================================================
+
+/**
+ * SSE streaming event schema
+ * For Server-Sent Events (EventSource) responses
+ */
+export const StreamingEventSchema = z.discriminatedUnion('type', [
+  z.object({
+    type: z.literal('start'),
+    threadId: z.string().openapi({
+      description: 'Thread ID for the conversation',
+    }),
+    timestamp: z.number().openapi({
+      description: 'Unix timestamp in milliseconds',
+    }),
+  }),
+  z.object({
+    type: z.literal('chunk'),
+    content: z.string().openapi({
+      description: 'Partial content chunk',
+    }),
+    messageId: z.string().nullable().openapi({
+      description: 'Message ID (null until saved)',
+    }),
+    timestamp: z.number().openapi({
+      description: 'Unix timestamp in milliseconds',
+    }),
+  }),
+  z.object({
+    type: z.literal('complete'),
+    messageId: z.string().openapi({
+      description: 'Final message ID',
+    }),
+    usage: z.object({
+      messagesCreated: z.number().int(),
+      messagesLimit: z.number().int(),
+    }).optional(),
+    timestamp: z.number().openapi({
+      description: 'Unix timestamp in milliseconds',
+    }),
+  }),
+  z.object({
+    type: z.literal('error'),
+    error: z.string().openapi({
+      description: 'Error message',
+    }),
+    code: z.string().optional().openapi({
+      description: 'Error code',
+    }),
+    timestamp: z.number().openapi({
+      description: 'Unix timestamp in milliseconds',
+    }),
+  }),
+]).openapi({
+  description: 'Server-Sent Event for streaming AI responses',
+  example: {
+    type: 'chunk',
+    content: 'This is a partial response...',
+    messageId: null,
+    timestamp: Date.now(),
+  },
+});
+
 // Export all inferred types
 export type RequestMetadata = z.infer<typeof RequestMetadataSchema>;
 export type LoggerData = z.infer<typeof LoggerDataSchema>;
@@ -530,11 +636,13 @@ export type ErrorContext = z.infer<typeof ErrorContextSchema>;
 export type FeatureMetadata = z.infer<typeof FeatureMetadataSchema>;
 export type ApiErrorResponse = z.infer<typeof ApiErrorResponseSchema>;
 export type PaginationQuery = z.infer<typeof PaginationQuerySchema>;
+export type CursorPaginationQuery = z.infer<typeof CursorPaginationQuerySchema>;
 export type SortingQuery = z.infer<typeof SortingQuerySchema>;
 export type SearchQuery = z.infer<typeof SearchQuerySchema>;
 export type ListQuery = z.infer<typeof ListQuerySchema>;
 export type IdParam = z.infer<typeof IdParamSchema>;
 export type UuidParam = z.infer<typeof UuidParamSchema>;
+export type StreamingEvent = z.infer<typeof StreamingEventSchema>;
 
 // Export utility types
 export type ApiResponse<T> = {
@@ -572,6 +680,23 @@ export type PaginatedResponse<T> = {
       pages: number;
       hasNext: boolean;
       hasPrev: boolean;
+    };
+  };
+  meta?: {
+    requestId?: string;
+    timestamp?: string;
+    version?: string;
+  };
+};
+
+export type CursorPaginatedResponse<T> = {
+  success: true;
+  data: {
+    items: T[];
+    pagination: {
+      nextCursor: string | null;
+      hasMore: boolean;
+      count: number;
     };
   };
   meta?: {

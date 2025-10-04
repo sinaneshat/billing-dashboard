@@ -26,6 +26,7 @@ import onError from 'stoker/middlewares/on-error';
 import { createOpenApiApp } from './factory';
 import { attachSession, csrfProtection, protectMutations, requireSession } from './middleware';
 import { errorLoggerMiddleware, honoLoggerMiddleware } from './middleware/hono-logger';
+import { ensureOpenRouterInitialized } from './middleware/openrouter';
 import { RateLimiterFactory } from './middleware/rate-limiter-factory';
 import { ensureStripeInitialized } from './middleware/stripe';
 // Import routes and handlers directly for proper RPC type inference
@@ -74,6 +75,7 @@ import {
   listMemoriesHandler,
   listThreadsHandler,
   sendMessageHandler,
+  streamChatHandler,
   updateCustomRoleHandler,
   updateMemoryHandler,
   updateParticipantHandler,
@@ -96,6 +98,7 @@ import {
   listMemoriesRoute,
   listThreadsRoute,
   sendMessageRoute,
+  streamChatRoute,
   updateCustomRoleRoute,
   updateMemoryRoute,
   updateParticipantRoute,
@@ -205,6 +208,10 @@ app.use('*', attachSession);
 app.use('/billing/*', ensureStripeInitialized);
 app.use('/webhooks/stripe', ensureStripeInitialized);
 
+// OpenRouter initialization for all chat routes
+// Using wildcard pattern to apply middleware to all /chat/* routes
+app.use('/chat/*', ensureOpenRouterInitialized);
+
 // Global rate limiting
 app.use('*', RateLimiterFactory.create('api'));
 
@@ -244,6 +251,9 @@ app.use('/chat/threads/:id', protectMutations);
 
 // POST /chat/threads/:id/messages - send message (requires auth + CSRF)
 app.use('/chat/threads/:id/messages', csrfProtection, requireSession);
+
+// POST /chat/threads/:id/stream - stream AI response (requires auth + CSRF)
+app.use('/chat/threads/:id/stream', csrfProtection, requireSession);
 
 // Participant management routes (protected)
 app.use('/chat/threads/:id/participants', csrfProtection, requireSession);
@@ -288,6 +298,7 @@ const appRoutes = app
   .openapi(updateThreadRoute, updateThreadHandler) // Update thread (title, favorite, public, etc.)
   .openapi(deleteThreadRoute, deleteThreadHandler) // Delete thread
   .openapi(sendMessageRoute, sendMessageHandler) // Send message to thread
+  .openapi(streamChatRoute, streamChatHandler) // Stream AI response via SSE
   .openapi(getPublicThreadRoute, getPublicThreadHandler) // Get public thread by slug (no auth)
   // Chat routes - Participant management
   .openapi(addParticipantRoute, addParticipantHandler) // Add model to thread

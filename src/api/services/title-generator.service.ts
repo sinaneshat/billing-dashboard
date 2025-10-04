@@ -53,15 +53,22 @@ export async function generateTitleFromMessage(
     initializeOpenRouter(env);
 
     // Use Claude Sonnet 4.1 for title generation (fast and accurate)
+    // Using AI SDK v5 UIMessage format
     const result = await openRouterService.generateText({
       modelId: 'anthropic/claude-sonnet-4.1',
       messages: [
         {
+          id: 'msg-title-gen',
           role: 'user',
-          content: firstMessage,
+          parts: [
+            {
+              type: 'text',
+              text: firstMessage,
+            },
+          ],
         },
       ],
-      systemPrompt: TITLE_GENERATION_PROMPT,
+      system: TITLE_GENERATION_PROMPT,
       temperature: 0.7,
       maxTokens: 50, // Titles should be very short
     });

@@ -1,6 +1,11 @@
 import { z } from '@hono/zod-openapi';
 
-import { CoreSchemas, createApiResponseSchema } from '@/api/core/schemas';
+import {
+  CoreSchemas,
+  createApiResponseSchema,
+  createCursorPaginatedResponseSchema,
+  CursorPaginationQuerySchema,
+} from '@/api/core/schemas';
 
 // ============================================================================
 // Path Parameter Schemas
@@ -275,28 +280,8 @@ export const ThreadSlugParamSchema = z.object({
   }),
 }).openapi('ThreadSlugParam');
 
-// Query parameters for infinite scroll
-export const ThreadListQuerySchema = z.object({
-  cursor: z.string().optional().openapi({
-    description: 'Cursor for pagination (thread ID)',
-    example: 'thread_abc123',
-  }),
-  limit: z.coerce.number().int().min(1).max(50).optional().default(20).openapi({
-    description: 'Number of threads to return per page',
-    example: 20,
-  }),
-}).openapi('ThreadListQuery');
-
-// Thread list response with cursor pagination for infinite scroll
-const ThreadListPayloadSchema = z.object({
-  threads: z.array(ChatThreadSchema).openapi({
-    description: 'List of chat threads',
-  }),
-  nextCursor: z.string().nullable().openapi({
-    description: 'Cursor for next page (null if no more pages)',
-    example: 'thread_xyz789',
-  }),
-}).openapi('ThreadListPayload');
+// Query parameters for cursor-based pagination (reuse shared schema)
+export const ThreadListQuerySchema = CursorPaginationQuerySchema.openapi('ThreadListQuery');
 
 // Thread detail with participants and messages
 const ThreadDetailPayloadSchema = z.object({
@@ -311,7 +296,7 @@ const ThreadDetailPayloadSchema = z.object({
   }),
 }).openapi('ThreadDetailPayload');
 
-export const ThreadListResponseSchema = createApiResponseSchema(ThreadListPayloadSchema).openapi('ThreadListResponse');
+export const ThreadListResponseSchema = createCursorPaginatedResponseSchema(ChatThreadSchema).openapi('ThreadListResponse');
 export const ThreadDetailResponseSchema = createApiResponseSchema(ThreadDetailPayloadSchema).openapi('ThreadDetailResponse');
 
 // ============================================================================
@@ -395,6 +380,21 @@ export const SendMessageRequestSchema = z.object({
     example: 'msg_parent123',
   }),
 }).openapi('SendMessageRequest');
+
+/**
+ * Streaming chat request schema
+ * Used for streaming AI responses via Server-Sent Events
+ */
+export const StreamChatRequestSchema = z.object({
+  content: z.string().min(1).openapi({
+    description: 'User message content for streaming response',
+    example: 'What are some innovative product ideas for sustainability?',
+  }),
+  parentMessageId: z.string().optional().openapi({
+    description: 'Parent message ID for threading',
+    example: 'msg_parent123',
+  }),
+}).openapi('StreamChatRequest');
 
 const MessageListPayloadSchema = z.object({
   messages: z.array(ChatMessageSchema).openapi({
@@ -531,23 +531,13 @@ export const UpdateMemoryRequestSchema = z.object({
   }),
 }).openapi('UpdateMemoryRequest');
 
-const MemoryListPayloadSchema = z.object({
-  memories: z.array(ChatMemorySchema).openapi({
-    description: 'List of memories',
-  }),
-  count: z.number().int().nonnegative().openapi({
-    description: 'Total number of memories',
-    example: 4,
-  }),
-}).openapi('MemoryListPayload');
-
 const MemoryDetailPayloadSchema = z.object({
   memory: ChatMemorySchema.openapi({
     description: 'Memory details',
   }),
 }).openapi('MemoryDetailPayload');
 
-export const MemoryListResponseSchema = createApiResponseSchema(MemoryListPayloadSchema).openapi('MemoryListResponse');
+export const MemoryListResponseSchema = createCursorPaginatedResponseSchema(ChatMemorySchema).openapi('MemoryListResponse');
 export const MemoryDetailResponseSchema = createApiResponseSchema(MemoryDetailPayloadSchema).openapi('MemoryDetailResponse');
 
 // ============================================================================
@@ -635,23 +625,13 @@ export const UpdateCustomRoleRequestSchema = z.object({
   }),
 }).openapi('UpdateCustomRoleRequest');
 
-const CustomRoleListPayloadSchema = z.object({
-  customRoles: z.array(ChatCustomRoleSchema).openapi({
-    description: 'List of custom roles',
-  }),
-  count: z.number().int().nonnegative().openapi({
-    description: 'Total number of custom roles',
-    example: 5,
-  }),
-}).openapi('CustomRoleListPayload');
-
 const CustomRoleDetailPayloadSchema = z.object({
   customRole: ChatCustomRoleSchema.openapi({
     description: 'Custom role details',
   }),
 }).openapi('CustomRoleDetailPayload');
 
-export const CustomRoleListResponseSchema = createApiResponseSchema(CustomRoleListPayloadSchema).openapi('CustomRoleListResponse');
+export const CustomRoleListResponseSchema = createCursorPaginatedResponseSchema(ChatCustomRoleSchema).openapi('CustomRoleListResponse');
 export const CustomRoleDetailResponseSchema = createApiResponseSchema(CustomRoleDetailPayloadSchema).openapi('CustomRoleDetailResponse');
 
 // ============================================================================
@@ -668,6 +648,7 @@ export type UpdateParticipantRequest = z.infer<typeof UpdateParticipantRequestSc
 
 export type ChatMessage = z.infer<typeof ChatMessageSchema>;
 export type SendMessageRequest = z.infer<typeof SendMessageRequestSchema>;
+export type StreamChatRequest = z.infer<typeof StreamChatRequestSchema>;
 
 export type ChatMemory = z.infer<typeof ChatMemorySchema>;
 export type CreateMemoryRequest = z.infer<typeof CreateMemoryRequestSchema>;

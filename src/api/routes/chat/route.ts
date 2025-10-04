@@ -18,6 +18,7 @@ import {
   ParticipantIdParamSchema,
   SendMessageRequestSchema,
   SendMessageResponseSchema,
+  StreamChatRequestSchema,
   ThreadDetailResponseSchema,
   ThreadIdParamSchema,
   ThreadListQuerySchema,
@@ -308,6 +309,46 @@ export const sendMessageRoute = createRoute({
   },
 });
 
+/**
+ * Streaming chat endpoint using Server-Sent Events (SSE)
+ * Returns AI responses token-by-token for real-time streaming UX
+ */
+export const streamChatRoute = createRoute({
+  method: 'post',
+  path: '/chat/threads/:id/stream',
+  tags: ['chat'],
+  summary: 'Stream AI chat response',
+  description: 'Send a user message and receive streaming AI responses via Server-Sent Events (SSE). Provides token-by-token streaming for real-time user experience.',
+  request: {
+    params: ThreadIdParamSchema,
+    body: {
+      content: {
+        'application/json': {
+          schema: StreamChatRequestSchema,
+        },
+      },
+    },
+  },
+  responses: {
+    [HttpStatusCodes.OK]: {
+      description: 'Streaming response (Server-Sent Events)',
+      content: {
+        'text/event-stream': {
+          schema: z.object({
+            type: z.enum(['start', 'chunk', 'complete', 'error']).openapi({
+              description: 'Event type',
+            }),
+          }).openapi('StreamingEvent'),
+        },
+      },
+    },
+    [HttpStatusCodes.UNAUTHORIZED]: { description: 'Authentication required' },
+    [HttpStatusCodes.NOT_FOUND]: { description: 'Thread not found' },
+    [HttpStatusCodes.BAD_REQUEST]: { description: 'Invalid request data or no participants enabled' },
+    [HttpStatusCodes.INTERNAL_SERVER_ERROR]: { description: 'Internal Server Error' },
+  },
+});
+
 // ============================================================================
 // Memory Routes
 // ============================================================================
@@ -316,8 +357,20 @@ export const listMemoriesRoute = createRoute({
   method: 'get',
   path: '/chat/memories',
   tags: ['chat'],
-  summary: 'List memories',
-  description: 'Get all memories for the authenticated user (global and thread-specific)',
+  summary: 'List memories with cursor pagination',
+  description: 'Get memories for the authenticated user with infinite scroll support',
+  request: {
+    query: z.object({
+      cursor: z.string().optional().openapi({
+        description: 'Cursor for pagination (ISO timestamp)',
+        example: '2024-01-15T10:30:00Z',
+      }),
+      limit: z.coerce.number().int().min(1).max(100).default(20).openapi({
+        description: 'Maximum number of items to return',
+        example: 20,
+      }),
+    }).openapi('MemoryListQuery'),
+  },
   responses: {
     [HttpStatusCodes.OK]: {
       description: 'Memories retrieved successfully',
@@ -444,8 +497,20 @@ export const listCustomRolesRoute = createRoute({
   method: 'get',
   path: '/chat/custom-roles',
   tags: ['chat'],
-  summary: 'List custom roles',
-  description: 'Get all custom role templates for the authenticated user',
+  summary: 'List custom roles with cursor pagination',
+  description: 'Get custom role templates for the authenticated user with infinite scroll support',
+  request: {
+    query: z.object({
+      cursor: z.string().optional().openapi({
+        description: 'Cursor for pagination (ISO timestamp)',
+        example: '2024-01-15T10:30:00Z',
+      }),
+      limit: z.coerce.number().int().min(1).max(100).default(20).openapi({
+        description: 'Maximum number of items to return',
+        example: 20,
+      }),
+    }).openapi('CustomRoleListQuery'),
+  },
   responses: {
     [HttpStatusCodes.OK]: {
       description: 'Custom roles retrieved successfully',
