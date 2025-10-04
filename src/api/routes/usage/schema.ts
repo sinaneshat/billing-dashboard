@@ -1,6 +1,7 @@
 import { z } from '@hono/zod-openapi';
 
 import { ApiErrorResponseSchema, createApiResponseSchema } from '@/api/core/schemas';
+import { subscriptionTierSchema } from '@/db/validation/usage';
 
 // ============================================================================
 // Usage Statistics Schemas
@@ -62,7 +63,7 @@ export const UsageStatsResponseSchema = createApiResponseSchema(
       }),
     }),
     subscription: z.object({
-      tier: z.enum(['free', 'starter', 'pro', 'enterprise']).openapi({
+      tier: subscriptionTierSchema.openapi({
         description: 'Current subscription tier',
         example: 'free',
       }),
@@ -99,7 +100,7 @@ export const QuotaCheckResponseSchema = createApiResponseSchema(
       description: 'Date when quota resets',
       example: '2025-10-31T23:59:59Z',
     }),
-    tier: z.enum(['free', 'starter', 'pro', 'enterprise']).openapi({
+    tier: subscriptionTierSchema.openapi({
       description: 'Current subscription tier',
       example: 'free',
     }),

@@ -19,13 +19,9 @@ import { getDbAsync } from '@/db';
 import * as tables from '@/db/schema';
 import type {
   QuotaCheck,
+  SubscriptionTier,
   UsageStats,
 } from '@/db/validation/usage';
-
-/**
- * Subscription tier type
- */
-export type SubscriptionTier = 'free' | 'starter' | 'pro' | 'enterprise';
 
 /**
  * Get or create user usage record
@@ -382,4 +378,152 @@ export async function enforceMessageQuota(userId: string): Promise<void> {
       context,
     );
   }
+}
+
+/**
+ * Sync user quotas based on subscription changes
+ * Handles new subscriptions, upgrades, downgrades, and cancellations
+ *
+ * @param userId - User ID to update quotas for
+ * @param priceId - Stripe price ID from the subscription
+ * @param isActive - Whether the subscription is active (not canceled)
+ * @param currentPeriodEnd - End date of the current billing period
+ */
+export async function syncUserQuotaFromSubscription(
+  userId: string,
+  priceId: string,
+  isActive: boolean,
+  currentPeriodEnd: Date,
+): Promise<void> {
+  const db = await getDbAsync();
+
+  // Get price metadata to determine tier and billing period
+  const price = await db.query.stripePrice.findFirst({
+    where: eq(tables.stripePrice.id, priceId),
+  });
+
+  if (!price) {
+    const context: ErrorContext = {
+      errorType: 'resource',
+      resource: 'stripe_price',
+      resourceId: priceId,
+    };
+    throw createError.notFound(`Price not found: ${priceId}`, context);
+  }
+
+  // Extract tier and billing period from price metadata
+  const tier = price.metadata?.tier as SubscriptionTier | undefined;
+  const isAnnual = price.interval === 'year';
+
+  if (!tier) {
+    apiLogger.warn('Price metadata missing tier information', { priceId });
+    return;
+  }
+
+  // If subscription is not active (canceled), don't modify quotas
+  // Quotas remain until currentPeriodEnd
+  if (!isActive) {
+    apiLogger.info('Subscription not active, preserving quotas until period end', {
+      userId,
+      tier,
+      currentPeriodEnd,
+    });
+    return;
+  }
+
+  // Get quota configuration for the new tier
+  const quotaConfig = await db.query.subscriptionTierQuotas.findFirst({
+    where: and(
+      eq(tables.subscriptionTierQuotas.tier, tier),
+      eq(tables.subscriptionTierQuotas.isAnnual, isAnnual),
+    ),
+  });
+
+  if (!quotaConfig) {
+    const context: ErrorContext = {
+      errorType: 'resource',
+      resource: 'subscription_tier_quotas',
+      resourceId: `${tier}-${isAnnual ? 'annual' : 'monthly'}`,
+    };
+    throw createError.notFound(`Quota configuration not found for tier: ${tier}`, context);
+  }
+
+  // Get current usage record
+  const currentUsage = await ensureUserUsageRecord(userId);
+
+  // Determine if this is an upgrade or downgrade
+  const oldThreadsLimit = currentUsage.threadsLimit;
+  const oldMessagesLimit = currentUsage.messagesLimit;
+  const newThreadsLimit = quotaConfig.threadsPerMonth;
+  const newMessagesLimit = quotaConfig.messagesPerMonth;
+
+  const isUpgrade = newThreadsLimit > oldThreadsLimit || newMessagesLimit > oldMessagesLimit;
+  const isDowngrade = newThreadsLimit < oldThreadsLimit || newMessagesLimit < oldMessagesLimit;
+
+  // Calculate quota updates based on subscription change type
+  let updatedThreadsLimit = newThreadsLimit;
+  let updatedMessagesLimit = newMessagesLimit;
+
+  if (isUpgrade) {
+    // For upgrades: Add the difference to current limits (compounding)
+    const threadsDifference = Math.max(0, newThreadsLimit - oldThreadsLimit);
+    const messagesDifference = Math.max(0, newMessagesLimit - oldMessagesLimit);
+
+    updatedThreadsLimit = currentUsage.threadsLimit + threadsDifference;
+    updatedMessagesLimit = currentUsage.messagesLimit + messagesDifference;
+
+    apiLogger.info('Upgrading subscription - compounding quota difference', {
+      userId,
+      oldTier: currentUsage.subscriptionTier,
+      newTier: tier,
+      threadsDifference,
+      messagesDifference,
+      oldLimits: { threads: oldThreadsLimit, messages: oldMessagesLimit },
+      newLimits: { threads: updatedThreadsLimit, messages: updatedMessagesLimit },
+    });
+  } else if (isDowngrade) {
+    // For downgrades: Set new limits but don't reduce current usage
+    // Current usage stays as is, but limit is reduced
+    apiLogger.info('Downgrading subscription - reducing limits', {
+      userId,
+      oldTier: currentUsage.subscriptionTier,
+      newTier: tier,
+      oldLimits: { threads: oldThreadsLimit, messages: oldMessagesLimit },
+      newLimits: { threads: updatedThreadsLimit, messages: updatedMessagesLimit },
+    });
+  } else {
+    // Same tier (e.g., switching between monthly/annual)
+    apiLogger.info('Subscription tier unchanged - updating billing period', {
+      userId,
+      tier,
+      isAnnual,
+    });
+  }
+
+  // Update user usage record with new subscription tier and limits
+  await db
+    .update(tables.userChatUsage)
+    .set({
+      subscriptionTier: tier,
+      isAnnual,
+      threadsLimit: updatedThreadsLimit,
+      messagesLimit: updatedMessagesLimit,
+      currentPeriodEnd, // Update period end to match subscription
+      updatedAt: new Date(),
+    })
+    .where(eq(tables.userChatUsage.userId, userId));
+
+  apiLogger.info('User quota synced successfully', {
+    userId,
+    tier,
+    isAnnual,
+    limits: {
+      threads: updatedThreadsLimit,
+      messages: updatedMessagesLimit,
+    },
+    currentUsage: {
+      threads: currentUsage.threadsCreated,
+      messages: currentUsage.messagesCreated,
+    },
+  });
 }

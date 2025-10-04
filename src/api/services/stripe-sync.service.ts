@@ -18,6 +18,7 @@ import { createError, normalizeError } from '@/api/common/error-handling';
 import type { ErrorContext } from '@/api/core';
 import { apiLogger } from '@/api/middleware/hono-logger';
 import { stripeService } from '@/api/services/stripe.service';
+import { syncUserQuotaFromSubscription } from '@/api/services/usage-tracking.service';
 import { getDbAsync } from '@/db';
 import * as tables from '@/db/schema';
 
@@ -441,6 +442,16 @@ export async function syncStripeDataFromStripe(
       await paymentMethodUpsert;
     }
   }
+
+  // Sync user quotas based on subscription changes
+  // Handles upgrades (compounds quotas), downgrades, and cancellations
+  const isActive = subscription.status === 'active' || subscription.status === 'trialing';
+  await syncUserQuotaFromSubscription(
+    customer.userId,
+    price.id,
+    isActive,
+    new Date(currentPeriodEnd * 1000),
+  );
 
   // Return synced subscription state (Theo's pattern)
   return {

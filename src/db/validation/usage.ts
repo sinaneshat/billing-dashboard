@@ -8,6 +8,59 @@ import {
 } from '../tables/usage';
 
 // ============================================================================
+// Subscription Tier Schema - Single Source of Truth
+// ============================================================================
+
+/**
+ * Subscription Tier Tuple - Const assertion for type safety
+ * Used by Drizzle ORM for database enum columns and Zod validation
+ *
+ * Supported Tiers:
+ * - free: Free tier with basic limits
+ * - starter: Entry-level paid tier ($20/mo or $200/yr)
+ * - pro: Professional tier ($59/mo or $600/yr) - MOST POPULAR
+ * - power: High-volume tier ($249/mo or $2500/yr)
+ */
+export const SUBSCRIPTION_TIERS = ['free', 'starter', 'pro', 'power'] as const;
+
+/**
+ * Subscription Tier Type - TypeScript Type
+ * Inferred from the const tuple to ensure type safety
+ */
+export type SubscriptionTier = typeof SUBSCRIPTION_TIERS[number];
+
+/**
+ * Subscription Tier Enum - Zod Schema
+ * Use this for validation in API routes, database schemas, and forms
+ */
+export const subscriptionTierSchema = z.enum(SUBSCRIPTION_TIERS);
+
+/**
+ * Subscription Tier Display Names
+ * Human-readable names for each tier
+ */
+export const SUBSCRIPTION_TIER_NAMES: Record<SubscriptionTier, string> = {
+  free: 'Free',
+  starter: 'Starter',
+  pro: 'Pro',
+  power: 'Power',
+} as const;
+
+/**
+ * Helper function to validate if a string is a valid subscription tier
+ */
+export function isValidSubscriptionTier(tier: unknown): tier is SubscriptionTier {
+  return subscriptionTierSchema.safeParse(tier).success;
+}
+
+/**
+ * Helper function to get tier display name
+ */
+export function getSubscriptionTierName(tier: SubscriptionTier): string {
+  return SUBSCRIPTION_TIER_NAMES[tier];
+}
+
+// ============================================================================
 // User Chat Usage Schemas
 // ============================================================================
 
@@ -17,8 +70,7 @@ export const userChatUsageInsertSchema = createInsertSchema(userChatUsage, {
   threadsLimit: schema => schema.min(0),
   messagesCreated: schema => schema.min(0),
   messagesLimit: schema => schema.min(0),
-  subscriptionTier: () =>
-    z.enum(['free', 'starter', 'pro', 'enterprise']),
+  subscriptionTier: () => subscriptionTierSchema,
   isAnnual: () => z.boolean(),
 });
 
@@ -35,8 +87,7 @@ export const userChatUsageHistoryInsertSchema = createInsertSchema(userChatUsage
   threadsLimit: schema => schema.min(0),
   messagesCreated: schema => schema.min(0),
   messagesLimit: schema => schema.min(0),
-  subscriptionTier: () =>
-    z.enum(['free', 'starter', 'pro', 'enterprise']),
+  subscriptionTier: () => subscriptionTierSchema,
   isAnnual: () => z.boolean(),
 });
 
@@ -49,7 +100,7 @@ export type UserChatUsageHistoryInsert = z.infer<typeof userChatUsageHistoryInse
 
 export const subscriptionTierQuotasSelectSchema = createSelectSchema(subscriptionTierQuotas);
 export const subscriptionTierQuotasInsertSchema = createInsertSchema(subscriptionTierQuotas, {
-  tier: () => z.enum(['free', 'starter', 'pro', 'enterprise']),
+  tier: () => subscriptionTierSchema,
   isAnnual: () => z.boolean(),
   threadsPerMonth: schema => schema.min(0),
   messagesPerMonth: schema => schema.min(0),
@@ -75,7 +126,7 @@ export const quotaCheckSchema = z.object({
   limit: z.number(),
   remaining: z.number(),
   resetDate: z.date(),
-  tier: z.enum(['free', 'starter', 'pro', 'enterprise']),
+  tier: subscriptionTierSchema,
 });
 
 export type QuotaCheck = z.infer<typeof quotaCheckSchema>;
@@ -102,7 +153,7 @@ export const usageStatsSchema = z.object({
     daysRemaining: z.number(),
   }),
   subscription: z.object({
-    tier: z.enum(['free', 'starter', 'pro', 'enterprise']),
+    tier: subscriptionTierSchema,
     isAnnual: z.boolean(),
   }),
 });

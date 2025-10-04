@@ -67,3 +67,19 @@ export {
   type GetSubscriptionsResponse,
   getSubscriptionsService,
 } from './subscriptions';
+
+// ============================================================================
+// Usage Service Exports
+// ============================================================================
+
+export {
+  type CheckMessageQuotaRequest,
+  type CheckMessageQuotaResponse,
+  checkMessageQuotaService,
+  type CheckThreadQuotaRequest,
+  type CheckThreadQuotaResponse,
+  checkThreadQuotaService,
+  type GetUsageStatsRequest,
+  type GetUsageStatsResponse,
+  getUserUsageStatsService,
+} from './usage';

@@ -47,6 +47,15 @@ export const queryKeys = {
     all: QueryKeyFactory.base('checkout'),
     session: (sessionId: string) => QueryKeyFactory.action('checkout', 'session', sessionId),
   },
+
+  // Usage Tracking
+  usage: {
+    all: QueryKeyFactory.base('usage'),
+    stats: () => QueryKeyFactory.action('usage', 'stats'),
+    quotas: () => [...queryKeys.usage.all, 'quotas'] as const,
+    threadQuota: () => QueryKeyFactory.action('usage', 'quota', 'threads'),
+    messageQuota: () => QueryKeyFactory.action('usage', 'quota', 'messages'),
+  },
 } as const;
 
 /**
@@ -78,5 +87,18 @@ export const invalidationPatterns = {
   afterCheckout: [
     queryKeys.subscriptions.all,
     queryKeys.products.all,
+  ],
+
+  // Usage operations - invalidate after chat operations
+  usage: [
+    queryKeys.usage.stats(),
+    queryKeys.usage.quotas(),
+  ],
+
+  // After chat operations - invalidate usage stats
+  afterChatOperation: [
+    queryKeys.usage.stats(),
+    queryKeys.usage.threadQuota(),
+    queryKeys.usage.messageQuota(),
   ],
 } as const;

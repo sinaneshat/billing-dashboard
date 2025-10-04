@@ -5,6 +5,7 @@ import { motion } from 'motion/react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useTranslations } from 'next-intl';
+import { useRef } from 'react';
 
 import {
   DropdownMenu,
@@ -31,6 +32,36 @@ type ChatListProps = {
   onToggleFavorite: (chatId: string) => void;
   searchTerm: string;
 };
+
+type StickyHeaderProps = {
+  children: React.ReactNode;
+  zIndex?: number;
+};
+
+function StickyHeader({ children, zIndex = 10 }: StickyHeaderProps) {
+  const headerRef = useRef<HTMLDivElement>(null);
+
+  return (
+    <motion.div
+      ref={headerRef}
+      initial={{ opacity: 0, y: -8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{
+        type: 'spring',
+        stiffness: 500,
+        damping: 40,
+      }}
+      style={{
+        position: 'sticky',
+        top: 0,
+        zIndex,
+      }}
+      className="bg-sidebar"
+    >
+      {children}
+    </motion.div>
+  );
+}
 
 export function ChatList({ chatGroups, favorites = [], onDeleteChat, onToggleFavorite, searchTerm = '' }: ChatListProps) {
   const { isMobile } = useSidebar();
@@ -107,20 +138,34 @@ export function ChatList({ chatGroups, favorites = [], onDeleteChat, onToggleFav
       {/* Favorites Section */}
       {favorites.length > 0 && (
         <SidebarGroup className="group-data-[collapsible=icon]:hidden">
-          <motion.div
-            initial={{ opacity: 0, y: -4 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{
-              type: 'spring',
-              stiffness: 400,
-              damping: 35,
-            }}
-          >
-            <SidebarGroupLabel className="flex items-center gap-2">
-              <Star className="size-4 fill-yellow-500 text-yellow-500" />
-              {t('favorites')}
+          <StickyHeader zIndex={10}>
+            <SidebarGroupLabel className="flex items-center gap-2 py-2.5 px-2">
+              <motion.div
+                initial={{ scale: 0.8, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                transition={{
+                  type: 'spring',
+                  stiffness: 500,
+                  damping: 40,
+                  delay: 0.05,
+                }}
+              >
+                <Star className="size-4 fill-yellow-500 text-yellow-500" />
+              </motion.div>
+              <motion.span
+                initial={{ x: -10, opacity: 0 }}
+                animate={{ x: 0, opacity: 1 }}
+                transition={{
+                  type: 'spring',
+                  stiffness: 500,
+                  damping: 40,
+                  delay: 0.1,
+                }}
+              >
+                {t('favorites')}
+              </motion.span>
             </SidebarGroupLabel>
-          </motion.div>
+          </StickyHeader>
           <SidebarMenu>
             {favorites.map((chat, index) => renderChatItem(chat, index))}
           </SidebarMenu>
@@ -128,25 +173,36 @@ export function ChatList({ chatGroups, favorites = [], onDeleteChat, onToggleFav
       )}
 
       {/* Regular Chat Groups */}
-      {chatGroups.map((group, groupIndex) => (
-        <SidebarGroup key={group.label} className="group-data-[collapsible=icon]:hidden">
-          <motion.div
-            initial={{ opacity: 0, y: -4 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{
-              type: 'spring',
-              stiffness: 400,
-              damping: 35,
-              delay: groupIndex * 0.05,
-            }}
-          >
-            <SidebarGroupLabel>{group.label}</SidebarGroupLabel>
-          </motion.div>
-          <SidebarMenu>
-            {group.chats.map((chat, index) => renderChatItem(chat, (groupIndex * 5) + index))}
-          </SidebarMenu>
-        </SidebarGroup>
-      ))}
+      {chatGroups.map((group, groupIndex) => {
+        // Each subsequent section gets a higher z-index
+        // This ensures later headers push earlier ones out when scrolling
+        const baseZIndex = favorites.length > 0 ? 11 : 10;
+        const sectionZIndex = baseZIndex + groupIndex;
+
+        return (
+          <SidebarGroup key={group.label} className="group-data-[collapsible=icon]:hidden">
+            <StickyHeader zIndex={sectionZIndex}>
+              <SidebarGroupLabel className="py-2.5 px-2">
+                <motion.span
+                  initial={{ x: -10, opacity: 0 }}
+                  animate={{ x: 0, opacity: 1 }}
+                  transition={{
+                    type: 'spring',
+                    stiffness: 500,
+                    damping: 40,
+                    delay: (groupIndex * 0.05) + 0.1,
+                  }}
+                >
+                  {group.label}
+                </motion.span>
+              </SidebarGroupLabel>
+            </StickyHeader>
+            <SidebarMenu>
+              {group.chats.map((chat, index) => renderChatItem(chat, (groupIndex * 5) + index))}
+            </SidebarMenu>
+          </SidebarGroup>
+        );
+      })}
     </>
   );
 }

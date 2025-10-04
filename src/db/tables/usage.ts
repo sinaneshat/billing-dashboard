@@ -1,6 +1,8 @@
 import { relations } from 'drizzle-orm';
 import { index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
 
+import { SUBSCRIPTION_TIERS } from '@/db/validation/usage';
+
 import { user } from './auth';
 
 /**
@@ -31,7 +33,7 @@ export const userChatUsage = sqliteTable(
 
     // Subscription tier metadata
     subscriptionTier: text('subscription_tier', {
-      enum: ['free', 'starter', 'pro', 'enterprise'],
+      enum: SUBSCRIPTION_TIERS,
     })
       .notNull()
       .default('free'),
@@ -74,7 +76,7 @@ export const userChatUsageHistory = sqliteTable(
 
     // Subscription info at time of period
     subscriptionTier: text('subscription_tier', {
-      enum: ['free', 'starter', 'pro', 'enterprise'],
+      enum: SUBSCRIPTION_TIERS,
     }).notNull(),
     isAnnual: integer('is_annual', { mode: 'boolean' }).notNull().default(false),
 
@@ -99,10 +101,9 @@ export const subscriptionTierQuotas = sqliteTable(
 
     // Tier identification
     tier: text('tier', {
-      enum: ['free', 'starter', 'pro', 'enterprise'],
+      enum: SUBSCRIPTION_TIERS,
     })
-      .notNull()
-      .unique(),
+      .notNull(),
     isAnnual: integer('is_annual', { mode: 'boolean' }).notNull().default(false),
 
     // Chat quotas
@@ -135,6 +136,7 @@ export const subscriptionTierQuotas = sqliteTable(
   table => [
     index('subscription_tier_quotas_tier_idx').on(table.tier),
     index('subscription_tier_quotas_annual_idx').on(table.isAnnual),
+    index('subscription_tier_quotas_tier_annual_unique_idx').on(table.tier, table.isAnnual),
   ],
 );
 
